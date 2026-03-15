@@ -70,15 +70,6 @@ x-airflow-common:
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
 
-    # ── W3C Warehouse connection (defaults target local Docker PostgreSQL) ──
-    # To use AWS RDS, set these in a .env file or uncomment and fill in below:
-    # W3C_USE_RDS: 'true'
-    # W3C_DB_HOST: 'w3c-warehouse.cz6ckmy2u089.eu-west-2.rds.amazonaws.com'
-    # W3C_DB_PORT: '5432'
-    # W3C_DB_NAME: 'postgres'
-    # W3C_DB_USER: 'postgres'
-    # W3C_DB_PASS: 'w3cwarehouse'
-
     # The following line can be used to set a custom config file, stored in the local config folder
     # If you want to use it, outcomment it and replace airflow.cfg with the name of your config file
     # AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
