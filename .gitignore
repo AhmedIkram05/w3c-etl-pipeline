@@ -1,0 +1,25 @@
+# Secrets — never commit
+.env
+
+# macOS junk
+.DS_Store
+
+# Python bytecode
+dags/w3c/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Airflow runtime files — these are generated, not source
+logs/
+airflow.db
+airflow.cfg
+airflow-webserver.pid
+standalone_admin_password.txt
+
+# Runtime data folders inside the DAG
+dags/w3c/LogFiles/
+dags/w3c/StarSchema/
+
+# Empty placeholder folders (keep the dirs with .gitkeep instead)
+data/
