@@ -1,0 +1,2 @@
+pipeline/data/LogFiles/*.log filter=lfs diff=lfs merge=lfs -text
+pipeline/data/Star-Schema/*.csv filter=lfs diff=lfs merge=lfs -text
