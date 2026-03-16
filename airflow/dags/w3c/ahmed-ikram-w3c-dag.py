@@ -8,33 +8,33 @@ and export the final star-schema tables as CSV files for the user if they requir
 """
 
 import datetime as dt
-import requests
+import requests # type: ignore
 import os
 from datetime import datetime
 from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator # type: ignore
 import time
-import psycopg2
+import psycopg2 # type: ignore
 from urllib.parse import unquote_plus, urlparse
-from psycopg2.extras import execute_values
+from psycopg2.extras import execute_values # type: ignore
 
 try:
-    import holidays
+    import holidays # type: ignore
 except ImportError:
     holidays = None
     
 from ipaddress import ip_address
 
-from user_agents import parse as ua_parse
+from user_agents import parse as ua_parse # type: ignore
 
 # ── Folder paths ───────────────────────────────────────────────────────────────
 # Paths inside the Airflow worker/container where DAG assets live. These are
 # used both by local development and inside the Airflow Docker container.
 WorkingDirectory = "/opt/airflow/dags/w3c"
 # Directory where incoming W3C `.log` files should be placed.
-LogFiles         = WorkingDirectory + "/LogFiles/"
+LogFiles         =  "/opt/airflow/Log-Files/"
 # Output directory for star-schema CSV exports.
-StarSchema           = WorkingDirectory + "/StarSchema/"
+StarSchema           =  "/opt/airflow/data/Star-Schema"
 
 # ── PostgreSQL connection settings ─────────────────────────────────────────────
 # These are read from environment variables so the same DAG can target local
@@ -45,7 +45,7 @@ StarSchema           = WorkingDirectory + "/StarSchema/"
 # Otherwise, the defaults target the local Docker PostgreSQL.
 DB_HOST = os.environ.get("W3C_DB_HOST", "postgres")
 DB_PORT = int(os.environ.get("W3C_DB_PORT", 5432))
-DB_NAME = os.environ.get("W3C_DB_NAME", "w3c-warehouse")
+DB_NAME = os.environ.get("W3C_DB_NAME", "w3c_warehouse")
 DB_USER = os.environ.get("W3C_DB_USER", "airflow")
 DB_PASS = os.environ.get("W3C_DB_PASS", "airflow")
 
