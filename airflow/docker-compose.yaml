@@ -72,12 +72,12 @@ x-airflow-common:
 
     # ── W3C Warehouse connection (defaults target local Docker PostgreSQL) ──
     # To use AWS RDS, set these in a .env file or uncomment and fill in below:
-    W3C_USE_RDS: ${W3C_USE_RDS}
-    W3C_DB_HOST: ${W3C_DB_HOST}
-    W3C_DB_PORT: ${W3C_DB_PORT}
-    W3C_DB_NAME: ${W3C_DB_NAME}
-    W3C_DB_USER: ${W3C_DB_USER}
-    W3C_DB_PASS: ${W3C_DB_PASS}
+    W3C_USE_RDS: ${W3C_USE_RDS:-false}
+    W3C_DB_HOST: ${W3C_DB_HOST:-postgres}
+    W3C_DB_PORT: ${W3C_DB_PORT:-5432}
+    W3C_DB_NAME: ${W3C_DB_NAME:-w3c_warehouse}
+    W3C_DB_USER: ${W3C_DB_USER:-airflow}
+    W3C_DB_PASS: ${W3C_DB_PASS:-airflow}
 
     # The following line can be used to set a custom config file, stored in the local config folder
     # If you want to use it, outcomment it and replace airflow.cfg with the name of your config file
