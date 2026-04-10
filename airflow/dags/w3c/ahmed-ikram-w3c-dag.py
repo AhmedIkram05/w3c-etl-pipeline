@@ -11,7 +11,7 @@ import datetime as dt
 import requests # type: ignore
 import os
 from datetime import datetime
-from airflow import DAG
+from airflow import DAG # type: ignore
 from airflow.operators.python import PythonOperator # type: ignore
 import time
 import psycopg2 # type: ignore
@@ -44,7 +44,7 @@ StarSchema           =  "/opt/airflow/data/Star-Schema"
 # Set W3C_USE_RDS=true and provide the W3C_DB_* variables in your .env file to use AWS RDS. 
 # Otherwise, the defaults target the local Docker PostgreSQL.
 DB_HOST = os.environ.get("W3C_DB_HOST", "postgres")
-DB_PORT = int(os.environ.get("W3C_DB_PORT", 5432))
+DB_PORT = int(os.environ.get("W3C_DB_PORT") or 5432)
 DB_NAME = os.environ.get("W3C_DB_NAME", "w3c_warehouse")
 DB_USER = os.environ.get("W3C_DB_USER", "airflow")
 DB_PASS = os.environ.get("W3C_DB_PASS", "airflow")
