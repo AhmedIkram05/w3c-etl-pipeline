@@ -30,11 +30,11 @@ from user_agents import parse as ua_parse # type: ignore
 # ── Folder paths ───────────────────────────────────────────────────────────────
 # Paths inside the Airflow worker/container where DAG assets live. These are
 # used both by local development and inside the Airflow Docker container.
-WorkingDirectory = "/opt/airflow/dags/w3c"
+WorkingDirectory =  "/opt/airflow/dags/w3c"
 # Directory where incoming W3C `.log` files should be placed.
-LogFiles         =  "/opt/airflow/Log-Files/"
+LogFiles         =  "/opt/airflow/data/LogFiles/"
 # Output directory for star-schema CSV exports.
-StarSchema           =  "/opt/airflow/data/Star-Schema"
+StarSchema       =  "/opt/airflow/data/Star-Schema/"
 
 # ── PostgreSQL connection settings ─────────────────────────────────────────────
 # These are read from environment variables so the same DAG can target local
@@ -62,7 +62,7 @@ def get_conn():
     )
 
 # ── Create directory structure ─────────────────────────────────────────────────
-    
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HELPER FUNCTIONS
@@ -201,6 +201,40 @@ def _safe_date(val):
     except Exception:
         return None
 
+def _ensure_db_exists():
+    """Create the target database if it doesn't already exist natively.
+    Skipped for AWS RDS, but ensures the local Docker Postgres setup works immediately.
+    """
+    # Skip creation for AWS RDS as it is provisioned through the AWS console
+    if os.environ.get("W3C_USE_RDS", "false").lower() == "true":
+        print("Using AWS RDS: Skipping database creation as it is managed via AWS Console.")
+        return
+
+    print(f"Checking if local database '{DB_NAME}' exists...")
+    try:
+        # Connect to the default 'airflow' database to be able to run CREATE DATABASE
+        setup_conn = psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            dbname="airflow",  # Connect to the default DB
+            user=DB_USER,
+            password=DB_PASS
+        )
+        setup_conn.autocommit = True
+        setup_cur = setup_conn.cursor()
+        
+        setup_cur.execute(f"SELECT 1 FROM pg_database WHERE datname = '{DB_NAME}'")
+        if not setup_cur.fetchone():
+            print(f"Database '{DB_NAME}' not found. Creating it now...")
+            setup_cur.execute(f"CREATE DATABASE {DB_NAME} OWNER {DB_USER}")
+            print("Database created successfully.")
+        else:
+            print("Database already exists.")
+            
+        setup_cur.close()
+        setup_conn.close()
+    except Exception as e:
+        print(f"Warning: Could not check/create local database automatically: {e}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TASK 1: Create all AWS RDS PostgreSQL tables
@@ -219,6 +253,9 @@ def CreateDatabaseTables():
             os.makedirs(folder, exist_ok=True)
         except Exception:
             pass
+
+    # Ensure the local Database is actually created before we get the connection 
+    _ensure_db_exists()
 
     conn = get_conn()
     cur  = conn.cursor()
