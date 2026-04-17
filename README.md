@@ -6,20 +6,9 @@ An automated ELT pipeline that ingests IIS W3C web server log files, transforms 
 
 ## Live Dashboard
 
-> **Note:** The embedded dashboard requires access to the Power BI tenant. If the embed below doesn't render, use the direct link.
+**Direct link (Power BI Reports):** [Open in Power BI](https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019&actionBarEnabled=true)
 
-**Direct link:** [Open in Power BI](https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019&actionBarEnabled=true)
-
-```html
-<iframe
-  title="W3C ETL Dashboard"
-  width="1140"
-  height="541.25"
-  src="https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019&actionBarEnabled=true"
-  frameborder="0"
-  allowFullScreen="true">
-</iframe>
-```
+**Video Walkthrough (Entire Pipeline):** [Open in sharepoint](https://dmail-my.sharepoint.com/:v:/g/personal/2571642_dundee_ac_uk/IQDarKYb4S4bTp1CU2mwRNHqAd4DaKYajEdvCQ7YxxTk3no?e=A77Xws)
 
 ---
 
