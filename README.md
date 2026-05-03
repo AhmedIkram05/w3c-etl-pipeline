@@ -12,8 +12,6 @@
 
 ---
 
-## Live Dashboard
-
 **[→ Open Power BI Dashboard](https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019&actionBarEnabled=true)**
 
 **[→ Full Pipeline Video Walkthrough](https://dmail-my.sharepoint.com/:v:/g/personal/2571642_dundee_ac_uk/IQDarKYb4S4bTp1CU2mwRNHqAd4DaKYajEdvCQ7YxxTk3no?e=A77Xws)**
@@ -51,69 +49,65 @@
 ## Architecture
 
 ```mermaid
-flowchart TD
-    source["IIS W3C .log files<br/>(placed in LogFiles/)"]
+flowchart LR
+    source["IIS W3C log files<br/>Stored in LogFiles/"]
 
     subgraph airflow["Apache Airflow"]
-        dag["DAG: Process_W3C_Data<br/>Schedule: Every Friday 5:00 PM"]
-
-        phase1["Phase 1: CreateDatabaseTables<br/>Idempotent CREATE TABLE IF NOT EXISTS<br/>Seeds -1 surrogate key rows in every dimension"]
-
-        phase2["Phase 2: LoadRawLogsToDatabase<br/>Incremental load, skips already-loaded filenames<br/>Dual-format detection: 14-col or 18-col per file<br/>Batch bulk-insert: 5,000 rows at a time"]
-
-        subgraph phase3["Phase 3: Parallel Dimension Tasks"]
-            d1["makeDateDimension → dim_date"]
-            d2["makeTimeDimension → dim_time<br/>(all 1,440 minutes)"]
-            d3["makePageDimension → dim_page"]
-            d4["makeLocationDimension → dim_geolocation"]
-            d5["makeUserAgentDimension → dim_useragent"]
-            d6["makeStatusDimension → dim_status"]
-            d7["makeReferrerDimension → dim_referrer"]
-            d8["makeMethodDimension → dim_method"]
-            d9["DetectCrawlerIPs → crawler_ips"]
-        end
-
-        phase4["Phase 4: BuildFactTable<br/>Single INSERT INTO ... SELECT<br/>LEFT JOINs + COALESCE(..., -1)"]
-
-        exportcsv["ExportCSV<br/>PostgreSQL COPY → CSV for all 10 tables"]
+        dag["Weekly pipeline<br/>Friday, 5:00 PM"]
+        step1["1. Create tables"]
+        step2["2. Load raw logs"]
+        step3["3. Build dimensions"]
+        step4["4. Build fact table"]
+        step5["5. Export CSVs"]
     end
 
-    subgraph rds["Star Schema · AWS RDS"]
-        fact["fact_webrequest<br/>(central fact table)"]
-        dd["dim_date"]
-        dt["dim_time"]
-        dp["dim_page"]
-        dg["dim_geolocation"]
-        du["dim_useragent"]
-        ds["dim_status"]
-        dr["dim_referrer"]
-        dm["dim_method"]
-        dv["dim_visitortype"]
+    subgraph warehouse["AWS RDS PostgreSQL"]
+        raw["raw_logs"]
+        dims["Dimension tables<br/>date, time, page, location,<br/>user agent, status, referrer, method, visitor type"]
+        fact["fact_webrequest"]
     end
 
-    powerbi["Power BI<br/>7-page dashboard<br/>Refresh: Power Automate 5:30 PM<br/>Alerting: success/failure email"]
+    powerbi["Power BI dashboard<br/>7 pages · Friday refresh"]
 
-    source --> dag --> phase1 --> phase2 --> phase3 --> phase4 --> exportcsv --> fact --> powerbi
+    source --> dag --> step1 --> step2 --> raw
+    raw --> step3 --> dims
+    raw --> step4 --> fact
+    dims --> step4
+    fact --> step5 --> powerbi
+```
 
-    d1 --> phase4
-    d2 --> phase4
-    d3 --> phase4
-    d4 --> phase4
-    d5 --> phase4
-    d6 --> phase4
-    d7 --> phase4
-    d8 --> phase4
-    d9 --> phase4
+### Design notes
 
-    fact --- dd
-    fact --- dt
-    fact --- dp
-    fact --- dg
-    fact --- du
-    fact --- ds
-    fact --- dr
-    fact --- dm
-    fact --- dv
+- **ELT over ETL:** raw log files are loaded first, then transformed inside PostgreSQL so the source history stays intact.
+- **Parallel dimension build:** dimensions are built independently from `raw_logs`, then joined into the fact table.
+- **Idempotent runs:** table creation, raw-load deduplication, and dimension inserts are safe to re-run.
+- **BI delivery:** the curated tables feed a Power BI dashboard refreshed automatically every Friday.
+
+## Star schema
+
+```mermaid
+flowchart TB
+    fact["fact_webrequest<br/>1 row per HTTP request"]
+
+    dim_date["dim_date"]
+    dim_time["dim_time"]
+    dim_page["dim_page"]
+    dim_geo["dim_geolocation"]
+    dim_ua["dim_useragent"]
+    dim_status["dim_status"]
+    dim_ref["dim_referrer"]
+    dim_method["dim_method"]
+    dim_visitor["dim_visitortype"]
+
+    dim_date --> fact
+    dim_time --> fact
+    dim_page --> fact
+    dim_geo --> fact
+    dim_ua --> fact
+    dim_status --> fact
+    dim_ref --> fact
+    dim_method --> fact
+    dim_visitor --> fact
 ```
 
 ---
