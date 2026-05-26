@@ -23,3 +23,5 @@ dags/w3c/StarSchema/
 
 # Empty placeholder folders (keep the dirs with .gitkeep instead)
 data/
+copilot-instructions.md
+.agents
