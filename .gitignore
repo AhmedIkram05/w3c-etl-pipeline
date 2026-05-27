@@ -25,3 +25,10 @@ dags/w3c/StarSchema/
 data/
 copilot-instructions.md
 .agents
+
+# Prometheus — runtime data (config is version-controlled separately)
+prometheus/data/
+
+# Grafana — runtime data (provisioning config is version-controlled)
+grafana/data/
+AGENTS.md
