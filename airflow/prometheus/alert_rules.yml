@@ -1,0 +1,63 @@
+groups:
+  - name: airflow
+    interval: 30s
+    rules:
+      - alert: AirflowDAGFailureRate
+        expr: rate(airflow_dag_run_duration_seconds_count{status="failed"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Airflow DAG failures detected"
+          description: "DAG runs are failing at a rate of {{ $value }} per second over the last 5 minutes."
+
+      - alert: AirflowTaskFailureRate
+        expr: rate(airflow_ti_finish{state="failed"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Airflow task failures detected"
+          description: "Task instances are failing at a rate of {{ $value }} per second over the last 5 minutes."
+
+  - name: containers
+    interval: 30s
+    rules:
+      - alert: ContainerRestarts
+        expr: changes(container_start_time_seconds{container_label_com_docker_compose_service!=""}[15m]) > 2
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container restart detected"
+          description: "Container {{ $labels.container_label_com_docker_compose_service }} has restarted {{ $value }} times in the last 15 minutes."
+
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service!=""}[2m]) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.container_label_com_docker_compose_service }}"
+          description: "CPU usage is at {{ $value | humanizePercentage }}."
+
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes{container_label_com_docker_compose_service!=""} / container_spec_memory_limit_bytes{container_label_com_docker_compose_service!=""} * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.container_label_com_docker_compose_service }}"
+          description: "Memory usage is at {{ $value | humanizePercentage }}."
+
+  - name: prometheus
+    interval: 30s
+    rules:
+      - alert: PrometheusTargetMissing
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus target {{ $labels.job }} is down"
+          description: "Target {{ $labels.instance }} has been unreachable for over 1 minute."
