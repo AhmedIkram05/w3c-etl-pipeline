@@ -1,0 +1,51 @@
+mappings:
+  # DAG run duration — airflow.dagrun.duration.<status>.<dag_id>
+  # Emitted as timing on DAG completion: Stats.timing(f"dagrun.duration.{self.state}.{self.dag_id}")
+  # Prometheus: _count gives DAG run count by status, _sum gives total duration
+  - match: 'airflow\.dagrun\.duration\.(success|failed)\.(.+)$'
+    match_type: regex
+    name: "airflow_dag_run_duration_seconds"
+    labels:
+      dag_id: "$2"
+      status: "$1"
+    timer_type: histogram
+
+  # DAG run schedule delay — airflow.dagrun.schedule_delay.<dag_id>
+  - match: 'airflow\.dagrun\.schedule_delay\.(.+)$'
+    match_type: regex
+    name: "airflow_dag_schedule_delay_seconds"
+    labels:
+      dag_id: "$1"
+    timer_type: histogram
+
+  # Task instance finish — airflow.ti.finish.<dag_id>.<task_id>.<state>
+  # The _count=0 init events create zero-valued counters; actual status comes on state change
+  - match: 'airflow\.ti\.finish\.(.+)\.([^.]+)\.(success|failed|skipped)$'
+    match_type: regex
+    name: "airflow_ti_finish"
+    labels:
+      dag_id: "$1"
+      task_id: "$2"
+      state: "$3"
+
+  # Task instance start — airflow.ti.start.<dag_id>.<task_id>
+  - match: 'airflow\.ti\.start\.(.+)\.([^.]+)$'
+    match_type: regex
+    name: "airflow_ti_start"
+    labels:
+      dag_id: "$1"
+      task_id: "$2"
+
+  # Scheduler loop duration
+  - match: 'airflow\.scheduler\.scheduler_loop_duration$'
+    match_type: regex
+    name: "airflow_scheduler_loop_duration_seconds"
+    timer_type: histogram
+
+  # Pool gauges
+  - match: 'airflow\.pool\.(open_slots|queued_slots|running_slots|deferred_slots|scheduled_slots|starving_tasks)\.(.+)$'
+    match_type: regex
+    name: "airflow_pool"
+    labels:
+      metric: "$1"
+      pool_name: "$2"
