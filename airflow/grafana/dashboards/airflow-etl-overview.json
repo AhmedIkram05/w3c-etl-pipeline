@@ -1,0 +1,239 @@
+{
+  "title": "Airflow ETL Overview",
+  "uid": "airflow-etl-overview",
+  "tags": ["airflow", "etl", "w3c"],
+  "schemaVersion": 39,
+  "version": 2,
+  "timezone": "browser",
+  "editable": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Completed DAG Runs",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(airflow_dag_run_duration_seconds_count{status=\"success\"})",
+          "legendFormat": "Success",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(airflow_dag_run_duration_seconds_count{status=\"failed\"})",
+          "legendFormat": "Failed",
+          "refId": "B"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "sparkline",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Task Instance Status",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(airflow_ti_finish{state=\"success\"})",
+          "legendFormat": "Success",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(airflow_ti_finish{state=\"failed\"})",
+          "legendFormat": "Failed",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(airflow_ti_finish{state=\"skipped\"})",
+          "legendFormat": "Skipped",
+          "refId": "C"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "sparkline",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "DAG Run Completion Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(airflow_dag_run_duration_seconds_count{status=\"success\"}[5m]))",
+          "legendFormat": "Success",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(airflow_dag_run_duration_seconds_count{status=\"failed\"}[5m]))",
+          "legendFormat": "Failed",
+          "refId": "B"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Avg DAG Duration (Top 10)",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "topk(10, sum(airflow_dag_run_duration_seconds_sum) by (dag_id) / sum(airflow_dag_run_duration_seconds_count) by (dag_id))",
+          "legendFormat": "{{dag_id}}",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Container CPU Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service=~\"airflow-.*\"}[1m]) * 100",
+          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Container Memory Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "container_memory_usage_bytes{container_label_com_docker_compose_service=~\"airflow-.*\"}",
+          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "DAG Runs per Day",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum(increase(airflow_dag_run_duration_seconds_count[24h])) by (status)",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ]
+}

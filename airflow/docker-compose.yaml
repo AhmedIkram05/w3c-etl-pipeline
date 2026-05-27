@@ -83,6 +83,11 @@ x-airflow-common:
     # The following line can be used to set a custom config file, stored in the local config folder
     # If you want to use it, outcomment it and replace airflow.cfg with the name of your config file
     # AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    # ── StatsD Metrics Export (consumed by statsd-exporter → Prometheus) ──
+    AIRFLOW__METRICS__STATSD_ON: "True"
+    AIRFLOW__METRICS__STATSD_HOST: "statsd-exporter"
+    AIRFLOW__METRICS__STATSD_PORT: "9125"
+    AIRFLOW__METRICS__STATSD_PREFIX: "airflow"
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
@@ -114,6 +119,8 @@ services:
       retries: 5
       start_period: 5s
     restart: always
+    networks:
+      - airflow-network
 
   redis:
     # Redis is limited to 7.2-bookworm due to licencing change
@@ -128,6 +135,8 @@ services:
       retries: 50
       start_period: 30s
     restart: always
+    networks:
+      - airflow-network
 
   airflow-webserver:
     <<: *airflow-common
@@ -145,6 +154,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - airflow-network
 
   airflow-scheduler:
     <<: *airflow-common
@@ -160,6 +171,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - airflow-network
 
   airflow-worker:
     <<: *airflow-common
@@ -183,6 +196,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - airflow-network
 
   airflow-triggerer:
     <<: *airflow-common
@@ -198,6 +213,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - airflow-network
 
   airflow-init:
     <<: *airflow-common
@@ -262,6 +279,8 @@ services:
     user: "0:0"
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}:/sources
+    networks:
+      - airflow-network
 
   airflow-cli:
     <<: *airflow-common
@@ -275,6 +294,8 @@ services:
       - bash
       - -c
       - airflow
+    networks:
+      - airflow-network
 
   # You can enable flower by adding "--profile flower" option e.g. docker-compose --profile flower up
   # or by explicitly targeted on the command line e.g. docker-compose up flower.
@@ -297,6 +318,126 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - airflow-network
+
+  # ╔══════════════════════════════════════════════════════════════╗
+  # ║  MONITORING STACK — statsd-exporter, cAdvisor, Prometheus,  ║
+  # ║  Grafana                                                    ║
+  # ╚══════════════════════════════════════════════════════════════╝
+
+  # ── statsd-exporter ────────────────────────────────────────────
+  statsd-exporter:
+    image: prom/statsd-exporter:v0.29.0
+    container_name: statsd-exporter
+    ports:
+      - "9102:9102"
+      - "9125:9125/udp"
+    volumes:
+      - ./prometheus/statsd_mapping.yml:/etc/statsd/mapping.yml:ro
+    command:
+      - '--statsd.mapping-config=/etc/statsd/mapping.yml'
+    networks:
+      - airflow-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9102/metrics"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── cAdvisor ────────────────────────────────────────────────────
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.57.0
+    container_name: cadvisor
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - airflow-network
+    privileged: true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── Prometheus ──────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v3.11.3
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=90d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    depends_on:
+      statsd-exporter:
+        condition: service_started
+      cadvisor:
+        condition: service_started
+    networks:
+      - airflow-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── Grafana ─────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_PROVISIONING_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ENABLED=${GRAFANA_ANONYMOUS:-false}
+      - GF_SERVER_HTTP_PORT=3000
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_UNIFIED_ALERTING_ENABLED=true
+    depends_on:
+      prometheus:
+        condition: service_started
+    networks:
+      - airflow-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
 
 volumes:
   postgres-db-volume:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  airflow-network:
+    driver: bridge
