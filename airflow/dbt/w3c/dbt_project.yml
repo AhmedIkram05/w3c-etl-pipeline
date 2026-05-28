@@ -1,0 +1,46 @@
+name: 'w3c'
+version: '1.0.0'
+config-version: 2
+
+profile: 'w3c'
+
+model-paths: ["models"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+
+packages-install-path: "dbt_packages"
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  w3c:
+    +materialized: table
+
+vars:
+  uk_holidays:
+    - '2009-01-01'
+    - '2009-04-13'
+    - '2009-05-04'
+    - '2009-05-25'
+    - '2009-08-31'
+    - '2009-12-25'
+    - '2009-12-28'
+    - '2010-01-01'
+    - '2010-04-02'
+    - '2010-04-05'
+    - '2010-05-03'
+    - '2010-05-31'
+    - '2010-08-30'
+    - '2010-12-27'
+    - '2010-12-28'
+    - '2011-01-03'
+    - '2011-04-22'
+    - '2011-04-25'
+    - '2011-05-02'
+    - '2011-05-30'
+    - '2011-08-29'
+    - '2011-12-26'
+    - '2011-12-27'
