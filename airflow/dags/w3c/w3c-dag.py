@@ -13,6 +13,7 @@ import os
 from datetime import datetime
 from airflow import DAG # type: ignore
 from airflow.operators.python import PythonOperator # type: ignore
+from airflow.operators.bash import BashOperator # type: ignore
 import time
 import psycopg2 # type: ignore
 from urllib.parse import unquote_plus, urlparse
@@ -292,6 +293,9 @@ def CreateDatabaseTables():
     """)
 
     cur.execute("""
+        -- DDL is superseded by dbt model (fact_webrequest.sql)
+        -- Kept here for syntactic validity during CREATE IF NOT EXISTS.
+        -- dbt's materialized='table' config drops and recreates this table.
         CREATE TABLE IF NOT EXISTS fact_webrequest (
             id             SERIAL PRIMARY KEY,
             raw_log_id     INTEGER UNIQUE,
@@ -326,14 +330,16 @@ def CreateDatabaseTables():
     """)
 
     cur.execute("""
+        -- DDL superseded by dbt model (dim_date.sql)
         CREATE TABLE IF NOT EXISTS dim_date (
             date_sk      INTEGER PRIMARY KEY,
             date         DATE UNIQUE,
             year         INTEGER,
             month        INTEGER,
             month_name   VARCHAR(20),
-            day          INTEGER,
+            day_number   INTEGER,
             day_name     VARCHAR(20),
+            day_of_week  INTEGER,
             quarter      INTEGER,
             week_of_year INTEGER,
             is_weekend   VARCHAR(3),
@@ -353,6 +359,7 @@ def CreateDatabaseTables():
     """)
 
     cur.execute("""
+        -- DDL superseded by dbt model (dim_page.sql)
         CREATE TABLE IF NOT EXISTS dim_page (
             page_sk        SERIAL PRIMARY KEY,
             page_path      TEXT,
@@ -378,19 +385,21 @@ def CreateDatabaseTables():
     """)
 
     cur.execute("""
+        -- DDL superseded by dbt model (dim_status.sql)
         CREATE TABLE IF NOT EXISTS dim_status (
             status_sk   SERIAL PRIMARY KEY,
             status_code INTEGER,
             sub_status  INTEGER,
             win32_status INTEGER,
-            description VARCHAR(100),
-            category    VARCHAR(10),
+            status_label VARCHAR(100),
+            status_category VARCHAR(10),
             severity    VARCHAR(20),
             UNIQUE (status_code, sub_status, win32_status)
         );
     """)
 
     cur.execute("""
+        -- DDL superseded by dbt model (dim_referrer.sql)
         CREATE TABLE IF NOT EXISTS dim_referrer (
             referrer_sk     SERIAL PRIMARY KEY,
             referrer_url    TEXT UNIQUE,
@@ -408,17 +417,19 @@ def CreateDatabaseTables():
     """)
 
     cur.execute("""
+        -- DDL superseded by dbt model (dim_method.sql)
         CREATE TABLE IF NOT EXISTS dim_method (
             method_sk   SERIAL PRIMARY KEY,
-            method_name VARCHAR(10) UNIQUE,
-            description VARCHAR(100)
+            http_method VARCHAR(10) UNIQUE,
+            description VARCHAR(100),
+            is_safe     VARCHAR(20)
         );
     """)
 
     # --- Standard Default "-1" Rows with Unknown Values used for NULL joins ---
     cur.execute("""
-        INSERT INTO dim_date (date_sk, date, year, month, month_name, day, day_name, quarter, week_of_year, is_weekend, holiday_flag)
-        VALUES (-1, '1900-01-01', 1900, 1, 'Unknown', 1, 'Unknown', 1, 1, 'No', 'No') ON CONFLICT DO NOTHING;
+        INSERT INTO dim_date (date_sk, date, year, month, month_name, day_number, day_name, day_of_week, quarter, week_of_year, is_weekend, holiday_flag)
+        VALUES (-1, '1900-01-01', 1900, 1, 'Unknown', 1, 'Unknown', -1, 1, 1, 'No', 'No') ON CONFLICT DO NOTHING;
     """)
     cur.execute("""
         INSERT INTO dim_time (time_sk, hour, minute, am_pm, time_band, shift_id)
@@ -437,7 +448,7 @@ def CreateDatabaseTables():
         VALUES (-1, 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown') ON CONFLICT DO NOTHING;
     """)
     cur.execute("""
-        INSERT INTO dim_status (status_sk, status_code, sub_status, win32_status, description, category, severity)
+        INSERT INTO dim_status (status_sk, status_code, sub_status, win32_status, status_label, status_category, severity)
         VALUES (-1, -1, -1, -1, 'Unknown', 'Unknown', 'Unknown') ON CONFLICT DO NOTHING;
     """)
     cur.execute("""
@@ -445,8 +456,8 @@ def CreateDatabaseTables():
         VALUES (-1, 'Unknown', 'Unknown', 'Unknown') ON CONFLICT DO NOTHING;
     """)
     cur.execute("""
-        INSERT INTO dim_method (method_sk, method_name, description)
-        VALUES (-1, 'Unknown', 'Unknown') ON CONFLICT DO NOTHING;
+        INSERT INTO dim_method (method_sk, http_method, description, is_safe)
+        VALUES (-1, 'Unknown', 'Unknown', 'Unknown') ON CONFLICT DO NOTHING;
     """)
     cur.execute("""
         INSERT INTO dim_visitortype (visitor_sk, crawler_flag, visitor_type)
@@ -726,98 +737,7 @@ def makeLocationDimension():
             if conn:
                 conn.close()
 
-def makeDateDimension():
-    """Build `dim_date` from distinct `log_date` values in `raw_logs`.
 
-    Uses the `holidays` package to mark UK holidays. The
-    deterministic surrogate key is `YYYYMMDD` as an integer.
-    """
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute("SELECT DISTINCT log_date FROM raw_logs WHERE log_date IS NOT NULL")
-    rows = cur.fetchall()
-    
-    if holidays:
-        # Build holiday years from actual data so all years in the dataset are covered.
-        years = sorted({d_val.year for (d_val,) in rows})
-        uk_holidays = holidays.UK(years=years)
-    else:
-        uk_holidays = {}
-        
-    insert_data = []
-    for (d_val,) in rows:
-        date_sk   = int(d_val.strftime("%Y%m%d"))
-        weekday   = d_val.strftime("%A")
-        quarter   = (d_val.month - 1) // 3 + 1
-        weekNum   = d_val.isocalendar()[1]
-        isWeekend = "Yes" if d_val.weekday() >= 5 else "No"
-        isHoliday = "Yes" if d_val in uk_holidays else "No"
-        
-        insert_data.append((
-            date_sk, d_val, d_val.year, d_val.month, d_val.strftime('%B'),
-            d_val.day, weekday, quarter, weekNum, isWeekend, isHoliday
-        ))
-        
-    execute_values(cur, """
-        INSERT INTO dim_date (date_sk, date, year, month, month_name, day, day_name, quarter, week_of_year, is_weekend, holiday_flag)
-        VALUES %s ON CONFLICT (date_sk) DO NOTHING
-    """, insert_data)
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def makeTimeDimension():
-    """Populate `dim_time` with deterministic keys for every minute of day.
-
-    `time_sk` uses HHMM integer format (e.g. 1430). Time bands and shift ids
-    are coarse buckets useful for aggregation in reports.
-    """
-    conn = get_conn()
-    cur  = conn.cursor()
-    
-    insert_data = []
-    for h in range(24):
-        for m in range(60):
-            time_sk = h * 100 + m
-            ampm = "AM" if h < 12 else "PM"
-            if h < 6:        timeBand, shiftID = "Early Morning", 1
-            elif h < 12:     timeBand, shiftID = "Morning", 2
-            elif h < 18:     timeBand, shiftID = "Afternoon", 3
-            else:            timeBand, shiftID = "Evening", 4
-            insert_data.append((time_sk, h, m, ampm, timeBand, shiftID))
-            
-    execute_values(cur, """
-        INSERT INTO dim_time (time_sk, hour, minute, am_pm, time_band, shift_id)
-        VALUES %s ON CONFLICT (time_sk) DO NOTHING
-    """, insert_data)
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def makeMethodDimension():
-    """Build `dim_method` from distinct HTTP methods observed in raw logs.
-
-    Results are inserted with `ON CONFLICT DO NOTHING` to remain
-    incremental-safe.
-    """
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute("SELECT DISTINCT method FROM raw_logs WHERE method IS NOT NULL")
-    rows = cur.fetchall()
-    insert_data = []
-    for (m,) in rows:
-        m = m.strip()
-        if not m: continue
-        description = MethodDescriptions.get(m.upper(), "Other HTTP Method")
-        insert_data.append((m.upper(), description))
-        
-    execute_values(cur, """
-        INSERT INTO dim_method (method_name, description)
-        VALUES %s ON CONFLICT (method_name) DO NOTHING
-    """, insert_data)
-    conn.commit()
-    cur.close()
-    conn.close()
 
 MethodDescriptions = {
     "GET": "Retrieve a resource", "POST": "Submit data to the server",
@@ -826,32 +746,7 @@ MethodDescriptions = {
     "PATCH": "Partial resource update",
 }
 
-def makePageDimension():
-    """Create `dim_page` containing unique page paths and categories.
 
-    Stores a normalised page path, query string and derived metadata such as
-    directory and file extension to aid slicers in Power BI.
-    """
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute("SELECT DISTINCT COALESCE(uri_stem, 'Unknown'), COALESCE(uri_query, '-') FROM raw_logs")
-    rows = cur.fetchall()
-    insert_data = []
-    for uri_stem, uri_query in rows:
-        extension = GetFileExtension(uri_stem)
-        category  = GetPageCategory(extension)
-        parts     = uri_stem.rsplit("/", 1)
-        directory = parts[0] if parts[0] else "/"
-        fileName  = parts[-1] if len(parts) > 1 else uri_stem
-        insert_data.append((uri_stem[:1000], uri_query[:1000], directory[:500], fileName[:200], extension, category))
-        
-    execute_values(cur, """
-        INSERT INTO dim_page (page_path, query_string, directory, file_name, file_extension, page_category)
-        VALUES %s ON CONFLICT (page_path, query_string) DO NOTHING
-    """, insert_data)
-    conn.commit()
-    cur.close()
-    conn.close()
 
 def makeUserAgentDimension():
     """Populate `dim_useragent` by parsing raw user-agent strings.
@@ -877,134 +772,14 @@ def makeUserAgentDimension():
     cur.close()
     conn.close()
 
-def makeStatusDimension():
-    """Create `dim_status` from unique status triples found in `raw_logs`.
 
-    Maps to human-friendly categories and descriptions for common HTTP
-    response codes.
-    """
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute("SELECT DISTINCT COALESCE(status, 0), COALESCE(sub_status, 0), COALESCE(win32_status, 0) FROM raw_logs")
-    rows = cur.fetchall()
-    insert_data = []
-    
-    StatusDescriptions = {
-        "200": "OK", "301": "Moved Permanently", "302": "Found (Redirect)",
-        "304": "Not Modified", "400": "Bad Request", "401": "Unauthorized",
-        "403": "Forbidden", "404": "Not Found", "405": "Method Not Allowed",
-        "500": "Internal Server Error", "503": "Service Unavailable",
-    }
-    
-    for st, sub_st, win32_st in rows:
-        category, severity = GetStatusInfo(str(st))
-        description = StatusDescriptions.get(str(st), f"HTTP {st}")
-        insert_data.append((st, sub_st, win32_st, description, category, severity))
-        
-    execute_values(cur, """
-        INSERT INTO dim_status (status_code, sub_status, win32_status, description, category, severity)
-        VALUES %s ON CONFLICT (status_code, sub_status, win32_status) DO NOTHING
-    """, insert_data)
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def makeReferrerDimension():
-    """Populate `dim_referrer` with parsed referrer domains and traffic types.
-
-    Unknown or empty referrers are normalised to '-' which is treated as
-    'Direct' traffic by `ParseReferrer`.
-    """
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute("SELECT DISTINCT COALESCE(NULLIF(referrer, ''), '-') FROM raw_logs")
-    rows = cur.fetchall()
-    insert_data = []
-    for (referrerUrl,) in rows:
-        domain, refType = ParseReferrer(referrerUrl)
-        insert_data.append((referrerUrl[:1000], domain[:200], refType))
-        
-    execute_values(cur, """
-        INSERT INTO dim_referrer (referrer_url, referrer_domain, traffic_source)
-        VALUES %s ON CONFLICT (referrer_url) DO NOTHING
-    """, insert_data)
-    conn.commit()
-    cur.close()
-    conn.close()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ETL: Build Fact Table via SQL JOINs
 # ══════════════════════════════════════════════════════════════════════════════
 
-def BuildFactTable():
-    """Build the `fact_webrequest` table by joining dimensions to raw_logs.
 
-    The function first checks whether there are unprocessed rows in
-    `raw_logs` and skips the heavy join if none exist. Inserts use
-    `NOT EXISTS` checks to ensure incremental, idempotent behavior.
-    """
-    conn = get_conn()
-    cur  = conn.cursor()
-
-    # Check if there are any unprocessed raw_logs rows before running the heavy query
-    cur.execute("""
-        SELECT COUNT(*) FROM raw_logs l
-        WHERE NOT EXISTS (SELECT 1 FROM fact_webrequest f WHERE f.raw_log_id = l.id);
-    """)
-    new_rows = cur.fetchone()[0]
-    if new_rows == 0:
-        print("No new raw_logs to process — fact table is already up to date.")
-        cur.close()
-        conn.close()
-        return
-    
-    print(f"Executing incremental Fact Table ETL join for {new_rows} new rows...")
-    insert_query = """
-        INSERT INTO fact_webrequest (
-            raw_log_id,
-            date_sk, time_sk, method_sk, page_sk, geolocation_sk,
-            user_agent_sk, referrer_sk, status_sk, visitor_sk,
-            response_time_ms, bytes_sent, bytes_received, request_count
-        )
-        SELECT 
-            l.id,
-            COALESCE(d.date_sk, -1),
-            COALESCE(t.time_sk, -1),
-            COALESCE(m.method_sk, -1),
-            COALESCE(p.page_sk, -1),
-            COALESCE(g.geolocation_sk, -1),
-            COALESCE(u.user_agent_sk, -1),
-            COALESCE(r.referrer_sk, -1),
-            COALESCE(s.status_sk, -1),
-            CASE WHEN c.ip IS NOT NULL THEN 1 ELSE 2 END AS visitor_sk,
-            l.time_taken,
-            l.bytes_sent,
-            l.bytes_recv,
-            1 AS request_count
-        FROM raw_logs l
-        LEFT JOIN dim_date d ON l.log_date = d.date
-        LEFT JOIN dim_time t ON EXTRACT(HOUR FROM l.log_time) = t.hour AND EXTRACT(MINUTE FROM l.log_time) = t.minute
-        LEFT JOIN dim_method m ON UPPER(l.method) = UPPER(m.method_name)
-        LEFT JOIN dim_page p ON COALESCE(l.uri_stem, 'Unknown') = p.page_path AND COALESCE(l.uri_query, '-') = p.query_string
-        LEFT JOIN dim_geolocation g ON l.client_ip = g.ip
-        LEFT JOIN dim_useragent u ON l.user_agent = u.user_agent
-        LEFT JOIN dim_referrer r ON COALESCE(NULLIF(l.referrer, ''), '-') = r.referrer_url
-        LEFT JOIN dim_status s ON COALESCE(l.status, 0) = s.status_code 
-                              AND COALESCE(l.sub_status, 0) = s.sub_status 
-                              AND COALESCE(l.win32_status, 0) = s.win32_status
-        LEFT JOIN crawler_ips c ON l.client_ip = c.ip
-        WHERE NOT EXISTS (SELECT 1 FROM fact_webrequest f WHERE f.raw_log_id = l.id);
-    """
-    cur.execute(insert_query)
-    conn.commit()
-    
-    cur.execute("SELECT COUNT(*) FROM fact_webrequest")
-    count = cur.fetchone()[0]
-    print(f"Fact table ETL generation complete. Total rows in fact table: {count}.")
-    
-    cur.close()
-    conn.close()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1033,6 +808,7 @@ def ExportCSV():
         "dim_referrer",
         "dim_method",
         "dim_visitortype",
+        "dim_visit_buckets",
     ]
 
     conn = get_conn()
@@ -1077,19 +853,35 @@ task_DetectCrawlerIPs = PythonOperator(
     dag=dag,
 )
 
-# Dimensions
+# Airflow-managed dimensions (enrichment requiring external APIs or Python libs)
 task_makeLocationDimension = PythonOperator(task_id="task_makeLocationDimension", python_callable=makeLocationDimension, dag=dag)
-task_makeDateDimension = PythonOperator(task_id="task_makeDateDimension", python_callable=makeDateDimension, dag=dag)
-task_makeTimeDimension = PythonOperator(task_id="task_makeTimeDimension", python_callable=makeTimeDimension, dag=dag)
 task_makeUserAgentDimension = PythonOperator(task_id="task_makeUserAgentDimension", python_callable=makeUserAgentDimension, dag=dag)
-task_makeStatusDimension = PythonOperator(task_id="task_makeStatusDimension", python_callable=makeStatusDimension, dag=dag)
-task_makePageDimension = PythonOperator(task_id="task_makePageDimension", python_callable=makePageDimension, dag=dag)
-task_makeReferrerDimension = PythonOperator(task_id="task_makeReferrerDimension", python_callable=makeReferrerDimension, dag=dag)
-task_makeMethodDimension = PythonOperator(task_id="task_makeMethodDimension", python_callable=makeMethodDimension, dag=dag)
 
-task_BuildFactTable = PythonOperator(
-    task_id="task_BuildFactTable",
-    python_callable=BuildFactTable,
+# dbt-managed dimensions + fact table
+#   Replaces: makeDateDimension, makeStatusDimension, makeMethodDimension,
+#   makePageDimension, makeReferrerDimension, BuildFactTable
+DBT_PROJECT_DIR = "/opt/airflow/dbt/w3c"
+DBT_PROFILES_DIR = "/opt/airflow/dbt"
+
+task_dbt_deps = BashOperator(
+    task_id="task_dbt_deps",
+    bash_command=f"dbt deps --project-dir {DBT_PROJECT_DIR}",
+    dag=dag,
+)
+
+task_dbt_run = BashOperator(
+    task_id="task_dbt_run",
+    bash_command=f"dbt run --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROFILES_DIR}",
+    dag=dag,
+)
+task_dbt_test = BashOperator(
+    task_id="task_dbt_test",
+    bash_command=f"dbt test --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROFILES_DIR}",
+    dag=dag,
+)
+task_dbt_docs = BashOperator(
+    task_id="task_dbt_docs",
+    bash_command=f"dbt docs generate --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROFILES_DIR}",
     dag=dag,
 )
 task_ExportCSV = PythonOperator(
@@ -1100,31 +892,34 @@ task_ExportCSV = PythonOperator(
 
 # ── Dependencies ───────────────────────────────────────────────────────────────
 
+# Phase 1 & 2: Table creation → Raw log loading
 task_CreateDatabaseTables >> task_LoadRawLogsToDatabase
 
-# Phase 2: Dimensions read from raw_logs
+# Phase 3a: Airflow-managed enrichment tasks (external APIs, Python libs)
 task_LoadRawLogsToDatabase >> task_DetectCrawlerIPs
-task_LoadRawLogsToDatabase >> task_makeDateDimension
-task_LoadRawLogsToDatabase >> task_makeTimeDimension
 task_LoadRawLogsToDatabase >> task_makeLocationDimension
 task_LoadRawLogsToDatabase >> task_makeUserAgentDimension
-task_LoadRawLogsToDatabase >> task_makeStatusDimension
-task_LoadRawLogsToDatabase >> task_makePageDimension
-task_LoadRawLogsToDatabase >> task_makeReferrerDimension
-task_LoadRawLogsToDatabase >> task_makeMethodDimension
 
-# Phase 3: Fact table ETL logic executes only after ALL dimensions are complete
-[
+
+# Phase 3b: dbt builds dimensions (dim_date, dim_page, dim_status, dim_method, dim_referrer)
+#           and fact table (fact_webrequest) via directed acyclic graph transformations.
+# Replaces: makeDateDimension, makeStatusDimension, makeMethodDimension,
+#           makePageDimension, makeReferrerDimension, and BuildFactTable.
+airflow_enrichments = [
     task_DetectCrawlerIPs,
-    task_makeDateDimension,
-    task_makeTimeDimension,
     task_makeLocationDimension,
-    task_makeUserAgentDimension,
-    task_makeStatusDimension,
-    task_makePageDimension,
-    task_makeReferrerDimension,
-    task_makeMethodDimension
-] >> task_BuildFactTable
+    task_makeUserAgentDimension
+]
+airflow_enrichments >> task_dbt_deps
+
+# Phase 3b-ii: Install dbt packages → Run models
+task_dbt_deps >> task_dbt_run
+
+# Phase 3c: dbt quality checks
+task_dbt_run >> task_dbt_test
+
+# Phase 3d: dbt documentation generation
+task_dbt_test >> task_dbt_docs
 
 # Phase 4: Export fresh CSVs after every successful pipeline run
-task_BuildFactTable >> task_ExportCSV
+task_dbt_docs >> task_ExportCSV
