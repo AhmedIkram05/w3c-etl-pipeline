@@ -26,6 +26,10 @@ data/
 copilot-instructions.md
 .agents
 
+# dbt — build artifacts
+airflow/dbt/w3c/target/
+airflow/dbt/w3c/dbt_packages/
+
 # Prometheus — runtime data (config is version-controlled separately)
 prometheus/data/
 
