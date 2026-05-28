@@ -42,31 +42,31 @@
 ## Dashboard Screenshots
 
 ### Traffic Overview — Human vs crawler split (62% human / 38% crawler), trend over 2009–2011
-![Who's Hitting the Site](airflow/docs/traffic-overview.png)
+![Who's Hitting the Site](docs/traffic-overview.png)
 
 ### File Access & Errors — Top pages, file type breakdown, 404 error distribution (9.7% of all requests)
-![What Are People Accessing](airflow/docs/file-access.png)
+![What Are People Accessing](docs/file-access.png)
 
 ### Server Performance — Average response time vs P95 (4.5ms avg / 1.1s P95), slowest files identified
-![Server Performance](airflow/docs/performance.png)
+![Server Performance](docs/performance.png)
 
 ### Geographic Distribution — 78 countries reached, US and UK dominating, via ip-api.com geolocation enrichment
-![Geographic Distribution](airflow/docs/geo.png) 
+![Geographic Distribution](docs/geo.png) 
 
 ### Temporal Patterns — Hour-by-day traffic matrix, Monday peaks at 33,000 requests, Saturday morning as lowest-risk maintenance window
-![Temporal Patterns](airflow/docs/temporal.png)
+![Temporal Patterns](docs/temporal.png)
 
 ### Visitor Analysis — Browser, OS, device type breakdown; visit frequency cohort analysis
-![Visitor Analysis](airflow/docs/visitors.png)
+![Visitor Analysis](docs/visitors.png)
 
 ### Executive Summary — KPI cards with written business interpretation of each key finding
-![At a Glance](airflow/docs/summary.png)
+![At a Glance](docs/summary.png)
 
 ### Airflow DAG graph view — 3-way parallel enrichment fan-out, dbt transformation, and CSV export phase
-![Airflow DAG](airflow/docs/dag.png)
+![Airflow DAG](docs/dag.png)
 
 ### Airflow Gantt Chart — Task-level execution timeline showing enrichment tasks running in parallel, sequential dbt phase
-![Airflow Gantt Chart](airflow/docs/airflow-gantt-chart.png)
+![Airflow Gantt Chart](docs/airflow-gantt-chart.png)
 
 ---
 
@@ -580,10 +580,10 @@ flowchart LR
 **Container System Metrics** (`container-metrics`) — 6 panels covering CPU, memory, network I/O (rx/tx), filesystem I/O, and uptime for all Docker Compose containers.
 
 ### Airflow ETL Overview Dashboard — 7 panels populated with live data from a completed DAG run
-![Grafana ETL Dashboard](airflow/docs/grafana-etl-dashboard.png)
+![Grafana ETL Dashboard](docs/grafana-etl-dashboard.png)
 
 ### Prometheus Targets — All 4 scrape targets (Airflow, statsd-exporter, cAdvisor, Prometheus itself) healthy and up
-![Prometheus Targets](airflow/docs/prometheus-targets.png)
+![Prometheus Targets](docs/prometheus-targets.png)
 
 ### StatsD Metric Mapping
 
