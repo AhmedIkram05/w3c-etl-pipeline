@@ -1,6 +1,6 @@
 # W3C Web Logs ETL Pipeline
 
-> Fully automated ELT pipeline ingesting IIS W3C web server logs into a 9-dimension Star Schema on AWS RDS PostgreSQL, orchestrated by Apache Airflow with a 9-way parallel fan-out architecture. Surfaced via a 7-page Power BI dashboard, refreshed automatically every Friday via Power Automate with success/failure email alerting.
+> Fully automated ELT pipeline ingesting IIS W3C web server logs into a 10-dimension Star Schema on AWS RDS PostgreSQL, orchestrated by Apache Airflow with a hybrid Airflow + dbt transformation layer (3 Airflow-managed dims, 7 dbt-managed dims + fact). Surfaced via a 7-page Power BI dashboard, refreshed automatically every Friday via Power Automate with success/failure email alerting.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Airflow-017CEE?style=for-the-badge&labelColor=000000&logo=apache-airflow">
@@ -11,6 +11,7 @@
   <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&labelColor=000000&logo=docker">
   <img src="https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&labelColor=000000&logo=grafana">
   <img src="https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&labelColor=000000&logo=prometheus">
+  <img src="https://img.shields.io/badge/dbt-FF694B?style=for-the-badge&labelColor=000000&logo=dbt">
 </p>
 
 ---
@@ -28,6 +29,7 @@
 - [Data Flow Deep Dive](#data-flow-deep-dive)
 - [ELT Data Flow](#elt-data-flow)
 - [Star Schema](#star-schema)
+- [dbt Integration](#dbt-integration)
 - [Local Monitoring Stack](#local-monitoring-stack)
 - [Design Decisions](#design-decisions)
 - [Getting Started](#getting-started)
@@ -60,10 +62,10 @@
 ### Executive Summary — KPI cards with written business interpretation of each key finding
 ![At a Glance](airflow/docs/summary.png)
 
-### Airflow DAG graph view — 9-way parallel fan-out clearly visible in the dimension build phase
+### Airflow DAG graph view — 3-way parallel enrichment fan-out, dbt transformation, and CSV export phase
 ![Airflow DAG](airflow/docs/dag.png)
 
-### Airflow Gantt Chart — Task-level execution timeline showing parallel dimension build fan-out
+### Airflow Gantt Chart — Task-level execution timeline showing enrichment tasks running in parallel, sequential dbt phase
 ![Airflow Gantt Chart](airflow/docs/airflow-gantt-chart.png)
 
 ---
@@ -79,15 +81,17 @@ flowchart LR
         dag["Weekly pipeline<br/>Friday, 5:00 PM"]
         step1["Phase 1<br/>Create tables"]
         step2["Phase 2<br/>Load raw logs"]
-        step3["Phase 3<br/>Build 9 dimensions<br/>(parallel fan-out)"]
-        step4["Phase 4<br/>Build fact table<br/>(fan-in)"]
-        step5["Phase 5<br/>Export CSVs"]
+        step3["Phase 3a<br/>Airflow enrichment<br/>geo, UA, crawlers"]
+        step4["Phase 3b<br/>dbt transformation<br/>7 dims + fact table"]
+        step5["Phase 3c<br/>dbt test + docs"]
+        step6["Phase 4<br/>Export CSVs"]
     end
     
     subgraph warehouse["AWS RDS PostgreSQL"]
         raw["raw_logs staging table<br/>155,570 rows"]
-        dims["9 Dimension tables<br/>date, time, page, geolocation,<br/>user agent, status, referrer,<br/>method, visitor type"]
-        fact["fact_webrequest<br/>155,570 rows,<br/>1 per HTTP request"]
+        dims["3 Airflow-managed dims<br/>geolocation, useragent,<br/>visitortype"]
+        dbt_dims["7 dbt-managed dims<br/>date, time, page, status,<br/>method, referrer, visit_buckets"]
+        fact["fact_webrequest<br/>155,570 rows<br/>Built by dbt"]
     end
     
     powerbi["Power BI dashboard<br/>7 pages · Friday refresh"]
@@ -95,9 +99,14 @@ flowchart LR
 
     source -->|93 .log files| dag --> step1 --> step2 --> raw
     raw --> step3 --> dims
-    raw --> step4 --> fact
+    raw --> step4
     dims --> step4
-    fact --> step5 -->|CSV export<br/>10 files, ~13.5 MB| powerbi
+    step4 --> dbt_dims
+    step4 --> fact
+    dbt_dims --> fact
+    step4 --> step5
+    step5 --> step6
+    fact --> step6 -->|CSV export<br/>11 files, ~14 MB| powerbi
     automation --> powerbi
 ```
 
@@ -141,25 +150,20 @@ flowchart LR
 
 ### What Happens in Each Phase
 
-The DAG (`Process_W3C_Data`) executes 5 sequential phases, each with its own purpose:
+The DAG (`Process_W3C_Data`) executes 5 phases (with Phase 3 split into Airflow enrichment and dbt transformation):
 
-```
-Phase 1     Phase 2        Phase 3              Phase 4        Phase 5
-───────     ───────        ──────────            ─────────      ──────────
-CREATE  →   LOAD RAW  →    BUILD 9 DIMS  ──→    BUILD FACT  →  EXPORT CSV
-TABLES      (E of ELT)     (T of ELT in     \   (T of ELT)     (delivery)
-                            parallel)        │
-                                              ↓
-                                        fact table
-```
+| Phase 1 | Phase 2 | Phase 3a (Airflow) | Phase 3b (dbt) | Phase 3c | Phase 4 |
+|---|---|---|---|---|---|
+| **Create Tables** | **Load Raw Logs** (E of ELT) | **Enrich Dims** (geo, UA, crawlers) | **Build 7 Dims + Fact** (T of ELT) | **Test + Docs** (quality) | **Export CSV** (Delivery) |
 
 | Phase | Task(s) | What happens | Why it matters |
 |-------|---------|-------------|----------------|
 | **1** | `CreateDatabaseTables` | DDL: CREATE TABLE IF NOT EXISTS for raw_logs, all 9 dims, and fact_webrequest | Idempotent — safe to re-run; handles already-existing tables gracefully |
 | **2** | `LoadRawLogsToDatabase` | Scans `data/LogFiles/`, detects dual-format (14/18 column), bulk-inserts via `execute_values` | Full 155K row load in seconds. Deduplicates by filename. This is the **E** in ELT |
-| **3** | 9 parallel `make*Dimension` tasks | Each dim reads from `raw_logs`, transforms via SQL + Python, inserts with `ON CONFLICT DO NOTHING` | 8× faster than sequential. This is the **L** in ELT — raw data is not modified |
-| **4** | `BuildFactTable` | INSERT INTO fact_webrequest ... SELECT with LEFT JOIN + COALESCE to all 9 dims | Single SQL statement joins raw staging to all 9 dimensions; -1 fallback ensures no data loss |
-| **5** | `ExportCSVs` | COPY ... TO '/data/Star-Schema/' for fact + all 9 dims | Delivers to downstream BI; idempotent overwrite |
+| **3a** | Airflow enrichment (3 tasks) | Geo-IP lookup (ip-api.com API), user-agent parsing, crawler IP detection | Tasks requiring Python libraries or external APIs stay in Airflow |
+| **3b** | `task_dbt_deps` → `task_dbt_run` | Install dbt packages (dbt_utils), then build dim_date, dim_time, dim_page, dim_status, dim_method, dim_referrer, dim_visit_buckets + fact_webrequest via declarative SQL models | 7 dimension models + fact table → single `dbt run` command. Declarative, testable, documented |
+| **3c** | `task_dbt_test` + `task_dbt_docs` | dbt runs 53 data tests (generic + singular); generates docs site with lineage graph | Automated quality gates. Lineage docs for downstream consumers |
+| **4** | `ExportCSVs` | COPY ... TO '/data/Star-Schema/' for fact + all 10 dims | Delivers to downstream BI; idempotent overwrite |
 
 ### Phase 2 Detail: Dual-Format Raw Load
 
@@ -198,7 +202,7 @@ The IIS log format changed between 2009 and 2011 — some files have 12 data col
 - **14-column format** (older files): `date`, `time`, `s-ip`, `cs-uri-stem`, `cs-uri-query`, `s-port`, `cs-username`, `c-ip`, `cs(User-Agent)`, `cs(Referer)`, `sc-status`, `sc-substatus`, `sc-win32-status`, `time-taken`
 - **18-column format** (newer files): same columns + `s-sitename`, `cs-method`, `cs-version`, `cs-host`
 
-### Phase 3 Detail: Parallel Dimension Build
+### Phase 3 Detail: Hybrid Airflow + dbt Transformation
 
 ```mermaid
 flowchart TB
@@ -206,44 +210,55 @@ flowchart TB
         raw["raw_logs staging table<br/>155,570 rows"]
     end
     
-    subgraph dims["9 Parallel Tasks<br/>(Phase 3)"]
-        d_date["makeDateDimension<br/>← raw_logs.date"]
-        d_time["makeTimeDimension<br/>← raw_logs.time"]
-        d_page["makePageDimension<br/>← raw_logs.cs_uri_stem"]
-        d_geo["makeGeoDimension<br/>← raw c_ip → ip-api.com"]
-        d_ua["makeUADimension<br/>← raw user-agent → parse"]
-        d_status["makeStatusCodeDimension<br/>← raw sc_status"]
-        d_ref["makeReferrerDimension<br/>← raw referrer"]
-        d_method["makeMethodDimension<br/>← raw cs_method"]
-        d_visitor["makeVisitorTypeDimension<br/>← raw user-agent → crawler detect"]
+    subgraph airflow_dims["Phase 3a — Airflow Enrichment (parallel)"]
+        d_geo["task_makeLocationDimension<br/>← raw c_ip → ip-api.com"]
+        d_ua["task_makeUserAgentDimension<br/>← raw user-agent → parse"]
+        d_visitor["task_DetectCrawlerIPs<br/>← robots.txt heuristic"]
     end
     
-    subgraph phase4["Phase 4"]
-        fact["BuildFactTable<br/>Waits for ALL 9 dims<br/>LEFT JOIN + COALESCE<br/>→ fact_webrequest"]
+    subgraph dbt_dims["Phase 3b — dbt Transformation"]
+        d_date["dim_date.sql<br/>from raw_logs.date<br/>SELECT DISTINCT + UK holidays"]
+        d_time["dim_time.sql<br/>generate_series 0..23 × 0..59<br/>1440 minute dimension"]
+        d_page["dim_page.sql<br/>from raw_logs.uri_stem<br/>+ extension, category"]
+        d_status["dim_status.sql<br/>from raw_logs.status_codes<br/>+ category, severity"]
+        d_method["dim_method.sql<br/>from raw_logs.method<br/>+ description"]
+        d_ref["dim_referrer.sql<br/>from raw_logs.referrer<br/>+ domain, traffic_source"]
+        d_visit_buckets["dim_visit_buckets.sql<br/>static dimension<br/>6 visit frequency buckets"]
+        dbt_fact["fact_webrequest.sql<br/>LEFT JOIN all 10 dims<br/>+ computed columns (is_404,<br/>is_crawler, size_band, etc.)"]
+    end
+    
+    subgraph dbt_quality["Phase 3c — dbt Quality"]
+        tests["dbt test<br/>53 data tests<br/>incl. referential integrity"]
+        docs["dbt docs generate<br/>Lineage graph<br/>Column-level docs"]
     end
 
-    raw --> d_date
-    raw --> d_time
-    raw --> d_page
     raw --> d_geo
     raw --> d_ua
-    raw --> d_status
-    raw --> d_ref
-    raw --> d_method
     raw --> d_visitor
     
-    d_date --> fact
-    d_time --> fact
-    d_page --> fact
-    d_geo --> fact
-    d_ua --> fact
-    d_status --> fact
-    d_ref --> fact
-    d_method --> fact
-    d_visitor --> fact
+    d_geo --> dbt_fact
+    d_ua --> dbt_fact
+    d_visitor --> dbt_fact
+    
+    raw --> d_date
+    raw --> d_page
+    raw --> d_status
+    raw --> d_method
+    raw --> d_ref
+    
+    d_date --> dbt_fact
+    d_time --> dbt_fact
+    d_page --> dbt_fact
+    d_status --> dbt_fact
+    d_method --> dbt_fact
+    d_ref --> dbt_fact
+    d_visit_buckets --> dbt_fact
+    
+    dbt_fact --> tests
+    tests --> docs
 ```
 
-Each dimension task runs **independently** with no shared state — Airflow's `trigger_rule='all_done'` on the fact table ensures it only starts after every dimension finishes. If one dimension fails, the fact table still runs (using `-1` defaults for missing joins).
+**Hybrid approach**: Airflow handles tasks that need Python libraries or external API calls (geo-IP lookup via ip-api.com, user-agent parsing via `user-agents` library). dbt handles everything that's a pure SQL transformation — date, time, page, status, method, referrer, and visit-bucket dimensions — plus the fact table join. This combines Airflow's strength at orchestration + Python enrichment with dbt's declarative SQL, built-in testing, and auto-generated documentation.
 
 ### Geolocation Enrichment Design
 
@@ -302,10 +317,11 @@ flowchart LR
         d7["dim_ref: google.com"]
         d8["dim_method: GET"]
         d9["dim_visitor: Human"]
+        d10["dim_visit_buckets: 51+ Visits"]
     end
     
     subgraph fact["fact_webrequest"]
-        fact_row["9 foreign keys +<br/>time_taken=5321ms<br/>bytes_sent, bytes_recv<br/>foreign keys: -1 safe default"]
+        fact_row["10 foreign keys +<br/>time_taken=5321ms<br/>bytes_sent, bytes_recv<br/>+ computed columns<br/>(is_404, is_crawler, size_band)"]
     end
 
     line --> raw_row
@@ -327,6 +343,7 @@ flowchart LR
     d7 --> fact_row
     d8 --> fact_row
     d9 --> fact_row
+    d10 --> fact_row
 ```
 
 ---
@@ -335,32 +352,36 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    fact["fact_webrequest<br/>155,570 rows<br/>Grain: 1 row per HTTP request<br/>Measures: time_taken, bytes_sent, bytes_received"]
+    fact["fact_webrequest<br/>155,570 rows<br/>Grain: 1 row per HTTP request<br/>Measures: time_taken, bytes_sent, bytes_received<br/>Computed: is_404, is_crawler,<br/>is_direct_traffic, size_band, time_band"]
 
-    dim_date["dim_date<br/>94 rows<br/>Key: date_sk (YYYYMMDD)"]
-    dim_time["dim_time<br/>1,441 rows (full day)<br/>Key: time_sk (HHMM)"]
-    dim_page["dim_page<br/>14,092 rows<br/>Key: page_sk (serial)<br/>Unique: (page_path, query_string)"]
-    dim_geo["dim_geolocation<br/>4,011 rows<br/>Key: ip (inet)"]
-    dim_ua["dim_useragent<br/>2,276 rows<br/>Key: user_agent_sk (serial)"]
-    dim_status["dim_status<br/>1,146 rows<br/>Key: (status_code, sub_status, win32_status)"]
-    dim_ref["dim_referrer<br/>2,342 rows<br/>Key: referrer_sk (serial)"]
-    dim_method["dim_method<br/>5 rows<br/>Key: method_name"]
-    dim_visitor["dim_visitortype<br/>3 rows (static)<br/>Human / Crawler / Unknown"]
+    dim_date["dim_date<br/>93 rows<br/>Key: date_sk (YYYYMMDD)"]
+    dim_time["dim_time<br/>1,440 rows (full day)<br/>Key: time_sk (HHMM)"]
+    dim_page["dim_page<br/>14,091 rows<br/>Key: page_sk (serial)<br/>Unique: (page_path, query_string)"]
+    dim_geo["dim_geolocation*<br/>4,011 rows<br/>Key: ip (inet)"]
+    dim_ua["dim_useragent*<br/>2,276 rows<br/>Key: user_agent_sk (serial)"]
+    dim_status["dim_status<br/>1,145 rows<br/>Key: (status_code, sub_status, win32_status)"]
+    dim_ref["dim_referrer<br/>2,341 rows<br/>Key: referrer_sk (serial)"]
+    dim_method["dim_method<br/>4 rows<br/>Key: http_method"]
+    dim_visitor["dim_visitortype*<br/>3 rows (static)<br/>Human / Crawler / Unknown"]
+    dim_visit_buckets["dim_visit_buckets<br/>6 rows (static)<br/>Visit frequency buckets<br/>1 Visit – 51+ Visits"]
 
-    dim_date -->|"LEFT JOIN + COALESCE(date_sk, -1)"| fact
-    dim_time -->|"LEFT JOIN + COALESCE(time_sk, -1)"| fact
-    dim_page -->|"LEFT JOIN + COALESCE(page_sk, -1)"| fact
-    dim_geo -->|"LEFT JOIN + COALESCE(geo_sk, -1)"| fact
-    dim_ua -->|"LEFT JOIN + COALESCE(ua_sk, -1)"| fact
-    dim_status -->|"LEFT JOIN + COALESCE(status_sk, -1)"| fact
-    dim_ref -->|"LEFT JOIN + COALESCE(ref_sk, -1)"| fact
-    dim_method -->|"LEFT JOIN + COALESCE(method_sk, -1)"| fact
-    dim_visitor -->|"LEFT JOIN + COALESCE(visitor_sk, -1)"| fact
+    dim_date -->|"LEFT JOIN"| fact
+    dim_time -->|"LEFT JOIN"| fact
+    dim_page -->|"LEFT JOIN"| fact
+    dim_geo -->|"LEFT JOIN"| fact
+    dim_ua -->|"LEFT JOIN"| fact
+    dim_status -->|"LEFT JOIN"| fact
+    dim_ref -->|"LEFT JOIN"| fact
+    dim_method -->|"LEFT JOIN"| fact
+    dim_visitor -->|"LEFT JOIN"| fact
+    dim_visit_buckets -->|"LEFT JOIN"| fact
     
     classDef default fill:#1a1a2e,stroke:#e94560,color:#fff
     classDef dim fill:#16213e,stroke:#0f3460,color:#fff
+    classDef airflow fill:#16213e,stroke:#ff6b6b,color:#fff
     class fact default
-    class dim_date,dim_time,dim_page,dim_geo,dim_ua,dim_status,dim_ref,dim_method,dim_visitor dim
+    class dim_date,dim_time,dim_page,dim_status,dim_ref,dim_method,dim_visit_buckets dim
+    class dim_geo,dim_ua,dim_visitor airflow
 ```
 
 ### Hierarchical Dimension Structure (Sun Model)
@@ -404,19 +425,112 @@ graph TD
 
 ### Dimension Row Counts
 
-| Table | Rows | Key field | Hierarchies |
-|-------|------|-----------|-------------|
-| `fact_webrequest` | 155,570 | `raw_log_id` (links to staging) | — |
-| `dim_date` | 94 | `date_sk` (YYYYMMDD integer) | Year → Quarter → Month → Week → Date |
-| `dim_time` | 1,441 | `time_sk` (HHMM integer, pre-populated) | Time Band → Hour → Minute |
-| `dim_page` | 14,092 | `page_sk` (serial) | Category → Directory → File |
-| `dim_geolocation` | 4,011 | `ip` (unique, cached) | Country → Region → City → IP |
-| `dim_useragent` | 2,276 | `user_agent_sk` (serial) | Agent Type → Browser/OS/Device |
-| `dim_status` | 1,146 | `(status_code, sub_status, win32_status)` | Error Severity → Category → Code |
-| `dim_referrer` | 2,342 | `referrer_sk` (serial) | Type → Domain → URL |
-| `dim_method` | 5 | `method_name` | — |
-| `dim_visitortype` | 3 (static) | `visitor_type` | Crawler Flag → Visitor Type |
-| *`raw_logs` (staging)* | *155,570* | *`raw_log_id` (serial)* | *Source audit trail* |
+| Table | Rows | Managed by | Key field | Hierarchies |
+|-------|------|------------|-----------|-------------|
+| `fact_webrequest` | 155,570 | dbt | `raw_log_id` (links to staging) | Computed: is_404, is_crawler, is_direct_traffic, size_band, time_band |
+| `dim_date` | 93 | dbt | `date_sk` | Year → Quarter → Month → Week → Date |
+| `dim_time` | 1,440 | dbt | `time_sk` | Time Band → Hour → Minute |
+| `dim_page` | 14,091 | dbt | `page_sk` | Category → Directory → File |
+| `dim_method` | 4 | dbt | `method_sk` | — |
+| `dim_status` | 1,145 | dbt | `status_sk` | Severity → Category → Code |
+| `dim_referrer` | 2,341 | dbt | `referrer_sk` | Traffic Source → Domain → URL |
+| `dim_visit_buckets` | 6 (static) | dbt | `visit_bucket_sk` | Visit frequency cohort bucketing |
+| `dim_geolocation` | 4,011 | Airflow | `geolocation_sk` | Country → Region → City → IP |
+| `dim_useragent` | 2,276 | Airflow | `user_agent_sk` | Agent Type → Browser/OS/Device |
+| `dim_visitortype` | 3 (static) | Airflow | `visitor_sk` | Crawler Flag → Visitor Type |
+| *`raw_logs` (staging)* | *155,570* | *Airflow* | *`raw_log_id` (serial)* | *Source audit trail* |
+
+---
+
+## dbt Integration
+
+This pipeline integrates **dbt (data build tool)** as the transformation layer for 7 dimension models + the fact table (8 models total). Airflow retains responsibility for 3 enrichment tasks that require external APIs or Python libraries.
+
+### Why dbt?
+
+| Benefit | Before (pure Python) | After (dbt) |
+|---------|---------------------|-------------|
+| **Testing** | None | 53 data tests — generic (uniqueness, not-null, relationships) + singular (referential integrity, row counts, dimension coverage, -1 exclusion) |
+| **Documentation** | README only | [`dbt docs`](http://localhost:8081) auto-generates full column-level docs with lineage graph from `sources.yml` and `schema.yml` |
+| **SQL transparency** | Buried in Python f-strings | Declarative `.sql` files in `airflow/dbt/w3c/models/` — one file per model, Jinja-templated |
+| **Dependency management** | Airflow fan-in choreography | dbt `ref()` macros resolve DAG automatically; Airflow only orchestrates the `dbt run` command |
+| **Materialization** | `INSERT ... ON CONFLICT DO NOTHING` | `{{ config(materialized='table') }}` — full refresh, deterministic, no serial key management |
+
+### Architecture
+
+```mermaid
+flowchart TB
+    subgraph airflow["Apache Airflow (orchestrator)"]
+        direction TB
+        p1["Phase 1<br/>Create Tables"]
+        p2["Phase 2<br/>Load Raw Logs"]
+        p3a["Phase 3a<br/>Enrichment<br/>(geo, UA, crawlers)"]
+        p3b["Phase 3b<br/>dbt run<br/>(7 dims + fact)"]
+        p3c["Phase 3c<br/>dbt test →<br/>docs gen"]
+        p4["Phase 4<br/>Export CSV"]
+        p1 --> p2 --> p3a --> p3b --> p3c --> p4
+    end
+```
+
+### File Structure
+
+```
+airflow/dbt/
+├── profiles.yml                   # PostgreSQL connection config
+└── w3c/
+    ├── dbt_project.yml           # Project settings, vars (UK holidays)
+    ├── models/
+    │   ├── sources.yml           # Source table definitions (raw_logs, Airflow dims)
+    │   ├── schema.yml            # Model + column tests (53 data tests)
+    │   ├── dim_date.sql          # Calendar date dim with UK holidays
+    │   ├── dim_time.sql          # Time of day dim (1440 minutes, generate_series)
+    │   ├── dim_page.sql          # Page dim with category classification
+    │   ├── dim_status.sql        # HTTP status dim with description + severity
+    │   ├── dim_method.sql        # HTTP method dim with description
+    │   ├── dim_referrer.sql      # Referrer dim with traffic source classification
+    │   ├── dim_visit_buckets.sql # Visit frequency bucket dim (static, 6 rows)
+    │   └── fact_webrequest.sql   # Fact table joining all 10 dims + computed columns
+    └── tests/
+        ├── test_fact_referential_integrity.sql
+        ├── test_row_count_consistency.sql
+        └── test_dimension_coverage.sql
+```
+
+### What Each Model Does
+
+| Model | Source | Key Logic | Tests |
+|-------|--------|-----------|-------|
+| `dim_date` | `raw_logs.log_date` | DISTINCT dates, deterministic `YYYYMMDD` key, UK holidays from Jinja var, weekend/weekday flags, no -1 fallback | unique, not_null |
+| `dim_time` | `generate_series` | 1440 minutes via `generate_series(0,1439)`, time_band (Early Morning / Morning / Afternoon / Evening), shift_id, no -1 fallback | unique, not_null |
+| `dim_page` | `raw_logs.uri_stem` | DISTINCT (page_path, query_string), derives directory, file_name, extension, page_category, no -1 fallback | unique, not_null |
+| `dim_status` | `raw_logs.status` triples | DISTINCT (status, sub_status, win32), human-readable descriptions, `severity` (Info/Warning/Error/Critical), no -1 fallback | unique, not_null |
+| `dim_method` | `raw_logs.method` | DISTINCT methods, `http_method` + `description`, `is_safe` flag, no -1 fallback | unique, not_null |
+| `dim_referrer` | `raw_logs.referrer` | DISTINCT URLs, domain extraction, `traffic_source` (Direct / Search Engine / Social Media / Referral), no -1 fallback | unique, not_null |
+| `dim_visit_buckets` | Static values | 6 visit frequency buckets (1 Visit, 2–5, 6–10, 11–20, 21–50, 51+), ordered by visit_bucket_order | unique, not_null |
+| `fact_webrequest` | All dims + `raw_logs` | LEFT JOIN to all 10 dims + 5 computed columns: `is_404`, `is_crawler`, `is_direct_traffic`, `size_band`, `time_band`. FK joins use COALESCE(-1) as safety fallback | unique, not_null, 5 FK relationships, expression_is_true |
+
+### Running dbt Manually
+
+Run inside the Airflow container or with `dbt` installed locally:
+
+```bash
+# Build all models (dims + fact)
+dbt run --project-dir /opt/airflow/dbt/w3c --profiles-dir /opt/airflow/dbt
+
+# Run all 53 data tests (generic + singular)
+dbt test --project-dir /opt/airflow/dbt/w3c --profiles-dir /opt/airflow/dbt
+
+# Generate documentation site
+dbt docs generate --project-dir /opt/airflow/dbt/w3c --profiles-dir /opt/airflow/dbt
+```
+
+### Recruiter Demos
+
+| Demo | What to show | Command |
+|------|-------------|---------|
+| **Lineage graph** | Open `airflow/dbt/w3c/target/index.html` after `dbt docs generate` — shows dbt's DAG of all 8 models connecting to raw_logs and Airflow-managed dims as sources with computed columns | `dbt docs generate --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt` |
+| **Test output** | Run `dbt test` after a full pipeline — all 53 tests passing | `dbt test --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt` |
+| **Before/after** | The original pipeline used 6 PythonOperator tasks for these transforms (buried in f-strings). Now they're 8 declarative `.sql` files (including dim_time moved from Airflow) with Jinja templating, auto-tested and auto-documented. Compare `airflow/dags/w3c/w3c-dag.py` (Phase 3 section) vs `airflow/dbt/w3c/models/` | `diff -r old/ new/` |
 
 ---
 
@@ -426,9 +540,17 @@ The pipeline includes a complete observability stack that runs locally alongside
 
 ### Architecture
 
-```
-Airflow StatsD  ──UDP :9125──→  statsd-exporter ──:9102/metrics──→  Prometheus ──→  Grafana
-cAdvisor        ──:8080/metrics────────────────────────────────→  Prometheus ──→  Grafana
+```mermaid
+flowchart LR
+    airflow["Airflow StatsD<br/>UDP :9125"]
+    cadvisor["cAdvisor<br/>:8080/metrics"]
+    exporter["statsd-exporter<br/>:9102/metrics"]
+    prometheus["Prometheus"]
+    grafana["Grafana"]
+    airflow -->|StatsD metrics| exporter
+    exporter -->|Prometheus format| prometheus
+    cadvisor -->|Container metrics| prometheus
+    prometheus -->|Data source| grafana
 ```
 
 ### Components
@@ -500,15 +622,15 @@ Raw log lines are loaded into `raw_logs` with **zero transformation** — no par
 
 **Why:** This preserves the full audit trail. If a dimension query changes, `raw_logs` is the source of truth — the pipeline can be re-run without re-ingesting source files. Change your geolocation logic? Update the dimension SQL and re-run Phase 3. No data loss, no re-ingestion.
 
-### 9-Way Parallel Dimension Build
-All nine dimension tasks run simultaneously — each reads independently from `raw_logs` and writes to isolated tables with **zero inter-task dependencies**. The fact table uses a fan-in dependency on all nine and only starts after every dimension is complete.
+### Hybrid Parallel Dimension Build
+The pipeline uses a two-tier approach: **3 Airflow enrichment tasks** (geolocation, useragent, crawler detection) run in parallel during Phase 3a — each reads independently from `raw_logs` and writes to isolated tables with zero inter-task dependencies. **7 dbt models** then build the remaining dimensions (date, time, page, status, method, referrer, visit_buckets) plus the fact table in Phase 3b, with dbt's `ref()` macros resolving the correct build order.
 
-**Why:** Running dimensions sequentially would make Phase 3 roughly **8× slower** with no correctness benefit. Parallel execution drops the wall-clock time from minutes to seconds while maintaining full SQL-level consistency.
+**Why:** Airflow handles the tasks requiring Python libraries or external API calls (geo-IP lookup, user-agent parsing) which can't run as SQL. dbt handles pure SQL transformations declaratively — auto-tested, auto-documented, and orchestrated by dbt's built-in DAG resolution rather than manual Airflow choreography. The Airflow enrichment tasks still run in parallel, and dbt's SQL models execute sequentially within a single `dbt run` command, simplifying the DAG definition.
 
-### `-1` Surrogate Key Fallback in Every Dimension
-Every dimension contains a row with surrogate key `-1` representing unknown/missing values. The fact table build uses `LEFT JOIN` + `COALESCE(foreign_key, -1)` for every dimension join.
+### `-1` Surrogate Key Fallback — Fact Table Only (Dims Are Clean)
+The fact table uses `LEFT JOIN` + `COALESCE(foreign_key, -1)` for every dimension join, but **dbt-managed dimensions no longer contain a -1 row**. The Airflow `CreateDatabaseTables` task still inserts -1 rows for Airflow-managed dimensions (geolocation, useragent, visitortype) but dbt-managed dimensions (date, time, page, status, method, referrer, visit_buckets) are built clean — no unknown placeholder row.
 
-**Why:** This ensures **zero raw log records are ever dropped** from the fact table due to a failed dimension lookup. A standard `INNER JOIN` approach would silently exclude records — unacceptable in an audit-grade data warehouse. `NULL` foreign keys would also be excluded from Power BI aggregations, producing incorrect totals.
+**Why:** The `COALESCE(-1)` on the fact table side ensures **zero raw log records are ever dropped** due to a failed dimension lookup. Removing -1 from the dimension tables eliminates noise in Power BI (no fake 'Unknown' rows in filters/slicers) and simplifies dbt models — no `UNION ALL` bloat per dimension. A standard `INNER JOIN` approach would silently exclude unmatched records, so the LEFT JOIN + COALESCE pattern preserves the audit guarantee without polluting dimensions.
 
 ### Filename Deduplication — Run It Again Safely
 `LoadRawLogsToDatabase` queries `SELECT DISTINCT source_file FROM raw_logs` before processing and skips any file already loaded. Dimension inserts use `ON CONFLICT DO NOTHING`.
@@ -608,11 +730,12 @@ The pipeline comes with 93 sample `.log` files in `airflow/data/LogFiles/` — ~
 After the DAG completes (typically ~1-2 minutes for the full 155K dataset):
 
 ```
-Phase 1: CreateDatabaseTables     → 12 tables created
-Phase 2: LoadRawLogsToDatabase    → 155,570 rows loaded from 93 files
-Phase 3: 9 parallel dimensions    → All built from raw_logs
-Phase 4: BuildFactTable           → 155,570 fact rows with 9 foreign keys
-Phase 5: ExportCSVs                → 10 files (~13.5 MB) in data/Star-Schema/
+Phase 1:  CreateDatabaseTables     → 12 tables created
+Phase 2:  LoadRawLogsToDatabase    → 155,570 rows loaded from 93 files
+Phase 3a: Airflow enrichment       → 3 dims (geo, UA, crawlers)
+Phase 3b: dbt run                  → 7 dims + fact table built (incl. dim_time, dim_visit_buckets)
+Phase 3c: dbt test + docs          → 53 tests passed + docs generated
+Phase 4:  ExportCSVs               → 11 files (~14 MB) in data/Star-Schema/
 ```
 
 Then open Grafana (`localhost:3000`) to see the ETL metrics dashboard populate with run data.
@@ -631,6 +754,8 @@ Then open Grafana (`localhost:3000`) to see the ETL metrics dashboard populate w
 | `make logs` | Tail logs from all containers | Debugging |
 | `make ps` | List all containers with health status | Quick health check |
 | `make validate` | Validate compose file + Grafana dashboard JSON | Before committing changes |
+| `make db-reset` | Drop & recreate w3c_warehouse database (no Docker restart) | Between test runs — fast pipeline replay |
+| `make test-e2e` | Reset database, trigger DAG, verify row counts | End-to-end validation against running stack |
 
 ---
 
@@ -640,7 +765,7 @@ Then open Grafana (`localhost:3000`) to see the ETL metrics dashboard populate w
 |-------|-----------|---------|
 | **Orchestration** | Apache Airflow 2.10.2 | DAG with fan-out/fan-in task dependencies, 5-phase execution |
 | **Database** | PostgreSQL 14 on AWS RDS (with local Docker fallback) | Star schema warehouse + raw staging |
-| **Transformation** | Python 3.12, psycopg2 `execute_values` | ELT execution, streaming batch inserts |
+| **Transformation** | dbt (data build tool) 1.8 + Python 3.12, psycopg2 `execute_values` | Declarative SQL models for 7 dim models + fact table (8 models total); Jinja-templated, auto-tested (53 tests), auto-documented |
 | **Geolocation** | ip-api.com batch API (100 IPs/request) | IP-to-location enrichment with rate-limit awareness |
 | **User Agent Parsing** | `user-agents` library | Browser, OS, device type extraction |
 | **Holiday Detection** | Python `holidays` library (UK) | Date dimension holiday flags |
