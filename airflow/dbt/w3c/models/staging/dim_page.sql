@@ -63,4 +63,3 @@ page_entries AS (
 )
 
 SELECT * FROM page_entries
-ORDER BY page_sk

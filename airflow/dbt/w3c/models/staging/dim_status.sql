@@ -45,6 +45,25 @@ status_entries AS (
             ELSE 'Other'
         END AS status_label,
         CASE
+            WHEN rs.status_code = 200 THEN 'OK - The request succeeded'
+            WHEN rs.status_code = 201 THEN 'Created - Resource created successfully'
+            WHEN rs.status_code = 204 THEN 'No Content - Request succeeded with no response body'
+            WHEN rs.status_code = 301 THEN 'Moved Permanently - Resource has moved to a new URL'
+            WHEN rs.status_code = 302 THEN 'Found (Redirect) - Resource temporarily moved'
+            WHEN rs.status_code = 304 THEN 'Not Modified - Cached version is still valid'
+            WHEN rs.status_code = 400 THEN 'Bad Request - Server could not understand the request'
+            WHEN rs.status_code = 401 THEN 'Unauthorized - Authentication is required'
+            WHEN rs.status_code = 403 THEN 'Forbidden - Access to the resource is denied'
+            WHEN rs.status_code = 404 THEN 'Not Found - Server could not find the requested resource'
+            WHEN rs.status_code = 405 THEN 'Method Not Allowed - HTTP method not supported for this resource'
+            WHEN rs.status_code = 408 THEN 'Request Timeout - Client did not send a request within the timeout period'
+            WHEN rs.status_code = 500 THEN 'Internal Server Error - Server encountered an unexpected condition'
+            WHEN rs.status_code = 502 THEN 'Bad Gateway - Upstream server returned an invalid response'
+            WHEN rs.status_code = 503 THEN 'Service Unavailable - Server is temporarily unable to handle the request'
+            WHEN rs.status_code = 504 THEN 'Gateway Timeout - Upstream server failed to respond in time'
+            ELSE 'Other - ' || rs.status_code::text || ' status code'
+        END AS description,
+        CASE
             WHEN rs.status_code >= 500 THEN 'Critical'
             WHEN rs.status_code >= 400 THEN 'Error'
             WHEN rs.status_code >= 300 THEN 'Warning'
@@ -56,4 +75,3 @@ status_entries AS (
 )
 
 SELECT * FROM status_entries
-ORDER BY status_sk

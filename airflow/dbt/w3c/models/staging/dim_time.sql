@@ -26,4 +26,3 @@ WITH time_entries AS (
 )
 
 SELECT * FROM time_entries
-ORDER BY time_sk

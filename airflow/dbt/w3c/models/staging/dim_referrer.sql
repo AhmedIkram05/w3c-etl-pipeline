@@ -39,4 +39,3 @@ referrer_entries AS (
 )
 
 SELECT * FROM referrer_entries
-ORDER BY referrer_sk

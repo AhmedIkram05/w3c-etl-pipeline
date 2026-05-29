@@ -16,6 +16,10 @@ WITH dim_checks AS (
     UNION ALL
     SELECT 'dim_visit_buckets', COUNT(*) FROM {{ ref('dim_visit_buckets') }}
     UNION ALL
+    SELECT 'dim_visitortype', COUNT(*) FROM {{ ref('dim_visitortype') }}
+    UNION ALL
+    SELECT 'crawler_ips', COUNT(*) FROM {{ ref('crawler_ips') }}
+    UNION ALL
     SELECT 'fact_webrequest', COUNT(*) FROM {{ ref('fact_webrequest') }}
 )
 
@@ -27,6 +31,8 @@ SELECT
         WHEN dim_name = 'dim_method' AND row_count < 3 THEN 'FAIL: Expected at least 3 HTTP methods'
         WHEN dim_name = 'dim_time' AND row_count <> 1440 THEN 'FAIL: Expected exactly 1440 time entries'
         WHEN dim_name = 'dim_visit_buckets' AND row_count < 3 THEN 'FAIL: Expected at least 3 visit buckets'
+        WHEN dim_name = 'dim_visitortype' AND row_count <> 3 THEN 'FAIL: Expected exactly 3 visitor types'
+        WHEN dim_name = 'crawler_ips' AND row_count = 0 THEN 'FAIL: Expected at least 1 crawler IP'
         ELSE 'PASS'
     END AS coverage_check
 FROM dim_checks
@@ -34,3 +40,5 @@ WHERE row_count = 0
     OR (dim_name = 'dim_method' AND row_count < 3)
     OR (dim_name = 'dim_time' AND row_count <> 1440)
     OR (dim_name = 'dim_visit_buckets' AND row_count < 3)
+    OR (dim_name = 'dim_visitortype' AND row_count <> 3)
+    OR (dim_name = 'crawler_ips' AND row_count = 0)
