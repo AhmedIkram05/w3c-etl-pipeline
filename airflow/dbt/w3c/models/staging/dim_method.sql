@@ -33,4 +33,3 @@ method_entries AS (
 )
 
 SELECT * FROM method_entries
-ORDER BY method_sk

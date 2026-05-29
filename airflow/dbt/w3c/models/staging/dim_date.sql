@@ -29,4 +29,3 @@ date_entries AS (
 )
 
 SELECT * FROM date_entries
-ORDER BY date

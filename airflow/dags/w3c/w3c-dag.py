@@ -8,25 +8,20 @@ and export the final star-schema tables as CSV files for the user if they requir
 """
 
 import datetime as dt
-import requests # type: ignore
+import requests
 import os
 from datetime import datetime
-from airflow import DAG # type: ignore
-from airflow.operators.python import PythonOperator # type: ignore
-from airflow.operators.bash import BashOperator # type: ignore
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.operators.bash import BashOperator
 import time
-import psycopg2 # type: ignore
+import psycopg2
 from urllib.parse import unquote_plus, urlparse
-from psycopg2.extras import execute_values # type: ignore
+from psycopg2.extras import execute_values
 
-try:
-    import holidays # type: ignore
-except ImportError:
-    holidays = None
-    
 from ipaddress import ip_address
 
-from user_agents import parse as ua_parse # type: ignore
+from user_agents import parse as ua_parse
 
 # ── Folder paths ───────────────────────────────────────────────────────────────
 # Paths inside the Airflow worker/container where DAG assets live. These are
@@ -287,35 +282,6 @@ def CreateDatabaseTables():
     """)
 
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS crawler_ips (
-            ip VARCHAR(50) PRIMARY KEY
-        );
-    """)
-
-    cur.execute("""
-        -- DDL is superseded by dbt model (fact_webrequest.sql)
-        -- Kept here for syntactic validity during CREATE IF NOT EXISTS.
-        -- dbt's materialized='table' config drops and recreates this table.
-        CREATE TABLE IF NOT EXISTS fact_webrequest (
-            id             SERIAL PRIMARY KEY,
-            raw_log_id     INTEGER UNIQUE,
-            date_sk        INTEGER,
-            time_sk        INTEGER,
-            method_sk      INTEGER,
-            page_sk        INTEGER,
-            geolocation_sk INTEGER,
-            user_agent_sk  INTEGER,
-            referrer_sk    INTEGER,
-            status_sk      INTEGER,
-            visitor_sk     INTEGER,
-            response_time_ms INTEGER,
-            bytes_sent       INTEGER,
-            bytes_received   INTEGER,
-            request_count    INTEGER DEFAULT 1
-        );
-    """)
-
-    cur.execute("""
         CREATE TABLE IF NOT EXISTS dim_geolocation (
             geolocation_sk SERIAL PRIMARY KEY,
             ip           VARCHAR(50) UNIQUE,
@@ -326,49 +292,6 @@ def CreateDatabaseTables():
             latitude     VARCHAR(20),
             longitude    VARCHAR(20),
             isp          VARCHAR(200)
-        );
-    """)
-
-    cur.execute("""
-        -- DDL superseded by dbt model (dim_date.sql)
-        CREATE TABLE IF NOT EXISTS dim_date (
-            date_sk      INTEGER PRIMARY KEY,
-            date         DATE UNIQUE,
-            year         INTEGER,
-            month        INTEGER,
-            month_name   VARCHAR(20),
-            day_number   INTEGER,
-            day_name     VARCHAR(20),
-            day_of_week  INTEGER,
-            quarter      INTEGER,
-            week_of_year INTEGER,
-            is_weekend   VARCHAR(3),
-            holiday_flag VARCHAR(3)
-        );
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS dim_time (
-            time_sk   INTEGER PRIMARY KEY,
-            hour      INTEGER,
-            minute    INTEGER,
-            am_pm     VARCHAR(2),
-            time_band VARCHAR(20),
-            shift_id  INTEGER
-        );
-    """)
-
-    cur.execute("""
-        -- DDL superseded by dbt model (dim_page.sql)
-        CREATE TABLE IF NOT EXISTS dim_page (
-            page_sk        SERIAL PRIMARY KEY,
-            page_path      TEXT,
-            query_string   TEXT,
-            directory      TEXT,
-            file_name      TEXT,
-            file_extension VARCHAR(20),
-            page_category  VARCHAR(50),
-            UNIQUE (page_path, query_string)
         );
     """)
 
@@ -384,95 +307,27 @@ def CreateDatabaseTables():
         );
     """)
 
-    cur.execute("""
-        -- DDL superseded by dbt model (dim_status.sql)
-        CREATE TABLE IF NOT EXISTS dim_status (
-            status_sk   SERIAL PRIMARY KEY,
-            status_code INTEGER,
-            sub_status  INTEGER,
-            win32_status INTEGER,
-            status_label VARCHAR(100),
-            status_category VARCHAR(10),
-            severity    VARCHAR(20),
-            UNIQUE (status_code, sub_status, win32_status)
-        );
-    """)
-
-    cur.execute("""
-        -- DDL superseded by dbt model (dim_referrer.sql)
-        CREATE TABLE IF NOT EXISTS dim_referrer (
-            referrer_sk     SERIAL PRIMARY KEY,
-            referrer_url    TEXT UNIQUE,
-            referrer_domain TEXT,
-            traffic_source  VARCHAR(30)
-        );
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS dim_visitortype (
-            visitor_sk   INTEGER PRIMARY KEY,
-            crawler_flag VARCHAR(3),
-            visitor_type VARCHAR(10)
-        );
-    """)
-
-    cur.execute("""
-        -- DDL superseded by dbt model (dim_method.sql)
-        CREATE TABLE IF NOT EXISTS dim_method (
-            method_sk   SERIAL PRIMARY KEY,
-            http_method VARCHAR(10) UNIQUE,
-            description VARCHAR(100),
-            is_safe     VARCHAR(20)
-        );
-    """)
-
-    # --- Standard Default "-1" Rows with Unknown Values used for NULL joins ---
-    cur.execute("""
-        INSERT INTO dim_date (date_sk, date, year, month, month_name, day_number, day_name, day_of_week, quarter, week_of_year, is_weekend, holiday_flag)
-        VALUES (-1, '1900-01-01', 1900, 1, 'Unknown', 1, 'Unknown', -1, 1, 1, 'No', 'No') ON CONFLICT DO NOTHING;
-    """)
-    cur.execute("""
-        INSERT INTO dim_time (time_sk, hour, minute, am_pm, time_band, shift_id)
-        VALUES (-1, -1, -1, 'U', 'Unknown', -1) ON CONFLICT DO NOTHING;
-    """)
+    # --- Standard Default "-1" Rows for Airflow-managed tables ---
     cur.execute("""
         INSERT INTO dim_geolocation (geolocation_sk, ip, country, region, city, postcode, latitude, longitude, isp)
         VALUES (-1, 'Unknown', 'Unknown', 'Unknown', 'Unknown', '-', NULL, NULL, '-') ON CONFLICT DO NOTHING;
     """)
     cur.execute("""
-        INSERT INTO dim_page (page_sk, page_path, query_string, directory, file_name, file_extension, page_category)
-        VALUES (-1, 'Unknown', '-', 'Unknown', 'Unknown', 'Other', 'Other') ON CONFLICT DO NOTHING;
-    """)
-    cur.execute("""
         INSERT INTO dim_useragent (user_agent_sk, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
         VALUES (-1, 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown') ON CONFLICT DO NOTHING;
     """)
-    cur.execute("""
-        INSERT INTO dim_status (status_sk, status_code, sub_status, win32_status, status_label, status_category, severity)
-        VALUES (-1, -1, -1, -1, 'Unknown', 'Unknown', 'Unknown') ON CONFLICT DO NOTHING;
-    """)
-    cur.execute("""
-        INSERT INTO dim_referrer (referrer_sk, referrer_url, referrer_domain, traffic_source)
-        VALUES (-1, 'Unknown', 'Unknown', 'Unknown') ON CONFLICT DO NOTHING;
-    """)
-    cur.execute("""
-        INSERT INTO dim_method (method_sk, http_method, description, is_safe)
-        VALUES (-1, 'Unknown', 'Unknown', 'Unknown') ON CONFLICT DO NOTHING;
-    """)
-    cur.execute("""
-        INSERT INTO dim_visitortype (visitor_sk, crawler_flag, visitor_type)
-        VALUES (-1, 'Ukn', 'Unknown'), (1, 'Yes', 'Crawler'), (2, 'No', 'Human') ON CONFLICT DO NOTHING;
-    """)
 
     # ── Indexes for incremental query performance ──────────────────────────────
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_fact_raw_log_id ON fact_webrequest(raw_log_id);")
+    # NOTE: fact_webrequest indexes are managed by dbt (post_hook in staging/fact_webrequest.sql)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_raw_logs_source_file ON raw_logs(source_file);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_raw_logs_client_ip ON raw_logs(client_ip);")
 
     conn.commit()
     cur.close()
     conn.close()
-    print("All database tables and indexes created successfully with default -1 logical lookup keys.")
+    print("Database tables and indexes created successfully.")
+    print("NOTE: crawler_ips and dim_visitortype are now managed by dbt (dbt_staging schema).")
+    print("NOTE: dbt manages all dimensions + fact in dbt_staging schema, and marts in dbt_marts schema.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -602,26 +457,10 @@ def _InsertRawBatch(cur, batch):
 # ══════════════════════════════════════════════════════════════════════════════
 # BUILD DIMENSIONS (SELECT DISTINCT FROM RAW)
 # ══════════════════════════════════════════════════════════════════════════════
-
-def DetectCrawlerIPs():
-    """Populate `crawler_ips` by finding clients that requested robots.txt.
-
-    This simple heuristic adds any `client_ip` that requested a `robots.txt`
-    path into `crawler_ips` so the visitor dimension can mark crawlers / bots.
-    """
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute("""
-        INSERT INTO crawler_ips (ip)
-        SELECT DISTINCT client_ip
-        FROM raw_logs
-        WHERE (uri_stem ILIKE '%/robots.txt' OR uri_stem ILIKE 'robots.txt')
-        AND client_ip IS NOT NULL
-        ON CONFLICT (ip) DO NOTHING;
-    """)
-    conn.commit()
-    cur.close()
-    conn.close()
+#
+# NOTE: DetectCrawlerIPs and dim_visitortype have been migrated to dbt models
+# (models/staging/crawler_ips.sql, models/staging/dim_visitortype.sql).
+# Only dimensions requiring external APIs or Python libraries remain here.
 
 def makeLocationDimension():
     """Populate `dim_geolocation` by calling an external geo-IP API in batches.
@@ -776,7 +615,7 @@ def makeUserAgentDimension():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ETL: Build Fact Table via SQL JOINs
+# TASK: Export all tables to CSV
 # ══════════════════════════════════════════════════════════════════════════════
 
 
@@ -798,17 +637,26 @@ def ExportCSV():
     export_dir = StarSchema
 
     tables = [
-        "fact_webrequest",
-        "dim_date",
-        "dim_time",
-        "dim_page",
-        "dim_geolocation",
-        "dim_useragent",
-        "dim_status",
-        "dim_referrer",
-        "dim_method",
-        "dim_visitortype",
-        "dim_visit_buckets",
+        # dbt staging layer (dbt_staging schema)
+        "dbt_staging.fact_webrequest",
+        "dbt_staging.dim_date",
+        "dbt_staging.dim_time",
+        "dbt_staging.dim_page",
+        "dbt_staging.dim_status",
+        "dbt_staging.dim_referrer",
+        "dbt_staging.dim_method",
+        "dbt_staging.dim_visitortype",
+        "dbt_staging.dim_visit_buckets",
+        "dbt_staging.crawler_ips",
+        # dbt mart layer (dbt_marts schema)
+        "dbt_marts.mart_page_performance",
+        "dbt_marts.mart_daily_aggregates",
+        "dbt_marts.mart_crawler_analysis",
+        "dbt_marts.mart_browser_analysis",
+        "dbt_marts.mart_timeofday_analysis",
+        # Airflow-managed (public schema)
+        "public.dim_geolocation",
+        "public.dim_useragent",
     ]
 
     conn = get_conn()
@@ -847,25 +695,38 @@ task_LoadRawLogsToDatabase = PythonOperator(
     python_callable=LoadRawLogsToDatabase,
     dag=dag,
 )
-task_DetectCrawlerIPs = PythonOperator(
-    task_id="task_DetectCrawlerIPs",
-    python_callable=DetectCrawlerIPs,
-    dag=dag,
-)
-
 # Airflow-managed dimensions (enrichment requiring external APIs or Python libs)
+# NOTE: DetectCrawlerIPs and dim_visitortype are now dbt models (staging/).
 task_makeLocationDimension = PythonOperator(task_id="task_makeLocationDimension", python_callable=makeLocationDimension, dag=dag)
 task_makeUserAgentDimension = PythonOperator(task_id="task_makeUserAgentDimension", python_callable=makeUserAgentDimension, dag=dag)
 
-# dbt-managed dimensions + fact table
-#   Replaces: makeDateDimension, makeStatusDimension, makeMethodDimension,
-#   makePageDimension, makeReferrerDimension, BuildFactTable
+# Great Expectations: validate raw_logs before dbt transformation
+GE_DIR = "/opt/airflow/great_expectations"
+
+task_ge_raw_logs = BashOperator(
+    task_id="task_ge_raw_logs",
+    bash_command=f"python {GE_DIR}/run_checkpoint.py raw_logs_checkpoint",
+    dag=dag,
+)
+
+# dbt-managed dimensions + fact table + mart models
+#   Staging layer: dim_date, dim_time, dim_page, dim_status, dim_method,
+#                  dim_referrer, dim_visit_buckets, fact_webrequest,
+#                  crawler_ips, dim_visitortype
+#   Mart layer:    mart_page_performance, mart_daily_aggregates, mart_crawler_analysis,
+#                  mart_browser_analysis, mart_timeofday_analysis
 DBT_PROJECT_DIR = "/opt/airflow/dbt/w3c"
 DBT_PROFILES_DIR = "/opt/airflow/dbt"
 
 task_dbt_deps = BashOperator(
     task_id="task_dbt_deps",
-    bash_command=f"dbt deps --project-dir {DBT_PROJECT_DIR}",
+    bash_command=f"""
+if [ ! -d "{DBT_PROJECT_DIR}/dbt_packages" ]; then
+    dbt deps --project-dir {DBT_PROJECT_DIR}
+else
+    echo "dbt_packages already exists, skipping dbt deps"
+fi
+""",
     dag=dag,
 )
 
@@ -896,29 +757,28 @@ task_ExportCSV = PythonOperator(
 task_CreateDatabaseTables >> task_LoadRawLogsToDatabase
 
 # Phase 3a: Airflow-managed enrichment tasks (external APIs, Python libs)
-task_LoadRawLogsToDatabase >> task_DetectCrawlerIPs
 task_LoadRawLogsToDatabase >> task_makeLocationDimension
 task_LoadRawLogsToDatabase >> task_makeUserAgentDimension
 
+# Phase 3b: Great Expectations validates raw_logs quality before dbt
+#           Runs in parallel with enrichment tasks (both read raw_logs, don't modify it)
+task_LoadRawLogsToDatabase >> task_ge_raw_logs
 
-# Phase 3b: dbt builds dimensions (dim_date, dim_page, dim_status, dim_method, dim_referrer)
-#           and fact table (fact_webrequest) via directed acyclic graph transformations.
-# Replaces: makeDateDimension, makeStatusDimension, makeMethodDimension,
-#           makePageDimension, makeReferrerDimension, and BuildFactTable.
-airflow_enrichments = [
-    task_DetectCrawlerIPs,
+# Phase 3c: All enrichment + validation must complete before dbt
+airflow_tasks = [
     task_makeLocationDimension,
-    task_makeUserAgentDimension
+    task_makeUserAgentDimension,
+    task_ge_raw_logs
 ]
-airflow_enrichments >> task_dbt_deps
+airflow_tasks >> task_dbt_deps
 
-# Phase 3b-ii: Install dbt packages → Run models
+# Phase 3d: Run dbt models (staging → fact → marts)
 task_dbt_deps >> task_dbt_run
 
-# Phase 3c: dbt quality checks
+# Phase 3e: dbt quality checks
 task_dbt_run >> task_dbt_test
 
-# Phase 3d: dbt documentation generation
+# Phase 3f: dbt documentation generation
 task_dbt_test >> task_dbt_docs
 
 # Phase 4: Export fresh CSVs after every successful pipeline run

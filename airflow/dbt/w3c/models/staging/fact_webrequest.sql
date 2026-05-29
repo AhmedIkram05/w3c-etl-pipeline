@@ -1,5 +1,7 @@
 {{ config(
-    materialized='table',
+    materialized='incremental',
+    unique_key='raw_log_id',
+    on_schema_change='fail',
     tags=['fact', 'dbt'],
     post_hook=[
         "CREATE INDEX IF NOT EXISTS idx_fact_raw_log_id ON {{ this }}(raw_log_id)",
@@ -28,6 +30,9 @@ WITH raw AS (
         rl.time_taken,
         rl.source_file
     FROM {{ source('w3c', 'raw_logs') }} rl
+    {% if is_incremental() %}
+    WHERE rl.id > (SELECT MAX(raw_log_id) FROM {{ this }})
+    {% endif %}
 ),
 
 page_map AS (
@@ -71,7 +76,7 @@ ip_visit_buckets AS (
 ),
 
 crawler_ips_list AS (
-    SELECT ip FROM {{ source('w3c', 'crawler_ips') }}
+    SELECT ip FROM {{ ref('crawler_ips') }}
 ),
 
 computed AS (
@@ -119,16 +124,16 @@ computed AS (
 SELECT
     c.raw_log_id,
     c.source_file,
-    COALESCE(d.date_sk, -1) AS date_sk,
-    COALESCE(t.time_sk, -1) AS time_sk,
-    COALESCE(p.page_sk, -1) AS page_sk,
-    COALESCE(m.method_sk, -1) AS method_sk,
-    COALESCE(s.status_sk, -1) AS status_sk,
-    COALESCE(rf.referrer_sk, -1) AS referrer_sk,
+    d.date_sk,
+    t.time_sk,
+    p.page_sk,
+    m.method_sk,
+    s.status_sk,
+    rf.referrer_sk,
     COALESCE(g.geolocation_sk, -1) AS geolocation_sk,
     COALESCE(ua.user_agent_sk, -1) AS user_agent_sk,
-    COALESCE(v.visitor_sk, -1) AS visitor_sk,
-    COALESCE(vb.visit_bucket_sk, -1) AS visit_bucket_sk,
+    v.visitor_sk,
+    vb.visit_bucket_sk,
     c.bytes_sent,
     c.bytes_received,
     c.response_time_ms,
@@ -139,23 +144,22 @@ SELECT
     c.size_band,
     t.time_band
 FROM computed c
-LEFT JOIN {{ ref('dim_date') }} d ON d.date = c.log_date
-LEFT JOIN {{ ref('dim_time') }} t
+INNER JOIN {{ ref('dim_date') }} d ON d.date = c.log_date
+INNER JOIN {{ ref('dim_time') }} t
     ON t.hour = EXTRACT(HOUR FROM c.log_time)::INTEGER
     AND t.minute = EXTRACT(MINUTE FROM c.log_time)::INTEGER
-LEFT JOIN page_map p
+INNER JOIN page_map p
     ON p.page_path = c.uri_stem
     AND p.query_string = c.uri_query
-LEFT JOIN method_map m ON m.http_method = c.method_name
-LEFT JOIN status_map s
+INNER JOIN method_map m ON m.http_method = c.method_name
+INNER JOIN status_map s
     ON s.status_code = c.status_code
     AND s.sub_status = c.sub_status
     AND s.win32_status = c.win32_status
-LEFT JOIN referrer_map rf ON rf.referrer_url = c.referrer_url
+INNER JOIN referrer_map rf ON rf.referrer_url = c.referrer_url
 LEFT JOIN geo_map g ON g.client_ip = c.client_ip
 LEFT JOIN ua_map ua ON ua.user_agent = c.user_agent
-LEFT JOIN {{ source('w3c', 'dim_visitortype') }} v ON v.visitor_sk = c.visitor_key
-LEFT JOIN ip_visit_buckets ib ON ib.client_ip = c.client_ip
-LEFT JOIN {{ ref('dim_visit_buckets') }} vb ON vb.visit_bucket = ib.visit_bucket_name
+INNER JOIN {{ ref('dim_visitortype') }} v ON v.visitor_sk = c.visitor_key
+INNER JOIN ip_visit_buckets ib ON ib.client_ip = c.client_ip
+INNER JOIN {{ ref('dim_visit_buckets') }} vb ON vb.visit_bucket = ib.visit_bucket_name
 
-ORDER BY c.raw_log_id
