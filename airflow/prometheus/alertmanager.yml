@@ -1,0 +1,22 @@
+# Alertmanager configuration for W3C ETL Pipeline
+# Routes all Prometheus alerts to Slack via incoming webhook
+route:
+  receiver: 'slack-alerts'
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: 'slack-alerts'
+    slack_configs:
+      - api_url: 'PLEASE_SET_SLACK_WEBHOOK_URL_IN_ENV'
+        title: '{{ .Status | toUpper }}: {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+            *Alert:* {{ .Labels.alertname }}
+            *Severity:* {{ .Labels.severity }}
+            *Description:* {{ .Annotations.description }}
+            *Started:* {{ .StartsAt.Format "Jan 02 15:04:05 UTC" }}
+          {{ end }}
+        send_resolved: true
