@@ -3,12 +3,12 @@ w3c:
   outputs:
     dev:
       type: postgres
-      host: postgres
-      user: airflow
-      password: airflow
-      port: 5432
-      dbname: w3c_warehouse
-      schema: public
+      host: "{{ env_var('W3C_DB_HOST', 'postgres') }}"
+      user: "{{ env_var('W3C_DB_USER', 'airflow') }}"
+      password: "{{ env_var('W3C_DB_PASS', 'airflow') }}"
+      port: "{{ env_var('W3C_DB_PORT', '5432') | int }}"
+      dbname: "{{ env_var('W3C_DB_NAME', 'w3c_warehouse') }}"
+      schema: dbt
       threads: 4
       keepalives_idle: 0
       connect_timeout: 10
