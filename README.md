@@ -768,6 +768,7 @@ Defined in `airflow/prometheus/alert_rules.yml` — 3 groups with 6 alerts evalu
 When any alert fires, **Prometheus pushes it to Alertmanager** (`airflow/prometheus/alertmanager.yml`), which sends a notification to the **#w3c-etl-alerts** Slack channel via webhook:
 
 - **Integration**: Slack Incoming Webhook (Alertmanager's `slack_configs`)
+- **Configuration**: Set `SLACK_WEBHOOK_URL` in `airflow/.env` — Alertmanager reads it via env var expansion (`--config.expand-env=true`)
 - **Grouping**: Alerts grouped by `alertname` + `severity` to reduce noise
 - **Repeat interval**: 4 hours for ongoing issues (no repeat spam)
 - **Resolved**: You get a resolved notification when the issue clears
@@ -858,7 +859,7 @@ cd W3C-ETL-Pipeline
 cp airflow/.env.example airflow/.env
 ```
 
-For local development the defaults work out of the box — local Docker Postgres, Grafana admin/admin, no RDS configuration needed. For AWS RDS, uncomment the `W3C_*` variables in `.env`.
+For local development the defaults work out of the box — local Docker Postgres, Grafana admin/admin, no RDS configuration needed. Set `SLACK_WEBHOOK_URL` in `.env` for alert notifications, or leave it unset to run without Slack alerts. For AWS RDS, uncomment the `W3C_*` variables in `.env`.
 
 ### 3. Build & Start
 
