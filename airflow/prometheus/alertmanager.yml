@@ -10,7 +10,7 @@ route:
 receivers:
   - name: 'slack-alerts'
     slack_configs:
-      - api_url: 'PLEASE_SET_SLACK_WEBHOOK_URL_IN_ENV'
+      - api_url: '$SLACK_WEBHOOK_URL'
         title: '{{ .Status | toUpper }}: {{ .GroupLabels.alertname }}'
         text: >-
           {{ range .Alerts }}
