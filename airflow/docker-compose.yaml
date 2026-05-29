@@ -95,6 +95,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
     - ${AIRFLOW_PROJ_DIR:-.}/dbt:/opt/airflow/dbt
+    - ${AIRFLOW_PROJ_DIR:-.}/great_expectations:/opt/airflow/great_expectations
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -403,6 +404,31 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  # ── Alertmanager ─────────────────────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    depends_on:
+      prometheus:
+        condition: service_started
+    networks:
+      - airflow-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
   # ── Grafana ─────────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:11.3.0
@@ -438,6 +464,7 @@ volumes:
   postgres-db-volume:
   prometheus-data:
   grafana-data:
+  alertmanager-data:
 
 networks:
   airflow-network:
