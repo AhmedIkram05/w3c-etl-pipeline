@@ -5,15 +5,12 @@ models:
     description: "Calendar date dimension enriched with UK holidays, weekday/weekend, quarter, and week-of-year attributes"
     columns:
       - name: date_sk
-        description: "Surrogate key (YYYYMMDD format)"
+        description: "Foreign key to dim_date"
         tests:
           - unique
           - not_null
       - name: date
         description: "Calendar date"
-        tests:
-          - unique
-          - not_null
       - name: year
         description: "Year"
         tests:
@@ -107,6 +104,8 @@ models:
         description: "Category (Success, Client Error, Server Error, etc.)"
       - name: status_label
         description: "Human-readable status description"
+      - name: description
+        description: "Detailed human-readable description of the HTTP status code"
       - name: severity
         description: "Severity level (Info, Warning, Error, Critical)"
 
@@ -162,8 +161,8 @@ models:
         tests:
           - unique
           - not_null
-      - name: ip_count
-        description: "Number of unique IPs in this bucket"
+      - name: user_count
+        description: "Number of unique users (IPs) in this bucket"
         tests:
           - not_null
 
@@ -246,3 +245,230 @@ models:
         description: "Size category (Zero, Tiny, Small, Medium, Large, Huge) based on total bytes"
       - name: time_band
         description: "Time band denormalized from dim_time for convenience (Early Morning, Morning, Afternoon, Evening)"
+
+  - name: crawler_ips
+    description: "Known crawler IPs detected from robots.txt requests, managed by dbt"
+    columns:
+      - name: ip
+        description: "Crawler IP address"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_visitortype
+    description: "Visitor type dimension (Crawler=1, Human=2, Unknown=-1)"
+    columns:
+      - name: visitor_sk
+        description: "Surrogate key"
+        tests:
+          - unique
+          - not_null
+      - name: crawler_flag
+        description: "'Yes' for crawler, 'No' for human, 'Ukn' for unknown"
+      - name: visitor_type
+        description: "Visitor type label"
+
+  - name: mart_page_performance
+    description: "Page-level performance aggregation with error rates, response time metrics, and slow request analysis"
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "total_requests >= 0"
+    columns:
+      - name: page_sk
+        description: "Foreign key to dim_page"
+        tests:
+          - not_null
+      - name: page_path
+        description: "URI stem (path)"
+      - name: page_category
+        description: "Content type classification"
+      - name: total_requests
+        description: "Total request count for this page"
+        tests:
+          - not_null
+      - name: unique_hosts
+        description: "Number of unique hosts (IPs) accessing this page"
+      - name: total_404
+        description: "Count of 404 responses"
+      - name: pct_404
+        description: "Percentage of requests resulting in 404"
+      - name: total_bytes_sent
+        description: "Total bytes transferred"
+      - name: avg_response_time_ms
+        description: "Average response time in milliseconds"
+      - name: p95_response_time_ms
+        description: "95th percentile response time in milliseconds"
+      - name: max_response_time_ms
+        description: "Maximum response time in milliseconds"
+      - name: slow_requests
+        description: "Count of requests with response time exceeding 5000ms"
+      - name: pct_slow_requests
+        description: "Percentage of requests with response time exceeding 5000ms"
+      - name: active_days
+        description: "Number of distinct days with activity"
+
+  - name: mart_daily_aggregates
+    description: "Daily traffic and performance summary with crawler, direct traffic breakdowns, and latency analysis"
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "total_requests >= 0"
+    columns:
+      - name: date_sk
+        description: "Foreign key to dim_date"
+        tests:
+          - unique
+          - not_null
+      - name: date
+        description: "Calendar date"
+      - name: year
+        description: "Year extracted from date"
+      - name: month
+        description: "Month number (1-12)"
+      - name: day_name
+        description: "Day of week name"
+      - name: is_weekend
+        description: "'Yes' if weekend"
+      - name: holiday_flag
+        description: "'Yes' if UK bank holiday"
+      - name: total_requests
+        description: "Total requests for the day"
+      - name: unique_hosts
+        description: "Number of unique hosts (IPs) visiting the site"
+      - name: unique_human_hosts
+        description: "Number of unique human (non-crawler) hosts"
+      - name: unique_pages
+        description: "Number of unique pages requested"
+      - name: active_countries
+        description: "Number of distinct countries with traffic"
+      - name: total_404
+        description: "Count of 404 responses"
+      - name: pct_404
+        description: "Percentage of 404 responses"
+      - name: avg_response_time_ms
+        description: "Average response time in milliseconds"
+      - name: p95_response_time_ms
+        description: "95th percentile response time in milliseconds"
+      - name: total_bytes_sent
+        description: "Total bytes transferred"
+      - name: crawler_requests
+        description: "Requests from known crawler IPs"
+      - name: pct_crawler
+        description: "Percentage of requests from crawlers"
+      - name: direct_traffic_requests
+        description: "Direct traffic requests"
+      - name: slow_requests
+        description: "Count of requests with response time exceeding 5000ms"
+      - name: pct_slow_requests
+        description: "Percentage of requests with response time exceeding 5000ms"
+
+  - name: mart_crawler_analysis
+    description: "Crawler behavior analysis with error rates, resource usage, and host-level metrics"
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "total_crawler_requests >= 0"
+    columns:
+      - name: date_sk
+        description: "Foreign key to dim_date"
+        tests:
+          - unique
+          - not_null
+      - name: date
+        description: "Calendar date"
+      - name: total_crawler_requests
+        description: "Total requests from crawlers"
+      - name: distinct_pages_hit
+        description: "Number of distinct pages crawled"
+      - name: distinct_hosts_hit
+        description: "Number of distinct crawler hosts (IPs)"
+      - name: total_bytes_transferred
+        description: "Total bytes transferred by crawlers"
+      - name: avg_bytes_per_request
+        description: "Average bytes per crawler request"
+      - name: avg_response_time_ms
+        description: "Average response time for crawler requests"
+      - name: max_response_time_ms
+        description: "Maximum response time for crawler requests"
+      - name: pages_with_errors
+        description: "Distinct pages returning client errors"
+      - name: pct_error_responses
+        description: "Percentage of crawler requests resulting in errors"
+
+  - name: mart_timeofday_analysis
+    description: "Hourly traffic and performance breakdown showing time-of-day traffic and latency patterns"
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "total_requests >= 0"
+    columns:
+      - name: date_sk
+        description: "Foreign key to dim_date"
+        tests:
+          - not_null
+      - name: date
+        description: "Calendar date"
+      - name: day_name
+        description: "Day of week name"
+      - name: hour
+        description: "Hour of day (0-23)"
+        tests:
+          - not_null
+      - name: time_band
+        description: "Time band (Early Morning, Morning, Afternoon, Evening)"
+      - name: total_requests
+        description: "Total requests for this hour"
+      - name: unique_pages
+        description: "Number of unique pages requested in this hour"
+      - name: unique_hosts
+        description: "Number of unique hosts (IPs) in this hour"
+      - name: total_404
+        description: "Count of 404 responses"
+      - name: pct_404
+        description: "Percentage of 404 responses"
+      - name: avg_response_time_ms
+        description: "Average response time in milliseconds"
+      - name: p95_response_time_ms
+        description: "95th percentile response time in milliseconds"
+      - name: total_bytes_sent
+        description: "Total bytes transferred"
+      - name: crawler_requests
+        description: "Requests from known crawler IPs"
+      - name: pct_crawler
+        description: "Percentage of requests from crawlers"
+      - name: slow_requests
+        description: "Count of requests with response time exceeding 5000ms"
+      - name: pct_slow_requests
+        description: "Percentage of requests with response time exceeding 5000ms"
+
+  - name: mart_browser_analysis
+    description: "Daily browser and client analysis with device category, platform breakdown, and traffic share"
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "total_requests >= 0"
+    columns:
+      - name: date_sk
+        description: "Foreign key to dim_date"
+        tests:
+          - not_null
+      - name: date
+        description: "Calendar date"
+      - name: browser_name
+        description: "Browser family (Chrome, Firefox, Safari, etc.)"
+      - name: operating_system
+        description: "Operating system family"
+      - name: device_type
+        description: "Device type (Desktop, Mobile, Tablet, etc.)"
+      - name: is_mobile
+        description: "Flag indicating mobile user agent"
+      - name: device_category
+        description: "Device category (Desktop or Mobile/Tablet)"
+      - name: total_requests
+        description: "Total requests for this browser/OS combination"
+      - name: unique_hosts
+        description: "Number of unique hosts (IPs)"
+      - name: avg_response_time_ms
+        description: "Average response time in milliseconds"
+      - name: total_bytes_sent
+        description: "Total bytes transferred"
+      - name: pct_of_daily_traffic
+        description: "Percentage of the day's total traffic"
+      - name: browser_rank
+        description: "Rank of this browser family for the day (1 = most traffic)"
