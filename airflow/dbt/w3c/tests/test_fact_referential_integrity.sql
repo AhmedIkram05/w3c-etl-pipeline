@@ -59,7 +59,7 @@ WITH fk_checks AS (
     SELECT
         'visitor_sk',
         COUNT(*),
-        SUM(CASE WHEN visitor_sk != -1 AND visitor_sk NOT IN (SELECT visitor_sk FROM {{ source('w3c', 'dim_visitortype') }}) THEN 1 ELSE 0 END)
+        SUM(CASE WHEN visitor_sk != -1 AND visitor_sk NOT IN (SELECT visitor_sk FROM {{ ref('dim_visitortype') }}) THEN 1 ELSE 0 END)
     FROM {{ ref('fact_webrequest') }}
 )
 
