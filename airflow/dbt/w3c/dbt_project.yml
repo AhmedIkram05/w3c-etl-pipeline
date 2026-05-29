@@ -17,7 +17,12 @@ clean-targets:
 
 models:
   w3c:
-    +materialized: table
+    staging:
+      +materialized: table
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts
 
 vars:
   uk_holidays:
