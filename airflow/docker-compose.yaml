@@ -415,6 +415,7 @@ services:
       - alertmanager-data:/alertmanager
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--config.expand-env=true'
       - '--storage.path=/alertmanager'
     depends_on:
       prometheus:
