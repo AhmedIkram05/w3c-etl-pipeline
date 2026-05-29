@@ -406,16 +406,17 @@ services:
 
   # ── Alertmanager ─────────────────────────────────────────────────
   alertmanager:
-    image: prom/alertmanager:v0.28.1
+    build:
+      context: ./docker/alertmanager
     container_name: alertmanager
     ports:
       - "9093:9093"
     volumes:
       - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager-data:/alertmanager
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
     command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--config.expand-env=true'
       - '--storage.path=/alertmanager'
     depends_on:
       prometheus:
