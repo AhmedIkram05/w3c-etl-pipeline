@@ -11,7 +11,7 @@ WITH raw_pages AS (
     SELECT DISTINCT
         COALESCE(NULLIF(TRIM(uri_stem), ''), 'Unknown') AS uri_stem,
         COALESCE(NULLIF(TRIM(uri_query), ''), '-') AS uri_query
-    FROM {{ source('w3c', 'raw_logs') }}
+    FROM {{ source('w3c', 'raw_enriched') }}
     WHERE uri_stem IS NOT NULL
 ),
 
