@@ -5,47 +5,11 @@ sources:
     database: w3c_warehouse
     schema: public
     tables:
-      - name: raw_logs
-        description: "Staging table containing parsed W3C IIS log entries"
-        columns:
-          - name: id
-            description: "Primary key"
-            tests:
-              - unique
-              - not_null
-          - name: log_date
-            description: "Request date"
-          - name: log_time
-            description: "Request time"
-          - name: client_ip
-            description: "Client IP address"
-          - name: method
-            description: "HTTP method"
-          - name: uri_stem
-            description: "URI stem (path)"
-          - name: uri_query
-            description: "URI query string"
-          - name: status
-            description: "HTTP status code"
-          - name: sub_status
-            description: "IIS sub status code"
-          - name: win32_status
-            description: "Windows (Win32) status code"
-          - name: referrer
-            description: "Referrer URL"
-          - name: bytes_sent
-            description: "Bytes sent in response"
-          - name: time_taken
-            description: "Time taken in milliseconds"
-          - name: bytes_recv
-            description: "Bytes received in request"
-          - name: source_file
-            description: "Source log file name"
-          - name: user_agent
-            description: "User-Agent string"
+      - name: raw_enriched
+        description: "Denormalized enriched log table populated by Spark pipeline via GeoLite2 + PySpark UDFs. Contains all raw log fields plus geo, user-agent, and computed enrichment columns."
 
       - name: dim_geolocation
-        description: "Geolocation dimension populated by Airflow via ip-api.com API"
+        description: "Geolocation dimension populated by Airflow export_dimensions task via GeoLite2 (geography) and ip-api.com (ISP). Surrogate key -1 = Unknown."
         columns:
           - name: geolocation_sk
             description: "Surrogate key"
@@ -58,7 +22,7 @@ sources:
             description: "Country name"
 
       - name: dim_useragent
-        description: "User-Agent dimension populated by Airflow via user_agents library"
+        description: "User-Agent dimension populated by Airflow export_dimensions task via user_agents library. Surrogate key -1 = Unknown."
         columns:
           - name: user_agent_sk
             description: "Surrogate key"
@@ -67,12 +31,9 @@ sources:
               - not_null
           - name: user_agent
             description: "Raw User-Agent string"
-          - name: browser_family
+          - name: browser_name
             description: "Browser family (e.g. Chrome, Firefox)"
-          - name: os_family
+          - name: operating_system
             description: "Operating system family (e.g. Windows, Mac OS X)"
           - name: device_type
             description: "Device type (e.g. Desktop, Mobile, Tablet)"
-
-
-
