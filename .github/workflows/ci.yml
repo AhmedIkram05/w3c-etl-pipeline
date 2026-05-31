@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: |
+          uv pip install --system ruff mypy types-requests types-python-dateutil
+      - name: Ruff lint
+        run: ruff check --output-format=github .
+      - name: Ruff format check
+        run: ruff format --check .
+      - name: MyPy type check
+        run: mypy --ignore-missing-imports tests/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install uv
+        run: pip install uv
+      - name: Install test dependencies
+        run: |
+          uv pip install --system pytest
+          uv pip install --system -r tests/requirements-test.txt
+      - name: Run tests
+        run: |
+          PYTHONPATH=airflow/spark/jobs:$PYTHONPATH python -m pytest tests/ -v --tb=short -m "not integration and not dag_integrity"
+
+  dbt-compile:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: airflow
+          POSTGRES_PASSWORD: airflow
+          POSTGRES_DB: w3c_warehouse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U airflow -d w3c_warehouse"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      W3C_DB_HOST: localhost
+      W3C_DB_PORT: "5432"
+      W3C_DB_NAME: w3c_warehouse
+      W3C_DB_USER: airflow
+      W3C_DB_PASS: airflow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dbt
+        run: pip install "dbt-postgres==1.8.2" "dbt-core==1.8.9" "dbt-common==1.27.1" "protobuf>=5,<6"
+      - name: dbt deps
+        run: dbt deps --project-dir airflow/dbt/w3c
+      - name: dbt compile
+        run: dbt compile --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
