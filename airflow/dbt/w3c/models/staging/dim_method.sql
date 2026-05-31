@@ -6,7 +6,7 @@
 WITH raw_methods AS (
     SELECT DISTINCT
         COALESCE(NULLIF(TRIM(UPPER(method)), ''), 'Unknown') AS method_name
-    FROM {{ source('w3c', 'raw_logs') }}
+    FROM {{ source('w3c', 'raw_enriched') }}
     WHERE method IS NOT NULL
 ),
 

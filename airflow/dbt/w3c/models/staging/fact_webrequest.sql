@@ -1,37 +1,28 @@
 {{ config(
     materialized='incremental',
     unique_key='raw_log_id',
-    on_schema_change='fail',
+    on_schema_change='append_new_columns',
     tags=['fact', 'dbt'],
     post_hook=[
         "CREATE INDEX IF NOT EXISTS idx_fact_raw_log_id ON {{ this }}(raw_log_id)",
         "CREATE INDEX IF NOT EXISTS idx_fact_date_sk ON {{ this }}(date_sk)",
-        "CREATE INDEX IF NOT EXISTS idx_fact_page_sk ON {{ this }}(page_sk)",
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_fact_raw_log_id_unique ON {{ this }}(raw_log_id)"
+        "CREATE INDEX IF NOT EXISTS idx_fact_page_sk ON {{ this }}(page_sk)"
     ]
 ) }}
 
-WITH raw AS (
+WITH enriched_input AS (
     SELECT
-        rl.id AS raw_log_id,
-        rl.log_date,
-        rl.log_time,
-        rl.client_ip,
-        rl.uri_stem,
-        rl.uri_query,
-        rl.method,
-        rl.referrer,
-        rl.user_agent,
-        rl.status,
-        rl.sub_status,
-        rl.win32_status,
-        rl.bytes_sent,
-        rl.bytes_recv,
-        rl.time_taken,
-        rl.source_file
-    FROM {{ source('w3c', 'raw_logs') }} rl
+        *,
+        -- Stable unique key (raw_log_id) generated since source has no auto-increment
+        -- Includes enough dimensions to disambiguate concurrent identical-looking requests
+        MD5(CONCAT(source_file, '|', log_time, '|', client_ip, '|', user_agent, '|', referrer,
+                   '|', uri_stem, '|', status, '|', time_taken)) AS raw_log_id,
+        CASE WHEN status = 404 THEN TRUE ELSE FALSE END AS is_404,
+        CASE WHEN referrer = '-' OR referrer IS NULL THEN TRUE ELSE FALSE END AS is_direct_traffic,
+        1 AS request_count
+    FROM {{ source('w3c', 'raw_enriched') }}
     {% if is_incremental() %}
-    WHERE rl.id > (SELECT MAX(raw_log_id) FROM {{ this }})
+    WHERE source_file NOT IN (SELECT DISTINCT source_file FROM {{ this }})
     {% endif %}
 ),
 
@@ -70,55 +61,56 @@ ip_visit_buckets AS (
             WHEN COUNT(*) <= 50 THEN '21-50 Visits'
             ELSE '51+ Visits'
         END AS visit_bucket_name
-    FROM {{ source('w3c', 'raw_logs') }}
+    FROM {{ source('w3c', 'raw_enriched') }}
     WHERE client_ip IS NOT NULL AND client_ip != '-'
     GROUP BY client_ip
 ),
 
-crawler_ips_list AS (
-    SELECT ip FROM {{ ref('crawler_ips') }}
-),
-
 computed AS (
     SELECT
-        r.raw_log_id,
-        r.source_file,
-        r.log_date::DATE AS log_date,
-        r.log_time,
-        r.client_ip,
-        COALESCE(NULLIF(TRIM(r.uri_stem), ''), 'Unknown') AS uri_stem,
-        COALESCE(NULLIF(TRIM(r.uri_query), ''), '-') AS uri_query,
-        COALESCE(NULLIF(TRIM(UPPER(r.method)), ''), 'Unknown') AS method_name,
-        CASE WHEN r.referrer IS NULL OR TRIM(r.referrer) IN ('', '-') THEN 'Direct' ELSE TRIM(r.referrer) END AS referrer_url,
-        r.user_agent,
-        COALESCE(r.status, -1) AS status_code,
-        COALESCE(r.sub_status, -1) AS sub_status,
-        COALESCE(r.win32_status, -1) AS win32_status,
-        COALESCE(r.bytes_sent, 0)::BIGINT AS bytes_sent,
-        COALESCE(r.bytes_recv, 0)::BIGINT AS bytes_received,
-        COALESCE(r.time_taken, 0)::INTEGER AS response_time_ms,
-        1 AS request_count,
-        -- Computed flags
-        CASE WHEN r.status = 404 THEN TRUE ELSE FALSE END AS is_404,
-        CASE WHEN r.client_ip IN (
-            SELECT ip FROM crawler_ips_list
-        ) THEN TRUE ELSE FALSE END AS is_crawler,
-        CASE WHEN r.referrer IS NULL OR TRIM(r.referrer) = '' OR TRIM(r.referrer) = '-'
-            THEN TRUE ELSE FALSE END AS is_direct_traffic,
-        -- Size band (based on total bytes sent + received)
-        CASE
-            WHEN COALESCE(r.bytes_sent, 0) + COALESCE(r.bytes_recv, 0) = 0 THEN 'Zero'
-            WHEN COALESCE(r.bytes_sent, 0) + COALESCE(r.bytes_recv, 0) < 1024 THEN 'Tiny'
-            WHEN COALESCE(r.bytes_sent, 0) + COALESCE(r.bytes_recv, 0) < 10240 THEN 'Small'
-            WHEN COALESCE(r.bytes_sent, 0) + COALESCE(r.bytes_recv, 0) < 102400 THEN 'Medium'
-            WHEN COALESCE(r.bytes_sent, 0) + COALESCE(r.bytes_recv, 0) < 1048576 THEN 'Large'
-            ELSE 'Huge'
-        END AS size_band,
-        -- Visitor lookup key
-        CASE WHEN r.client_ip IN (
-            SELECT ip FROM crawler_ips_list
-        ) THEN 1 ELSE 2 END AS visitor_key
-    FROM raw r
+        ei.raw_log_id,
+        ei.source_file,
+        ei.log_date::DATE AS log_date,
+        ei.log_time,
+        ei.client_ip,
+        COALESCE(NULLIF(TRIM(ei.uri_stem), ''), 'Unknown') AS uri_stem,
+        COALESCE(NULLIF(TRIM(ei.uri_query), ''), '-') AS uri_query,
+        COALESCE(NULLIF(TRIM(UPPER(ei.method)), ''), 'Unknown') AS method_name,
+        CASE WHEN ei.referrer IS NULL OR TRIM(ei.referrer) IN ('', '-') THEN 'Direct' ELSE TRIM(ei.referrer) END AS referrer_url,
+        ei.user_agent,
+        COALESCE(ei.status, -1) AS status_code,
+        COALESCE(ei.sub_status, -1) AS sub_status,
+        COALESCE(ei.win32_status, -1) AS win32_status,
+        COALESCE(ei.bytes_sent, 0)::BIGINT AS bytes_sent,
+        COALESCE(ei.bytes_recv, 0)::BIGINT AS bytes_received,
+        COALESCE(ei.time_taken, 0)::INTEGER AS response_time_ms,
+        ei.request_count,
+        ei.is_404,
+        -- is_crawler is now pre-computed in raw_enriched by the Spark pipeline
+        COALESCE(ei.is_crawler, FALSE) AS is_crawler,
+        ei.is_direct_traffic,
+        -- size_band is now pre-computed in raw_enriched by the Spark pipeline
+        COALESCE(ei.size_band, 'Zero') AS size_band,
+        -- Geo enrichment (denormalized from raw_enriched)
+        ei.country,
+        ei.region,
+        ei.city,
+        ei.latitude,
+        ei.longitude,
+        ei.isp,
+        -- User-Agent enrichment (denormalized from raw_enriched)
+        ei.agent_type,
+        ei.browser_name,
+        ei.browser_version,
+        ei.operating_system,
+        ei.device_type,
+        -- Computed enrichment (denormalized from raw_enriched)
+        ei.page_category,
+        ei.referrer_domain,
+        ei.traffic_type,
+        -- Visitor lookup key from is_crawler flag
+        CASE WHEN COALESCE(ei.is_crawler, FALSE) THEN 1 ELSE 2 END AS visitor_key
+    FROM enriched_input ei
 )
 
 SELECT
@@ -142,12 +134,31 @@ SELECT
     c.is_crawler,
     c.is_direct_traffic,
     c.size_band,
+    c.country,
+    c.region,
+    c.city,
+    c.latitude,
+    c.longitude,
+    c.isp,
+    c.agent_type,
+    c.browser_name,
+    c.browser_version,
+    c.operating_system,
+    c.device_type,
+    c.page_category,
+    c.referrer_domain,
+    c.traffic_type,
     t.time_band
-FROM computed c
+FROM (
+    SELECT * FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY raw_log_id ORDER BY response_time_ms DESC) AS rn
+        FROM computed
+    ) t WHERE rn = 1
+) c
 INNER JOIN {{ ref('dim_date') }} d ON d.date = c.log_date
 INNER JOIN {{ ref('dim_time') }} t
-    ON t.hour = EXTRACT(HOUR FROM c.log_time)::INTEGER
-    AND t.minute = EXTRACT(MINUTE FROM c.log_time)::INTEGER
+    ON t.hour = EXTRACT(HOUR FROM c.log_time::TIME)::INTEGER
+    AND t.minute = EXTRACT(MINUTE FROM c.log_time::TIME)::INTEGER
 INNER JOIN page_map p
     ON p.page_path = c.uri_stem
     AND p.query_string = c.uri_query
@@ -162,4 +173,3 @@ LEFT JOIN ua_map ua ON ua.user_agent = c.user_agent
 INNER JOIN {{ ref('dim_visitortype') }} v ON v.visitor_sk = c.visitor_key
 INNER JOIN ip_visit_buckets ib ON ib.client_ip = c.client_ip
 INNER JOIN {{ ref('dim_visit_buckets') }} vb ON vb.visit_bucket = ib.visit_bucket_name
-
