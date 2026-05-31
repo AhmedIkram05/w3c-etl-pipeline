@@ -69,6 +69,15 @@ x-airflow-common:
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+    # Ensure plugins directory is on Python path for DAG parser subprocesses
+    PYTHONPATH: "/opt/airflow/plugins"
+
+    # ── Spark connection (used by SparkSubmitOperator for bronze/silver/export tasks) ──
+    # JSON format stores the full "spark://" URL directly in the host field,
+    # bypassing Airflow's URI parser which would strip the scheme.
+    # SparkSubmitHook._resolve_connection: conn.port is None → master = conn.host
+    # The URL is sourced from SPARK_MASTER_URL in the .env file.
+    AIRFLOW_CONN_SPARK_DEFAULT: '{"conn_type": "spark", "host": "${SPARK_MASTER_URL}"}'
 
     # ── W3C Warehouse connection (defaults target local Docker PostgreSQL) ──
     # To use AWS RDS, uncomment and fill in the W3C_* variables in the .env file.
@@ -95,7 +104,15 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
     - ${AIRFLOW_PROJ_DIR:-.}/dbt:/opt/airflow/dbt
-    - ${AIRFLOW_PROJ_DIR:-.}/great_expectations:/opt/airflow/great_expectations
+    - ../tests:/opt/airflow/tests:ro
+    # Spark job scripts — shared with spark-master for SparkSubmitOperator
+    - ${AIRFLOW_PROJ_DIR:-.}/spark/jobs:/opt/airflow/spark/jobs
+    # Spark Delta Lake storage — shared with spark containers
+    - ${AIRFLOW_PROJ_DIR:-.}/spark/delta:/opt/airflow/spark/delta
+    # Spark container-visible paths (needed for client-mode driver)
+    - ${AIRFLOW_PROJ_DIR:-.}/spark/delta:/opt/spark/delta
+    - ${AIRFLOW_PROJ_DIR:-.}/data/LogFiles:/opt/spark/logfiles:ro
+    - ${AIRFLOW_PROJ_DIR:-.}/spark/data:/opt/spark/data:ro
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -322,6 +339,72 @@ services:
         condition: service_completed_successfully
     networks:
       - airflow-network
+
+  # ╔══════════════════════════════════════════════════════════════╗
+  # ║  SPARK CLUSTER — Spark Master + Worker                      ║
+  # ║  Runs the medallion architecture (bronze → silver → gold)   ║
+  # ╚══════════════════════════════════════════════════════════════╝
+
+  # ── Spark Master ──────────────────────────────────────────────────
+  spark-master:
+    image: w3c-spark:latest
+    build:
+      context: ./spark
+      dockerfile: docker/Dockerfile.spark
+    container_name: spark-master
+    ports:
+      - "7077:7077"      # Spark master RPC
+      - "8082:8080"      # Spark master web UI
+    environment:
+      SPARK_NO_DAEMONIZE: "true"
+    volumes:
+      - ./spark/jobs:/opt/spark/jobs:ro
+      - ./spark/delta:/opt/spark/delta
+      - ./data/LogFiles:/opt/spark/logfiles:ro
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+      - ./spark/data:/opt/spark/data:ro
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    networks:
+      - airflow-network
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Spark Worker ──────────────────────────────────────────────────
+  spark-worker:
+    image: w3c-spark:latest
+    build:
+      context: ./spark
+      dockerfile: docker/Dockerfile.spark
+    container_name: spark-worker
+    ports:
+      - "8083:8081"      # Spark worker web UI
+    environment:
+      SPARK_NO_DAEMONIZE: "true"
+      SPARK_WORKER_CORES: "2"
+      SPARK_WORKER_MEMORY: "4g"
+    volumes:
+      - ./spark/jobs:/opt/spark/jobs:ro
+      - ./spark/delta:/opt/spark/delta
+      - ./data/LogFiles:/opt/spark/logfiles:ro
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+      - ./spark/data:/opt/spark/data:ro
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    networks:
+      - airflow-network
+    depends_on:
+      - spark-master
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8081/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
 
   # ╔══════════════════════════════════════════════════════════════╗
   # ║  MONITORING STACK — statsd-exporter, cAdvisor, Prometheus,  ║
