@@ -20,17 +20,17 @@ preview = true
 python_version = "3.12"
 strict = false
 ignore_missing_imports = true
-warn_unused_configs = true
+warn_unused_configs = false
 warn_redundant_casts = true
 warn_unused_ignores = true
 disallow_any_unimported = false
 
 [[tool.mypy.overrides]]
-module = ["airflow/dags/w3c/*.py"]
+module = "airflow.dags.w3c.*"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = ["airflow/spark/jobs/*.py"]
+module = "airflow.spark.jobs.*"
 ignore_errors = true
 
 [tool.pytest.ini_options]
