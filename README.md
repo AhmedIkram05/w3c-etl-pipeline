@@ -473,6 +473,12 @@ flowchart TB
 
 ![dbt test output showing 63 passing tests across generic uniqueness and referential integrity tests](assets/demo-test-output.png)
 
+#### Pytest Output - 156 unit and integration tests passing
+
+> Pytest test output showing all 156 unit and integration tests passing successfully, covering DAG integrity, Spark parsing logic, exporting logic and end-to-end Airflow and dbt integrations.
+
+![Pytest output showing 156 passing tests across unit and integration suites](assets/pytest-output.png)
+
 ---
 
 ## Deep Dives
