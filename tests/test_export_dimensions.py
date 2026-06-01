@@ -16,7 +16,7 @@ Usage:
 
 import sys
 from types import ModuleType
-from typing import Any, Optional
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
