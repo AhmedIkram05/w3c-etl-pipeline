@@ -1,5 +1,5 @@
 """
-Integration tests for the v3 pipeline: Spark → PostgreSQL → dbt → mart validation.
+Integration tests for the pipeline: Spark → PostgreSQL → dbt → mart validation.
 
 These tests require a running Docker stack with Airflow, Spark, and PostgreSQL.
 They are skipped by default; run targeting the Docker Airflow container:
