@@ -21,6 +21,11 @@
   <img src="https://img.shields.io/badge/pre--commit-FAB040?style=for-the-badge&labelColor=000000&logo=pre-commit">
 </p>
 
+<p align="center">
+    <img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/ci.yml/badge.svg" alt="CI">
+    <img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/deploy.yml/badge.svg" alt="Deploy">
+</p>
+
 ---
 
 ## Table of Contents
@@ -35,12 +40,13 @@
 - [Engineering Highlights](#engineering-highlights)
 - [Key Metrics at a Glance](#key-metrics-at-a-glance)
 - [Demos](#demos)
-  - [Power BI - Business Analytics](#power-bi--business-analytics)
+  - [Power BI - Business Analytics](#power-bi---business-analytics)
   - [Airflow DAGs](#airflow-dags)
   - [Grafana Dashboards](#grafana-dashboards)
   - [Prometheus](#prometheus)
   - [dbt Lineage](#dbt-lineage)
   - [Power Automate & Tests](#power-automate--tests)
+  - [GitHub Actions](#github-actions)
 - [Deep Dives](#deep-dives)
   - [Spark Medallion Pipeline (Bronze → Silver)](#spark-medallion-pipeline-bronze--silver)
   - [Export to PostgreSQL](#export-to-postgresql)
@@ -51,7 +57,6 @@
   - [Databricks Integration](#databricks-integration)
 - [CI/CD Pipeline](#cicd-pipeline)
 - [Testing Strategy](#testing-strategy)
-- [Configuration](#configuration)
 - [Design Decisions](#design-decisions)
 - [Performance Characteristics](#performance-characteristics)
 - [Quick Start](#quick-start)
@@ -478,6 +483,19 @@ flowchart TB
 > Pytest test output showing all 156 unit and integration tests passing successfully, covering DAG integrity, Spark parsing logic, exporting logic and end-to-end Airflow and dbt integrations.
 
 ![Pytest output showing 156 passing tests across unit and integration suites](assets/pytest-output.png)
+
+### GitHub Actions
+
+#### Continuous Integration - lint, unit tests, dbt compile
+
+> TODO
+![Continuous Integration screenshot on GitHub Actions showing successful execution of lint, unit tests, and dbt compile jobs](assets/ci.png)
+
+#### Continuous Deployment - Build and Push Airflow, Spark and AlertManager Docker Images to Github Container Regsitry
+
+> TODO
+
+![Deployment screenshot on GitHub Actions showing successful execution of deployment jobs](assets/deploy.png)
 
 ---
 
