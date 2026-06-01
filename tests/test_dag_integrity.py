@@ -1,7 +1,7 @@
 """
-DAG integrity tests for the v3 combined pipeline.
+DAG integrity tests for the pipeline.
 
-Verifies that both v3 DAG files (``spark_ingestion.py`` and ``dbt_marts.py``)
+Verifies that both DAG files (``spark_ingestion.py`` and ``dbt_marts.py``)
 parse correctly under Airflow and match expected task counts and data-flow
 contracts (Dataset outlets / triggers).
 
@@ -249,7 +249,7 @@ class TestDBTMartsDAG:
 
 @pytest.mark.dag_integrity
 class TestDAGDataContract:
-    """Verify the data contract between the two v3 DAGs."""
+    """Verify the data contract between the two DAGs."""
 
     def test_spark_outlet_matches_dbt_inlet(self):
         """The Dataset emitted by spark_ingestion should be the same as dbt_marts consumes."""
