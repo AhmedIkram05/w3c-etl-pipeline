@@ -2,10 +2,7 @@
 Integration tests for the pipeline: Spark → PostgreSQL → dbt → mart validation.
 
 These tests require a running Docker stack with Airflow, Spark, and PostgreSQL.
-They are skipped by default; run targeting the Docker Airflow container:
-
-    # Via Makefile (runs inside the airflow-scheduler container):
-    make test-integration
+They are skipped by default with 'Make Test'
 
     # Direct invocation:
     docker compose exec airflow-scheduler \\
