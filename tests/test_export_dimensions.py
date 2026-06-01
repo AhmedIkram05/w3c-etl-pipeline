@@ -15,6 +15,8 @@ Usage:
 """
 
 import sys
+from types import ModuleType
+from typing import Any, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -33,7 +35,7 @@ _FAKE_MODULES = {
 }
 
 # Store originals before patching
-_ORIGINALS = {}
+_ORIGINALS: dict[str, Optional[ModuleType]] = {}
 for mod_name, mock in _FAKE_MODULES.items():
     if mod_name not in sys.modules:
         _ORIGINALS[mod_name] = None
