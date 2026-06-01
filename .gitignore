@@ -36,3 +36,13 @@ prometheus/data/
 # Grafana — runtime data (provisioning config is version-controlled)
 grafana/data/
 AGENTS.md
+
+# Spark Delta Lake data (generated at runtime)
+airflow/spark/delta/*
+!airflow/spark/delta/.gitkeep
+
+# Pre-commit
+.pre-commit-cache/
+
+# uv local cache
+.uv-cache/
