@@ -89,11 +89,11 @@ class TestDDLGeneration:
     def test_raw_enriched_ddl_has_all_35_columns(self):
         ddl = _get_module_constant("RAW_ENRICHED_DDL")
         assert ddl is not None
-        lines = [l.strip() for l in ddl.strip().split("\n")]
+        lines = [line.strip() for line in ddl.strip().split("\n")]
         col_lines = [
-            l for l in lines if l and not l.startswith("CREATE") and l != "(" and l != ");" and not l.startswith(")")
+            line for line in lines if line and not line.startswith("CREATE") and line != "(" and line != ");" and not line.startswith(")")
         ]
-        col_names = [l.rstrip(",").split()[0] for l in col_lines if l]
+        col_names = [line.rstrip(",").split()[0] for line in col_lines if line]
         assert len(col_names) == 35, f"Expected 35 columns, got {len(col_names)}: {col_names}"
 
     def test_tracking_ddl_has_source_file_pk(self):
@@ -106,9 +106,9 @@ class TestDDLGeneration:
         ddl = _get_module_constant("TRACKING_DDL")
         assert ddl is not None
         cols = [
-            l.strip().rstrip(",")
-            for l in ddl.strip().split("\n")
-            if l.strip() and "CREATE" not in l and l.strip() not in ("(", ");", "")
+            line.strip().rstrip(",")
+            for line in ddl.strip().split("\n")
+            if line.strip() and "CREATE" not in line and line.strip() not in ("(", ");", "")
         ]
         assert len(cols) == 1
         assert "source_file" in cols[0]

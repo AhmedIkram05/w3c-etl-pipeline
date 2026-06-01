@@ -43,7 +43,7 @@ markers = [
 filterwarnings = [
     "ignore::DeprecationWarning:airflow.*",
     "ignore::DeprecationWarning:pyspark.*",
-    "ignore::DeprecationWarning:google\._upb\._message.*",
+    'ignore::DeprecationWarning:google\._upb\._message.*',
 ]
 addopts = "-v --tb=short"
 

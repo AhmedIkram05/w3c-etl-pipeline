@@ -30,11 +30,10 @@ Requirements
 import argparse
 import logging
 import os
-import sys
 from typing import Set
 
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import col, lit, hour as spark_hour
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("databricks_silver")

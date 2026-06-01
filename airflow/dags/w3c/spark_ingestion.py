@@ -1,7 +1,7 @@
 """
 W3C Spark Ingestion DAG — Bronze / Silver / Export for Combined Architecture.
 
-This DAG is the first stage of the ETL pipeline. It runs the PySpark + 
+This DAG is the first stage of the ETL pipeline. It runs the PySpark +
 Delta Lake medallion pipeline (bronze → silver), exports the
 enriched data to PostgreSQL, then builds Airflow-managed dimension tables
 that require external APIs or Python libraries.
