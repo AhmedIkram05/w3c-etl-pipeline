@@ -6,12 +6,16 @@ lines from the project dataset.
 """
 
 from datetime import date
+from typing import TYPE_CHECKING
 
 # Flexible import: works from host project root and inside Spark container
-try:
+if TYPE_CHECKING:
     from airflow.spark.jobs.utils.w3c_parser import parse_log_line, safe_date, safe_int
-except ImportError:
-    from utils.w3c_parser import parse_log_line, safe_date, safe_int  # type: ignore[import-untyped]
+else:
+    try:
+        from airflow.spark.jobs.utils.w3c_parser import parse_log_line, safe_date, safe_int
+    except ImportError:
+        from utils.w3c_parser import parse_log_line, safe_date, safe_int
 
 
 # ══════════════════════════════════════════════════════════════════════
