@@ -9,7 +9,7 @@ values have already been exported.
 
 Usage (via ``spark-submit`` --with-postgresql-jar)::
 
-    spark-submit --jars /opt/spark/jars/postgresql-42.7.5.jar \\
+    spark-submit --jars /opt/spark/jars/postgresql-42.7.4.jar \\
         export_warehouse.py \\
         --delta-dir /opt/spark/delta \\
         --jdbc-url jdbc:postgresql://postgres:5432/w3c_warehouse \\
