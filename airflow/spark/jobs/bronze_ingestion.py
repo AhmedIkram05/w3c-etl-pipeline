@@ -97,10 +97,10 @@ def parse_file_to_df(spark, file_path: str, file_format: int, source_file: str):
     lines_rdd = spark.sparkContext.textFile(file_path)
 
     # Filter out empty lines and comment lines
-    data_lines = lines_rdd.filter(lambda l: bool(l) and not l.startswith("#"))
+    data_lines = lines_rdd.filter(lambda line: bool(line) and not line.startswith("#"))
 
     # Parse each remaining line
-    parsed_rdd = data_lines.map(lambda l: parse_log_line(l, file_format, source_file)).filter(lambda r: r is not None)
+    parsed_rdd = data_lines.map(lambda line: parse_log_line(line, file_format, source_file)).filter(lambda r: r is not None)
 
     if parsed_rdd.isEmpty():
         return None

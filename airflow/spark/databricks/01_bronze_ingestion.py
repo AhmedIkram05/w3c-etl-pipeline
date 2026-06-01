@@ -30,11 +30,9 @@ Requirements
 
 import argparse
 import os
-import sys
-from datetime import datetime
 
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, LongType
+from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
 
 # ── Schema ──────────────────────────────────────────────────────────────
 # Replicates the bronze_schema from utils/schemas.py but self-contained
@@ -243,9 +241,9 @@ def run(spark, log_files_dir: str):
 
         # Parse
         lines_rdd = spark.sparkContext.textFile(f"file://{fpath}")
-        data_lines = lines_rdd.filter(lambda l: bool(l) and not l.startswith("#"))
+        data_lines = lines_rdd.filter(lambda line: bool(line) and not line.startswith("#"))
         parsed_rdd = data_lines.map(
-            lambda l: parse_log_line(l, file_format, fname)
+            lambda line: parse_log_line(line, file_format, fname)
         ).filter(lambda r: r is not None)
 
         if parsed_rdd.isEmpty():

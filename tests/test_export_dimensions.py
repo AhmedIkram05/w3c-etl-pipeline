@@ -44,7 +44,7 @@ for mod_name, mock in _FAKE_MODULES.items():
 
 # Now we can safely import from the module — the injected mocks prevent
 # ImportError / ModuleNotFoundError for psycopg2, requests, user_agents.
-from plugins.operators.export_dimensions import (
+from plugins.operators.export_dimensions import (  # noqa: E402
     _parse_user_agent,
 )
 

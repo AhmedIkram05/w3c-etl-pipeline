@@ -35,11 +35,10 @@ appended to incrementally.
 
 import argparse
 import logging
-import os
 import sys
 from typing import Set
 
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -158,7 +157,7 @@ def insert_tracking_records(spark, new_source_files: Set[str]):
     if not new_source_files:
         return
 
-    from pyspark.sql.types import StructType, StructField, StringType
+    from pyspark.sql.types import StringType, StructField, StructType
 
     tracking_schema = StructType([StructField("source_file", StringType(), True)])
     rows = [[sf] for sf in new_source_files]
