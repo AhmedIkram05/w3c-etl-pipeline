@@ -91,7 +91,9 @@ class TestDDLGeneration:
         assert ddl is not None
         lines = [line.strip() for line in ddl.strip().split("\n")]
         col_lines = [
-            line for line in lines if line and not line.startswith("CREATE") and line != "(" and line != ");" and not line.startswith(")")
+            line
+            for line in lines
+            if line and not line.startswith("CREATE") and line != "(" and line != ");" and not line.startswith(")")
         ]
         col_names = [line.rstrip(",").split()[0] for line in col_lines if line]
         assert len(col_names) == 35, f"Expected 35 columns, got {len(col_names)}: {col_names}"

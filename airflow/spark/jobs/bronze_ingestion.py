@@ -100,7 +100,9 @@ def parse_file_to_df(spark, file_path: str, file_format: int, source_file: str):
     data_lines = lines_rdd.filter(lambda line: bool(line) and not line.startswith("#"))
 
     # Parse each remaining line
-    parsed_rdd = data_lines.map(lambda line: parse_log_line(line, file_format, source_file)).filter(lambda r: r is not None)
+    parsed_rdd = data_lines.map(lambda line: parse_log_line(line, file_format, source_file)).filter(
+        lambda r: r is not None
+    )
 
     if parsed_rdd.isEmpty():
         return None
