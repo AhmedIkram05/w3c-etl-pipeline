@@ -38,29 +38,27 @@ from pyspark.sql.types import IntegerType, LongType, StringType, StructField, St
 # Replicates the bronze_schema from utils/schemas.py but self-contained
 # so this notebook can run independently on Databricks.
 
-BRONZE_SCHEMA = StructType(
-    [
-        StructField("log_date", StringType(), True),
-        StructField("log_time", StringType(), True),
-        StructField("server_ip", StringType(), True),
-        StructField("method", StringType(), True),
-        StructField("uri_stem", StringType(), True),
-        StructField("uri_query", StringType(), True),
-        StructField("client_ip", StringType(), True),
-        StructField("user_agent", StringType(), True),
-        StructField("cookie", StringType(), True),
-        StructField("referrer", StringType(), True),
-        StructField("status", IntegerType(), True),
-        StructField("sub_status", IntegerType(), True),
-        StructField("win32_status", IntegerType(), True),
-        StructField("bytes_sent", LongType(), True),
-        StructField("bytes_recv", LongType(), True),
-        StructField("server_port", IntegerType(), True),
-        StructField("username", StringType(), True),
-        StructField("time_taken", LongType(), True),
-        StructField("source_file", StringType(), True),
-    ]
-)
+BRONZE_SCHEMA = StructType([
+    StructField("log_date", StringType(), True),
+    StructField("log_time", StringType(), True),
+    StructField("server_ip", StringType(), True),
+    StructField("method", StringType(), True),
+    StructField("uri_stem", StringType(), True),
+    StructField("uri_query", StringType(), True),
+    StructField("client_ip", StringType(), True),
+    StructField("user_agent", StringType(), True),
+    StructField("cookie", StringType(), True),
+    StructField("referrer", StringType(), True),
+    StructField("status", IntegerType(), True),
+    StructField("sub_status", IntegerType(), True),
+    StructField("win32_status", IntegerType(), True),
+    StructField("bytes_sent", LongType(), True),
+    StructField("bytes_recv", LongType(), True),
+    StructField("server_port", IntegerType(), True),
+    StructField("username", StringType(), True),
+    StructField("time_taken", LongType(), True),
+    StructField("source_file", StringType(), True),
+])
 
 # ── Unity Catalog target ───────────────────────────────────────────────
 # Configurable — update CATALOG, SCHEMA, TABLE for your workspace.
@@ -141,7 +139,8 @@ def detect_format(file_path: str) -> int | None:
 def create_spark_session(app_name: str = "databricks_bronze") -> SparkSession:
     """Create or reuse a Spark session for Databricks."""
     return (
-        SparkSession.builder.appName(app_name)
+        SparkSession.builder
+        .appName(app_name)
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config(
             "spark.sql.catalog.spark_catalog",
@@ -155,10 +154,7 @@ def get_loaded_files(spark) -> set:
     """Return ``source_file`` values already in the Unity Catalog bronze table."""
     try:
         existing = spark.table(BRONZE_UC_PATH)
-        return {
-            row.source_file
-            for row in existing.select("source_file").distinct().collect()
-        }
+        return {row.source_file for row in existing.select("source_file").distinct().collect()}
     except Exception:
         return set()
 
@@ -242,9 +238,9 @@ def run(spark, log_files_dir: str):
         # Parse
         lines_rdd = spark.sparkContext.textFile(f"file://{fpath}")
         data_lines = lines_rdd.filter(lambda line: bool(line) and not line.startswith("#"))
-        parsed_rdd = data_lines.map(
-            lambda line: parse_log_line(line, file_format, fname)
-        ).filter(lambda r: r is not None)
+        parsed_rdd = data_lines.map(lambda line: parse_log_line(line, file_format, fname)).filter(
+            lambda r: r is not None
+        )
 
         if parsed_rdd.isEmpty():
             print("SKIPPED (no data rows)")
@@ -255,9 +251,7 @@ def run(spark, log_files_dir: str):
         print(f"{row_count} rows", end="", flush=True)
 
         # Write to Unity Catalog Delta table
-        df.write.format("delta").mode("append").partitionBy("log_date").saveAsTable(
-            BRONZE_UC_PATH
-        )
+        df.write.format("delta").mode("append").partitionBy("log_date").saveAsTable(BRONZE_UC_PATH)
 
         total_rows += row_count
         print(f"  (cumulative: {total_rows})")

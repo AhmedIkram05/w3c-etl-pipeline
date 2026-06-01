@@ -64,7 +64,8 @@ TRACKING_UC_PATH = f"{CATALOG}.{GOLD_SCHEMA}.{TRACKING_TABLE}"
 def create_spark_session(app_name: str = "databricks_export") -> SparkSession:
     """Create or reuse a Spark session for Databricks."""
     return (
-        SparkSession.builder.appName(app_name)
+        SparkSession.builder
+        .appName(app_name)
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config(
             "spark.sql.catalog.spark_catalog",
@@ -197,10 +198,7 @@ def run(spark):
     tracked_files = get_source_files_in_table(spark, TRACKING_UC_PATH)
     log.info("Already tracked source_files: %d.", len(tracked_files))
 
-    all_sources = set(
-        row.source_file
-        for row in silver_df.select("source_file").distinct().collect()
-    )
+    all_sources = set(row.source_file for row in silver_df.select("source_file").distinct().collect())
     new_source_files = all_sources - tracked_files
 
     if not new_source_files:
@@ -219,13 +217,9 @@ def run(spark):
 
     # Write new data to Gold UC table
     try:
-        new_data.write.format("delta").mode("append").partitionBy(
-            "log_date"
-        ).saveAsTable(GOLD_UC_PATH)
+        new_data.write.format("delta").mode("append").partitionBy("log_date").saveAsTable(GOLD_UC_PATH)
 
-        log.info(
-            "Successfully wrote %d rows to %s.", new_row_count, GOLD_UC_PATH
-        )
+        log.info("Successfully wrote %d rows to %s.", new_row_count, GOLD_UC_PATH)
     except Exception as exc:
         log.error(
             "Write to %s failed: %s. Tracking table NOT updated.",
@@ -246,19 +240,13 @@ def run(spark):
 
     # Display summary (Databricks notebook output)
     try:
-        display(
-            spark.sql(
-                f"SELECT COUNT(*) AS gold_rows FROM {GOLD_UC_PATH}"
-            )
-        )
+        display(spark.sql(f"SELECT COUNT(*) AS gold_rows FROM {GOLD_UC_PATH}"))
     except NameError:
         pass
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Export Warehouse (Databricks UC): Silver Delta → Gold UC table"
-    )
+    parser = argparse.ArgumentParser(description="Export Warehouse (Databricks UC): Silver Delta → Gold UC table")
     parser.parse_args()  # No CLI args needed — config is in constants above
 
     spark = create_spark_session()

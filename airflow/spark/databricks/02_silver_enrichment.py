@@ -56,7 +56,8 @@ SILVER_UC_PATH = f"{CATALOG}.{SILVER_SCHEMA}.{SILVER_TABLE}"
 def create_spark_session(app_name: str = "databricks_silver") -> SparkSession:
     """Create or reuse a Spark session for Databricks."""
     return (
-        SparkSession.builder.appName(app_name)
+        SparkSession.builder
+        .appName(app_name)
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config(
             "spark.sql.catalog.spark_catalog",
@@ -85,9 +86,7 @@ def discover_crawler_ips(spark) -> Set[str]:
     """Identify IPs that requested ``robots.txt`` from the bronze UC table."""
     try:
         df = spark.table(BRONZE_UC_PATH)
-        crawler_df = df.filter(
-            col("uri_stem").rlike("(?i).*robots\\.txt.*")
-        ).select("client_ip").distinct()
+        crawler_df = df.filter(col("uri_stem").rlike("(?i).*robots\\.txt.*")).select("client_ip").distinct()
         return {row.client_ip for row in crawler_df.collect() if row.client_ip}
     except Exception:
         log.warning("Could not scan Bronze for crawler IPs; defaulting to empty set.")
@@ -257,6 +256,7 @@ def run(spark, geolite2_db: str | None = None):
             return "Direct"
         try:
             from urllib.parse import urlparse
+
             parsed = urlparse(referrer)
             return parsed.netloc or "Direct"
         except Exception:
@@ -267,6 +267,7 @@ def run(spark, geolite2_db: str | None = None):
             return "Direct"
         try:
             from urllib.parse import urlparse
+
             domain = urlparse(referrer).netloc.lower()
             if "google" in domain or "bing" in domain or "yahoo" in domain:
                 return "Search"
@@ -315,20 +316,14 @@ def run(spark, geolite2_db: str | None = None):
     )
 
     # Write to Silver UC table
-    enriched.write.format("delta").mode("append").partitionBy("log_date").saveAsTable(
-        SILVER_UC_PATH
-    )
+    enriched.write.format("delta").mode("append").partitionBy("log_date").saveAsTable(SILVER_UC_PATH)
 
     enriched_rows = enriched.count()
     log.info("Wrote %d enriched rows to Silver (Unity Catalog).", enriched_rows)
 
     # Display summary (Databricks notebook output)
     try:
-        display(
-            spark.sql(
-                f"SELECT COUNT(*) AS silver_rows FROM {SILVER_UC_PATH}"
-            )
-        )
+        display(spark.sql(f"SELECT COUNT(*) AS silver_rows FROM {SILVER_UC_PATH}"))
     except NameError:
         pass
 
@@ -344,9 +339,7 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.geolite2_db and not os.path.exists(
-        args.geolite2_db.replace("dbfs:", "/dbfs")
-    ):
+    if args.geolite2_db and not os.path.exists(args.geolite2_db.replace("dbfs:", "/dbfs")):
         log.warning(
             "GeoLite2 DB not found at %s; geo fields will be Unknown.",
             args.geolite2_db,
