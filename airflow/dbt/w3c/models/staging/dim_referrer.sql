@@ -9,7 +9,7 @@
 WITH raw_referrers AS (
     SELECT DISTINCT
         CASE WHEN referrer IS NULL OR TRIM(referrer) IN ('', '-') THEN 'Direct' ELSE TRIM(referrer) END AS referrer_url
-    FROM {{ source('w3c', 'raw_logs') }}
+    FROM {{ source('w3c', 'raw_enriched') }}
 ),
 
 referrer_entries AS (
