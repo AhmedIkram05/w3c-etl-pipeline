@@ -1,0 +1,9 @@
+# ──────────────────────────────────────────────────────────────────────
+# Python dependencies for Spark job containers
+# Installed in airflow/spark/docker/Dockerfile.spark
+# ──────────────────────────────────────────────────────────────────────
+
+user-agents==2.2.0       # Browser/OS/device parsing from UA strings
+geoip2==5.0.1            # Local GeoLite2 City database lookups
+maxminddb==2.6.3         # MaxMind DB reader backend
+requests==2.32.3         # Fallback ip-api.com HTTP API calls

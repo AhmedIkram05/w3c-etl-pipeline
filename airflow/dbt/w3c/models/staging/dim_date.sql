@@ -5,7 +5,7 @@
 
 WITH raw_dates AS (
     SELECT DISTINCT log_date::DATE AS log_date
-    FROM {{ source('w3c', 'raw_logs') }}
+    FROM {{ source('w3c', 'raw_enriched') }}
     WHERE log_date IS NOT NULL
 ),
 

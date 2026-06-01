@@ -21,7 +21,7 @@ visit_counts AS (
     SELECT
         client_ip,
         COUNT(*) AS visit_count
-    FROM {{ source('w3c', 'raw_logs') }}
+    FROM {{ source('w3c', 'raw_enriched') }}
     WHERE client_ip IS NOT NULL AND client_ip != '-'
     GROUP BY client_ip
 ),

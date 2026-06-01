@@ -8,7 +8,7 @@ WITH raw_status AS (
         COALESCE(status, -1) AS status_code,
         COALESCE(sub_status, -1) AS sub_status,
         COALESCE(win32_status, -1) AS win32_status
-    FROM {{ source('w3c', 'raw_logs') }}
+    FROM {{ source('w3c', 'raw_enriched') }}
 ),
 
 status_entries AS (
