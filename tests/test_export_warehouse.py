@@ -86,7 +86,7 @@ class TestDDLGeneration:
         assert "latitude DOUBLE PRECISION" in ddl
         assert "longitude DOUBLE PRECISION" in ddl
 
-    def test_raw_enriched_ddl_has_all_35_columns(self):
+    def test_raw_enriched_ddl_has_all_36_columns(self):
         ddl = _get_module_constant("RAW_ENRICHED_DDL")
         assert ddl is not None
         lines = [line.strip() for line in ddl.strip().split("\n")]
@@ -96,7 +96,7 @@ class TestDDLGeneration:
             if line and not line.startswith("CREATE") and line != "(" and line != ");" and not line.startswith(")")
         ]
         col_names = [line.rstrip(",").split()[0] for line in col_lines if line]
-        assert len(col_names) == 35, f"Expected 35 columns, got {len(col_names)}: {col_names}"
+        assert len(col_names) == 36, f"Expected 36 columns, got {len(col_names)}: {col_names}"
 
     def test_tracking_ddl_has_source_file_pk(self):
         ddl = _get_module_constant("TRACKING_DDL")

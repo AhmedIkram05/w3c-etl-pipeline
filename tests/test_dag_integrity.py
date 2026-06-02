@@ -86,7 +86,7 @@ class TestSparkIngestionDAG:
         assert downstream_map["export_dimensions"] == set()
 
     def test_spark_ingestion_has_dataset_outlet(self):
-        """Verify the spark_ingestion DAG emits Dataset("postgres://warehouse/loaded")."""
+        """Verify the spark_ingestion DAG emits Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")."""
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
@@ -107,8 +107,10 @@ class TestSparkIngestionDAG:
 
         from airflow.datasets import Dataset
 
-        target = Dataset("postgres://warehouse/loaded")
-        assert target in outlets, f"Expected Dataset('postgres://warehouse/loaded') in outlets, got {outlets}"
+        target = Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")
+        assert target in outlets, (
+            f"Expected Dataset('postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded') in outlets, got {outlets}"
+        )
 
     def test_spark_ingestion_has_no_import_errors(self):
         """Verify the DAG file has zero import errors in DagBag."""
@@ -173,7 +175,7 @@ class TestDBTMartsDAG:
         assert downstream_map["export_csv"] == set()
 
     def test_dbt_marts_is_dataset_triggered(self):
-        """Verify dbt_marts is triggered by Dataset("postgres://warehouse/loaded")."""
+        """Verify dbt_marts is triggered by Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")."""
         from airflow.datasets import Dataset
         from airflow.models import DagBag
 
@@ -193,9 +195,9 @@ class TestDBTMartsDAG:
             elif isinstance(cond, Dataset):
                 dbt_inlet_datasets.add(cond)
 
-        target = Dataset("postgres://warehouse/loaded")
+        target = Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")
         assert target in dbt_inlet_datasets, (
-            f"Expected Dataset('postgres://warehouse/loaded') in schedule, got {dbt_inlet_datasets}"
+            f"Expected Dataset('postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded') in schedule, got {dbt_inlet_datasets}"
         )
 
     def test_dbt_marts_has_no_import_errors(self):
