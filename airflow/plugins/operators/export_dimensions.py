@@ -1,12 +1,18 @@
 """
 Export Airflow-Managed Dimension Tables.
 
-Reads enriched rows from the Spark-produced ``raw_enriched`` table in
-PostgreSQL and builds two dimension tables that require Python-level
-enrichment (external geo-IP API and user-agent parsing):
+Reads enriched rows from two upstream sources and builds the dimension
+tables that the warehouse exposes to dbt / Power BI:
 
-* ``dim_geolocation``  — resolved via ip-api.com batch API
-* ``dim_useragent``    — parsed with the ``user-agents`` library
+* ``dim_geolocation``  — sourced from the **Spark Silver Delta table**
+  (single source of truth for client-IP geolocation). The silver writer
+  (``airflow/spark/jobs/silver_enrichment.py``) populates ``country``,
+  ``region``, ``city``, ``postcode``, ``latitude``, ``longitude`` and
+  ``isp`` from local MaxMind GeoLite2 databases (City + ASN), giving us
+  in-process enrichment with no external network calls.
+* ``dim_useragent``    — parsed with the ``user-agents`` library from
+  the ``raw_enriched`` Postgres table (still the canonical source for
+  raw user-agent strings in the warehouse).
 
 Both tables use ``INSERT … ON CONFLICT DO NOTHING`` so every run is
 idempotent and incremental. Default ``-1`` surrogate-key rows are
@@ -20,13 +26,16 @@ from __future__ import annotations
 
 import os
 import time
-from ipaddress import ip_address
 from urllib.parse import unquote_plus
 
+import pandas as pd
 import psycopg2
-import requests
 from psycopg2.extras import execute_values
 from user_agents import parse as ua_parse
+
+# Default location of the Silver Delta table written by Spark. Can be
+# overridden with the ``W3C_SILVER_PATH`` environment variable.
+DEFAULT_SILVER_PATH = "/opt/spark/delta/silver"
 
 
 def get_conn():
@@ -91,6 +100,15 @@ def _parse_user_agent(ua_string: str) -> dict:
     }
 
 
+def _coalesce(value, default):
+    """Return *value* unless it is ``None`` or empty/whitespace, else *default*."""
+    if value is None:
+        return default
+    if isinstance(value, str) and value.strip() in ("", "-"):
+        return default
+    return value
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # DIMENSION BUILDERS
 # ══════════════════════════════════════════════════════════════════════════
@@ -118,139 +136,128 @@ def _ensure_default_rows(conn):
     conn.commit()
 
 
-def _build_dim_geolocation(conn):
-    """Populate ``dim_geolocation`` via ip-api.com batch API.
+def _read_silver_geo_dim(silver_path: str) -> pd.DataFrame:
+    """Read the Silver Delta table and return distinct IP-level geo rows.
 
-    Reads distinct ``client_ip`` values from ``raw_enriched`` and resolves
-    their geographic location + ISP through the ip-api.com batch endpoint.
-    Private / link-local / loopback addresses are short-circuited without
-    an API call.  Idempotent — uses ``ON CONFLICT DO NOTHING``.
+    Uses pandas ``read_parquet``, which auto-discovers the Hive-style
+    ``log_date=YYYY-MM-DD`` partitions and returns a single concatenated
+    DataFrame.  Returns a DataFrame with one row per distinct
+    ``client_ip`` carrying the geo fields needed by ``dim_geolocation``.
+
+    Required columns (from the Silver schema):
+        ``client_ip``, ``country``, ``region``, ``city``,
+        ``latitude``, ``longitude``, ``isp``.
+
+    The ``postcode`` column is optional — Silver may not yet have been
+    re-run after the schema gained it, so we fall back to the ``-``
+    default for any row that is missing the column entirely.
     """
-    cur = conn.cursor()
+    df = pd.read_parquet(silver_path)
+    if df.empty:
+        return df
 
-    # Determine which IPs are already resolved.
-    cur.execute("SELECT DISTINCT ip FROM dim_geolocation")
-    existing_ips = {row[0] for row in cur.fetchall()}
+    has_postcode = "postcode" in df.columns
 
-    # Fetch distinct client IPs from the enriched (Spark) table.
-    cur.execute("SELECT DISTINCT client_ip FROM raw_enriched WHERE client_ip IS NOT NULL AND client_ip != '-'")
-    all_ips = {row[0] for row in cur.fetchall()}
+    # Defragment: assigning back from a filtered/copied frame avoids
+    # SettingWithCopyWarning in the next stage.
+    geo = df[["client_ip", "country", "region", "city", "latitude", "longitude", "isp"]].copy()
+    geo = geo.dropna(subset=["client_ip"])
+    geo = geo[geo["client_ip"].astype(str).str.strip() != ""]
+    geo = geo[geo["client_ip"].astype(str).str.strip() != "-"]
+    # First non-null value per client_ip wins (silver is a single source
+    # of truth, but distinct IP enrichment keeps the row count down).
+    geo = geo.groupby("client_ip", as_index=False).first()
 
-    cur.close()
+    if has_postcode:
+        # Bring the postcode column along for the same distinct IP.
+        pc = (
+            df[["client_ip", "postcode"]]
+            .dropna(subset=["client_ip"])
+            .groupby("client_ip", as_index=False)["postcode"]
+            .first()
+        )
+        geo = geo.merge(pc, on="client_ip", how="left")
+    else:
+        # Column hasn't been written yet (silver not re-run). Use None
+        # and let the defaults layer below apply "-".
+        geo["postcode"] = None
 
-    to_fetch = list(all_ips - existing_ips)
-    if not to_fetch:
-        print(f"[dim_geolocation] All {len(all_ips)} IPs already resolved — nothing to do.")
+    return geo
+
+
+def _build_dim_geolocation(conn, silver_path: str | None = None):
+    """Populate ``dim_geolocation`` from the Silver Delta table.
+
+    The Silver writer (``silver_enrichment.py``) is the single source of
+    truth for geo enrichment — it produces ``country``, ``region``,
+    ``city``, ``postcode``, ``latitude``, ``longitude`` and ``isp``
+    using local MaxMind GeoLite2 databases.  We extract one row per
+    distinct ``client_ip`` and upsert into the dimension.
+
+    Parameters
+    ----------
+    conn : psycopg2 connection
+        Open connection to the warehouse database (read-side cursor).
+    silver_path : str or None
+        Path to the Silver Delta table.  ``None`` falls back to
+        ``$W3C_SILVER_PATH`` or ``DEFAULT_SILVER_PATH``.
+
+    Idempotent — uses ``ON CONFLICT (ip) DO NOTHING``.
+    """
+    if silver_path is None:
+        silver_path = os.environ.get("W3C_SILVER_PATH", DEFAULT_SILVER_PATH)
+
+    print(f"[dim_geolocation] Reading geo dim from Silver Delta: {silver_path}")
+
+    try:
+        geo = _read_silver_geo_dim(silver_path)
+    except FileNotFoundError as exc:
+        print(f"[dim_geolocation] Silver path not found ({exc}); nothing to do.")
+        return
+    except Exception as exc:
+        print(f"[dim_geolocation] Failed to read Silver Delta ({exc}); nothing to do.")
         return
 
-    print(f"[dim_geolocation] Resolving {len(to_fetch)} new IP(s) via ip-api.com …")
+    if geo.empty:
+        print("[dim_geolocation] Silver Delta is empty; nothing to do.")
+        return
 
-    cache: dict[str, dict] = {}
-    api_batch: list[str] = []
+    # Determine which IPs are already in the dim.
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT ip FROM dim_geolocation")
+    existing_ips = {row[0] for row in cur.fetchall()}
+    cur.close()
 
-    for ip in to_fetch:
-        try:
-            addr = ip_address(ip)
-            if addr.is_private or addr.is_link_local or addr.is_loopback:
-                cache[ip] = {
-                    "Country": "Private",
-                    "StateRegion": "Private",
-                    "City": "Private Network",
-                    "Postcode": "-",
-                    "Latitude": None,
-                    "Longitude": None,
-                    "ISP": "-",
-                }
-            else:
-                api_batch.append(ip)
-        except Exception:
-            # Malformed IP — treat as unknown.
-            cache[ip] = {
-                "Country": "Unknown",
-                "StateRegion": "Unknown",
-                "City": "Unknown",
-                "Postcode": "-",
-                "Latitude": None,
-                "Longitude": None,
-                "ISP": "-",
-            }
+    new_rows = geo[~geo["client_ip"].astype(str).isin(existing_ips)]
+    if new_rows.empty:
+        print(f"[dim_geolocation] All {len(geo)} IPs already in dim_geolocation — nothing to do.")
+        return
 
-    # ── Batch-resolve public IPs via ip-api.com ────────────────────────
-    # Free tier limit: 45 requests/min (each batch of up to 100 IPs counts
-    # as one request). We send 100-IP batches and sleep 1.5 s between them.
-    if api_batch:
-        for i in range(0, len(api_batch), 100):
-            batch_ips = api_batch[i : i + 100]
-            payload = [
-                {
-                    "query": ip,
-                    "fields": "status,country,regionName,city,zip,lat,lon,isp,query",
-                }
-                for ip in batch_ips
-            ]
-            try:
-                resp = requests.post("http://ip-api.com/batch", json=payload, timeout=30)
-                for entry in resp.json():
-                    ip = entry.get("query", "")
-                    if entry.get("status") == "success":
-                        lat = entry.get("lat")
-                        lon = entry.get("lon")
-                        cache[ip] = {
-                            "Country": entry.get("country", "Unknown"),
-                            "StateRegion": entry.get("regionName", "Unknown"),
-                            "City": entry.get("city", "Unknown"),
-                            "Postcode": str(entry.get("zip", "-")),
-                            "Latitude": lat,
-                            "Longitude": lon,
-                            "ISP": entry.get("isp", "-"),
-                        }
-                    else:
-                        cache[ip] = {
-                            "Country": "Unknown",
-                            "StateRegion": "Unknown",
-                            "City": "Unknown",
-                            "Postcode": "-",
-                            "Latitude": None,
-                            "Longitude": None,
-                            "ISP": "-",
-                        }
-                # Rate-limit: stay well under 45 req / min
-                if i + 100 < len(api_batch):
-                    time.sleep(1.5)
-            except Exception as e:
-                print(f"[dim_geolocation] API batch failed ({e}) — marking IPs as Unknown.")
-                for ip in batch_ips:
-                    if ip not in cache:
-                        cache[ip] = {
-                            "Country": "Unknown",
-                            "StateRegion": "Unknown",
-                            "City": "Unknown",
-                            "Postcode": "-",
-                            "Latitude": None,
-                            "Longitude": None,
-                            "ISP": "-",
-                        }
+    print(f"[dim_geolocation] Inserting {len(new_rows)} new IP(s) from Silver …")
 
-    # ── Assemble INSERT rows ──────────────────────────────────────────
-    insert_data = [
-        (
+    # Build the INSERT payload.  Apply the schema's documented defaults
+    # for missing / sentinel values:
+    #   - text geo fields (country, region, city) → "Unknown"
+    #   - postcode                                → "-"
+    #   - isp                                     → "-"
+    #   - lat/lon                                 → NULL
+    insert_data = []
+    for _, row in new_rows.iterrows():
+        ip = str(row["client_ip"]).strip()
+        insert_data.append((
             ip,
-            cache[ip]["Country"],
-            cache[ip]["StateRegion"],
-            cache[ip]["City"],
-            cache[ip]["Postcode"],
-            cache[ip]["Latitude"],
-            cache[ip]["Longitude"],
-            cache[ip]["ISP"],
-        )
-        for ip in to_fetch
-        if ip in cache
-    ]
+            _coalesce(row.get("country"), "Unknown"),
+            _coalesce(row.get("region"), "Unknown"),
+            _coalesce(row.get("city"), "Unknown"),
+            _coalesce(row.get("postcode"), "-"),
+            row.get("latitude") if pd.notna(row.get("latitude")) else None,
+            row.get("longitude") if pd.notna(row.get("longitude")) else None,
+            _coalesce(row.get("isp"), "-"),
+        ))
 
     if not insert_data:
         return
 
-    # ── Write with retry ──────────────────────────────────────────────
     attempts = 3
     for attempt in range(1, attempts + 1):
         try:
@@ -367,12 +374,14 @@ def _ensure_dimension_tables(conn):
 
 
 def export_dimensions(**context) -> None:
-    """Build Airflow-managed dimension tables from ``raw_enriched``.
+    """Build Airflow-managed dimension tables.
 
     0. Creates dimension tables if they don't exist.
     1. Inserts default ``-1`` rows (idempotent).
-    2. Resolves ``dim_geolocation`` via ip-api.com batch API.
-    3. Parses ``dim_useragent`` via the ``user-agents`` library.
+    2. Builds ``dim_geolocation`` from the Silver Delta table (single
+       source of truth for client-IP geolocation).
+    3. Builds ``dim_useragent`` from the ``raw_enriched`` Postgres
+       table by parsing user-agent strings.
 
     Accepts ``**context`` for Airflow ``PythonOperator`` compatibility.
     Designed to be idempotent — safe to retry and re-run.
@@ -391,7 +400,7 @@ def export_dimensions(**context) -> None:
         _ensure_default_rows(conn)
         print("[OK] Default -1 rows present.")
 
-        # Step 2 — build dim_geolocation (external API).
+        # Step 2 — build dim_geolocation from Silver Delta.
         _build_dim_geolocation(conn)
 
         # Step 3 — build dim_useragent (library parsing).
