@@ -9,7 +9,7 @@ sources:
         description: "Denormalized enriched log table populated by Spark pipeline via GeoLite2 + PySpark UDFs. Contains all raw log fields plus geo, user-agent, and computed enrichment columns."
 
       - name: dim_geolocation
-        description: "Geolocation dimension populated by Airflow export_dimensions task via GeoLite2 (geography) and ip-api.com (ISP). Surrogate key -1 = Unknown."
+        description: "Authoritative geolocation dimension. Populated by Airflow export_dimensions task by reading the silver Delta table (written by Spark enrichment using GeoLite2-City.mmdb + GeoLite2-ASN.mmdb). Used as the single source of truth for client-IP country/region/city/postcode/lat/lon/isp across the warehouse. Surrogate key -1 = Unknown."
         columns:
           - name: geolocation_sk
             description: "Surrogate key"
