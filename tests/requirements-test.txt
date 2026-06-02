@@ -9,3 +9,4 @@ geoip2==5.0.1
 maxminddb==2.6.3
 requests==2.32.3
 pandas>=2.0,<3.0
+psycopg2-binary>=2.9,<3.0

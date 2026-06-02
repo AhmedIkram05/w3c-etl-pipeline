@@ -64,7 +64,8 @@ TRACKING_UC_PATH = f"{CATALOG}.{GOLD_SCHEMA}.{TRACKING_TABLE}"
 def create_spark_session(app_name: str = "databricks_export") -> SparkSession:
     """Create or reuse a Spark session for Databricks."""
     return (
-        SparkSession.builder.appName(app_name)
+        SparkSession.builder
+        .appName(app_name)
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config(
             "spark.sql.catalog.spark_catalog",
