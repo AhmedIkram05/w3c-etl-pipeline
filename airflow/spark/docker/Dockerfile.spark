@@ -32,14 +32,13 @@ RUN python3 -m ensurepip --upgrade && \
 # user-agents         → Browser/OS/device parsing from UA strings
 # geoip2              → Local GeoLite2 City database lookups
 # maxminddb           → MaxMind DB reader backend
-# requests            → Fallback ip-api.com HTTP calls
+# pandas + pyarrow    → Used by silver Delta reader in export_dimensions.py
 RUN python3 -m pip install --no-cache-dir \
     pandas==2.2.3 \
     pyarrow==19.0.1 \
     user-agents==2.2.0 \
     geoip2==5.0.1 \
-    maxminddb==2.6.3 \
-    requests==2.32.3
+    maxminddb==2.6.3
 
 # Ensure SPARK_HOME/bin is on PATH (apache/spark:4.0.2 image doesn't include it)
 ENV PATH="$SPARK_HOME/bin:$PATH"
