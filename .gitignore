@@ -46,3 +46,4 @@ airflow/spark/delta/*
 
 # uv local cache
 .uv-cache/
+utils.zip
