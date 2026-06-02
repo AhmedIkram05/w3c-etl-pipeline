@@ -112,7 +112,8 @@ x-airflow-common:
     # Spark container-visible paths (needed for client-mode driver)
     - ${AIRFLOW_PROJ_DIR:-.}/spark/delta:/opt/spark/delta
     - ${AIRFLOW_PROJ_DIR:-.}/data/LogFiles:/opt/spark/logfiles:ro
-    - ${AIRFLOW_PROJ_DIR:-.}/spark/data:/opt/spark/data:ro
+    # GeoLite2 .mmdb files — populated at startup by the geoip-downloader init service
+    - geoip-data:/opt/spark/data:ro
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -120,6 +121,8 @@ x-airflow-common:
       condition: service_healthy
     postgres:
       condition: service_healthy
+    geoip-downloader:
+      condition: service_completed_successfully
 
 services:
   postgres:
@@ -341,6 +344,48 @@ services:
       - airflow-network
 
   # ╔══════════════════════════════════════════════════════════════╗
+  # ║  GEOIP DOWNLOADER — one-shot init service                   ║
+  # ║  Downloads MaxMind GeoLite2-City + GeoLite2-ASN .mmdb files  ║
+  # ║  into the geoip-data shared volume. Runs once, exits 0.     ║
+  # ║  All other services depend_on it (service_completed_success ║
+  # ║  fully), so the pipeline never runs without enrichment data.║
+  # ╚══════════════════════════════════════════════════════════════╝
+  geoip-downloader:
+    image: alpine:3.20
+    container_name: airflow-geoip-downloader
+    environment:
+      MAXMIND_LICENSE_KEY: ${MAXMIND_LICENSE_KEY:-}
+    volumes:
+      - geoip-data:/data
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        if [ -z "$${MAXMIND_LICENSE_KEY}" ]; then
+          echo "ERROR: MAXMIND_LICENSE_KEY not set in airflow/.env" >&2
+          echo "Sign up free at https://www.maxmind.com/en/geolite2/signup and add the key to airflow/.env" >&2
+          exit 1
+        fi
+        apk add --no-cache curl tar >/dev/null
+        for ed in City ASN; do
+          echo "=== Downloading GeoLite2-$${ed} ==="
+          if ! curl -fsSL -o /tmp/$${ed}.tar.gz \
+              "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-$${ed}&suffix=tar.gz&license_key=$${MAXMIND_LICENSE_KEY}"; then
+            echo "ERROR: Failed to download GeoLite2-$${ed} (check MAXMIND_LICENSE_KEY)" >&2
+            exit 1
+          fi
+          tar -xzf /tmp/$${ed}.tar.gz -C /tmp
+          cp /tmp/GeoLite2-$${ed}_*/GeoLite2-$${ed}.mmdb /data/
+          rm -rf /tmp/GeoLite2-$${ed}_* /tmp/$${ed}.tar.gz
+        done
+        touch /data/.downloaded
+        echo "=== Downloaded .mmdb files ==="
+        ls -la /data/
+    networks:
+      - airflow-network
+    restart: "no"
+
+  # ╔══════════════════════════════════════════════════════════════╗
   # ║  SPARK CLUSTER — Spark Master + Worker                      ║
   # ║  Runs the medallion architecture (bronze → silver → gold)   ║
   # ╚══════════════════════════════════════════════════════════════╝
@@ -362,10 +407,13 @@ services:
       - ./spark/delta:/opt/spark/delta
       - ./data/LogFiles:/opt/spark/logfiles:ro
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
-      - ./spark/data:/opt/spark/data:ro
+      - geoip-data:/opt/spark/data:ro
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
     networks:
       - airflow-network
+    depends_on:
+      geoip-downloader:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/"]
       interval: 15s
@@ -392,12 +440,15 @@ services:
       - ./spark/delta:/opt/spark/delta
       - ./data/LogFiles:/opt/spark/logfiles:ro
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
-      - ./spark/data:/opt/spark/data:ro
+      - geoip-data:/opt/spark/data:ro
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
     networks:
       - airflow-network
     depends_on:
-      - spark-master
+      spark-master:
+        condition: service_healthy
+      geoip-downloader:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8081/"]
       interval: 15s
@@ -550,6 +601,8 @@ volumes:
   prometheus-data:
   grafana-data:
   alertmanager-data:
+  # Shared MaxMind GeoLite2 .mmdb files — populated by the geoip-downloader init service
+  geoip-data:
 
 networks:
   airflow-network:
