@@ -173,7 +173,7 @@ models:
           expression: "raw_log_id IS NOT NULL"
     columns:
       - name: raw_log_id
-        description: "Natural key (MD5 hash of source_file + log_time + client_ip + user_agent + referrer)"
+        description: "Natural key (MD5 hash of source_file + log_time + client_ip + user_agent + referrer + uri_stem + uri_query + method + status + sub_status + win32_status + time_taken). See tests/singular/fact_webrequest_dedup_safety.sql for the regression test guarding this contract."
         tests:
           - unique
           - not_null
@@ -244,17 +244,17 @@ models:
       - name: size_band
         description: "Size category (Zero, Tiny, Small, Medium, Large, Huge) based on total bytes"
       - name: country
-        description: "Country name from GeoLite2 geolocation enrichment"
+        description: "Country name — denormalised from dim_geolocation (the authoritative source)"
       - name: region
-        description: "Region/state from GeoLite2 geolocation enrichment"
+        description: "Region/state — denormalised from dim_geolocation (the authoritative source)"
       - name: city
-        description: "City from GeoLite2 geolocation enrichment"
+        description: "City — denormalised from dim_geolocation (the authoritative source)"
       - name: latitude
-        description: "Latitude from GeoLite2 geolocation enrichment"
+        description: "Latitude — denormalised from dim_geolocation (the authoritative source)"
       - name: longitude
-        description: "Longitude from GeoLite2 geolocation enrichment"
+        description: "Longitude — denormalised from dim_geolocation (the authoritative source)"
       - name: isp
-        description: "ISP name from ip-api.com enrichment"
+        description: "ISP / organisation name — denormalised from dim_geolocation (populated from GeoLite2-ASN.mmdb during silver enrichment)"
       - name: agent_type
         description: "Agent type from User-Agent parsing (e.g. browser, robot, library)"
       - name: browser_name
