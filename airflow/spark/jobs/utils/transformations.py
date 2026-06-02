@@ -42,13 +42,16 @@ _EXTENSION_CATEGORIES = {
 
 
 @udf(returnType=StringType())
-def page_category(uri_stem: str) -> str:
+def page_category(uri_stem):
     """Classify a URI stem into a human-friendly page category.
 
     Extracts the file extension from *uri_stem*, then maps it to a
     category (Static Page, Image, Script, etc.).  URI stems without
     an extension are classified as "Directory".
     """
+    # NOTE: Python type hints intentionally omitted on UDF signatures
+    # to suppress PySpark 4.x "Cannot infer the eval type" warnings;
+    # the returnType=StringType() decorator arg carries the schema.
     if not uri_stem or uri_stem.strip() in ("-", "Unknown", ""):
         return "Unknown"
     stem = uri_stem.split("?")[0]
@@ -68,7 +71,7 @@ _INTERNAL_DOMAINS = ["darwinsbeagleplants", "134.36.36.75"]
 
 
 @udf(returnType=StringType())
-def referrer_domain(referrer_url: str) -> str:
+def referrer_domain(referrer_url):
     """Extract the domain from a referrer URL.
 
     Returns ``'Direct'`` for empty/dash referrers, ``'Unknown'`` for the
@@ -111,7 +114,7 @@ def _extract_domain(referrer_url: str) -> str:
 
 
 @udf(returnType=StringType())
-def traffic_type(referrer_url: str) -> str:
+def traffic_type(referrer_url):
     """Classify a referrer into a traffic-source category.
 
     Categories: ``Direct``, ``Internal``, ``Search Engine``,
@@ -158,7 +161,7 @@ def make_crawler_udf(crawler_ips: set) -> callable:
     ips = frozenset(crawler_ips)
 
     @udf(returnType=StringType())
-    def is_crawler_impl(ip: str) -> str:
+    def is_crawler_impl(ip):
         if not ip or ip.strip() in ("-", "Unknown", ""):
             return "Unknown"
         return "true" if ip.strip() in ips else "false"
@@ -180,7 +183,7 @@ _SIZE_BANDS = [
 
 
 @udf(returnType=StringType())
-def size_band(bytes_sent: int, bytes_recv: int) -> str:
+def size_band(bytes_sent, bytes_recv):
     """Bucket total bytes (sent + received) into a human-readable band.
 
     Thresholds (total bytes):

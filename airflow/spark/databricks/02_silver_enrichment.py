@@ -56,8 +56,7 @@ SILVER_UC_PATH = f"{CATALOG}.{SILVER_SCHEMA}.{SILVER_TABLE}"
 def create_spark_session(app_name: str = "databricks_silver") -> SparkSession:
     """Create or reuse a Spark session for Databricks."""
     return (
-        SparkSession.builder
-        .appName(app_name)
+        SparkSession.builder.appName(app_name)
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config(
             "spark.sql.catalog.spark_catalog",

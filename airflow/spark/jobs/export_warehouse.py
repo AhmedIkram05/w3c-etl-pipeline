@@ -48,7 +48,7 @@ log = logging.getLogger("export_warehouse")
 RAW_ENRICHED_TABLE = "public.raw_enriched"
 TRACKING_TABLE = "public.raw_enriched_loaded"
 
-# DDL for the enriched data table (35 columns matching silver schema).
+# DDL for the enriched data table (36 columns matching silver schema).
 RAW_ENRICHED_DDL = """
 CREATE TABLE IF NOT EXISTS public.raw_enriched (
     log_date DATE,
@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS public.raw_enriched (
     city TEXT,
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
+    postcode TEXT,
     isp TEXT,
     agent_type TEXT,
     browser_name TEXT,
@@ -103,8 +104,7 @@ CREATE TABLE IF NOT EXISTS public.raw_enriched_loaded (
 def create_spark_session(app_name: str = "W3C_Export_Warehouse") -> SparkSession:
     """Build a SparkSession with Delta Lake support."""
     return (
-        SparkSession.builder
-        .appName(app_name)
+        SparkSession.builder.appName(app_name)
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config(
             "spark.sql.catalog.spark_catalog",
@@ -123,8 +123,7 @@ def get_loaded_source_files(spark: SparkSession, jdbc_url: str, jdbc_props: dict
     """
     try:
         df = (
-            spark.read
-            .format("jdbc")
+            spark.read.format("jdbc")
             .option("url", jdbc_url)
             .option("dbtable", TRACKING_TABLE)
             .options(**jdbc_props)
