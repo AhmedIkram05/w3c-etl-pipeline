@@ -14,9 +14,11 @@ WITH enriched_input AS (
     SELECT
         *,
         -- Stable unique key (raw_log_id) generated since source has no auto-increment
-        -- Includes enough dimensions to disambiguate concurrent identical-looking requests
+        -- Includes enough dimensions to disambiguate concurrent identical-looking requests:
+        -- source_file, log_time, client_ip, user_agent, referrer, uri_stem, uri_query,
+        -- method, status, sub_status, win32_status, time_taken
         MD5(CONCAT(source_file, '|', log_time, '|', client_ip, '|', user_agent, '|', referrer,
-                   '|', uri_stem, '|', status, '|', time_taken)) AS raw_log_id,
+                   '|', uri_stem, '|', uri_query, '|', method, '|', status, '|', sub_status, '|', win32_status, '|', time_taken)) AS raw_log_id,
         CASE WHEN status = 404 THEN TRUE ELSE FALSE END AS is_404,
         CASE WHEN referrer = '-' OR referrer IS NULL THEN TRUE ELSE FALSE END AS is_direct_traffic,
         1 AS request_count
@@ -43,7 +45,16 @@ referrer_map AS (
 ),
 
 geo_map AS (
-    SELECT geolocation_sk, ip AS client_ip FROM {{ source('w3c', 'dim_geolocation') }}
+    SELECT
+        geolocation_sk,
+        ip AS client_ip,
+        country,
+        region,
+        city,
+        latitude,
+        longitude,
+        isp
+    FROM {{ source('w3c', 'dim_geolocation') }}
 ),
 
 ua_map AS (
@@ -91,13 +102,6 @@ computed AS (
         ei.is_direct_traffic,
         -- size_band is now pre-computed in raw_enriched by the Spark pipeline
         COALESCE(ei.size_band, 'Zero') AS size_band,
-        -- Geo enrichment (denormalized from raw_enriched)
-        ei.country,
-        ei.region,
-        ei.city,
-        ei.latitude,
-        ei.longitude,
-        ei.isp,
         -- User-Agent enrichment (denormalized from raw_enriched)
         ei.agent_type,
         ei.browser_name,
@@ -134,12 +138,12 @@ SELECT
     c.is_crawler,
     c.is_direct_traffic,
     c.size_band,
-    c.country,
-    c.region,
-    c.city,
-    c.latitude,
-    c.longitude,
-    c.isp,
+    COALESCE(g.country, 'Unknown') AS country,
+    COALESCE(g.region, 'Unknown') AS region,
+    COALESCE(g.city, 'Unknown') AS city,
+    g.latitude AS latitude,
+    g.longitude AS longitude,
+    COALESCE(g.isp, '-') AS isp,
     c.agent_type,
     c.browser_name,
     c.browser_version,
