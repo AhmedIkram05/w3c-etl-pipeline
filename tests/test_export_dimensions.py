@@ -1,54 +1,100 @@
 """
 Unit tests for ``export_dimensions.py`` — Airflow-managed dimension tables.
 
-Tests the Python-level enrichment logic for the two dimension tables that
-require external APIs (ip-api.com) or library parsing (user-agents):
+The operator builds two dimension tables from local sources (no external
+HTTP / IP-API calls — that path was retired):
 
-* ``dim_geolocation`` — geo-IP resolution via ip-api.com batch API
-* ``dim_useragent`` — user-agent parsing via the ``user-agents`` library
+* ``dim_geolocation``  — sourced from the **Silver Delta table**
+  (``pd.read_parquet`` of ``W3C_SILVER_PATH``), which is pre-enriched by
+  the Spark ``silver_enrichment`` job using local MaxMind GeoLite2
+  databases.  The operator collapses distinct ``client_ip`` rows and
+  upserts them via ``INSERT … ON CONFLICT (ip) DO NOTHING``.
+* ``dim_useragent``    — parsed from ``raw_enriched`` via the
+  ``user-agents`` library.
 
-All tests use mocks throughout — no real HTTP calls or database connections.
-Should run with just ``pytest``.
+All tests use ``unittest.mock`` to stub out ``pd.read_parquet``,
+``get_conn``, and ``execute_values`` so the suite is fully hermetic.
+Should run with just ``pytest`` once the test requirements are
+installed (``pandas``, ``psycopg2``, ``user-agents``).
 
 Usage:
     pytest tests/test_export_dimensions.py -v --tb=short
 """
 
-import sys
-from types import ModuleType
-from typing import Optional
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
-
-# ── Module-level dependency mocking ───────────────────────────────────────────
-# ``export_dimensions.py`` imports ``psycopg2``, ``requests``, and
-# ``user_agents`` at the module level.  We inject mocks into ``sys.modules``
-# *before* any import of the module so that even pure-function imports
-# (like ``_safe_int``) work without those dependencies installed.
-# Tests that need real library behavior (e.g. ``_parse_user_agent``) will
-# use those real libraries if available, or skip with importorskip.
-
-_FAKE_MODULES = {
-    "psycopg2": MagicMock(),
-    "psycopg2.extras": MagicMock(),
-}
-
-# Store originals before patching
-_ORIGINALS: dict[str, Optional[ModuleType]] = {}
-for mod_name, mock in _FAKE_MODULES.items():
-    if mod_name not in sys.modules:
-        _ORIGINALS[mod_name] = None
-        sys.modules[mod_name] = mock
-    else:
-        _ORIGINALS[mod_name] = sys.modules[mod_name]
-
-
-# Now we can safely import from the module — the injected mocks prevent
-# ImportError / ModuleNotFoundError for psycopg2, requests, user_agents.
-from plugins.operators.export_dimensions import (  # noqa: E402
+from plugins.operators.export_dimensions import (
+    DEFAULT_SILVER_PATH,
+    _build_dim_geolocation,
+    _build_dim_useragent,
+    _coalesce,
+    _ensure_default_rows,
+    _ensure_dimension_tables,
     _parse_user_agent,
+    _read_silver_geo_dim,
+    export_dimensions,
+    get_conn,
 )
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Test fixtures and helpers
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@contextmanager
+def _patched_write_conn():
+    """Patch ``get_conn`` to return a context-managed mock connection.
+
+    The operator calls ``with get_conn() as write_conn, write_conn.cursor() as write_cur:``
+    inside its retry loop, so the mock has to be a context manager at
+    two levels: the connection itself and the cursor it returns.
+    """
+    with patch("plugins.operators.export_dimensions.get_conn") as mock_get_conn:
+        mock_write_conn = MagicMock(name="write_conn")
+        mock_write_cur = MagicMock(name="write_cur")
+        # get_conn() is the outer "with" target.
+        mock_get_conn.return_value.__enter__.return_value = mock_write_conn
+        # write_conn.cursor() is the inner "with" target.
+        mock_write_conn.cursor.return_value.__enter__.return_value = mock_write_cur
+        yield mock_get_conn, mock_write_conn, mock_write_cur
+
+
+def _make_read_conn(existing_ips=()):
+    """Build a mock read-side connection used by the dimension writers.
+
+    The operator does ``conn.cursor()`` (not as a context manager) and
+    then ``cur.execute("SELECT DISTINCT ip FROM dim_geolocation")``
+    followed by ``cur.fetchall()``.
+    """
+    mock_conn = MagicMock(name="read_conn")
+    mock_cur = MagicMock(name="read_cur")
+    mock_cur.fetchall.return_value = [(ip,) for ip in existing_ips]
+    mock_conn.cursor.return_value = mock_cur
+    return mock_conn, mock_cur
+
+
+def _make_silver_df(ips, **overrides):
+    """Build a Silver Delta DataFrame with one row per IP.
+
+    All optional fields default to plausible Google/Mountain-View values
+    so tests can focus on the behavior under test.
+    """
+    n = len(ips)
+    data = {
+        "client_ip": ips,
+        "country": overrides.get("country", ["US"] * n),
+        "region": overrides.get("region", ["California"] * n),
+        "city": overrides.get("city", ["Mountain View"] * n),
+        "postcode": overrides.get("postcode", ["94043"] * n),
+        "latitude": overrides.get("latitude", [37.386] * n),
+        "longitude": overrides.get("longitude", [-122.084] * n),
+        "isp": overrides.get("isp", ["Google"] * n),
+    }
+    return pd.DataFrame(data)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  1. _parse_user_agent — pure function tests
@@ -59,17 +105,12 @@ class TestParseUserAgent:
     """Unit tests for the ``_parse_user_agent()`` helper.
 
     These tests require the ``user-agents`` library to be installed
-    (listed in tests/requirements-test.txt). If it's not available,
-    the tests are skipped.
+    (listed in ``tests/requirements-test.txt``).  The empty / dash
+    paths are pure logic and work even with the library stubbed.
     """
 
     @staticmethod
     def _require_user_agents():
-        """Skip test if real user_agents library is not installed.
-
-        The mock in sys.modules provides basic support, but for meaningful
-        UA parsing tests we need the real library.
-        """
         try:
             import user_agents  # noqa: F401
         except ImportError:
@@ -119,7 +160,7 @@ class TestParseUserAgent:
         assert "Googlebot" in result["BrowserName"]
 
     def test_empty_ua_returns_unknown(self):
-        # Pure logic in the function — also works without real user_agents
+        """Empty string short-circuits without invoking the parser."""
         result = _parse_user_agent("")
         assert result == {
             "AgentType": "Unknown",
@@ -130,18 +171,17 @@ class TestParseUserAgent:
         }
 
     def test_dash_ua_returns_unknown(self):
+        """The ``-`` sentinel must also short-circuit."""
         result = _parse_user_agent("-")
         assert result["AgentType"] == "Unknown"
+        assert result["BrowserName"] == "Unknown"
 
     def test_unknown_string_literal_returns_unknown(self):
         result = _parse_user_agent("Unknown")
         assert result["AgentType"] == "Unknown"
 
-    def test_none_ua(self):
-        result = _parse_user_agent(None)
-        assert result["AgentType"] == "Unknown"
-
     def test_url_encoded_ua_is_decoded(self):
+        """``urllib.parse.unquote_plus`` must be applied before parsing."""
         self._require_user_agents()
         ua = "Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%29+AppleWebKit%2F537.36"
         result = _parse_user_agent(ua)
@@ -149,8 +189,33 @@ class TestParseUserAgent:
         assert result["AgentType"] == "Browser"
 
     def test_whitespace_only_ua(self):
+        """Whitespace-only UAs short-circuit just like empty strings."""
         result = _parse_user_agent("   ")
         assert result["AgentType"] == "Unknown"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  2. _coalesce — small helper
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestCoalesce:
+    """Verify the ``_coalesce`` helper used when building the INSERT payload."""
+
+    def test_none_returns_default(self):
+        assert _coalesce(None, "Unknown") == "Unknown"
+
+    def test_empty_string_returns_default(self):
+        assert _coalesce("", "Unknown") == "Unknown"
+
+    def test_dash_string_returns_default(self):
+        assert _coalesce("-", "Unknown") == "Unknown"
+
+    def test_non_empty_value_returned_as_is(self):
+        assert _coalesce("US", "Unknown") == "US"
+
+    def test_non_string_value_returned_as_is(self):
+        assert _coalesce(42, "Unknown") == 42
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -161,58 +226,39 @@ class TestParseUserAgent:
 class TestEnsureDefaultRows:
     """Verify the default -1 surrogate-key rows are inserted correctly."""
 
-    # We need to re-patch get_conn because the module-level mock for
-    # psycopg2 is a MagicMock that may not pass through. We explicitly
-    # patch at the function level.
-
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_dim_geolocation_default_insert_sql(self, mock_get_conn):
-        """Verify the INSERT for dim_geolocation default row."""
-        from plugins.operators.export_dimensions import _ensure_default_rows
-
+    def test_dim_geolocation_default_insert_sql(self):
+        """First INSERT seeds ``dim_geolocation`` with the -1 row."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_get_conn.return_value = mock_conn
 
         _ensure_default_rows(mock_conn)
 
-        # Should have two execute calls
         assert mock_cursor.execute.call_count == 2
 
-        # First call: dim_geolocation default
         geoloc_sql = mock_cursor.execute.call_args_list[0][0][0]
         assert "INSERT INTO dim_geolocation" in geoloc_sql
         assert "VALUES (-1, 'Unknown', 'Unknown', 'Unknown', 'Unknown', '-', NULL, NULL, '-')" in geoloc_sql
         assert "ON CONFLICT DO NOTHING" in geoloc_sql
 
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_dim_useragent_default_insert_sql(self, mock_get_conn):
-        """Verify the INSERT for dim_useragent default row."""
-        from plugins.operators.export_dimensions import _ensure_default_rows
-
+    def test_dim_useragent_default_insert_sql(self):
+        """Second INSERT seeds ``dim_useragent`` with the -1 row."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_get_conn.return_value = mock_conn
 
         _ensure_default_rows(mock_conn)
 
-        # Second call: dim_useragent default
         ua_sql = mock_cursor.execute.call_args_list[1][0][0]
         assert "INSERT INTO dim_useragent" in ua_sql
         assert "VALUES (-1, 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown')" in ua_sql
         assert "ON CONFLICT DO NOTHING" in ua_sql
 
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_ensure_default_rows_commits(self, mock_get_conn):
-        """Verify the function commits the transaction."""
-        from plugins.operators.export_dimensions import _ensure_default_rows
-
+    def test_ensure_default_rows_commits(self):
+        """The default-row block commits exactly once."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_get_conn.return_value = mock_conn
 
         _ensure_default_rows(mock_conn)
 
@@ -220,439 +266,289 @@ class TestEnsureDefaultRows:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  4. Private IP detection (geolocation short-circuit)
+#  4. _read_silver_geo_dim — Silver Delta reader
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestPrivateIPDetection:
-    """Verify that private / link-local / loopback IPs skip the API call."""
+class TestReadSilverDelta:
+    """Verify the Silver Delta reader collapses distinct IPs correctly.
 
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_private_10_dot_ip_no_api_call(self, mock_get_conn, mock_post):
-        """10.x.x.x addresses should be short-circuited without API call."""
-        mock_conn = self._mock_conn_with_new_ips(["10.0.0.1"])
-        mock_get_conn.return_value = self._mock_write_conn()
-        from plugins.operators.export_dimensions import _build_dim_geolocation
+    These tests patch ``pd.read_parquet`` at the operator's import site
+    so the reader is exercised end-to-end against synthetic DataFrames.
+    """
 
-        _build_dim_geolocation(mock_conn)
-        mock_post.assert_not_called()
+    def test_empty_delta_returns_empty_dataframe(self):
+        """An empty parquet file is returned as an empty DataFrame."""
+        with patch(
+            "plugins.operators.export_dimensions.pd.read_parquet",
+            return_value=pd.DataFrame(),
+        ) as mock_read:
+            result = _read_silver_geo_dim("/some/path")
 
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_loopback_127_dot_ip_no_api_call(self, mock_get_conn, mock_post):
-        """127.x.x.x addresses should be short-circuited."""
-        mock_conn = self._mock_conn_with_new_ips(["127.0.0.1"])
-        mock_get_conn.return_value = self._mock_write_conn()
-        from plugins.operators.export_dimensions import _build_dim_geolocation
+        assert result.empty
+        mock_read.assert_called_once_with("/some/path")
 
-        _build_dim_geolocation(mock_conn)
-        mock_post.assert_not_called()
+    def test_distinct_ips_are_collapsed(self):
+        """Duplicate ``client_ip`` rows collapse to a single row each."""
+        df = _make_silver_df(["1.1.1.1", "1.1.1.1", "2.2.2.2", "2.2.2.2", "2.2.2.2"])
+        with patch(
+            "plugins.operators.export_dimensions.pd.read_parquet",
+            return_value=df,
+        ):
+            result = _read_silver_geo_dim("/some/path")
 
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_link_local_169_254_ip_no_api_call(self, mock_get_conn, mock_post):
-        """169.254.x.x link-local addresses should be short-circuited."""
-        mock_conn = self._mock_conn_with_new_ips(["169.254.1.1"])
-        mock_get_conn.return_value = self._mock_write_conn()
-        from plugins.operators.export_dimensions import _build_dim_geolocation
+        assert len(result) == 2
+        assert set(result["client_ip"]) == {"1.1.1.1", "2.2.2.2"}
 
-        _build_dim_geolocation(mock_conn)
-        mock_post.assert_not_called()
+    def test_null_client_ip_is_dropped(self):
+        """``dropna(subset=['client_ip'])`` removes rows with no IP."""
+        df = _make_silver_df(["1.1.1.1", "2.2.2.2"])
+        # Splice a null-IP row into the middle of the frame.
+        df = pd.concat([df.iloc[:1], pd.DataFrame([{"client_ip": None}]), df.iloc[1:]], ignore_index=True)
+        # The middle row has only client_ip; pad the other columns.
+        for col in ("country", "region", "city", "postcode", "latitude", "longitude", "isp"):
+            df[col] = df[col].fillna("US" if col == "country" else 0)
 
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_private_192_168_ip_no_api_call(self, mock_get_conn, mock_post):
-        """192.168.x.x addresses should be short-circuited."""
-        mock_conn = self._mock_conn_with_new_ips(["192.168.1.100"])
-        mock_get_conn.return_value = self._mock_write_conn()
-        from plugins.operators.export_dimensions import _build_dim_geolocation
+        with patch(
+            "plugins.operators.export_dimensions.pd.read_parquet",
+            return_value=df,
+        ):
+            result = _read_silver_geo_dim("/some/path")
 
-        _build_dim_geolocation(mock_conn)
-        mock_post.assert_not_called()
+        assert set(result["client_ip"]) == {"1.1.1.1", "2.2.2.2"}
+        assert len(result) == 2
 
-    @patch("plugins.operators.export_dimensions.execute_values")
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_private_ip_inserted_with_private_geo(self, mock_get_conn, mock_post, mock_execute_values):
-        """Private IPs should be inserted with Country='Private'."""
-        mock_conn = self._mock_conn_with_new_ips(["192.168.1.100"])
-        mock_write_conn = self._mock_write_conn()
-        mock_get_conn.return_value = mock_write_conn
+    def test_dash_client_ip_is_dropped(self):
+        """The ``-`` sentinel is treated as no IP at all."""
+        df = _make_silver_df(["1.1.1.1", "-", "2.2.2.2"])
 
-        from plugins.operators.export_dimensions import _build_dim_geolocation
+        with patch(
+            "plugins.operators.export_dimensions.pd.read_parquet",
+            return_value=df,
+        ):
+            result = _read_silver_geo_dim("/some/path")
 
-        _build_dim_geolocation(mock_conn)
+        assert set(result["client_ip"]) == {"1.1.1.1", "2.2.2.2"}
 
-        # Verify the INSERT data includes Private geo
-        insert_data = mock_execute_values.call_args[0][2]
-        assert len(insert_data) == 1
-        ip, country, region, *_ = insert_data[0]
-        assert ip == "192.168.1.100"
-        assert country == "Private"
-        assert region == "Private"
+    def test_missing_postcode_column_is_handled(self):
+        """Schemas that pre-date the postcode column still work — the
+        function adds a ``postcode`` column of ``None`` so downstream
+        merge / insert logic can use ``-`` as a default sentinel.
+        """
+        df = pd.DataFrame({
+            "client_ip": ["1.1.1.1"],
+            "country": ["US"],
+            "region": ["California"],
+            "city": ["Mountain View"],
+            # no postcode column on purpose
+            "latitude": [37.386],
+            "longitude": [-122.084],
+            "isp": ["Google"],
+        })
 
-    @patch("plugins.operators.export_dimensions.execute_values")
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_malformed_ip_treated_as_unknown(self, mock_get_conn, mock_post, mock_execute_values):
-        """Malformed IP strings should be treated as Unknown (not crash)."""
-        mock_conn = self._mock_conn_with_new_ips(["not-an-ip", "999.999.999.999"])
-        mock_write_conn = self._mock_write_conn()
-        mock_get_conn.return_value = mock_write_conn
+        with patch(
+            "plugins.operators.export_dimensions.pd.read_parquet",
+            return_value=df,
+        ):
+            result = _read_silver_geo_dim("/some/path")
 
-        from plugins.operators.export_dimensions import _build_dim_geolocation
-
-        _build_dim_geolocation(mock_conn)
-
-        insert_data = mock_execute_values.call_args[0][2]
-        assert len(insert_data) == 2
-        for row in insert_data:
-            assert row[1] == "Unknown"  # country
-
-    def _mock_conn_with_new_ips(self, ips):
-        """Create a mock connection that returns IPs as new (unresolved)."""
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_cur.fetchall.side_effect = [
-            [],  # existing_ips = empty
-            [(ip,) for ip in ips],  # all_ips from raw_enriched
-        ]
-        mock_conn.cursor.return_value = mock_cur
-        return mock_conn
-
-    def _mock_write_conn(self):
-        """Create a mock connection for the write phase (INSERT)."""
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cur
-        return mock_conn
+        assert "postcode" in result.columns
+        assert result["postcode"].isna().all()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  5. ip-api.com API call — payload structure
+#  5. _build_dim_geolocation — Silver → Postgres writer
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestGeolocationAPICall:
-    """Verify the ip-api.com batch API call structure."""
+class TestBuildDimGeolocation:
+    """Verify the ``dim_geolocation`` writer integrates with the Silver Delta."""
 
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_api_payload_fields(self, mock_get_conn, mock_post):
-        """Verify the batch payload includes the 'fields' parameter."""
-        public_ips = ["8.8.8.8", "1.1.1.1"]
+    def test_inserts_new_ips_from_silver(self):
+        """New IPs flow through to the INSERT statement with all columns."""
+        silver_df = _make_silver_df(["1.1.1.1"])
+        read_conn, _ = _make_read_conn(existing_ips=[])
 
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_cur.fetchall.side_effect = [
-            [],
-            [(ip,) for ip in public_ips],
-        ]
-        mock_conn.cursor.return_value = mock_cur
+        with patch(
+            "plugins.operators.export_dimensions._read_silver_geo_dim",
+            return_value=silver_df,
+        ):
+            with _patched_write_conn():
+                with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
+                    _build_dim_geolocation(read_conn, "/silver/path")
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {
-                "query": "8.8.8.8",
-                "status": "success",
-                "country": "US",
-                "regionName": "California",
-                "city": "Mountain View",
-                "zip": "94043",
-                "lat": 37.386,
-                "lon": -122.084,
-                "isp": "Google",
-            },
-            {
-                "query": "1.1.1.1",
-                "status": "success",
-                "country": "AU",
-                "regionName": "Queensland",
-                "city": "South Brisbane",
-                "zip": "4101",
-                "lat": -27.476,
-                "lon": 153.017,
-                "isp": "Cloudflare",
-            },
-        ]
-        mock_post.return_value = mock_response
+                    insert_sql = mock_exec.call_args[0][1]
+                    assert "INSERT INTO dim_geolocation" in insert_sql
+                    assert "ON CONFLICT (ip) DO NOTHING" in insert_sql
 
-        mock_write_conn = MagicMock()
-        mock_write_cur = MagicMock()
-        mock_write_conn.cursor.return_value.__enter__.return_value = mock_write_cur
-        mock_get_conn.return_value = mock_write_conn
+                    insert_data = mock_exec.call_args[0][2]
+                    assert len(insert_data) == 1
+                    row = insert_data[0]
+                    assert row[0] == "1.1.1.1"
+                    assert row[1] == "US"
+                    assert row[2] == "California"
+                    assert row[3] == "Mountain View"
+                    assert row[4] == "94043"  # postcode
+                    assert row[5] == 37.386  # latitude
+                    assert row[6] == -122.084  # longitude
+                    assert row[7] == "Google"  # isp
 
-        from plugins.operators.export_dimensions import _build_dim_geolocation
+    def test_skips_already_present_ips(self):
+        """If every Silver IP is already in the dim, no INSERT runs."""
+        silver_df = _make_silver_df(["1.1.1.1"])
+        read_conn, _ = _make_read_conn(existing_ips=["1.1.1.1"])
 
-        with patch("plugins.operators.export_dimensions.execute_values"):
-            _build_dim_geolocation(mock_conn)
+        with patch(
+            "plugins.operators.export_dimensions._read_silver_geo_dim",
+            return_value=silver_df,
+        ):
+            with _patched_write_conn():
+                with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
+                    _build_dim_geolocation(read_conn, "/silver/path")
 
-        # Verify the API payload
-        mock_post.assert_called_once()
-        call_args = mock_post.call_args
-        assert call_args[0][0] == "http://ip-api.com/batch"
+                    mock_exec.assert_not_called()
 
-        payload = call_args[1]["json"]
-        assert len(payload) == 2
-        queries = {item["query"] for item in payload}
-        assert queries == {"8.8.8.8", "1.1.1.1"}
-        for item in payload:
-            assert "fields" in item
-            assert "status" in item["fields"]
+    def test_missing_silver_path_returns_silently(self):
+        """``FileNotFoundError`` from the Delta read is caught — no DB I/O."""
+        read_conn, read_cur = _make_read_conn()
 
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_api_failure_sets_unknown(self, mock_get_conn, mock_post):
-        """When the API call fails, IPs should be set to Unknown."""
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_cur.fetchall.side_effect = [
-            [],
-            [("8.8.8.8",)],
-        ]
-        mock_conn.cursor.return_value = mock_cur
-        mock_post.side_effect = Exception("Connection timeout")
+        with patch(
+            "plugins.operators.export_dimensions._read_silver_geo_dim",
+            side_effect=FileNotFoundError("delta path missing"),
+        ):
+            with _patched_write_conn():
+                with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
+                    # Must NOT raise.
+                    _build_dim_geolocation(read_conn, "/nonexistent")
 
-        mock_write_conn = MagicMock()
-        mock_write_cur = MagicMock()
-        mock_write_conn.cursor.return_value.__enter__.return_value = mock_write_cur
-        mock_get_conn.return_value = mock_write_conn
+                    read_cur.execute.assert_not_called()
+                    mock_exec.assert_not_called()
 
-        from plugins.operators.export_dimensions import _build_dim_geolocation
+    def test_empty_silver_dataframe_returns_silently(self):
+        """An empty Silver DataFrame short-circuits the function."""
+        read_conn, read_cur = _make_read_conn()
 
-        with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
-            _build_dim_geolocation(mock_conn)
+        with patch(
+            "plugins.operators.export_dimensions._read_silver_geo_dim",
+            return_value=pd.DataFrame(),
+        ):
+            with _patched_write_conn():
+                with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
+                    _build_dim_geolocation(read_conn, "/empty/path")
 
-        insert_data = mock_exec.call_args[0][2]
-        assert len(insert_data) == 1
-        assert insert_data[0][1] == "Unknown"
+                    read_cur.execute.assert_not_called()
+                    mock_exec.assert_not_called()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  6. Rate limit handling — sleep between batches
+#  6. _build_dim_useragent — edge cases
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestRateLimitHandling:
-    """Verify 1.5s sleep between ip-api.com batch calls."""
+class TestBuildDimUseragent:
+    """Verify edge cases in the user-agent dimension builder."""
 
-    @patch("plugins.operators.export_dimensions.time.sleep")
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_sleep_between_batches(self, mock_get_conn, mock_post, mock_sleep):
-        """When more than 100 IPs need resolution, batches are spaced 1.5s apart."""
-        public_ips = [f"1.2.3.{i}" for i in range(250)]
-
+    def test_no_rows_in_raw_enriched(self):
+        """When ``raw_enriched`` has no rows, no write connection is opened."""
         mock_conn = MagicMock()
         mock_cur = MagicMock()
-        mock_cur.fetchall.side_effect = [
-            [],
-            [(ip,) for ip in public_ips],
-        ]
+        mock_cur.fetchall.return_value = []
         mock_conn.cursor.return_value = mock_cur
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {
-                "query": ip,
-                "status": "success",
-                "country": "US",
-                "regionName": "California",
-                "city": "San Jose",
-                "zip": "95134",
-                "lat": 37.339,
-                "lon": -121.894,
-                "isp": "Test",
-            }
-            for ip in public_ips
-        ]
-        mock_post.return_value = mock_response
+        _build_dim_useragent(mock_conn)
 
-        mock_write_conn = MagicMock()
-        mock_write_cur = MagicMock()
-        mock_write_conn.cursor.return_value.__enter__.return_value = mock_write_cur
-        mock_get_conn.return_value = mock_write_conn
+        # Only the read cursor should have been created (no write connection).
+        mock_conn.cursor.assert_called_once()
 
-        from plugins.operators.export_dimensions import _build_dim_geolocation
-
-        with patch("plugins.operators.export_dimensions.execute_values"):
-            _build_dim_geolocation(mock_conn)
-
-        assert mock_post.call_count == 3
-        assert mock_sleep.call_count == 2
-        mock_sleep.assert_any_call(1.5)
-
-    @patch("plugins.operators.export_dimensions.time.sleep")
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_no_sleep_for_single_batch(self, mock_get_conn, mock_post, mock_sleep):
-        """When fewer than 100 IPs, no sleep is needed."""
-        public_ips = [f"1.2.3.{i}" for i in range(50)]
-
+    def test_ua_truncated_to_1000_chars(self):
+        """Very long user-agent strings are truncated to 1000 chars."""
         mock_conn = MagicMock()
         mock_cur = MagicMock()
-        mock_cur.fetchall.side_effect = [
-            [],
-            [(ip,) for ip in public_ips],
-        ]
+        long_ua = "Mozilla/" + "X" * 2000
+        mock_cur.fetchall.return_value = [(long_ua,)]
         mock_conn.cursor.return_value = mock_cur
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {
-                "query": ip,
-                "status": "success",
-                "country": "US",
-                "regionName": "New York",
-                "city": "New York",
-                "zip": "10001",
-                "lat": 40.712,
-                "lon": -74.006,
-                "isp": "Test",
-            }
-            for ip in public_ips
-        ]
-        mock_post.return_value = mock_response
+        with _patched_write_conn():
+            with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
+                _build_dim_useragent(mock_conn)
 
-        mock_write_conn = MagicMock()
-        mock_write_cur = MagicMock()
-        mock_write_conn.cursor.return_value.__enter__.return_value = mock_write_cur
-        mock_get_conn.return_value = mock_write_conn
-
-        from plugins.operators.export_dimensions import _build_dim_geolocation
-
-        with patch("plugins.operators.export_dimensions.execute_values"):
-            _build_dim_geolocation(mock_conn)
-
-        assert mock_post.call_count == 1
-        assert mock_sleep.call_count == 0
+                insert_data = mock_exec.call_args[0][2]
+                assert len(insert_data[0][0]) == 1000
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  7. INSERT ON CONFLICT DO NOTHING — SQL verification
+#  7. INSERT ... ON CONFLICT DO NOTHING — SQL pattern verification
 # ═══════════════════════════════════════════════════════════════════════════
 
 
 class TestInsertOnConflict:
     """Verify the INSERT SQL for both dimension tables uses ON CONFLICT."""
 
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_dim_geolocation_insert_sql(self, mock_get_conn, mock_post):
-        """Verify dim_geolocation uses INSERT ... ON CONFLICT (ip) DO NOTHING."""
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_cur.fetchall.side_effect = [
-            [],
-            [("8.8.8.8",)],
-        ]
-        mock_conn.cursor.return_value = mock_cur
+    def test_dim_geolocation_insert_sql(self):
+        """``_build_dim_geolocation`` emits INSERT … ON CONFLICT (ip) DO NOTHING."""
+        silver_df = _make_silver_df(["1.1.1.1"])
+        read_conn, _ = _make_read_conn(existing_ips=[])
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {
-                "query": "8.8.8.8",
-                "status": "success",
-                "country": "US",
-                "regionName": "California",
-                "city": "Mountain View",
-                "zip": "94043",
-                "lat": 37.386,
-                "lon": -122.084,
-                "isp": "Google",
-            },
-        ]
-        mock_post.return_value = mock_response
+        with patch(
+            "plugins.operators.export_dimensions._read_silver_geo_dim",
+            return_value=silver_df,
+        ):
+            with _patched_write_conn():
+                with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
+                    _build_dim_geolocation(read_conn, "/silver/path")
 
-        mock_write_conn = MagicMock()
-        mock_write_cur = MagicMock()
-        mock_write_conn.cursor.return_value.__enter__.return_value = mock_write_cur
-        mock_get_conn.return_value = mock_write_conn
+                    insert_sql = mock_exec.call_args[0][1]
+                    assert "INSERT INTO dim_geolocation" in insert_sql
+                    assert "ON CONFLICT (ip) DO NOTHING" in insert_sql
+                    # Batch page_size 1000 is the documented default.
+                    assert mock_exec.call_args[1]["page_size"] == 1000
 
-        from plugins.operators.export_dimensions import _build_dim_geolocation
-
-        with patch("plugins.operators.export_dimensions.execute_values") as mock_execute_values:
-            _build_dim_geolocation(mock_conn)
-
-            insert_sql = mock_execute_values.call_args[0][1]
-            assert "INSERT INTO dim_geolocation" in insert_sql
-            assert "ON CONFLICT (ip) DO NOTHING" in insert_sql
-
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_dim_useragent_insert_sql(self, mock_get_conn):
-        """Verify dim_useragent uses INSERT ... ON CONFLICT (user_agent) DO NOTHING."""
+    def test_dim_useragent_insert_sql(self):
+        """``_build_dim_useragent`` emits INSERT … ON CONFLICT (user_agent) DO NOTHING."""
         mock_conn = MagicMock()
         mock_cur = MagicMock()
         mock_cur.fetchall.return_value = [("Mozilla/5.0 Chrome/120",)]
         mock_conn.cursor.return_value = mock_cur
 
-        mock_write_conn = MagicMock()
-        mock_write_cur = MagicMock()
-        mock_write_conn.cursor.return_value.__enter__.return_value = mock_write_cur
-        mock_get_conn.return_value = mock_write_conn
+        with _patched_write_conn():
+            with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
+                _build_dim_useragent(mock_conn)
 
-        from plugins.operators.export_dimensions import _build_dim_useragent
-
-        with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
-            _build_dim_useragent(mock_conn)
-
-            insert_sql = mock_exec.call_args[0][1]
-            assert "INSERT INTO dim_useragent" in insert_sql
-            assert "ON CONFLICT (user_agent) DO NOTHING" in insert_sql
+                insert_sql = mock_exec.call_args[0][1]
+                assert "INSERT INTO dim_useragent" in insert_sql
+                assert "ON CONFLICT (user_agent) DO NOTHING" in insert_sql
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  8. SQL extraction — SELECT DISTINCT logic
+#  8. SQL queries — what statements the operator issues
 # ═══════════════════════════════════════════════════════════════════════════
 
 
 class TestSQLQueries:
-    """Verify the SELECT DISTINCT queries used to extract source data."""
+    """Verify the SQL queries issued by the dimension writers."""
 
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_dim_geolocation_selects_distinct_client_ip(self, mock_get_conn, mock_post):
-        """Verify _build_dim_geolocation queries distinct client_ip from raw_enriched."""
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_cur.fetchall.side_effect = [
-            [],
-            [("8.8.8.8",)],
-        ]
-        mock_conn.cursor.return_value = mock_cur
+    def test_dim_geolocation_checks_existing_ips_first(self):
+        """Before inserting, the writer queries which IPs already exist."""
+        silver_df = _make_silver_df(["1.1.1.1"])
+        read_conn, read_cur = _make_read_conn(existing_ips=["1.1.1.1"])
 
-        mock_write_conn = MagicMock()
-        mock_write_cur = MagicMock()
-        mock_write_conn.cursor.return_value.__enter__.return_value = mock_write_cur
-        mock_get_conn.return_value = mock_write_conn
+        with patch(
+            "plugins.operators.export_dimensions._read_silver_geo_dim",
+            return_value=silver_df,
+        ):
+            with _patched_write_conn():
+                with patch("plugins.operators.export_dimensions.execute_values"):
+                    _build_dim_geolocation(read_conn, "/silver/path")
 
-        mock_post.return_value.json.return_value = []
+        select_calls = [c[0][0] for c in read_cur.execute.call_args_list]
+        assert any("SELECT DISTINCT ip FROM dim_geolocation" in sql for sql in select_calls)
 
-        from plugins.operators.export_dimensions import _build_dim_geolocation
-
-        with patch("plugins.operators.export_dimensions.execute_values"):
-            _build_dim_geolocation(mock_conn)
-
-        select_calls = [c[0][0] for c in mock_cur.execute.call_args_list]
-        assert any("SELECT DISTINCT client_ip FROM raw_enriched" in sql for sql in select_calls)
-        assert any("client_ip IS NOT NULL" in sql for sql in select_calls)
-        assert any("client_ip != '-'" in sql for sql in select_calls)
-
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_dim_useragent_selects_distinct_user_agent(self, mock_get_conn):
-        """Verify _build_dim_useragent queries distinct user_agent from raw_enriched."""
+    def test_dim_useragent_selects_distinct_user_agent(self):
+        """``_build_dim_useragent`` queries distinct, non-null, non-dash UAs."""
         mock_conn = MagicMock()
         mock_cur = MagicMock()
         mock_cur.fetchall.return_value = []
         mock_conn.cursor.return_value = mock_cur
-
-        mock_write_conn = MagicMock()
-        mock_write_cur = MagicMock()
-        mock_write_conn.cursor.return_value.__enter__.return_value = mock_write_cur
-        mock_get_conn.return_value = mock_write_conn
-
-        from plugins.operators.export_dimensions import _build_dim_useragent
 
         _build_dim_useragent(mock_conn)
 
@@ -661,74 +557,73 @@ class TestSQLQueries:
         assert any("user_agent IS NOT NULL" in sql for sql in select_calls)
         assert any("user_agent != '-'" in sql for sql in select_calls)
 
-    @patch("plugins.operators.export_dimensions.requests.post")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_geolocation_checks_existing_ips_first(self, mock_get_conn, mock_post):
-        """Verify _build_dim_geolocation first checks which IPs already resolved."""
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_cur.fetchall.side_effect = [
-            [("8.8.8.8",)],  # already resolved
-            [],  # no new IPs
-        ]
-        mock_conn.cursor.return_value = mock_cur
+    def test_silver_path_defaults_to_w3c_silver_path_env(self):
+        """When ``silver_path`` is None, the operator reads ``W3C_SILVER_PATH``."""
+        silver_df = _make_silver_df(["1.1.1.1"])
+        read_conn, _ = _make_read_conn(existing_ips=["1.1.1.1"])
 
-        mock_write_conn = MagicMock()
-        mock_write_cur = MagicMock()
-        mock_write_conn.cursor.return_value.__enter__.return_value = mock_write_cur
-        mock_get_conn.return_value = mock_write_conn
+        with patch.dict(
+            "plugins.operators.export_dimensions.os.environ",
+            {"W3C_SILVER_PATH": "/from/env/silver"},
+            clear=False,
+        ):
+            with patch(
+                "plugins.operators.export_dimensions._read_silver_geo_dim",
+                return_value=silver_df,
+            ) as mock_read:
+                with _patched_write_conn():
+                    with patch("plugins.operators.export_dimensions.execute_values"):
+                        # silver_path=None — fall back to W3C_SILVER_PATH.
+                        _build_dim_geolocation(read_conn, silver_path=None)
 
-        from plugins.operators.export_dimensions import _build_dim_geolocation
+                mock_read.assert_called_once_with("/from/env/silver")
 
-        _build_dim_geolocation(mock_conn)
+    def test_silver_path_defaults_to_module_constant_when_env_unset(self):
+        """When both ``silver_path`` and ``W3C_SILVER_PATH`` are absent, ``DEFAULT_SILVER_PATH`` is used."""
+        silver_df = _make_silver_df(["1.1.1.1"])
+        read_conn, _ = _make_read_conn(existing_ips=["1.1.1.1"])
 
-        select_calls = [c[0][0] for c in mock_cur.execute.call_args_list]
-        assert any("SELECT DISTINCT ip FROM dim_geolocation" in sql for sql in select_calls)
+        env_without_silver = {k: v for k, v in __import__("os").environ.items() if k != "W3C_SILVER_PATH"}
+        with patch.dict(
+            "plugins.operators.export_dimensions.os.environ",
+            env_without_silver,
+            clear=True,
+        ):
+            with patch(
+                "plugins.operators.export_dimensions._read_silver_geo_dim",
+                return_value=silver_df,
+            ) as mock_read:
+                with _patched_write_conn():
+                    with patch("plugins.operators.export_dimensions.execute_values"):
+                        _build_dim_geolocation(read_conn, silver_path=None)
+
+                mock_read.assert_called_once_with(DEFAULT_SILVER_PATH)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  9. _build_dim_useragent — edge cases
+#  9. _ensure_dimension_tables — DDL on cold-start
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestBuildDimUserAgentEdgeCases:
-    """Verify edge cases in the user-agent dimension builder."""
+class TestEnsureDimensionTables:
+    """Verify the DDL the operator runs to create the dimension tables."""
 
-    def test_no_rows_in_raw_enriched(self):
-        """When raw_enriched has no rows, _build_dim_useragent does nothing."""
-        from plugins.operators.export_dimensions import _build_dim_useragent
-
+    def test_creates_both_tables(self):
+        """``_ensure_dimension_tables`` issues CREATE TABLE IF NOT EXISTS for both dims."""
         mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_cur.fetchall.return_value = []
-        mock_conn.cursor.return_value = mock_cur
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
 
-        _build_dim_useragent(mock_conn)
+        _ensure_dimension_tables(mock_conn)
 
-        # Only the read cursor should have been created (no write connection)
-        mock_conn.cursor.assert_called_once()
-
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_ua_truncated_to_1000_chars(self, mock_get_conn):
-        """Very long user-agent strings should be truncated to 1000 chars."""
-        from plugins.operators.export_dimensions import _build_dim_useragent
-
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        long_ua = "Mozilla/" + "X" * 2000
-        mock_cur.fetchall.return_value = [(long_ua,)]
-        mock_conn.cursor.return_value = mock_cur
-
-        mock_write_conn = MagicMock()
-        mock_write_cur = MagicMock()
-        mock_write_conn.cursor.return_value.__enter__.return_value = mock_write_cur
-        mock_get_conn.return_value = mock_write_conn
-
-        with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
-            _build_dim_useragent(mock_conn)
-            insert_data = mock_exec.call_args[0][2]
-            ua_value = insert_data[0][0]
-            assert len(ua_value) == 1000
+        assert mock_cursor.execute.call_count == 2
+        executed = [c[0][0] for c in mock_cursor.execute.call_args_list]
+        assert any("CREATE TABLE IF NOT EXISTS dim_geolocation" in sql for sql in executed)
+        assert any("CREATE TABLE IF NOT EXISTS dim_useragent" in sql for sql in executed)
+        # PK constraints and unique IPs are part of the documented schema.
+        assert any("SERIAL PRIMARY KEY" in sql for sql in executed)
+        assert any("ip           VARCHAR(50) UNIQUE" in sql for sql in executed)
+        mock_conn.commit.assert_called_once()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -739,56 +634,52 @@ class TestBuildDimUserAgentEdgeCases:
 class TestExportDimensionsCallable:
     """Verify the top-level ``export_dimensions()`` callable orchestrates correctly."""
 
-    @patch("plugins.operators.export_dimensions._build_dim_useragent")
-    @patch("plugins.operators.export_dimensions._build_dim_geolocation")
-    @patch("plugins.operators.export_dimensions._ensure_default_rows")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_orchestration_order(self, mock_get_conn, mock_default, mock_geo, mock_ua):
-        """Verify the three build steps execute in the correct order."""
-        from plugins.operators.export_dimensions import export_dimensions
+    def test_orchestration_order(self):
+        """The three build steps execute in the documented order."""
+        with patch("plugins.operators.export_dimensions._ensure_dimension_tables") as mock_ddl:
+            with patch("plugins.operators.export_dimensions._ensure_default_rows") as mock_default:
+                with patch("plugins.operators.export_dimensions._build_dim_geolocation") as mock_geo:
+                    with patch("plugins.operators.export_dimensions._build_dim_useragent") as mock_ua:
+                        with patch("plugins.operators.export_dimensions.get_conn") as mock_get_conn:
+                            mock_conn = MagicMock()
+                            mock_get_conn.return_value = mock_conn
 
-        mock_conn = MagicMock()
-        mock_get_conn.return_value = mock_conn
+                            export_dimensions()
 
-        export_dimensions()
+                            mock_ddl.assert_called_once_with(mock_conn)
+                            mock_default.assert_called_once_with(mock_conn)
+                            mock_geo.assert_called_once_with(mock_conn)
+                            mock_ua.assert_called_once_with(mock_conn)
+                            mock_conn.close.assert_called_once()
 
-        mock_default.assert_called_once_with(mock_conn)
-        mock_geo.assert_called_once_with(mock_conn)
-        mock_ua.assert_called_once_with(mock_conn)
-        mock_conn.close.assert_called_once()
-
-    @patch("plugins.operators.export_dimensions._build_dim_useragent")
-    @patch("plugins.operators.export_dimensions._build_dim_geolocation")
-    @patch("plugins.operators.export_dimensions._ensure_default_rows")
-    @patch("plugins.operators.export_dimensions.get_conn")
-    def test_conn_closed_on_error(self, mock_get_conn, mock_default, mock_geo, mock_ua):
+    def test_conn_closed_on_error(self):
         """If a build step raises, the connection is still closed (finally block)."""
-        from plugins.operators.export_dimensions import export_dimensions
+        with patch("plugins.operators.export_dimensions._build_dim_geolocation") as mock_geo:
+            with patch("plugins.operators.export_dimensions.get_conn") as mock_get_conn:
+                mock_conn = MagicMock()
+                mock_get_conn.return_value = mock_conn
+                mock_geo.side_effect = RuntimeError("Delta read failed")
 
-        mock_conn = MagicMock()
-        mock_get_conn.return_value = mock_conn
-        mock_geo.side_effect = RuntimeError("API failure")
+                with pytest.raises(RuntimeError):
+                    export_dimensions()
 
-        with pytest.raises(RuntimeError):
-            export_dimensions()
-
-        mock_conn.close.assert_called_once()
+                mock_conn.close.assert_called_once()
 
     def test_callable_accepts_context(self):
-        """Verify export_dimensions accepts **context (Airflow PythonOperator compat)."""
-        from plugins.operators.export_dimensions import export_dimensions
-
+        """``export_dimensions`` accepts ``**context`` (Airflow PythonOperator compat)."""
         with patch("plugins.operators.export_dimensions.get_conn") as mock_get_conn:
             mock_conn = MagicMock()
             mock_get_conn.return_value = mock_conn
-
-            with patch("plugins.operators.export_dimensions._ensure_default_rows"):
-                with patch("plugins.operators.export_dimensions._build_dim_geolocation"):
-                    with patch("plugins.operators.export_dimensions._build_dim_useragent"):
-                        export_dimensions(
-                            task_instance=MagicMock(),
-                            execution_date="2026-05-30",
-                        )
+            with patch("plugins.operators.export_dimensions._ensure_dimension_tables"):
+                with patch("plugins.operators.export_dimensions._ensure_default_rows"):
+                    with patch("plugins.operators.export_dimensions._build_dim_geolocation"):
+                        with patch("plugins.operators.export_dimensions._build_dim_useragent"):
+                            # Airflow passes arbitrary kwargs through to callables.
+                            export_dimensions(
+                                task_instance=MagicMock(),
+                                execution_date="2026-05-30",
+                                dag_run=MagicMock(),
+                            )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -801,9 +692,7 @@ class TestGetConn:
 
     @patch("plugins.operators.export_dimensions.psycopg2.connect")
     def test_default_connection_params(self, mock_connect):
-        """When no env vars are set, defaults are used."""
-        from plugins.operators.export_dimensions import get_conn
-
+        """When no env vars are set, documented defaults are used."""
         get_conn()
 
         mock_connect.assert_called_once_with(
@@ -827,8 +716,6 @@ class TestGetConn:
     @patch("plugins.operators.export_dimensions.psycopg2.connect")
     def test_custom_connection_params_from_env(self, mock_connect):
         """When env vars are set, they override the defaults."""
-        from plugins.operators.export_dimensions import get_conn
-
         get_conn()
 
         mock_connect.assert_called_once_with(
@@ -838,3 +725,44 @@ class TestGetConn:
             user="admin",
             password="s3cret",
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  12. Edge cases — mixed validity, real-world friction
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestEdgeCases:
+    """Cross-cutting edge cases for the dimension writers."""
+
+    def test_mixed_valid_and_invalid_ips_all_inserted(self):
+        """Private / loopback / unspecified IPs from the Silver Delta
+        are *not* filtered by the operator — the Spark enrichment job
+        is responsible for that.  We verify the writer passes them
+        through unchanged so a downstream dim FK join still resolves.
+        """
+        silver_df = _make_silver_df(
+            ["8.8.8.8", "127.0.0.1", "0.0.0.0", "10.0.0.1"],
+            country=["US", "US", "US", "US"],
+            isp=["Google", "Private", "Private", "Private"],
+        )
+        read_conn, _ = _make_read_conn(existing_ips=[])
+
+        with patch(
+            "plugins.operators.export_dimensions._read_silver_geo_dim",
+            return_value=silver_df,
+        ):
+            with _patched_write_conn():
+                with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
+                    _build_dim_geolocation(read_conn, "/silver/path")
+
+                    insert_data = mock_exec.call_args[0][2]
+                    # All four IPs — including 127.0.0.1, 0.0.0.0, 10.0.0.1 —
+                    # are passed through to the INSERT payload.
+                    assert len(insert_data) == 4
+                    assert {row[0] for row in insert_data} == {
+                        "8.8.8.8",
+                        "127.0.0.1",
+                        "0.0.0.0",
+                        "10.0.0.1",
+                    }

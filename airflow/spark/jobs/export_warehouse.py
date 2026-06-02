@@ -48,7 +48,7 @@ log = logging.getLogger("export_warehouse")
 RAW_ENRICHED_TABLE = "public.raw_enriched"
 TRACKING_TABLE = "public.raw_enriched_loaded"
 
-# DDL for the enriched data table (35 columns matching silver schema).
+# DDL for the enriched data table (36 columns matching silver schema).
 RAW_ENRICHED_DDL = """
 CREATE TABLE IF NOT EXISTS public.raw_enriched (
     log_date DATE,
@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS public.raw_enriched (
     city TEXT,
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
+    postcode TEXT,
     isp TEXT,
     agent_type TEXT,
     browser_name TEXT,
