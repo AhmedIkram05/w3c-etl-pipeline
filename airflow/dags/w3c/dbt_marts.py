@@ -7,8 +7,8 @@ star-schema tables as CSV files for Power BI consumption.
 
 Schedule
 --------
-Dataset-triggered by ``Dataset("postgres://warehouse/loaded")``, which is
-emitted by the ``spark_ingestion`` DAG when Gold-level Delta tables have
+Dataset-triggered by ``Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")``,
+which is emitted by the ``spark_ingestion`` DAG when Gold-level Delta tables have
 been written to PostgreSQL.
 """
 
@@ -17,10 +17,9 @@ from __future__ import annotations
 import datetime as dt
 import os
 
+from airflow import DAG
 from airflow.datasets import Dataset
 from airflow.operators.bash import BashOperator
-
-from airflow import DAG
 
 # ── Paths ────────────────────────────────────────────────────────────
 DBT_PROJECT_DIR = "/opt/airflow/dbt/w3c"
@@ -66,10 +65,10 @@ EXPORT_SCRIPT = f"mkdir -p {STAR_SCHEMA_DIR}\n" + "\n".join(
 
 dag = DAG(
     dag_id="w3c_dbt_marts",
-    schedule=[Dataset("postgres://warehouse/loaded")],
+    schedule=[Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")],
     start_date=dt.datetime(2026, 3, 1),
     catchup=False,
-    concurrency=1,
+    max_active_tasks=1,
     default_args={
         "owner": "w3c-team",
         "depends_on_past": False,
