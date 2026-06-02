@@ -6,8 +6,8 @@ Delta Lake medallion pipeline (bronze → silver), exports the
 enriched data to PostgreSQL, then builds Airflow-managed dimension tables
 that require external APIs or Python libraries.
 
-The output ``Dataset("postgres://warehouse/loaded")`` triggers the downstream
-dbt DAG for analytics-layer transformations.
+The output ``Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")``
+triggers the downstream dbt DAG for analytics-layer transformations.
 
 Schedule
 --------
@@ -20,12 +20,33 @@ Spark Cluster
 - Delta Lake 4.0.1 via ``spark.jars.packages`` (resolved by Ivy on the
   Airflow worker at runtime).
 - PySpark 4.0.2 on the Airflow worker for RPC compatibility.
+
+GeoLite2 Setup
+--------------
+The ``silver_enrichment`` task performs Geo-IP lookups against the MaxMind
+GeoLite2-City database. By default it expects the ``GeoLite2-City.mmdb`` file
+at ``/opt/spark/data/GeoLite2-City.mmdb`` (inside the Spark container).
+
+Override the path by setting the ``GEOIP_DB_PATH`` environment variable in
+the Airflow worker / Spark container before running the DAG.
+
+To obtain the ``.mmdb`` file (free registration required):
+  1. Sign up at https://www.maxmind.com/en/geolite2/signup
+  2. Download the **GeoLite2 City** database (binary ``.mmdb`` format).
+  3. Mount/copy ``GeoLite2-City.mmdb`` into the Spark container at the path
+     referenced by ``GEOIP_DB_PATH`` (or the default location).
+
+If the file is missing at runtime, the silver task will log a warning and
+geo fields (``country``, ``region``, ``city``, ``latitude``, ``longitude``,
+``isp``) will default to ``"Unknown"`` / ``None``. The DAG will still
+complete successfully — downstream analytics will simply lack geo data.
 """
 
 from __future__ import annotations
 
 import datetime as dt
 import os
+import zipfile
 
 from airflow.datasets import Dataset
 from airflow.operators.python import PythonOperator
@@ -35,12 +56,52 @@ from operators.export_dimensions import export_dimensions as _export_dimensions
 from airflow import DAG
 
 # ── Dataset outlet — signals downstream dbt DAG ────────────────────────────
-WAREHOUSE_LOADED = Dataset("postgres://warehouse/loaded")
+WAREHOUSE_LOADED = Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")
 
 # ── Paths (inside Airflow worker containers) ───────────────────────────────
 SPARK_JOBS_DIR = "/opt/airflow/spark/jobs"
 DELTA_DIR = "/opt/spark/delta"
 LOG_FILES_DIR = "/opt/spark/logfiles"
+
+# ── Package ``utils/`` for Spark executors ─────────────────────────────────
+# Spark workers do not have /opt/spark/jobs on their Python path, so the
+# ``from utils.schemas import ...`` / ``from utils.w3c_parser import ...``
+# imports in the Spark jobs would fail when the UDF is evaluated on a worker.
+# We rebuild ``utils.zip`` (and ship it via --py-files) whenever any source
+# file inside ``utils/`` is newer than the existing zip.
+_UTILS_DIR = os.path.join(SPARK_JOBS_DIR, "utils")
+_UTILS_ZIP = os.path.join(SPARK_JOBS_DIR, "utils.zip")
+
+
+def _build_utils_zip() -> str:
+    """Return the path to ``utils.zip``, rebuilding it if sources have changed.
+
+    The zip's internal layout keeps the ``utils/`` package root, so when Spark
+    extracts it on each worker, ``import utils.schemas`` resolves correctly.
+    """
+    src_mtimes = [
+        os.path.getmtime(os.path.join(root, fname))
+        for root, _, files in os.walk(_UTILS_DIR)
+        for fname in files
+        if fname.endswith(".py")
+    ]
+    if src_mtimes and os.path.exists(_UTILS_ZIP):
+        if os.path.getmtime(_UTILS_ZIP) >= max(src_mtimes):
+            return _UTILS_ZIP
+
+    with zipfile.ZipFile(_UTILS_ZIP, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, _, files in os.walk(_UTILS_DIR):
+            for fname in files:
+                if not fname.endswith(".py"):
+                    continue
+                src_path = os.path.join(root, fname)
+                # arcname = "utils/geoip.py", "utils/__init__.py", etc.
+                arc = os.path.relpath(src_path, SPARK_JOBS_DIR)
+                zf.write(src_path, arcname=arc)
+    return _UTILS_ZIP
+
+
+UTILS_PY_FILES = _build_utils_zip()
 
 # ── Spark configuration (mirrors w3c-spark-dag.py) ────────────────────────
 _SPARK_CONF = {
@@ -103,6 +164,7 @@ bronze_ingestion = SparkSubmitOperator(
     executor_cores=_EXECUTOR_CORES,
     total_executor_cores=_TOTAL_EXECUTOR_CORES,
     conf=_SPARK_CONF,
+    py_files=UTILS_PY_FILES,
     application_args=[
         "--log-files-dir",
         LOG_FILES_DIR,
@@ -127,11 +189,14 @@ silver_enrichment = SparkSubmitOperator(
     executor_cores=_EXECUTOR_CORES,
     total_executor_cores=_TOTAL_EXECUTOR_CORES,
     conf=_SPARK_CONF,
+    py_files=UTILS_PY_FILES,
     application_args=[
         "--delta-dir",
         DELTA_DIR,
         "--geolite2-db",
-        "/opt/spark/data/GeoLite2-City.mmdb",
+        os.environ.get("GEOIP_DB_PATH", "/opt/spark/data/GeoLite2-City.mmdb"),
+        "--geolite2-asn-db",
+        os.environ.get("GEOIP_ASN_DB_PATH", "/opt/spark/data/GeoLite2-ASN.mmdb"),
     ],
     dag=dag,
 )
@@ -151,6 +216,7 @@ export_warehouse = SparkSubmitOperator(
     executor_cores=_EXECUTOR_CORES,
     total_executor_cores=_TOTAL_EXECUTOR_CORES,
     conf=_SPARK_CONF,
+    py_files=UTILS_PY_FILES,
     application_args=[
         "--delta-dir",
         DELTA_DIR,

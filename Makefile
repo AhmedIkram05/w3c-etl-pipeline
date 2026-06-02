@@ -9,7 +9,7 @@ else
 endif
 COMPOSE_CMD := DOCKER_SOCKET_PATH=$(DOCKER_SOCKET_PATH) docker compose --env-file $(AIRFLOW_DIR)/.env -f $(COMPOSE_FILE)
 
-.PHONY: start clean rebuild test db-reset
+.PHONY: start clean rebuild test
 
 # Start all containers (build then up)
 start:
@@ -28,10 +28,3 @@ rebuild:
 # Run unit tests (excludes integration and DAG integrity tests which require active pipeline runs/setup)
 test:
 	$(COMPOSE_CMD) exec -T airflow-scheduler bash -c 'pip install --no-cache-dir -r /opt/airflow/tests/requirements-test.txt && PYTHONPATH=/opt/airflow/spark/jobs:/opt:/opt/airflow/plugins:$$PYTHONPATH python -m pytest /opt/airflow/tests/ -v --tb=short -m "not integration and not dag_integrity"'
-
-# Reset the database
-db-reset:
-	@echo "=== Resetting w3c_warehouse database ==="
-	$(COMPOSE_CMD) exec -T postgres psql -U airflow -d airflow -c "DROP DATABASE IF EXISTS w3c_warehouse;"
-	$(COMPOSE_CMD) exec -T postgres psql -U airflow -d airflow -c "CREATE DATABASE w3c_warehouse;"
-	@echo "w3c_warehouse recreated (empty)."

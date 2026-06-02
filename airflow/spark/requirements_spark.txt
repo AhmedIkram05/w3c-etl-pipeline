@@ -6,4 +6,5 @@
 user-agents==2.2.0       # Browser/OS/device parsing from UA strings
 geoip2==5.0.1            # Local GeoLite2 City database lookups
 maxminddb==2.6.3         # MaxMind DB reader backend
-requests==2.32.3         # Fallback ip-api.com HTTP API calls
+pandas==2.2.3            # Silver Delta reader in export_dimensions.py
+pyarrow==19.0.1          # Parquet backend for pandas Delta read
