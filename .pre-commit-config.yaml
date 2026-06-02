@@ -12,7 +12,7 @@ repos:
       - id: mypy
         additional_dependencies: [types-requests, types-python-dateutil]
         args: [--ignore-missing-imports]
-        exclude: ^(airflow/dags/w3c/|airflow/spark/jobs/)
+        exclude: ^(airflow/dags/w3c/|airflow/spark/jobs/|airflow/spark/databricks/)
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
