@@ -368,12 +368,31 @@ def run(
     # but raw_enriched DDL only defines 25. Drop the extra 11 columns to
     # avoid COLUMN_NOT_DEFINED_IN_TABLE JDBC errors.
     raw_enriched_cols = [
-        "log_date", "log_time", "server_ip", "method", "uri_stem",
-        "uri_query", "client_ip", "user_agent", "cookie", "referrer",
-        "status", "sub_status", "win32_status", "bytes_sent", "bytes_recv",
-        "server_port", "username", "time_taken", "source_file",
-        "postcode", "page_category", "referrer_domain", "traffic_type",
-        "is_crawler", "size_band",
+        "log_date",
+        "log_time",
+        "server_ip",
+        "method",
+        "uri_stem",
+        "uri_query",
+        "client_ip",
+        "user_agent",
+        "cookie",
+        "referrer",
+        "status",
+        "sub_status",
+        "win32_status",
+        "bytes_sent",
+        "bytes_recv",
+        "server_port",
+        "username",
+        "time_taken",
+        "source_file",
+        "postcode",
+        "page_category",
+        "referrer_domain",
+        "traffic_type",
+        "is_crawler",
+        "size_band",
     ]
     cast_data = cast_data.select(*raw_enriched_cols)
 
