@@ -243,28 +243,7 @@ models:
         description: "Flag indicating direct traffic (no referrer)"
       - name: size_band
         description: "Size category (Zero, Tiny, Small, Medium, Large, Huge) based on total bytes"
-      - name: country
-        description: "Country name — denormalised from dim_geolocation (the authoritative source)"
-      - name: region
-        description: "Region/state — denormalised from dim_geolocation (the authoritative source)"
-      - name: city
-        description: "City — denormalised from dim_geolocation (the authoritative source)"
-      - name: latitude
-        description: "Latitude — denormalised from dim_geolocation (the authoritative source)"
-      - name: longitude
-        description: "Longitude — denormalised from dim_geolocation (the authoritative source)"
-      - name: isp
-        description: "ISP / organisation name — denormalised from dim_geolocation (populated from GeoLite2-ASN.mmdb during silver enrichment)"
-      - name: agent_type
-        description: "Agent type from User-Agent parsing (e.g. browser, robot, library)"
-      - name: browser_name
-        description: "Browser family from User-Agent parsing (e.g. Chrome, Firefox)"
-      - name: browser_version
-        description: "Browser version from User-Agent parsing"
-      - name: operating_system
-        description: "Operating system from User-Agent parsing (e.g. Windows, Mac OS X)"
-      - name: device_type
-        description: "Device type from User-Agent parsing (e.g. Desktop, Mobile, Tablet)"
+
       - name: page_category
         description: "Page category computed from URI stem"
       - name: referrer_domain

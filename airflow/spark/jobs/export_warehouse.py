@@ -38,7 +38,7 @@ import sys
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, lower, trim, when
-from pyspark.sql.types import DoubleType, LongType
+from pyspark.sql.types import LongType
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("export_warehouse")
@@ -70,18 +70,7 @@ CREATE TABLE IF NOT EXISTS public.raw_enriched (
     username TEXT,
     time_taken BIGINT,
     source_file TEXT,
-    country TEXT,
-    region TEXT,
-    city TEXT,
-    latitude DOUBLE PRECISION,
-    longitude DOUBLE PRECISION,
     postcode TEXT,
-    isp TEXT,
-    agent_type TEXT,
-    browser_name TEXT,
-    browser_version TEXT,
-    operating_system TEXT,
-    device_type TEXT,
     page_category TEXT,
     referrer_domain TEXT,
     traffic_type TEXT,
@@ -261,10 +250,7 @@ def apply_type_casts(df: DataFrame) -> DataFrame:
             "is_crawler",
             when(trim(lower(col("is_crawler"))) == "true", True).otherwise(False),
         )
-    if "latitude" in cols:
-        df = df.withColumn("latitude", col("latitude").cast(DoubleType()))
-    if "longitude" in cols:
-        df = df.withColumn("longitude", col("longitude").cast(DoubleType()))
+
     if "bytes_sent" in cols:
         df = df.withColumn("bytes_sent", col("bytes_sent").cast(LongType()))
     if "bytes_recv" in cols:
