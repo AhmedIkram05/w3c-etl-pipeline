@@ -26,6 +26,8 @@ _COMPOSE_FILE = "/opt/airflow/docker-compose.yaml"
 
 # Check if we're inside Docker (container ID file exists)
 _INSIDE_DOCKER = os.path.exists("/.dockerenv") or os.path.exists("/proc/1/cgroup")
+# Integration tests require a running Docker stack
+INTEGRATION_TESTS_DISABLED = not _INSIDE_DOCKER
 
 
 def _psql(database: str, query: str, timeout: int = 30) -> str:
@@ -120,8 +122,6 @@ class TestExportWarehouse:
         """Verify the type-cast columns exist with correct PostgreSQL types."""
         columns = [
             ("is_crawler", "boolean"),
-            ("latitude", "double precision"),
-            ("longitude", "double precision"),
             ("bytes_sent", "bigint"),
             ("bytes_recv", "bigint"),
             ("time_taken", "bigint"),
@@ -135,6 +135,33 @@ class TestExportWarehouse:
             )
             actual_type = result.strip()
             assert actual_type == expected_type, f"Column {col_name}: expected {expected_type}, got {actual_type}"
+
+    @pytest.mark.skipif(INTEGRATION_TESTS_DISABLED, reason="Integration tests require a running Docker stack")
+    def test_fact_webrequest_has_no_dead_cols(self):
+        """Verify fact_webrequest no longer has the 11 denormalized columns that were dropped."""
+        sql = """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'dbt_staging'
+              AND table_name = 'fact_webrequest'
+        """
+        result = _psql("w3c_warehouse", sql)
+        columns = [c.strip() for c in result.strip().split("\n") if c.strip()]
+        dead_cols = {
+            "country",
+            "region",
+            "city",
+            "latitude",
+            "longitude",
+            "isp",
+            "agent_type",
+            "browser_name",
+            "browser_version",
+            "operating_system",
+            "device_type",
+        }
+        assert len(columns) == 24, f"Expected 24 columns in dbt_staging.fact_webrequest, got {len(columns)}: {columns}"
+        assert dead_cols.isdisjoint(columns), f"Dead columns still present: {dead_cols & set(columns)}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
