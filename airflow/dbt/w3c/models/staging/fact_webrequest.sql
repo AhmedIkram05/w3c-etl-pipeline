@@ -47,13 +47,7 @@ referrer_map AS (
 geo_map AS (
     SELECT
         geolocation_sk,
-        ip AS client_ip,
-        country,
-        region,
-        city,
-        latitude,
-        longitude,
-        isp
+        ip AS client_ip
     FROM {{ source('w3c', 'dim_geolocation') }}
 ),
 
@@ -102,12 +96,7 @@ computed AS (
         ei.is_direct_traffic,
         -- size_band is now pre-computed in raw_enriched by the Spark pipeline
         COALESCE(ei.size_band, 'Zero') AS size_band,
-        -- User-Agent enrichment (denormalized from raw_enriched)
-        ei.agent_type,
-        ei.browser_name,
-        ei.browser_version,
-        ei.operating_system,
-        ei.device_type,
+
         -- Computed enrichment (denormalized from raw_enriched)
         ei.page_category,
         ei.referrer_domain,
@@ -138,17 +127,7 @@ SELECT
     c.is_crawler,
     c.is_direct_traffic,
     c.size_band,
-    COALESCE(g.country, 'Unknown') AS country,
-    COALESCE(g.region, 'Unknown') AS region,
-    COALESCE(g.city, 'Unknown') AS city,
-    g.latitude AS latitude,
-    g.longitude AS longitude,
-    COALESCE(g.isp, '-') AS isp,
-    c.agent_type,
-    c.browser_name,
-    c.browser_version,
-    c.operating_system,
-    c.device_type,
+
     c.page_category,
     c.referrer_domain,
     c.traffic_type,

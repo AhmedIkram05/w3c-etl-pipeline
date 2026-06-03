@@ -126,11 +126,7 @@ def ensure_silver_table(spark):
             latitude         STRING,
             longitude        STRING,
             isp              STRING,
-            agent_type       STRING,
-            browser_name     STRING,
-            browser_version  STRING,
-            operating_system STRING,
-            device_type      STRING,
+
             page_category    STRING,
             referrer_domain  STRING,
             traffic_type     STRING,
