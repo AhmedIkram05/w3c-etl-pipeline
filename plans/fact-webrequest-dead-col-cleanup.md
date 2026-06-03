@@ -1,12 +1,13 @@
 # `fact_webrequest` Dead-Column Cleanup
 
-| | |
-|---|---|
-| **Status** | v2 — spec review ✅, code review ✅ (after revisions) — **ACTIVE** |
-| **Effort** | ~3.5 hrs (45 min code, 30 min tests + migration, 30 min docs, 15 min verify, 30 min DAG #1, 30 min DAG #2 + data verify, 10 min rollback doc) |
-| **Author** | opencode, 2026-06-02 |
-| **Supersedes** | n/a |
-| **Related** | [`databricks-hybrid-wiring.md` § 3.4](databricks-hybrid-wiring.md) (finding first surfaced there) |
+
+|                |                                                                                                                                               |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Status**     | v2.1 — **ACTIVE (implementation in progress)**                                                                              |
+| **Effort**     | ~3.5 hrs (45 min code, 30 min tests + migration, 30 min docs, 15 min verify, 30 min DAG #1, 30 min DAG #2 + data verify, 10 min rollback doc) |
+| **Author**     | opencode, 2026-06-02                                                                                                                          |
+| **Supersedes** | n/a                                                                                                                                           |
+| **Related**    | `[databricks-hybrid-wiring.md` § 3.4](databricks-hybrid-wiring.md) (finding first surfaced there)                                             |
 
 
 ## 1. Context
@@ -24,13 +25,15 @@ The user reviewed this finding in session and chose **Option A: drop the dead co
 
 ## 2. Background — the dead-column finding
 
-| Consumer | Reads from | Cols used |
-|---|---|---|
-| `mart_page_performance` | `fact_webrequest` | `geolocation_sk` (FK), `is_404`, `bytes_sent`, `response_time_ms`, `date_sk`, `page_sk` |
-| `mart_daily_aggregates` | `fact_webrequest` | `date_sk`, `geolocation_sk` (FK), `is_crawler`, `is_direct_traffic`, `is_404`, `bytes_sent`, `response_time_ms`, `page_sk`; then `JOIN dim_geolocation` for `country` |
-| `mart_crawler_analysis` | `fact_webrequest` | `date_sk`, `page_sk`, `status_sk`, `geolocation_sk` (FKs), `bytes_sent`, `response_time_ms`, `is_crawler` |
-| `mart_timeofday_analysis` | `fact_webrequest` | `date_sk`, `time_sk`, `page_sk`, `geolocation_sk` (FKs), `is_404`, `is_crawler`, `bytes_sent`, `response_time_ms` |
-| `mart_browser_analysis` | `fact_webrequest` | `date_sk`, `user_agent_sk`, `geolocation_sk` (FKs), `bytes_sent`, `response_time_ms`; then `JOIN dim_useragent` for `browser_name`, `operating_system`, `device_type` |
+
+| Consumer                  | Reads from        | Cols used                                                                                                                                                             |
+| ------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mart_page_performance`   | `fact_webrequest` | `geolocation_sk` (FK), `is_404`, `bytes_sent`, `response_time_ms`, `date_sk`, `page_sk`                                                                               |
+| `mart_daily_aggregates`   | `fact_webrequest` | `date_sk`, `geolocation_sk` (FK), `is_crawler`, `is_direct_traffic`, `is_404`, `bytes_sent`, `response_time_ms`, `page_sk`; then `JOIN dim_geolocation` for `country` |
+| `mart_crawler_analysis`   | `fact_webrequest` | `date_sk`, `page_sk`, `status_sk`, `geolocation_sk` (FKs), `bytes_sent`, `response_time_ms`, `is_crawler`                                                             |
+| `mart_timeofday_analysis` | `fact_webrequest` | `date_sk`, `time_sk`, `page_sk`, `geolocation_sk` (FKs), `is_404`, `is_crawler`, `bytes_sent`, `response_time_ms`                                                     |
+| `mart_browser_analysis`   | `fact_webrequest` | `date_sk`, `user_agent_sk`, `geolocation_sk` (FKs), `bytes_sent`, `response_time_ms`; then `JOIN dim_useragent` for `browser_name`, `operating_system`, `device_type` |
+
 
 **No mart reads any of the 11 denorm cols from the fact.** All geo/UA analytics go through dim joins.
 
@@ -38,21 +41,23 @@ The user reviewed this finding in session and chose **Option A: drop the dead co
 
 ### 3.1 Per-column read audit (full repo, excluding build dirs)
 
-| Col | Verdict | Note |
-|---|---|---|
-| `country` | ✅ dead | `mart_daily_aggregates` uses `dg.country` (from `dim_geolocation` JOIN) — not the fact |
-| `region` | ✅ dead | zero reads anywhere |
-| `city` | ✅ dead | zero reads anywhere |
-| `latitude` | ✅ dead | zero reads anywhere; only DDL + test fixtures |
-| `longitude` | ✅ dead | zero reads anywhere; only DDL + test fixtures |
-| `isp` | ✅ dead | zero reads anywhere |
-| `agent_type` | ✅ dead | zero reads anywhere |
-| `browser_name` | ✅ dead | `mart_browser_analysis` uses `ua.browser_name` (from `dim_useragent` JOIN) — not the fact |
-| `browser_version` | ✅ dead | zero reads anywhere |
-| `operating_system` | ✅ dead | `mart_browser_analysis` uses `ua.operating_system` (from `dim_useragent` JOIN) — not the fact |
-| `device_type` | ✅ dead | `mart_browser_analysis` uses `ua.device_type` (from `dim_useragent` JOIN) — not the fact |
 
-**`postcode` is NOT on the dead list.** It stays in `silver_enrichment.py` L206 (withColumn), `export_warehouse.py` L78 (DDL), and `dim_geolocation` (via `export_dimensions.py:174` reading silver). Removing it would break `dim_geolocation`.
+| Col                | Verdict | Note                                                                                          |
+| ------------------ | ------- | --------------------------------------------------------------------------------------------- |
+| `country`          | ✅ dead  | `mart_daily_aggregates` uses `dg.country` (from `dim_geolocation` JOIN) — not the fact        |
+| `region`           | ✅ dead  | zero reads anywhere                                                                           |
+| `city`             | ✅ dead  | zero reads anywhere                                                                           |
+| `latitude`         | ✅ dead  | zero reads anywhere; only DDL + test fixtures                                                 |
+| `longitude`        | ✅ dead  | zero reads anywhere; only DDL + test fixtures                                                 |
+| `isp`              | ✅ dead  | zero reads anywhere                                                                           |
+| `agent_type`       | ✅ dead  | zero reads anywhere                                                                           |
+| `browser_name`     | ✅ dead  | `mart_browser_analysis` uses `ua.browser_name` (from `dim_useragent` JOIN) — not the fact     |
+| `browser_version`  | ✅ dead  | zero reads anywhere                                                                           |
+| `operating_system` | ✅ dead  | `mart_browser_analysis` uses `ua.operating_system` (from `dim_useragent` JOIN) — not the fact |
+| `device_type`      | ✅ dead  | `mart_browser_analysis` uses `ua.device_type` (from `dim_useragent` JOIN) — not the fact      |
+
+
+`**postcode` is NOT on the dead list.** It stays in `silver_enrichment.py` L206 (withColumn), `export_warehouse.py` L78 (DDL), and `dim_geolocation` (via `export_dimensions.py:174` reading silver). Removing it would break `dim_geolocation`.
 
 ### 3.2 Touch-point manifest
 
@@ -122,7 +127,7 @@ The user reviewed this finding in session and chose **Option A: drop the dead co
 - `README.md:877` — Databricks silver 35 cols
 - `README.md:878` — Databricks gold 35 cols
 - `README.md:1043, 1155-1156` — context references
-- `databricks-hybrid-wiring.md:71, 73, 75-83, 88, 90, 221` — § 3.4 finding + L221 "Out of scope" note → update to "Done — see [`fact-webrequest-dead-col-cleanup.md`](fact-webrequest-dead-col-cleanup.md)"
+- `databricks-hybrid-wiring.md:71, 73, 75-83, 88, 90, 221` — § 3.4 finding + L221 "Out of scope" note → update to "Done — see `[fact-webrequest-dead-col-cleanup.md](fact-webrequest-dead-col-cleanup.md)`"
 - `databricks-hybrid-wiring.md:59, 100, 106, 111` — JDBC DDL plans (35 vs 36 col parity)
 - `.agents/improvements.md` — no changes (Skills Matrix unaffected)
 
@@ -139,27 +144,29 @@ The user reviewed this finding in session and chose **Option A: drop the dead co
 
 ### 3.3 Subtle risks
 
-1. **`CREATE TABLE IF NOT EXISTS` does not drop cols on existing DBs.** Any pre-existing `public.raw_enriched` table will keep all 11 cols after this change unless explicitly migrated. **An `ALTER TABLE public.raw_enriched DROP COLUMN ...` script is required.**
-2. **`apply_type_casts` (`export_warehouse.py:245-274`)** explicitly casts `latitude`/`longitude` to `DOUBLE PRECISION` (lines 264-267) — these cast branches must be removed, otherwise `apply_type_casts` will try to cast non-existent cols and crash.
+1. `**CREATE TABLE IF NOT EXISTS` does not drop cols on existing DBs.** Any pre-existing `public.raw_enriched` table will keep all 11 cols after this change unless explicitly migrated. **An `ALTER TABLE public.raw_enriched DROP COLUMN ...` script is required.**
+2. `**apply_type_casts` (`export_warehouse.py:245-274`)** explicitly casts `latitude`/`longitude` to `DOUBLE PRECISION` (lines 264-267) — these cast branches must be removed, otherwise `apply_type_casts` will try to cast non-existent cols and crash.
 3. **Delta Lake is a bind mount, not a named volume.** `docker compose down -v` only removes named volumes; `./spark/delta` is a bind mount (per `docker-compose.yaml` L113, L407, L440). Phase 5 must `rm -rf ./spark/delta/silver ./spark/delta/bronze` explicitly to ensure the new silver Delta schema takes effect. Without this, the old 36-col silver Delta persists and a subsequent write with the new schema either fails or silently triggers `mergeSchema` if enabled.
 4. **README is internally inconsistent** about col counts (35 vs 36, in 13+ places). All those numbers need to be updated to 25 (raw_enriched) and 24 (fact).
-5. **`test_export_warehouse.py:99` count assertion** parses the DDL string — fragile but works. The new count is 25.
+5. `**test_export_warehouse.py:99` count assertion** parses the DDL string — fragile but works. The new count is 25.
 6. **The Databricks `02_silver_enrichment.py:129-133` DDL** declares the 5 UA cols but never populates them (intentional, per `databricks-hybrid-wiring.md` § 3.4). After the cleanup, the DDL will only have the 5 UA cols **removed from the schema definition too** — so this is no longer a "declared but unpopulated" issue. The 6 geo cols in the same DDL (L123-128) **stay** because the withColumn calls at L303-308 still populate them.
 7. **No `ALTER TABLE` migration tooling exists** in the repo today. The plan adds a one-off SQL script under `airflow/scripts/migrations/`.
 8. **dbt incremental strategy can't drop cols.** `on_schema_change='append_new_columns'` (fact_webrequest.sql L4) only handles adds. Column drops require `dbt run --full-refresh` on first build. The marts do not read the dead cols (verified in § 2 + § 3.1), so mart full-refresh is not strictly required, but a full refresh is the safest way to verify the rebuild. Phase 4 step 5 uses `dbt run --full-refresh` for the staging schema; mart full refresh is recommended but can be incremental in production.
 
 ### 3.4 Col counts before/after (per environment)
 
-| Table | Docker / local dev | Databricks (future) | After |
-|---|---|---|---|
-| silver Delta (Docker `silver_enrichment.py`) | 36 cols (unchanged) | n/a | 36 (unchanged) |
-| silver Delta (Databricks `02_silver_enrichment.py`) | n/a | 35 → 30 cols (UA DDL dropped; 6 geo + 24 base) | 30 |
-| `public.raw_enriched` (Docker JDBC) | 36 → 25 | n/a | 25 |
-| `w3c_catalog.gold.warehouse_enriched` (Databricks) | n/a | 35 → 24 | 24 |
-| `fact_webrequest` (dbt model) | 35 → 24 | (same model) | 24 |
-| `dim_geolocation` | 9 | 9 | 9 (unchanged) |
-| `dim_useragent` | 7 | 7 | 7 (unchanged) |
-| `dbt_staging.fact_webrequest.csv` (export) | 35 → 24 | (same) | 24 |
+
+| Table                                               | Docker / local dev  | Databricks (future)                            | After          |
+| --------------------------------------------------- | ------------------- | ---------------------------------------------- | -------------- |
+| silver Delta (Docker `silver_enrichment.py`)        | 36 cols (unchanged) | n/a                                            | 36 (unchanged) |
+| silver Delta (Databricks `02_silver_enrichment.py`) | n/a                 | 35 → 30 cols (UA DDL dropped; 6 geo + 24 base) | 30             |
+| `public.raw_enriched` (Docker JDBC)                 | 36 → 25             | n/a                                            | 25             |
+| `w3c_catalog.gold.warehouse_enriched` (Databricks)  | n/a                 | 35 → 24                                        | 24             |
+| `fact_webrequest` (dbt model)                       | 35 → 24             | (same model)                                   | 24             |
+| `dim_geolocation`                                   | 9                   | 9                                              | 9 (unchanged)  |
+| `dim_useragent`                                     | 7                   | 7                                              | 7 (unchanged)  |
+| `dbt_staging.fact_webrequest.csv` (export)          | 35 → 24             | (same)                                         | 24             |
+
 
 The 24 surviving `fact_webrequest` cols (in current SELECT order): `raw_log_id`, `source_file`, `date_sk`, `time_sk`, `page_sk`, `method_sk`, `status_sk`, `referrer_sk`, `geolocation_sk`, `user_agent_sk`, `visitor_sk`, `visit_bucket_sk`, `bytes_sent`, `bytes_received`, `response_time_ms`, `request_count`, `is_404`, `is_crawler`, `is_direct_traffic`, `size_band`, `page_category`, `referrer_domain`, `traffic_type`, `time_band`.
 
@@ -167,29 +174,29 @@ The 24 surviving `fact_webrequest` cols (in current SELECT order): `raw_log_id`,
 
 ### Phase 1 — Code changes (~45 min)
 
-1. **`airflow/spark/jobs/silver_enrichment.py`** — **NO CHANGES** to withColumn calls or UDFs. They stay so `dim_geolocation` and `dim_useragent` keep getting built. (Confirmed via `export_dimensions.py:139-185`.)
-2. **`airflow/spark/databricks/02_silver_enrichment.py`** — remove the 5 UA cols from `CREATE TABLE` DDL (L129-133). Keep the 6 geo cols in the DDL (L123-128) and the 6 geo withColumn calls (L303-308) — they stay because Databricks `export_dimensions`-equivalent (Phase 2+ of the Databricks plan) will read silver for `dim_geolocation`.
-3. **`airflow/spark/jobs/export_warehouse.py`** — edit `RAW_ENRICHED_DDL` (L73-84) to drop 11 cols. `postcode` at L78 stays. Edit `apply_type_casts` (L245-274) to remove the 2 lat/lon cast branches at L264-267.
-4. **`airflow/spark/databricks/03_export_warehouse.py`** — edit Unity Catalog DDL (L121-131) to drop 11 cols.
-5. **`airflow/dbt/w3c/models/staging/fact_webrequest.sql`** — in `geo_map` CTE (L47-58): KEEP `geolocation_sk` and `ip AS client_ip` (the join key to `raw_enriched.client_ip` at L175); DROP the 6 denorm geo cols from the SELECT. In `computed` CTE (L105-110): drop the 5 UA cols. In final SELECT (L141-151): drop all 11.
-6. **`airflow/dbt/w3c/models/schema.yml`** — remove the 11 `description` blocks from `fact_webrequest.columns` (L246-267).
+1. `**airflow/spark/jobs/silver_enrichment.py`** — **NO CHANGES** to withColumn calls or UDFs. They stay so `dim_geolocation` and `dim_useragent` keep getting built. (Confirmed via `export_dimensions.py:139-185`.)
+2. `**airflow/spark/databricks/02_silver_enrichment.py`** — remove the 5 UA cols from `CREATE TABLE` DDL (L129-133). Keep the 6 geo cols in the DDL (L123-128) and the 6 geo withColumn calls (L303-308) — they stay because Databricks `export_dimensions`-equivalent (Phase 2+ of the Databricks plan) will read silver for `dim_geolocation`.
+3. `**airflow/spark/jobs/export_warehouse.py**` — edit `RAW_ENRICHED_DDL` (L73-84) to drop 11 cols. `postcode` at L78 stays. Edit `apply_type_casts` (L245-274) to remove the 2 lat/lon cast branches at L264-267.
+4. `**airflow/spark/databricks/03_export_warehouse.py**` — edit Unity Catalog DDL (L121-131) to drop 11 cols.
+5. `**airflow/dbt/w3c/models/staging/fact_webrequest.sql**` — in `geo_map` CTE (L47-58): KEEP `geolocation_sk` and `ip AS client_ip` (the join key to `raw_enriched.client_ip` at L175); DROP the 6 denorm geo cols from the SELECT. In `computed` CTE (L105-110): drop the 5 UA cols. In final SELECT (L141-151): drop all 11.
+6. `**airflow/dbt/w3c/models/schema.yml**` — remove the 11 `description` blocks from `fact_webrequest.columns` (L246-267).
 
 **Mid-migration state note:** After Phase 1 step 3, the writer produces 25-col silver-Delta-to-Postgres projections but the on-disk Delta table still has 36 cols from the prior run. This is benign because the JDBC writer reads from a fresh DataFrame (the silver pipeline overwrites the Delta on each run), and the new 25-col Postgres `raw_enriched` will be created fresh on a clean DB. On an existing DB, the migration script (Phase 2) must run **before** the next DAG run to shrink `raw_enriched` to 25 cols. dbt's incremental model rebuild will then read the new schema.
 
 ### Phase 2 — Test updates + migration (~30 min)
 
-1. **`tests/test_export_warehouse.py`** — update `test_raw_enriched_ddl_has_all_36_columns` → `test_raw_enriched_ddl_has_all_25_columns`; remove `test_raw_enriched_ddl_has_type_casts` (L78-88) and the 4 lat/lon type-cast tests (L297-323, L375-402, L435-447). Update the count assertion at L99 from 36 → 25.
-2. **`tests/test_integration.py`** — update `test_raw_enriched_has_type_cast_columns` (L119-137) to either remove lat/lon rows or remove the test entirely (it has only 2 cols).
-3. **`tests/test_integration.py`** — add a new test `test_fact_webrequest_has_no_dead_cols` that queries `information_schema.columns` for `dbt_staging.fact_webrequest` and asserts the 11 dead col names are absent. (Optional but recommended for regression coverage.)
-4. **`airflow/scripts/migrations/drop_denorm_fact_cols.sql`** (NEW) — `ALTER TABLE public.raw_enriched DROP COLUMN IF EXISTS country, region, city, latitude, longitude, isp, agent_type, browser_name, browser_version, operating_system, device_type;` + `COMMENT ON TABLE public.raw_enriched IS 'W3C silver enriched log rows; 25 cols (post-dead-col cleanup, see fact-webrequest-dead-col-cleanup.md)';`. Mounted into the Postgres container via the `initdb.d` volume in `docker-compose.yaml` (see Phase 5 step 3b).
-5. **`airflow/scripts/migrations/add_denorm_fact_cols.sql`** (NEW) — the reverse migration, so rollback (Phase 7) is immediately available. Same SQL body as Phase 7's step 2.
+1. `**tests/test_export_warehouse.py`** — update `test_raw_enriched_ddl_has_all_36_columns` → `test_raw_enriched_ddl_has_all_25_columns`; remove `test_raw_enriched_ddl_has_type_casts` (L78-88) and the 4 lat/lon type-cast tests (L297-323, L375-402, L435-447). Update the count assertion at L99 from 36 → 25.
+2. `**tests/test_integration.py**` — update `test_raw_enriched_has_type_cast_columns` (L119-137) to either remove lat/lon rows or remove the test entirely (it has only 2 cols).
+3. `**tests/test_integration.py**` — add a new test `test_fact_webrequest_has_no_dead_cols` that queries `information_schema.columns` for `dbt_staging.fact_webrequest` and asserts the 11 dead col names are absent. (Optional but recommended for regression coverage.)
+4. `**airflow/scripts/migrations/drop_denorm_fact_cols.sql**` (NEW) — `ALTER TABLE public.raw_enriched DROP COLUMN IF EXISTS country, region, city, latitude, longitude, isp, agent_type, browser_name, browser_version, operating_system, device_type;` + `COMMENT ON TABLE public.raw_enriched IS 'W3C silver enriched log rows; 25 cols (post-dead-col cleanup, see fact-webrequest-dead-col-cleanup.md)';`. Mounted into the Postgres container via the `initdb.d` volume in `docker-compose.yaml` (see Phase 5 step 3b).
+5. `**airflow/scripts/migrations/add_denorm_fact_cols.sql**` (NEW) — the reverse migration, so rollback (Phase 7) is immediately available. Same SQL body as Phase 7's step 2.
 
 ### Phase 3 — Docs (~30 min)
 
-1. **`README.md`** — using the full grep list in § 3.2, fix col-count claims to 25 (raw_enriched) and 24 (fact); remove `fact_webrequest` "geo denormalised" description at L618; remove the 11 col rows from "What a row looks like" (L738-758); update Mermaid ER diagram (L776-800) `country` annotation. The UDF-count references (L173, L492, L493) and "17 UDFs" claims are **unchanged** because UDFs themselves are not removed.
-2. **`databricks-hybrid-wiring.md`** — update L221 from "Out of scope" to "Done — see [`fact-webrequest-dead-col-cleanup.md`](fact-webrequest-dead-col-cleanup.md)"; update L100/106/111 JDBC DDL counts (36→25 raw, 35→24 gold) if those numbers appear.
-3. **`.agents/improvements.md`** — no changes (the Skills Matrix is unaffected; dead-col finding is internal cleanup, not a skill gap).
-4. **`fact-webrequest-dead-col-cleanup.md`** — this plan; living document, version-bump to v2.1 when implementation lands.
+1. `**README.md**` — using the full grep list in § 3.2, fix col-count claims to 25 (raw_enriched) and 24 (fact); remove `fact_webrequest` "geo denormalised" description at L618; remove the 11 col rows from "What a row looks like" (L738-758); update Mermaid ER diagram (L776-800) `country` annotation. The UDF-count references (L173, L492, L493) and "17 UDFs" claims are **unchanged** because UDFs themselves are not removed.
+2. `**databricks-hybrid-wiring.md`** — update L221 from "Out of scope" to "Done — see `[fact-webrequest-dead-col-cleanup.md](fact-webrequest-dead-col-cleanup.md)`"; update L100/106/111 JDBC DDL counts (36→25 raw, 35→24 gold) if those numbers appear.
+3. `**.agents/improvements.md**` — no changes (the Skills Matrix is unaffected; dead-col finding is internal cleanup, not a skill gap).
+4. `**fact-webrequest-dead-col-cleanup.md**` — this plan; living document, version-bump to v2.1 when implementation lands.
 
 ### Phase 4 — Verification (~15 min)
 
@@ -220,19 +227,19 @@ The 24 surviving `fact_webrequest` cols (in current SELECT order): `raw_log_id`,
 1. Trigger `w3c_spark_ingestion` DAG a second time (the `dbt_marts` DAG will be triggered automatically by the Dataset signal).
 2. Wait for both DAGs to complete.
 3. Verify:
-   - `dbt test` — all 23 tests pass on the rebuilt warehouse
-   - **Data integrity check #1:** `SELECT COUNT(*) FROM public.raw_enriched` — same count on run #1 and run #2 (idempotency)
-   - **Data integrity check #2:** `SELECT column_name FROM information_schema.columns WHERE table_name = 'raw_enriched' AND table_schema = 'public' ORDER BY ordinal_position` — exactly 25 columns, none of the 11 dead cols present
-   - **Data integrity check #3:** `SELECT column_name FROM information_schema.columns WHERE table_name = 'fact_webrequest' AND table_schema = 'dbt_staging' ORDER BY ordinal_position` — exactly 24 columns, none of the 11 dead cols present
-   - **Data integrity check #4:** `SELECT COUNT(*) FROM dbt_staging.fact_webrequest` — same count on run #1 and run #2
-   - **Data integrity check #5:** For each of the 5 marts — `SELECT COUNT(*) FROM dbt_marts.<mart_name>` — same count on run #1 and run #2
-   - **Data integrity check #6:** `SELECT browser_name, SUM(total_requests) FROM dbt_marts.mart_browser_analysis GROUP BY browser_name` — row count and totals match between run #1 and run #2 (idempotency); spot-check that the output is non-empty (the dim join works)
-   - **Data integrity check #7:** `head -1 airflow/data/Star-Schema/dbt_staging.fact_webrequest.csv` — header is exactly 24 cols, no denorm col names
-   - **Data integrity check #8:** `head -1 airflow/data/Star-Schema/dbt_marts.mart_browser_analysis.csv` — same as before (mart schema unchanged)
-   - **Data integrity check #9 (NEW):** `head -1 airflow/data/Star-Schema/public.dim_geolocation.csv` — `postcode` column still present (confirms the silver→dim path is intact)
-   - **Data integrity check #10 (NEW):** `dbt source freshness` — `raw_enriched` reported as fresh
-   - **Data integrity check #11 (NEW):** sample 5 rows from `dbt_staging.fact_webrequest` and confirm `geolocation_sk`, `user_agent_sk`, `date_sk` are all positive integers (not 0 or -1) — verifies the dim joins are actually populating FKs
-   - **Data integrity check #12 (NEW):** `SELECT COUNT(*) FROM dbt_marts.mart_daily_aggregates WHERE active_countries > 0` — non-zero count, confirming the `JOIN dim_geolocation` for country still works
+  - `dbt test` — all 23 tests pass on the rebuilt warehouse
+  - **Data integrity check #1:** `SELECT COUNT(*) FROM public.raw_enriched` — same count on run #1 and run #2 (idempotency)
+  - **Data integrity check #2:** `SELECT column_name FROM information_schema.columns WHERE table_name = 'raw_enriched' AND table_schema = 'public' ORDER BY ordinal_position` — exactly 25 columns, none of the 11 dead cols present
+  - **Data integrity check #3:** `SELECT column_name FROM information_schema.columns WHERE table_name = 'fact_webrequest' AND table_schema = 'dbt_staging' ORDER BY ordinal_position` — exactly 24 columns, none of the 11 dead cols present
+  - **Data integrity check #4:** `SELECT COUNT(*) FROM dbt_staging.fact_webrequest` — same count on run #1 and run #2
+  - **Data integrity check #5:** For each of the 5 marts — `SELECT COUNT(*) FROM dbt_marts.<mart_name>` — same count on run #1 and run #2
+  - **Data integrity check #6:** `SELECT browser_name, SUM(total_requests) FROM dbt_marts.mart_browser_analysis GROUP BY browser_name` — row count and totals match between run #1 and run #2 (idempotency); spot-check that the output is non-empty (the dim join works)
+  - **Data integrity check #7:** `head -1 airflow/data/Star-Schema/dbt_staging.fact_webrequest.csv` — header is exactly 24 cols, no denorm col names
+  - **Data integrity check #8:** `head -1 airflow/data/Star-Schema/dbt_marts.mart_browser_analysis.csv` — same as before (mart schema unchanged)
+  - **Data integrity check #9 (NEW):** `head -1 airflow/data/Star-Schema/public.dim_geolocation.csv` — `postcode` column still present (confirms the silver→dim path is intact)
+  - **Data integrity check #10 (NEW):** `dbt source freshness` — `raw_enriched` reported as fresh
+  - **Data integrity check #11 (NEW):** sample 5 rows from `dbt_staging.fact_webrequest` and confirm `geolocation_sk`, `user_agent_sk`, `date_sk` are all positive integers (not 0 or -1) — verifies the dim joins are actually populating FKs
+  - **Data integrity check #12 (NEW):** `SELECT COUNT(*) FROM dbt_marts.mart_daily_aggregates WHERE active_countries > 0` — non-zero count, confirming the `JOIN dim_geolocation` for country still works
 
 ### Phase 7 — Rollback runbook (always present, no time estimate)
 
@@ -240,7 +247,7 @@ If a Phase 4/5/6 failure requires rollback after the migration has been applied 
 
 1. **Code rollback:** `git revert <merge-commit>` restores all code changes.
 2. **DB rollback:** The reverse migration is `airflow/scripts/migrations/add_denorm_fact_cols.sql` (created in Phase 2 alongside the drop script):
-   ```sql
+  ```sql
    ALTER TABLE public.raw_enriched
      ADD COLUMN IF NOT EXISTS country TEXT,
      ADD COLUMN IF NOT EXISTS region TEXT,
@@ -253,7 +260,7 @@ If a Phase 4/5/6 failure requires rollback after the migration has been applied 
      ADD COLUMN IF NOT EXISTS browser_version VARCHAR(50),
      ADD COLUMN IF NOT EXISTS operating_system VARCHAR(50),
      ADD COLUMN IF NOT EXISTS device_type VARCHAR(20);
-   ```
+  ```
    These cols will be NULL until the next DAG run re-populates them via the (now-restored) writer.
 3. **Delta Lake rollback:** `rm -rf ./spark/delta/silver` to force a clean Delta rebuild from the restored writer.
 4. **dbt rollback:** `dbt run --full-refresh --select staging` to rebuild the fact with the restored 35-col schema.
@@ -269,18 +276,20 @@ If a Phase 4/5/6 failure requires rollback after the migration has been applied 
 
 ## 6. Risk Register
 
-| # | Risk | Severity | Likelihood | Mitigation |
-|---|---|---|---|---|
-| 1 | `public.raw_enriched` keeps 11 cols on existing DBs because `IF NOT EXISTS` is a no-op | High | High | Phase 2 adds `ALTER TABLE ... DROP COLUMN IF EXISTS` migration script + Phase 5 step 6 runs it before DAG run #1 |
-| 2 | `apply_type_casts` crashes on missing lat/lon cols | High | High | Phase 1 step 3 explicitly removes the lat/lon cast branches |
-| 3 | Silver Delta table has stale 36-col schema on a clean restart | High | Medium | Phase 5 step 2 explicitly `rm -rf ./spark/delta/silver` (bind mount, not a named volume) |
-| 4 | Power BI dataset binds to denorm fact cols | Medium | Low | README's "Power BI geographic dashboard" already uses the dim JOIN; user confirms with Power BI owner before merge |
-| 5 | `dbt run` incremental fails because dbt's incremental strategy can't drop cols | Medium | Low | Phase 4 step 5 uses `--full-refresh` on first build; subsequent runs are incremental |
-| 6 | `test_export_warehouse.py:99` col-count parser is fragile | Low | Low | The DDL will be hand-edited; the parser still works for the new 25-col layout |
-| 7 | Pre-existing `TestTrafficType` worker-side import failures (5 tests) confuse the verification | Low | Low | Pre-existing on main; the verification step filters them out with `-k "not TestTrafficType"` |
-| 8 | DAG run #1 fails because `geoip-downloader` init service is slow | Low | Medium | Phase 5 step 4 waits for healthchecks; geoip init runs as a separate container with a dependency condition |
-| 9 | The Marts don't get rebuilt after the staging model is full-refreshed | Low | Low | `dbt run --select marts` in Phase 4 step 6 is explicit; Phase 6 verifies mart row counts |
-| 10 | `geo_map` CTE join breaks if `ip AS client_ip` is removed | High | High | Phase 1 step 5 explicitly retains `ip AS client_ip` in the modified CTE |
+
+| #   | Risk                                                                                          | Severity | Likelihood | Mitigation                                                                                                         |
+| --- | --------------------------------------------------------------------------------------------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------ |
+| 1   | `public.raw_enriched` keeps 11 cols on existing DBs because `IF NOT EXISTS` is a no-op        | High     | High       | Phase 2 adds `ALTER TABLE ... DROP COLUMN IF EXISTS` migration script + Phase 5 step 6 runs it before DAG run #1   |
+| 2   | `apply_type_casts` crashes on missing lat/lon cols                                            | High     | High       | Phase 1 step 3 explicitly removes the lat/lon cast branches                                                        |
+| 3   | Silver Delta table has stale 36-col schema on a clean restart                                 | High     | Medium     | Phase 5 step 2 explicitly `rm -rf ./spark/delta/silver` (bind mount, not a named volume)                           |
+| 4   | Power BI dataset binds to denorm fact cols                                                    | Medium   | Low        | README's "Power BI geographic dashboard" already uses the dim JOIN; user confirms with Power BI owner before merge |
+| 5   | `dbt run` incremental fails because dbt's incremental strategy can't drop cols                | Medium   | Low        | Phase 4 step 5 uses `--full-refresh` on first build; subsequent runs are incremental                               |
+| 6   | `test_export_warehouse.py:99` col-count parser is fragile                                     | Low      | Low        | The DDL will be hand-edited; the parser still works for the new 25-col layout                                      |
+| 7   | Pre-existing `TestTrafficType` worker-side import failures (5 tests) confuse the verification | Low      | Low        | Pre-existing on main; the verification step filters them out with `-k "not TestTrafficType"`                       |
+| 8   | DAG run #1 fails because `geoip-downloader` init service is slow                              | Low      | Medium     | Phase 5 step 4 waits for healthchecks; geoip init runs as a separate container with a dependency condition         |
+| 9   | The Marts don't get rebuilt after the staging model is full-refreshed                         | Low      | Low        | `dbt run --select marts` in Phase 4 step 6 is explicit; Phase 6 verifies mart row counts                           |
+| 10  | `geo_map` CTE join breaks if `ip AS client_ip` is removed                                     | High     | High       | Phase 1 step 5 explicitly retains `ip AS client_ip` in the modified CTE                                            |
+
 
 ## 7. Acceptance Criteria
 
@@ -326,18 +335,21 @@ Only after the third review do I dispatch the implementation subagent.
 
 ## 10. Test Plan (recap)
 
-| Layer | Command | Expected |
-|---|---|---|
-| Lint | `ruff check .` | All checks passed |
-| Format | `ruff format --check .` | All files already formatted |
-| Type | `mypy --ignore-missing-imports tests/` | Success: no issues found in N source files |
-| Unit | `pytest tests/ -m "not integration and not dag_integrity" -k "not TestTrafficType"` | 100% of non-pre-existing tests pass |
-| dbt compile | `dbt compile` (in `airflow/dbt/w3c/`) | 0 errors |
-| dbt run (staging) | `dbt run --full-refresh --select staging` | 10 staging models built |
-| dbt run (marts) | `dbt run --select marts` | 5 marts built |
-| dbt test | `dbt test` | 23 tests passed |
-| dbt source freshness | `dbt source freshness` | raw_enriched reported as fresh |
-| DAG #1 | `airflow dags trigger w3c_spark_ingestion` | success |
-| DAG #2 | `airflow dags trigger w3c_spark_ingestion` | success, idempotent row counts |
-| Data | 12 SQL queries listed in § 4 Phase 6 | all assertions hold |
-| Rollback | Apply reverse migration on a test DB | cols restored, DAG runs, fact rebuilds |
+
+| Layer                | Command                                                                             | Expected                                   |
+| -------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------ |
+| Lint                 | `ruff check .`                                                                      | All checks passed                          |
+| Format               | `ruff format --check .`                                                             | All files already formatted                |
+| Type                 | `mypy --ignore-missing-imports tests/`                                              | Success: no issues found in N source files |
+| Unit                 | `pytest tests/ -m "not integration and not dag_integrity" -k "not TestTrafficType"` | 100% of non-pre-existing tests pass        |
+| dbt compile          | `dbt compile` (in `airflow/dbt/w3c/`)                                               | 0 errors                                   |
+| dbt run (staging)    | `dbt run --full-refresh --select staging`                                           | 10 staging models built                    |
+| dbt run (marts)      | `dbt run --select marts`                                                            | 5 marts built                              |
+| dbt test             | `dbt test`                                                                          | 23 tests passed                            |
+| dbt source freshness | `dbt source freshness`                                                              | raw_enriched reported as fresh             |
+| DAG #1               | `airflow dags trigger w3c_spark_ingestion`                                          | success                                    |
+| DAG #2               | `airflow dags trigger w3c_spark_ingestion`                                          | success, idempotent row counts             |
+| Data                 | 12 SQL queries listed in § 4 Phase 6                                                | all assertions hold                        |
+| Rollback             | Apply reverse migration on a test DB                                                | cols restored, DAG runs, fact rebuilds     |
+
+
