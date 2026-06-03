@@ -64,7 +64,7 @@
 
 - **Ingest scale** - 93 W3C IIS `.log` files, **155,570 raw HTTP requests** (155,357 unique after a 213-row dedup) spanning 2009–2011, processed end-to-end through the medallion architecture.
 - **Spark layer** - PySpark 4.0.2 + Delta Lake 4.0.1 in a 2-stage medallion (Bronze → Silver), with **17 vectorised PySpark UDFs** for GeoIP (local MaxMind GeoLite2-City + GeoLite2-ASN), user-agent parsing, and computed fields. Gold-level aggregations are produced by **5 dbt mart models** in `dbt_marts`.
-- **Warehouse** - `public.raw_enriched` (**36 columns**, 155,570 rows → **155,357** after dedup) + 2 Airflow-managed enrichment dimensions (`dim_geolocation` 4,011 rows · `dim_useragent` 2,276 rows). **99.99% known-country** and **100% known-ISP** coverage from local MaxMind databases.
+- **Warehouse** - `public.raw_enriched` (**25 columns**, 155,570 rows → **155,357** after dedup) + 2 Airflow-managed enrichment dimensions (`dim_geolocation` 4,011 rows · `dim_useragent` 2,276 rows). **99.99% known-country** and **100% known-ISP** coverage from local MaxMind databases.
 - **dbt layer** - 15 models in 2 isolated schemas (`dbt_staging` × 10 + `dbt_marts` × 5), with **64 data tests** (29 not_null · 14 unique · 7 FK relationships · 6 expression_is_true · 4 singular in `models/`/`tests/` + 4 source tests on Airflow-managed dims in `sources.yml`).
 - **Orchestration** - 2 Airflow DAGs wired by Airflow 2.10 Datasets. `w3c_spark_ingestion` runs on a Saturday 06:00 cron, emits `Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")`, and triggers `w3c_dbt_marts` automatically - no polling, no fixed coupling.
 - **BI delivery** - 17 CSV exports (~36 MB total) feed a live **7-page Power BI dashboard**, refreshed every Friday 17:30 by a Power Automate flow with success/failure email alerting.
@@ -127,7 +127,7 @@ flowchart LR
     end
 
     subgraph postgres["PostgreSQL (RDS or local Docker)"]
-        raw_enriched["public.raw_enriched<br/>35 cols, 155,570 rows"]
+        raw_enriched["public.raw_enriched<br/>25 cols, 155,570 rows"]
         air_dims["public.dim_geolocation<br/>public.dim_useragent<br/>4,011 / 2,276 rows"]
         staging["dbt_staging schema<br/>10 models<br/>dims + fact + crawler_ips"]
         marts["dbt_marts schema<br/>5 models<br/>aggregated analytics"]
@@ -384,7 +384,7 @@ flowchart TB
 | | Known-country coverage | **99.99%** (155,337 / 155,357) |
 | | Known-ISP coverage | **100%** (155,357 / 155,357) |
 | | Known-postcode coverage | 57% (limited by GeoLite2-City coverage) |
-| **Storage** | PostgreSQL `raw_enriched` columns | 35 |
+| **Storage** | PostgreSQL `raw_enriched` columns | 25 |
 | | Airflow dimensions | 2 (`dim_geolocation` 4,011 · `dim_useragent` 2,276) |
 | | Delta Lake tables | 2 (Bronze + Silver) |
 | **dbt** | dbt models | 15 (10 staging + 5 marts) |
@@ -529,7 +529,7 @@ The `airflow/spark/jobs/export_warehouse.py` Spark job ensures **exactly-once se
 
 1. Read all `source_file` values from the tracking table `public.raw_enriched_loaded` (one row per file: `source_file TEXT PRIMARY KEY`).
 2. Filter Silver Delta to only rows whose `source_file` is **not** in the tracking set.
-3. Write the filtered rows to `public.raw_enriched` (36 columns) via Spark JDBC - type casts (`is_crawler` string → bool, lat/lon string → double, bytes/time_taken → bigint) applied first.
+3. Write the filtered rows to `public.raw_enriched` (25 columns) via Spark JDBC - type casts (`is_crawler` string → bool, lat/lon string → double, bytes/time_taken → bigint) applied first.
 4. Insert the new `source_file` values into the tracking table **only after** the JDBC write succeeds.
 
 On re-runs, already-exported files are skipped - no duplicates, no manual cleanup. The DDL is created on the fly via `psycopg2` (not Spark JDBC) because the Py4J gateway cannot run arbitrary DDL through the JVM classloader. The `w3c_warehouse` database is self-provisioned by parsing the JDBC URL and connecting to the always-present `postgres` system database first.
@@ -615,7 +615,7 @@ flowchart TB
 | `dim_visit_buckets` | Static values | `table` | 6 visit frequency buckets (1 Visit → 51+ Visits) |
 | `dim_visitortype` | Static values | `table` | 3 types: Human / Crawler / Unknown (incl. -1 sentinel) |
 | `crawler_ips` | `raw_enriched` | `table` | IPs requesting `robots.txt` |
-| `fact_webrequest` | All dims + `raw_enriched` | **`incremental`** (PK=`request_sk` via `ROW_NUMBER`, natural key=`raw_log_id`) | LEFT JOIN to all dims (8 dbt + 2 Airflow) with `COALESCE(..., -1)`; `raw_log_id` is a 12-component MD5 hash that deduplicates the upstream `raw_enriched`; geo fields are denormalised from `dim_geolocation` (the authoritative source) |
+| `fact_webrequest` | All dims + `raw_enriched` | **`incremental`** (PK=`request_sk` via `ROW_NUMBER`, natural key=`raw_log_id`) | LEFT JOIN to all dims (8 dbt + 2 Airflow) with `COALESCE(..., -1)`; `raw_log_id` is a 12-component MD5 hash that deduplicates the upstream `raw_enriched` |
 
 **Fact dedup key (12-component MD5)** - `fact_webrequest.raw_log_id` is a stable, dedup-safe natural key produced by hashing the 12 columns of the upstream `raw_enriched` row that fully describe a single HTTP event. The current key is:
 
@@ -652,7 +652,7 @@ The three disambiguating fields (`uri_query`, `method`, `win32_status`) were add
 ```mermaid
 flowchart TB
     subgraph public["public schema"]
-        raw["raw_enriched<br/>155,570 rows, 35 cols<br/>(Airflow-managed)"]
+        raw["raw_enriched<br/>155,570 rows, 25 cols<br/>(Airflow-managed)"]
         geo["dim_geolocation<br/>4,011 rows<br/>(Airflow-managed)"]
         ua["dim_useragent<br/>2,276 rows<br/>(Airflow-managed)"]
     end
@@ -750,12 +750,7 @@ flowchart TB
 | `bytes_received` | `BIGINT` | 384 |
 | `response_time_ms` | `BIGINT` | 12 |
 | `is_crawler` | `BOOLEAN` | `false` |
-| `country` | `TEXT` (denormalised from `dim_geolocation`) | `United States` |
-| `isp` | `TEXT` (denormalised from `dim_geolocation`) | `Google LLC` |
-| `latitude` | `DOUBLE PRECISION` (denormalised) | 37.405992 |
-| `longitude` | `DOUBLE PRECISION` (denormalised) | -122.078515 |
-| `browser_name` | `TEXT` (denormalised from UA parser) | `Chrome` |
-| `device_type` | `TEXT` (denormalised from UA parser) | `Desktop` |
+
 
 *One row of `fact_webrequest` after the Silver medallion — fully enriched, deduplicated (MD5 of 12 components), and ready for marts.*
 
@@ -796,7 +791,6 @@ erDiagram
         text crawler_flag "Yes / No"
         boolean is_direct_traffic
         text size_band
-        text country "denormalised from dim_geolocation (single source of truth, GeoLite2-City)"
     }
 ```
 
@@ -875,7 +869,7 @@ The pipeline includes Databricks-equivalent Python scripts for users who run on 
 |--------|--------|-----------------|--------|
 | `01_bronze_ingestion.py` | DBFS log files (`dbfs:/mnt/w3c-logs/LogFiles/`) | `w3c_catalog.bronze.raw_logs` | 19 cols (raw W3C) |
 | `02_silver_enrichment.py` | `w3c_catalog.bronze.raw_logs` | `w3c_catalog.silver.enriched_logs` | 35 cols (17 enriched) |
-| `03_export_warehouse.py` | `w3c_catalog.silver.enriched_logs` | `w3c_catalog.gold.warehouse_enriched` | 35 cols (analytics-ready) |
+| `03_export_warehouse.py` | `w3c_catalog.silver.enriched_logs` | `w3c_catalog.gold.warehouse_enriched` | 24 cols (analytics-ready) |
 
 **Note:** Gold-level aggregations are handled **exclusively by dbt marts** in both the Docker-based and Databricks pipelines - there is no `03_gold_aggregations.py` in either stack.
 
