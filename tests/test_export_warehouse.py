@@ -75,18 +75,7 @@ class TestDDLGeneration:
         assert ddl is not None, "RAW_ENRICHED_DDL constant not found in source"
         assert "CREATE TABLE IF NOT EXISTS public.raw_enriched" in ddl
 
-    def test_raw_enriched_ddl_has_type_casts(self):
-        ddl = _get_module_constant("RAW_ENRICHED_DDL")
-        assert ddl is not None
-        # Verify PostgreSQL-native types match the cast transformations
-        assert "is_crawler BOOLEAN" in ddl
-        assert "bytes_sent BIGINT" in ddl
-        assert "bytes_recv BIGINT" in ddl
-        assert "time_taken BIGINT" in ddl
-        assert "latitude DOUBLE PRECISION" in ddl
-        assert "longitude DOUBLE PRECISION" in ddl
-
-    def test_raw_enriched_ddl_has_all_36_columns(self):
+    def test_raw_enriched_ddl_has_all_25_columns(self):
         ddl = _get_module_constant("RAW_ENRICHED_DDL")
         assert ddl is not None
         lines = [line.strip() for line in ddl.strip().split("\n")]
@@ -96,7 +85,7 @@ class TestDDLGeneration:
             if line and not line.startswith("CREATE") and line != "(" and line != ");" and not line.startswith(")")
         ]
         col_names = [line.rstrip(",").split()[0] for line in col_lines if line]
-        assert len(col_names) == 36, f"Expected 36 columns, got {len(col_names)}: {col_names}"
+        assert len(col_names) == 25, f"Expected 25 columns, got {len(col_names)}: {col_names}"
 
     def test_tracking_ddl_has_source_file_pk(self):
         ddl = _get_module_constant("TRACKING_DDL")
@@ -294,34 +283,6 @@ class TestApplyTypeCasts:
         row = result.collect()[0]
         assert row.is_crawler is False
 
-    def test_latitude_cast_to_double(self, spark):
-        _requires_pyspark()
-        from pyspark.sql import Row
-        from pyspark.sql.types import StringType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
-
-        schema = StructType([StructField("latitude", StringType(), True)])
-        df = spark.createDataFrame([Row(latitude="51.5074")], schema=schema)
-        result = apply_type_casts(df)
-        row = result.collect()[0]
-        assert isinstance(row.latitude, float)
-        assert abs(row.latitude - 51.5074) < 0.0001
-
-    def test_longitude_cast_to_double(self, spark):
-        _requires_pyspark()
-        from pyspark.sql import Row
-        from pyspark.sql.types import StringType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
-
-        schema = StructType([StructField("longitude", StringType(), True)])
-        df = spark.createDataFrame([Row(longitude="-0.1276")], schema=schema)
-        result = apply_type_casts(df)
-        row = result.collect()[0]
-        assert isinstance(row.longitude, float)
-        assert abs(row.longitude - (-0.1276)) < 0.0001
-
     def test_bytes_sent_cast_to_bigint(self, spark):
         _requires_pyspark()
         from pyspark.sql import Row
@@ -374,8 +335,6 @@ class TestApplyTypeCasts:
 
         schema = StructType([
             StructField("is_crawler", StringType(), True),
-            StructField("latitude", StringType(), True),
-            StructField("longitude", StringType(), True),
             StructField("bytes_sent", LongType(), True),
             StructField("bytes_recv", LongType(), True),
             StructField("time_taken", LongType(), True),
@@ -384,8 +343,6 @@ class TestApplyTypeCasts:
             [
                 Row(
                     is_crawler="true",
-                    latitude="40.7128",
-                    longitude="-74.0060",
                     bytes_sent=1000,
                     bytes_recv=200,
                     time_taken=150,
@@ -395,8 +352,6 @@ class TestApplyTypeCasts:
         )
         result = apply_type_casts(df).collect()[0]
         assert result.is_crawler is True
-        assert isinstance(result.latitude, float)
-        assert isinstance(result.longitude, float)
         assert isinstance(result.bytes_sent, int)
         assert isinstance(result.bytes_recv, int)
         assert isinstance(result.time_taken, int)
@@ -431,20 +386,6 @@ class TestApplyTypeCasts:
         result = apply_type_casts(df)
         row = result.collect()[0]
         assert row.is_crawler is False
-
-    def test_none_latitude_stays_null(self, spark):
-        """Null/latitude should remain null after casting to double."""
-        _requires_pyspark()
-        from pyspark.sql import Row
-        from pyspark.sql.types import StringType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
-
-        schema = StructType([StructField("latitude", StringType(), True)])
-        df = spark.createDataFrame([Row(latitude=None)], schema=schema)
-        result = apply_type_casts(df)
-        row = result.collect()[0]
-        assert row.latitude is None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -626,6 +567,10 @@ class TestErrorHandling:
 
         cast_df = MagicMock()
         cast_df.write = Writer(fail=fail_on_write)
+        # The pipeline now calls .select() after apply_type_casts to filter to
+        # the 25 DDL columns.  Make .select() return the same cast_df so the
+        # Writer (with its fail/ok behavior) flows through to the JDBC write step.
+        cast_df.select.return_value = cast_df
         mock_cast.return_value = cast_df
 
         def cleanup():

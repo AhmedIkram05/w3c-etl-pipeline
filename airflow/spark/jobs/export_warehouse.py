@@ -38,7 +38,7 @@ import sys
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, lower, trim, when
-from pyspark.sql.types import DoubleType, LongType
+from pyspark.sql.types import LongType
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("export_warehouse")
@@ -70,18 +70,7 @@ CREATE TABLE IF NOT EXISTS public.raw_enriched (
     username TEXT,
     time_taken BIGINT,
     source_file TEXT,
-    country TEXT,
-    region TEXT,
-    city TEXT,
-    latitude DOUBLE PRECISION,
-    longitude DOUBLE PRECISION,
     postcode TEXT,
-    isp TEXT,
-    agent_type TEXT,
-    browser_name TEXT,
-    browser_version TEXT,
-    operating_system TEXT,
-    device_type TEXT,
     page_category TEXT,
     referrer_domain TEXT,
     traffic_type TEXT,
@@ -261,10 +250,7 @@ def apply_type_casts(df: DataFrame) -> DataFrame:
             "is_crawler",
             when(trim(lower(col("is_crawler"))) == "true", True).otherwise(False),
         )
-    if "latitude" in cols:
-        df = df.withColumn("latitude", col("latitude").cast(DoubleType()))
-    if "longitude" in cols:
-        df = df.withColumn("longitude", col("longitude").cast(DoubleType()))
+
     if "bytes_sent" in cols:
         df = df.withColumn("bytes_sent", col("bytes_sent").cast(LongType()))
     if "bytes_recv" in cols:
@@ -377,11 +363,44 @@ def run(
     # ── 4. Apply type casting ────────────────────────────────────────
     cast_data = apply_type_casts(new_data)
 
-    # ── 5. Create PostgreSQL tables if they do not exist ─────────────
+    # ── 5. Select only the columns defined in the DDL ─────────────────
+    # The Delta silver table has 36 columns (including geo/UA denorm fields),
+    # but raw_enriched DDL only defines 25. Drop the extra 11 columns to
+    # avoid COLUMN_NOT_DEFINED_IN_TABLE JDBC errors.
+    raw_enriched_cols = [
+        "log_date",
+        "log_time",
+        "server_ip",
+        "method",
+        "uri_stem",
+        "uri_query",
+        "client_ip",
+        "user_agent",
+        "cookie",
+        "referrer",
+        "status",
+        "sub_status",
+        "win32_status",
+        "bytes_sent",
+        "bytes_recv",
+        "server_port",
+        "username",
+        "time_taken",
+        "source_file",
+        "postcode",
+        "page_category",
+        "referrer_domain",
+        "traffic_type",
+        "is_crawler",
+        "size_band",
+    ]
+    cast_data = cast_data.select(*raw_enriched_cols)
+
+    # ── 6. Create PostgreSQL tables if they do not exist ─────────────
     execute_ddl(spark, jdbc_url, jdbc_props, RAW_ENRICHED_DDL, RAW_ENRICHED_TABLE)
     execute_ddl(spark, jdbc_url, jdbc_props, TRACKING_DDL, TRACKING_TABLE)
 
-    # ── 6. Write new data to PostgreSQL via JDBC ─────────────────────
+    # ── 7. Write new data to PostgreSQL via JDBC ─────────────────────
     try:
         cast_data.write.format("jdbc").mode("append").option("url", jdbc_url).option(
             "dbtable", RAW_ENRICHED_TABLE
@@ -396,7 +415,7 @@ def run(
         )
         raise
 
-    # ── 7. Update tracking table with newly exported source_files ────
+    # ── 8. Update tracking table with newly exported source_files ────
     insert_tracking_records(spark, jdbc_url, jdbc_props, new_source_files)
 
     log.info(
