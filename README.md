@@ -868,7 +868,7 @@ The pipeline includes Databricks-equivalent Python scripts for users who run on 
 | Script | Source | Target UC Table | Schema |
 |--------|--------|-----------------|--------|
 | `01_bronze_ingestion.py` | DBFS log files (`dbfs:/mnt/w3c-logs/LogFiles/`) | `w3c_catalog.bronze.raw_logs` | 19 cols (raw W3C) |
-| `02_silver_enrichment.py` | `w3c_catalog.bronze.raw_logs` | `w3c_catalog.silver.enriched_logs` | 35 cols (17 enriched) |
+| `02_silver_enrichment.py` | `w3c_catalog.bronze.raw_logs` | `w3c_catalog.silver.enriched_logs` | 30 cols (17 enriched) |
 | `03_export_warehouse.py` | `w3c_catalog.silver.enriched_logs` | `w3c_catalog.gold.warehouse_enriched` | 24 cols (analytics-ready) |
 
 **Note:** Gold-level aggregations are handled **exclusively by dbt marts** in both the Docker-based and Databricks pipelines - there is no `03_gold_aggregations.py` in either stack.
