@@ -567,6 +567,10 @@ class TestErrorHandling:
 
         cast_df = MagicMock()
         cast_df.write = Writer(fail=fail_on_write)
+        # The pipeline now calls .select() after apply_type_casts to filter to
+        # the 25 DDL columns.  Make .select() return the same cast_df so the
+        # Writer (with its fail/ok behavior) flows through to the JDBC write step.
+        cast_df.select.return_value = cast_df
         mock_cast.return_value = cast_df
 
         def cleanup():
