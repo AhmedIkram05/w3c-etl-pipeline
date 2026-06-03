@@ -16,9 +16,11 @@ start:
 	$(COMPOSE_CMD) build
 	$(COMPOSE_CMD) up -d
 
-# Delete all containers, volumes, and local images
+# Delete all containers, volumes, local images, and runtime state artifacts
 clean:
 	$(COMPOSE_CMD) down -v --rmi local
+	rm -rf $(AIRFLOW_DIR)/logs/*
+	rm -rf $(AIRFLOW_DIR)/spark/delta/*
 
 # Delete all containers then rebuild and start
 rebuild:
