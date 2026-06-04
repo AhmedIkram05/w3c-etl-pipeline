@@ -10,7 +10,7 @@ WITH page_stats AS (
         SUM(CASE WHEN fw.is_404 THEN 1 ELSE 0 END) AS total_404,
         SUM(fw.bytes_sent) AS total_bytes_sent,
         AVG(fw.response_time_ms)::NUMERIC(10,2) AS avg_response_time_ms,
-        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2) AS p95_response_time_ms,
+        {% if target.type == 'sqlserver' %}PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms) OVER (){% else %}PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2){% endif %} AS p95_response_time_ms,
         MAX(fw.response_time_ms) AS max_response_time_ms,
         SUM(CASE WHEN fw.response_time_ms > 5000 THEN 1 ELSE 0 END) AS slow_requests,
         COUNT(DISTINCT fw.date_sk) AS active_days
