@@ -47,6 +47,7 @@ MART_TABLES = [
     "dbt_marts.mart_crawler_analysis",
     "dbt_marts.mart_browser_analysis",
     "dbt_marts.mart_timeofday_analysis",
+    "dbt_marts.mart_country_browser_share",
 ]
 
 PUBLIC_TABLES = [
