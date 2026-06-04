@@ -209,7 +209,7 @@ class TestDBTMartsDAG:
         assert len(dag_bag.import_errors) == 0, f"DAG import errors found: {dag_bag.import_errors}"
 
     def test_export_csv_generates_correct_script(self):
-        """Verify the export CSV script covers all 17 tables."""
+        """Verify the export CSV script covers all 18 tables."""
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
@@ -225,8 +225,8 @@ class TestDBTMartsDAG:
         assert export_task is not None, "export_csv task not found"
         bash_command = export_task.bash_command
 
-        # Should reference all 15 tables + 2 public tables = 17 total
-        # (STAGING_TABLES: 10, MART_TABLES: 5, PUBLIC_TABLES: 2)
+        # Should reference all 16 tables + 2 public tables = 18 total
+        # (STAGING_TABLES: 10, MART_TABLES: 6, PUBLIC_TABLES: 2)
         for table in [
             "dbt_staging.fact_webrequest",
             "dbt_staging.dim_date",
@@ -243,6 +243,7 @@ class TestDBTMartsDAG:
             "dbt_marts.mart_crawler_analysis",
             "dbt_marts.mart_browser_analysis",
             "dbt_marts.mart_timeofday_analysis",
+            "dbt_marts.mart_country_browser_share",
             "public.dim_geolocation",
             "public.dim_useragent",
         ]:
