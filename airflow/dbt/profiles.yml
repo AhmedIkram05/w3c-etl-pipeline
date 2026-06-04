@@ -13,3 +13,35 @@ w3c:
       keepalives_idle: 0
       connect_timeout: 10
       retries: 3
+
+w3c_azure:
+  target: dev
+  outputs:
+    dev:
+      type: sqlserver
+      driver: "ODBC Driver 18 for SQL Server"
+      server: "{{ env_var('AZURE_SQL_SERVER') }}.database.windows.net"
+      port: 1433
+      database: "{{ env_var('AZURE_SQL_DB') }}"
+      schema: dbo
+      user: "{{ env_var('AZURE_SQL_USER') }}"
+      password: "{{ env_var('AZURE_SQL_PASSWORD') }}"
+      encrypt: true
+      trust_cert: false
+      authentication: sql
+      threads: 4
+      retries: 3
+    azure_sql_ci:
+      type: sqlserver
+      driver: "ODBC Driver 18 for SQL Server"
+      server: "{{ env_var('AZURE_SQL_SERVER') }}.database.windows.net"
+      port: 1433
+      database: "{{ env_var('AZURE_SQL_DB') }}"
+      schema: dbo
+      user: "{{ env_var('AZURE_SQL_USER') }}"
+      password: "{{ env_var('AZURE_SQL_PASSWORD') }}"
+      encrypt: true
+      trust_cert: false
+      authentication: sql
+      threads: 4
+      retries: 3

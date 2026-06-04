@@ -2,7 +2,7 @@ name: 'w3c'
 version: '1.0.0'
 config-version: 2
 
-profile: 'w3c'
+profile: "{{ env_var('DBT_PROFILE', 'w3c') }}"
 
 model-paths: ["models"]
 test-paths: ["tests"]
