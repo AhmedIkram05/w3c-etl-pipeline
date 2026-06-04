@@ -16,7 +16,7 @@ WITH daily_stats AS (
         COUNT(DISTINCT CASE WHEN fw.geolocation_sk > 0 THEN dg.country END) AS active_countries,
         SUM(fw.is_404::INT) AS total_404,
         AVG(fw.response_time_ms)::NUMERIC(10,2) AS avg_response_time_ms,
-        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2) AS p95_response_time_ms,
+        {% if target.type == 'sqlserver' %}PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms) OVER (){% else %}PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2){% endif %} AS p95_response_time_ms,
         SUM(fw.bytes_sent) AS total_bytes_sent,
         SUM(CASE WHEN fw.is_crawler THEN 1 ELSE 0 END) AS crawler_requests,
         SUM(CASE WHEN fw.is_direct_traffic THEN 1 ELSE 0 END) AS direct_traffic_requests,
