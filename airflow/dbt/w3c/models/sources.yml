@@ -20,6 +20,18 @@ sources:
             description: "Client IP address"
           - name: country
             description: "Country name"
+          - name: region
+            description: "Region/state name"
+          - name: city
+            description: "City name"
+          - name: postcode
+            description: "Postal code ('-' if unknown)"
+          - name: latitude
+            description: "Latitude coordinate"
+          - name: longitude
+            description: "Longitude coordinate"
+          - name: isp
+            description: "Internet Service Provider name"
 
       - name: dim_useragent
         description: "User-Agent dimension populated by Airflow export_dimensions task via user_agents library. Surrogate key -1 = Unknown."
