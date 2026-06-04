@@ -17,4 +17,5 @@ RUN apt-get update && apt-get install -y curl gnupg2 && rm -rf /var/lib/apt/list
 USER airflow
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir pyspark==4.0.2 \
-    && pip install --no-cache-dir --no-deps apache-airflow-providers-apache-spark==4.11.3
+    && pip install --no-cache-dir --no-deps apache-airflow-providers-apache-spark==4.11.3 \
+    && pip install --no-cache-dir apache-airflow-providers-databricks==4.6.0
