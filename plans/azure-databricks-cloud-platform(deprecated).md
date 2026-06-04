@@ -205,28 +205,30 @@ PUBLIC_TABLES = [
 
 Before starting Phase 1, ensure you have:
 
-1. **Azure subscription with credits** — Sign up at https://azure.microsoft.com/en-gb/free/ ($200 credit, expires 30 days from account creation)
+1. **Azure subscription with credits** — Sign up at <https://azure.microsoft.com/en-gb/free/> ($200 credit, expires 30 days from account creation)
 2. **Azure CLI installed** — `brew install azure-cli` (macOS) or `winget install Microsoft.AzureCLI` (Windows)
 3. **Azure CLI authenticated**:
+
    ```bash
    az login --use-device-code
    az account show --query id -o tsv   # Copy as ARM_SUBSCRIPTION_ID
    ```
+
 4. **Check available credits** — Azure Portal → Cost Management → Credits
 5. **⚠️ Credit expiry warning** — The $200 credit expires 30 days from account creation. If this plan spans > 30 days, Azure resources will incur real costs. Set a calendar reminder 25 days from creation.
 6. **Databricks CLI installed + authenticated:**
-   
+
    > **⚠️ CLI version:** `brew install databricks` installs the **new Databricks CLI (v2+)** which uses different syntax from the legacy `databricks-cli` pip package. The plan uses **legacy CLI syntax** (`databricks configure --token`, `databricks secrets create-scope`, `databricks workspace import --format`) because it's more widely documented and compatible with existing Databricks workflows.
    >
    > **Option A (legacy — recommended for this plan):** `pip install databricks-cli`
    > **Option B (new CLI v2+):** `brew install databricks` then translate commands:
-   >   - `databricks configure --token` → `databricks auth login --host <workspace-url>`
-   >   - `databricks workspace import --file <local> --path <remote> --format SOURCE` → `databricks workspace import <local> <remote>`
-   >   - `databricks secrets create-scope --scope <name>` → `databricks secrets put-scope <name>`
-   >   - `databricks fs cp <local> <remote>` → `databricks fs cp <local> <remote>` (mostly same)
+   > - `databricks configure --token` → `databricks auth login --host <workspace-url>`
+   > - `databricks workspace import --file <local> --path <remote> --format SOURCE` → `databricks workspace import <local> <remote>`
+   > - `databricks secrets create-scope --scope <name>` → `databricks secrets put-scope <name>`
+   > - `databricks fs cp <local> <remote>` → `databricks fs cp <local> <remote>` (mostly same)
    >
    > **Choose one CLI version and use it consistently throughout all phases.**
-   
+
    ```bash
    # Option A (legacy — matches this plan's commands):
    pip install databricks-cli
@@ -236,8 +238,10 @@ Before starting Phase 1, ensure you have:
    # brew install databricks
    # databricks auth login --host <workspace-url>
    ```
+
    Note: The PAT token is created in Phase 6 (Databricks workspace must be provisioned first). For Phase 3 GeoIP uploads, you'll return to configure the CLI after Phase 2 provisions the workspace.
 7. **⚠️ Register for a MaxMind GeoLite2 account** — The GeoIP enrichment at Phase 4 requires MaxMind GeoLite2 City and ASN databases. These are free but require registration:
+
    ```bash
    # Create account at https://www.maxmind.com/en/geolite2/signup
    # After login, download:
@@ -254,7 +258,7 @@ Before starting Phase 1, ensure you have:
 
 - [ ] Create `terraform/` directory structure with Part A/B split:
 
-  ```
+  ```text
   terraform/
   ├── part_a/
   │   ├── environments/
@@ -362,6 +366,7 @@ Before starting Phase 1, ensure you have:
     value       = module.databricks.workspace_id
   }
   ```
+
   > **Why outputs matter:** Airflow's `DatabricksRunNowOperator` needs the Databricks job ID. dbt profiles need the Azure SQL FQDN. CI needs the workspace ID. Without these outputs, each deployment requires manual copy-paste of resource IDs. See Phase 10 for CI integration.
 - [ ] **`terraform/README.md`** — how to init, plan, apply, destroy, plus cost estimate
 
@@ -375,6 +380,7 @@ Before starting Phase 1, ensure you have:
 
 - [ ] Install Azure CLI, authenticate: `az login --use-device-code`
 - [ ] Set environment variables (or write to `environments/dev/terraform.tfvars`):
+
   ```bash
   export ARM_SUBSCRIPTION_ID="<your-subscription-id>"
   # If using terraform.tfvars instead:
@@ -384,6 +390,7 @@ Before starting Phase 1, ensure you have:
   enable_private_endpoints = false
   EOF
   ```
+
 - [ ] Run `cd terraform/part_a && terraform init` (backend = local for MVP; `azurerm` backend recommended for team collaboration — configure in `terraform/part_a/versions.tf` before any team member runs `terraform apply`, as state migration is required once non-local backends are used)
 - [ ] Run `cd terraform/part_a && terraform plan` — review resources to be created
 - [ ] Run `cd terraform/part_a && terraform apply --auto-approve`
@@ -392,9 +399,11 @@ Before starting Phase 1, ensure you have:
   - ADLS Gen2 containers accessible (Storage Browser → containers visible)
   - Databricks workspace accessible via URL (launch workspace)
   - Azure SQL Database reachable:
+
     ```bash
     sqlcmd -S <server>.database.windows.net -d w3c_warehouse -U w3c_pipeline -P '<password>' -Q "SELECT COUNT(*) AS tables FROM sys.tables"
     ```
+
     (Requires `sqlcmd` — install via `brew install mssql-tools` on macOS or `apt install mssql-tools` on Ubuntu/Debian)
 - [ ] Run `terraform output` and save outputs to `.env.azure` (for later phases):
 
@@ -404,6 +413,7 @@ Before starting Phase 1, ensure you have:
   ```
 
 - [ ] Create an Azure SQL Database login/user for pipeline access:
+
   ```sql
   -- Connect to w3c_warehouse via sqlcmd or Azure Data Studio
   CREATE LOGIN w3c_pipeline WITH PASSWORD = '<generate-a-password>';
@@ -414,6 +424,7 @@ Before starting Phase 1, ensure you have:
   GRANT CREATE TABLE TO w3c_pipeline;
   GRANT ALTER ON SCHEMA::dbo TO w3c_pipeline;
   ```
+
   Save credentials to `.env.azure` or a password manager.
 
 **Acceptance:** All Azure resources provisioned and verified. Total Terraform apply time < 5 minutes. Cost-to-date: ~$0 (storage + workspace are free until used). SQL login created for pipeline access.
@@ -690,6 +701,7 @@ Before starting Phase 1, ensure you have:
   > **Full refresh is a development tool, not a production mode.** In production, DLT runs with `full_refresh=False` and Auto Loader's checkpoint tracks already-ingested files.
 
 - [ ] Create a sample W3C log file and upload to ADLS Gen2:
+
   ```bash
   # Create a sample W3C log file with representative data
   mkdir -p data/samples
@@ -699,7 +711,8 @@ Before starting Phase 1, ensure you have:
   #Date: 2025-03-24 00:00:00
   #Fields: date time s-ip cs-method cs-uri-stem cs-uri-query s-port cs-username c-ip cs(User-Agent) cs(Cookie) cs(Referer) sc-status sc-substatus sc-win32-status sc-bytes cs-bytes time-taken
   2025-03-24 00:00:01 10.0.0.1 GET /index.html - 80 - 192.168.1.1 Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) - https://www.google.com/ 200 0 0 1234 567 100
-2025-03-24 00:00:02 10.0.0.1 GET /robots.txt - 80 - 192.168.1.2 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 - https://www.google.com/ 200 0 0 500 300 50
+
+2025-03-24 00:00:02 10.0.0.1 GET /robots.txt - 80 - 192.168.1.2 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 - <https://www.google.com/> 200 0 0 500 300 50
 2025-03-24 00:01:00 10.0.0.1 GET /api/v1/data?page=1 - 80 - 10.0.0.2 Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) - - 200 0 0 2048 1024 200
 2025-03-24 00:02:00 10.0.0.1 GET /assets/style.css - 80 - 10.0.0.3 Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) - - 304 0 0 0 256 50
 2025-03-24 00:03:00 10.0.0.2 GET / - 80 - 192.168.1.4 - - - 200 0 0 0 0 0
@@ -708,11 +721,13 @@ Before starting Phase 1, ensure you have:
    > **Edge cases covered:** Line 1-4: normal UAs with spaces. Line 5: empty UA (`-`), empty referrer, zero-size response. Line 6: complex URI query with `+` encoding, UA with minimum detail.
    >
    > **⚠️ 14-field format note:** The sample above is in 18-field format (the `#Fields:` line has 18 tokens). To test 14-field format detection and parsing, create a separate sample `data/samples/u_ex250324_14field.log` with the 14-field header:
+>
    > ```
    > #Fields: date time s-ip cs-method cs-uri-stem cs-uri-query s-port cs-username c-ip cs(User-Agent) sc-status sc-substatus sc-win32-status time-taken
    > 2025-03-24 00:00:01 10.0.0.1 GET /index.html - 80 - 192.168.1.1 Mozilla/5.0 200 0 0 100
    > 2025-03-24 00:00:02 10.0.0.1 GET /robots.txt - 80 - 192.168.1.2 - 200 0 0 50
    > ```
+>
    > Upload this separately to `raw-logs/w3c-logs/u_ex250324_14field.log` and verify the Bronze pipeline parses it correctly (bytes_sent, bytes_recv, cookie, and referrer should be NULL).
   
   az storage fs file upload \
@@ -720,6 +735,7 @@ Before starting Phase 1, ensure you have:
     --path "w3c-logs/u_ex250324.log" \
     --source "data/samples/u_ex250324.log" \
     --account-name "$(jq -r '.storage_account_name.value' .env.azure.json 2>/dev/null || az storage account list --query "[0].name" -o tsv)"
+
   ```
   Or use Azure Portal Storage Browser → `raw-logs` container → Upload
 
@@ -787,6 +803,7 @@ Expected: Row count should approximately match input file line count. Log dates 
 **Goal:** DLT Silver pipeline reads from Bronze, applies enrichment (GeoIP via MaxMind GeoLite2, computed fields, data quality expectations), and writes to a Silver table in Unity Catalog.
 
 > **Key decisions:**
+>
 > - **GeoIP** uses **7 offline MaxMind GeoLite2 UDFs** (country, region, city, latitude, longitude, postcode, isp) — identical to the Docker version. The `.mmdb` files must be accessible from DBFS or UC Volume.
 > - **UA columns** (agent_type, browser_name, browser_version, operating_system, device_type) are **NOT included** in the Silver DDL — consistent with `02_silver_enrichment.py` scaffold and the dead columns plan. The `user_agent` raw string column is retained.
 > - **6 geo columns MUST stay in Silver** — the Airflow `export_dimensions` operator reads these from the Silver table to build `dim_geolocation`. Removing them would break that dimension.
@@ -1118,6 +1135,7 @@ Expected: Row count should approximately match input file line count. Log dates 
   > **⚠️ Micro-batch performance:** The `_make_geoip_udf` factory creates a new reader closure on every `@dlt.table` invocation. For pipelines processing thousands of micro-batches, this re-opens the `.mmdb` file on every trigger. Consider: (a) using `SparkFiles.get()` with a module-level singleton cache on executors to share the reader across UDF invocations, or (b) broadcasting the GeoIP database path via Spark broadcast variable and initialising the reader once per executor JVM. The current approach is correct for correctness but may benefit from this optimisation at scale.
 
 - [ ] Install `geoip2` library on the DLT cluster (cluster library or init script):
+
   ```
   # In Databricks cluster config → Libraries → Install PyPI:
   geoip2
@@ -1125,8 +1143,8 @@ Expected: Row count should approximately match input file line count. Log dates 
 
 - [ ] **Prerequisite: Download GeoLite2 databases (requires free MaxMind account)**
 
-  1. Register at https://www.maxmind.com/en/geolite2/signup (free account)
-  2. After login, go to https://www.maxmind.com/en/accounts/current/license-key → Generate New License Key
+  1. Register at <https://www.maxmind.com/en/geolite2/signup> (free account)
+  2. After login, go to <https://www.maxmind.com/en/accounts/current/license-key> → Generate New License Key
   3. Download GeoLite2-City and GeoLite2-ASN databases:
 
      ```bash
@@ -1207,6 +1225,7 @@ SELECT MIN(log_date), MAX(log_date), COUNT(DISTINCT log_date) FROM silver_enrich
 > **Schema boundary:** Azure `dbo.raw_enriched` is an internal bridge table with 31 columns (25 warehouse core columns + 6 GeoIP columns) so `export_dimensions_azure` can build `dbo.dim_geolocation` without reading Unity Catalog directly. This is intentionally wider than the current PostgreSQL `public.raw_enriched` 25-column warehouse table. The Power BI-facing contract is preserved at the dbt/CSV layer: `dbt_staging.fact_webrequest.csv` remains the fact export, and `dbo.dim_geolocation`/`dbo.dim_useragent` are exported under the existing `public.*.csv` filenames.
 
 > **Critical: Idempotency pattern** — mirror the existing `export_warehouse.py` 7-step pattern:
+>
 > 1. Read Silver from Unity Catalog
 > 2. Query tracking table for already-exported `source_file` values
 > 3. Filter to only new source files
@@ -1216,6 +1235,7 @@ SELECT MIN(log_date), MAX(log_date), COUNT(DISTINCT log_date) FROM silver_enrich
 > 7. Update tracking table `dbo.raw_enriched_loaded` with new source_file values
 >
 > **CRIT-5: MSSQL JDBC driver is NOT bundled with DBR.** The `mssql-jdbc` Maven library must be installed on the cluster. Install via:
+>
 > - **During pipeline execution:** Add `com.microsoft.sqlserver:mssql-jdbc:12.6.1.jre11` as a Maven library on the Databricks cluster or DLT pipeline
 > - **In Terraform:** Add `library { maven { coordinates = "com.microsoft.sqlserver:mssql-jdbc:12.6.1.jre11" } }` to the cluster configuration
 > - **Manual:** Cluster → Libraries → Install New → Maven → `com.microsoft.sqlserver:mssql-jdbc:12.6.1.jre11`
@@ -1554,6 +1574,7 @@ SELECT MIN(log_date), MAX(log_date), COUNT(DISTINCT log_date) FROM silver_enrich
   ```
 
 - [ ] Install `mssql-jdbc` Maven library on the Databricks cluster:
+
   ```python
   # Option A: Terraform (add to databricks_cluster or databricks_pipeline resource)
   # library {
@@ -1603,6 +1624,7 @@ SELECT COUNT(DISTINCT source_file) FROM dbo.raw_enriched_loaded;
 ### Phase 6 — Databricks Workflows Orchestration + Airflow Integration (2 hours)
 
 > **🔶 Splitting suggestion:** Phase 6 bundles 6 concerns (code upload, Terraform Part B, Airflow DAG, connections, export_dimensions_azure, Dockerfile changes, secret scope). If 2 hours is tight, pre-split into:
+>
 > - **Phase 6a (1h):** Code upload + Terraform Part B apply (pipeline + workflow creation)
 > - **Phase 6b (1h):** Airflow DAG + connections + export_dimensions_azure + secret scope
 
@@ -1612,16 +1634,18 @@ SELECT COUNT(DISTINCT source_file) FROM dbo.raw_enriched_loaded;
 > The `databricks_pipeline` resource requires `library { notebook { path } }` or `library { file { path } }` pointing to source code that must already exist on Databricks. **If the DLT Python files don't exist yet, Terraform apply fails.**
 >
 > **Solution:** Split Terraform into two phases:
+>
 > - **Terraform Part A (Phases 1-2):** Azure infrastructure only — resource group, storage, Databricks workspace, Unity Catalog, Azure SQL Database. Does NOT include `databricks_pipeline` or `databricks_job` resources.
 > - **Terraform Part B (Phase 6):** Code-dependent resources — uploaded DLT scripts, `databricks_pipeline` (DLT pipelines), `databricks_job` (Workflows). Applied AFTER Phases 3-5 write the code.
 
-  - [ ] Add Databricks provider to dependencies (already present — single installation only):
+- [ ] Add Databricks provider to dependencies (already present — single installation only):
 
   > **NOTE:** The Databricks provider (`apache-airflow-providers-databricks==4.6.0`) is installed in the Dockerfile only — NOT in `requirements.txt`. Installing it in both places is redundant and can cause pip version conflicts during iterative Docker builds. The Dockerfile RUN layer approach (separate layer after main pip install) version-bumps efficiently without reinstalling all base dependencies.
   >
   > **Note:** Unlike `apache-airflow-providers-apache-spark` (which previously used `--no-deps` but was updated to a full install to avoid pyspark import path issues), the Databricks provider is installed **without** `--no-deps` because it requires `databricks-sdk` as a runtime dependency for `DatabricksRunNowOperator`. Install `databricks-sdk` pinned in `requirements.txt` if needed.
   
   Already present in `airflow/Dockerfile`:
+
   ```dockerfile
   RUN pip install --no-cache-dir apache-airflow-providers-databricks==4.6.0
   ```
@@ -1786,6 +1810,7 @@ SELECT COUNT(DISTINCT source_file) FROM dbo.raw_enriched_loaded;
   > **No Gold DLT pipeline** — the Gold table was eliminated in Phase 5 as it added no transformation value (was just a column projection from Silver). The JDBC export reads from Silver directly.
   >
   > **Part B `outputs.tf`:** Create `terraform/part_b/outputs.tf` to export the Databricks job ID needed by Airflow. This replaces the Part A `module.databricks-pipelines.databricks_job_id` output that was removed in Phase 1 (that module doesn't exist in Part A):
+>
   > ```hcl
   > output "databricks_job_id" {
   >   description = "ID of the Databricks Workflow job (for Airflow DatabricksRunNowOperator)"
@@ -1850,10 +1875,11 @@ SELECT COUNT(DISTINCT source_file) FROM dbo.raw_enriched_loaded;
   ```
 
   > **Why only 3 tasks (not 4)?** The Gold DLT pipeline was eliminated (see Phase 5). The JDBC export reads from Silver directly. This saves a DLT pipeline run and its associated cost.
-  > 
+  >
   > **Note on `new_cluster` vs `existing_cluster_id`:** The job uses `new_cluster` by default so Terraform manages the cluster lifecycle (auto-creation + auto-termination). For debugging, switch to `existing_cluster_id` pointing to a persistent dev cluster. The MSSQL JDBC driver is installed via `spark.jars.packages` in `new_cluster.spark_conf`.
   
-  - [ ] Add `terraform/modules/databricks-pipelines/variables.tf`:
+- [ ] Add `terraform/modules/databricks-pipelines/variables.tf`:
+
   ```hcl
   variable "export_cluster_id" {
     description = "Optional: existing Databricks cluster ID for the JDBC export job task. If omitted, new_cluster is used (auto-created, auto-terminated)."
@@ -1867,7 +1893,8 @@ SELECT COUNT(DISTINCT source_file) FROM dbo.raw_enriched_loaded;
   }
   ```
   
-  - [ ] Define variables in the root `terraform/environments/dev/terraform.tfvars`:
+- [ ] Define variables in the root `terraform/environments/dev/terraform.tfvars`:
+
   ```hcl
   # Databricks cluster for the JDBC export spark_python_task.
   # Default: new_cluster (auto-created + auto-terminated).
@@ -2274,6 +2301,7 @@ SELECT COUNT(DISTINCT source_file) FROM dbo.raw_enriched_loaded;
 - [ ] **Set up Airflow connections for the Azure path:**
   
   Create the `databricks_default` connection in Airflow UI (Admin → Connections) or via CLI:
+
   ```bash
   # Generate a Databricks PAT token from: User Settings → Developer → Access Tokens
   airflow connections add databricks_default \
@@ -2355,6 +2383,7 @@ print('Azure DAG loaded successfully')
 ```
 
 Also verify the dimension export operator imports correctly:
+
 ```bash
 python -c "
 from operators.export_dimensions_azure import export_dimensions_azure
@@ -2369,6 +2398,7 @@ Expected: No import errors. The DAG appears in Airflow UI with all 2 tasks (trig
 > **⚠️ dbt DAG profile switching:** The existing `dbt_marts.py` DAG uses a hardcoded `--profile w3c` flag for PostgreSQL. When triggered by the Azure DAG's Dataset outlet, it must switch to `--profile w3c_azure` to target Azure SQL.
 >
 > **Required change:** Update `dbt_marts.py` to use `{{ env_var('DBT_PROFILE', 'w3c') }}` or a Dataset-aware branch:
+>
 > - **Option A (env_var):** Use `{{ env_var('DBT_PROFILE', 'w3c') }}` in dbt_project.yml (already done), then set `DBT_PROFILE=w3c_azure` as an Airflow environment variable in the Azure DAG's task context. The existing `dbt_marts.py` DAG reads `os.environ.get('DBT_PROFILE', 'w3c')` to decide the `--profile` flag.
 > - **Option B (separate dbt DAG):** Create `dbt_marts_azure.py` — a copy of `dbt_marts.py` with `--profile w3c_azure --target dev` hardcoded, listening to the same Dataset URI. Simpler but duplicates DAG code.
 > - **Option C (BranchPythonOperator):** Use a single DAG with a branch that checks a global Airflow Variable (`azure_mode`) to decide which profile to run.
@@ -2492,6 +2522,7 @@ Expected: No import errors. The DAG appears in Airflow UI with all 2 tasks (trig
 ### Phase 7 — dbt Migration to Azure SQL (5·8 hours) ⚠️ Highest effort
 
 > **⚠️ Split into 7a + 7b:** Phase 7 is the largest phase at 5–8 hours. Split it to reduce risk:
+>
 > - **Phase 7a (2–3 hours):** Create macro library, convert simple models (dim_date, dim_time, dim_status, dim_method, dim_visit_buckets, dim_visitortype, fact_webrequest, all 6 mart models). Test with `dbt compile --profile w3c_azure --target dev`.
 > - **Phase 7b (3–5 hours):** Convert regex-heavy models (dim_page, dim_referrer), full `dbt run`, `dbt test`, cross-check row counts. Highest risk of T-SQL approximation errors.
 
@@ -2505,6 +2536,7 @@ Expected: No import errors. The DAG appears in Airflow UI with all 2 tasks (trig
 #### 7.1 Cross-Database Macro Library
 
 1. Create the macros directory:
+
    ```bash
    mkdir -p airflow/dbt/w3c/macros
    ```
@@ -2725,6 +2757,7 @@ Below is the complete cross-reference for every PostgreSQL-only expression in al
 
 **T-SQL version for dim_time.sql (the inline `{% if %}` block for Azure SQL):**
 > **Note:** Azure SQL (compatibility level 160) supports `GENERATE_SERIES` natively. This is cleaner than the `sys.all_columns` ROW_NUMBER() approach. Use `GENERATE_SERIES` when available, fall back to the CTE pattern for older compatibility levels.
+
 ```sql
 WITH time_entries AS (
     SELECT
@@ -2750,7 +2783,9 @@ WITH time_entries AS (
 )
 SELECT * FROM time_entries
 ```
+
 > **Fallback for older compatibility levels (< 160):** Use `sys.all_columns` ROW_NUMBER() pattern:
+>
 > ```sql
 > (SELECT TOP 24 n = ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 FROM sys.all_columns) h
 > ```
@@ -2806,6 +2841,7 @@ Rather than creating `_azure.sql` duplicates (which would cause each `ref()` in 
 > **CRITICAL:** Do NOT create `_azure.sql` copies. dbt parses ALL `.sql` files in model-paths — having both `dim_date.sql` and `dim_date_azure.sql` creates two separate models named `dim_date` and `dim_date_azure`. The `ref('dim_date')` call would always resolve to the original, bypassing the Azure version entirely. The inline conditional approach avoids this entirely.
 
 **Example: dim_date.sql with macro conversion**
+
 ```sql
 WITH raw_dates AS (
     SELECT DISTINCT {{ tsql_cast('log_date', 'DATE') }} AS log_date
@@ -2834,6 +2870,7 @@ SELECT * FROM date_entries
 ```
 
 **Example: dim_referrer domain extraction with T-SQL block**
+
 ```sql
 referrer_domain:
 {% if target.type == 'sqlserver' %}
@@ -2878,6 +2915,7 @@ referrer_domain:
   The `w3c_azure` profile with `dev` and `azure_sql_ci` targets is already added to `airflow/dbt/profiles.yml`.
 
   For reference, the existing profile configuration:
+
   ```yaml
   w3c_azure:
     target: dev
@@ -2911,6 +2949,7 @@ referrer_domain:
         threads: 4
         retries: 3
   ```
+
   > **Why `trust_cert: false`?** Azure SQL Database enforces TLS — `trust_cert: false` validates the server's TLS certificate against a trusted CA. Setting `trust_cert: true` would skip certificate validation, which is both a security risk and unnecessary when Azure SQL's certificate chain is verifiable. The `encrypt: true` option ensures the connection is encrypted.
   >
   > **Why `azure_sql_ci` target?** This separate target is used by the CI workflow for `dbt compile --profile w3c_azure --target azure_sql_ci`. Even though CI can't actually connect to Azure SQL (no running database in CI), `dbt compile` only validates SQL compilation and doesn't open a database connection — so it succeeds without real credentials. The `dev` target is used for actual `dbt run`/`dbt test` against a live Azure SQL DB.
@@ -2921,11 +2960,13 @@ referrer_domain:
   The `profile` field already uses `{{ env_var('DBT_PROFILE', 'w3c') }}` in `airflow/dbt/w3c/dbt_project.yml`.
 
   For reference, the change was:
+
   ```yaml
   # Before: profile: 'w3c'
   # After:
   profile: "{{ env_var('DBT_PROFILE', 'w3c') }}"
   ```
+
   > **Why?** The DAG passes `--profile w3c_azure` for Azure SQL runs, but `dbt_project.yml` has a hardcoded `profile: 'w3c'`. dbt uses the `--profile` CLI flag as an override, so this works without changes to DAG commands — but using `env_var` makes the default explicit and allows the CI environment to set `DBT_PROFILE=w3c_azure` as an alternative.
   >
   > **⚠️ Side effect for `dbt compile` in CI:** The CI workflow runs `dbt compile --profile w3c_azure --target azure_sql_ci` with the `--profile` flag, which overrides the `dbt_project.yml` setting. The `env_var` default (`'w3c'`) is only used when no `--profile` flag is passed. Since the CI ALWAYS passes `--profile w3c_azure`, the `env_var` change has zero effect on CI. The benefit is for local development: developers can set `export DBT_PROFILE=w3c_azure` to make their default profile Azure SQL without changing CLI commands.
@@ -2936,6 +2977,7 @@ referrer_domain:
   The `database` and `schema` fields in `airflow/dbt/w3c/models/sources.yml` already use `{% if target.type == 'sqlserver' %}...{% endif %}` conditionals.
 
   For reference, the updated configuration:
+
   ```yaml
   sources:
     - name: w3c
@@ -2944,21 +2986,25 @@ referrer_domain:
       tables:
         - name: raw_enriched
   ```
+
   > **Why conditional `database`?** In the PostgreSQL path, the database is `w3c_warehouse`. In the Azure SQL path, the database is set via `AZURE_SQL_DB` environment variable. Without the conditional, `dbt compile --profile w3c_azure` would fail if `w3c_warehouse` doesn't exist in Azure SQL (the database name might differ). The `env_var` fallback `'w3c_warehouse'` ensures backward compatibility when the variable is unset.
 
 #### 7.6 Dependency & Driver Installation
 
 - [x] Add `dbt-sqlserver` adapter to `airflow/requirements.txt` (already done):
+
   ```
   dbt-sqlserver==1.8.4
   ```
+
   > **Version rationale:** Pinned to `1.8.4` for compatibility with `dbt-core==1.8.9`. Note that later `dbt-sqlserver` releases may require `dbt-core>=1.9` — check PyPI before upgrading dbt-core. Run `pip install --dry-run dbt-sqlserver==1.8.4` in the Docker image before committing to verify no conflicts with existing `protobuf>=5.27,<6` and `dbt-common==1.27.1` pins. If upgrading dbt-core to 1.9+, upgrade `dbt-sqlserver` in lockstep.
 
 - [x] Install ODBC Driver 18 (already done in Phase 6 and CI):
   - Dockerfile addition in Phase 6 handles this
-  - For local testing: https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server
+  - For local testing: <https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server>
 
 - [x] **Add dbt Azure SQL compile step to CI (`.github/workflows/ci.yml`) — already done:**
+
   ```yaml
   - name: Install dbt-sqlserver
     run: pip install "dbt-sqlserver==1.8.4"
@@ -2977,6 +3023,7 @@ referrer_domain:
   - name: dbt compile (Azure SQL/T-SQL validation)
     run: dbt compile --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3c_azure --target azure_sql_ci
   ```
+
   > **Why `--target azure_sql_ci` instead of `--target dev`?** The `azure_sql_ci` target uses placeholder credentials (no real Azure SQL connection needed — `dbt compile` never connects to the database). Using a separate target avoids leaking CI placeholder values into the `dev` target, which is used with real credentials during local development.
   >
   > **Why OS detection for the ODBC repo?** GitHub Actions runners may use either Ubuntu 24.04 (`ubuntu-latest`) or Debian 12 (Docker-based environments). The Microsoft repo path differs between Debian and Ubuntu. The `if grep -qi ubuntu /etc/os-release` check selects the correct repo for each OS.
@@ -2984,6 +3031,7 @@ referrer_domain:
   > **Why ODBC driver is needed in CI:** `dbt-sqlserver` imports `pyodbc` at module load time, which loads the native `libmsodbcsql-18.so` shared library. Even `dbt compile` (which doesn't connect to the database) triggers this import. Without the ODBC driver installed, the CI step crashes with `ImportError: dlopen: library not loaded`. If the driver cannot be installed in your CI environment, skip this step — it's a compile-time validation only, and the models will compile correctly on deploy targets where the driver IS installed (Docker, Databricks).
 
 #### 7.7 Testing
+>
 > **Note:** All dbt commands use `--profile w3c_azure --target dev` instead of `--target azure` because `--target` selects a target *within* a profile, not a profile name. The profile is named `w3c_azure` and the target within it is `dev`.
 >
 > **Testing order:** Always run `dbt compile` first. This catches SQL dialect errors (invalid T-SQL syntax) without needing a running Azure SQL Database. See "compile-first" pattern below.
@@ -3102,6 +3150,7 @@ referrer_domain:
 - [ ] Manual: verify Docker path still works (`pytest -m integration` if stack up)
 - [ ] Review Azure cost dashboard: confirm within budget
 - [ ] **CI check (add to `.github/workflows/ci.yml`):**
+
   ```yaml
   terraform-check:
     runs-on: ubuntu-latest
@@ -3203,12 +3252,14 @@ Phase 10 (Verify) ◄───────────────────�
 ```
 
 **Critical: Terraform Part A/B split:**
+
 - **Part A (Phase 1–2):** Core infrastructure — resource group, storage, Databricks workspace, Unity Catalog, Azure SQL Database. Does NOT include `databricks_pipeline` or `databricks_job` resources (those depend on DLT source code existing).
 - **Part B (Phase 6):** Code-dependent resources — `databricks_pipeline` (DLT), `databricks_job` (Workflows). Applied AFTER Phases 3–5 write the DLT code to the Databricks workspace.
 >
 > **Why this split?** The `databricks_pipeline` Terraform resource requires `library { file { path } }` pointing to source code that must already exist on Databricks. If the DLT Python files don't exist yet, `terraform apply` fails. Part A creates the workspace; Part B creates pipelines referencing code uploaded to that workspace.
 
 **Parallel notes:**
+
 - Phase 1 must complete before Phase 2
 - Phases 3–5 are sequential (each builds on the DLT pipeline)
 - Phase 6 depends on Phases 3–5 completing (needs pipeline IDs + uploaded code for Workflow definition)
@@ -3223,12 +3274,15 @@ Phase 10 (Verify) ◄───────────────────�
 ## 9. Resume Lines
 
 ### Primary (Data Engineering - Azure/Databricks)
+>
 > *"Built a cloud-native data platform on Azure using Terraform, provisioning ADLS Gen2 storage, Databricks with Unity Catalog, and Azure SQL Database. Designed a Delta Live Tables medallion pipeline with Auto Loader ingestion and Databricks Workflows orchestration, replacing a Docker-based Spark pipeline — reducing infrastructure overhead and adding declarative data quality."*
 
 ### Alternative (IaC + DevOps angle)
+>
 > *"Provisioned a complete Azure data platform infrastructure using Terraform, including ADLS Gen2, Databricks Premium workspace with Unity Catalog, and serverless Azure SQL Database — with cost-aware cluster management keeping full-pipeline runs under $10."*
 
 ### Alternative (Full-stack DE)
+>
 > *"Extended an existing Airflow + dbt + Docker ETL pipeline with a cloud-native Azure deployment path, adding Databricks Delta Live Tables, Auto Loader cloud ingestion, and Databricks Workflows orchestration — supporting hybrid local/cloud execution without disrupting the downstream dbt analytics contract."*
 
 ---
@@ -3239,17 +3293,17 @@ Phase 10 (Verify) ◄───────────────────�
 - **New DAG:** `airflow/dags/w3c/spark_ingestion_azure.py` (Phase 6)
 - **Existing Databricks scaffolding:** `airflow/spark/databricks/01_bronze_ingestion.py` → `03_export_warehouse.py` (reference for W3C parsing, replaced by DLT)
 - **Docker PySpark jobs:** `airflow/spark/jobs/{bronze,silver,export}_*.py`
-- **MaxMind GeoLite2:** `airflow/spark/jobs/utils/geoip.py` (7 UDFs), signup at https://www.maxmind.com/en/geolite2/signup
+- **MaxMind GeoLite2:** `airflow/spark/jobs/utils/geoip.py` (7 UDFs), signup at <https://www.maxmind.com/en/geolite2/signup>
 - **W3C parser:** `airflow/spark/jobs/utils/w3c_parser.py`, `airflow/spark/databricks/01_bronze_ingestion.py::parse_log_line()`
 - **export_dimensions (Docker):** `airflow/plugins/operators/export_dimensions.py`
 - **export_dimensions_azure (new):** `airflow/plugins/operators/export_dimensions_azure.py` (Phase 6)
 - **Dead columns cleanup:** `plans/fact-webrequest-dead-col-cleanup.md`
 - **Architecture:** `.agents/architecture-v3.md`
 - **Improvements:** `.agents/improvements.md` (will be updated in Phase 9)
-- **Terraform Azure provider:** https://registry.terraform.io/providers/hashicorp/azurerm/latest
-- **Databricks Terraform provider:** https://registry.terraform.io/providers/databricks/databricks/latest
-- **Delta Live Tables docs:** https://docs.databricks.com/delta-live-tables/
-- **Auto Loader docs (Binary File):** https://docs.databricks.com/en/ingestion/auto-loader/file-formats.html#binary-file-format
-- **Azure SQL + dbt:** https://docs.getdbt.com/docs/core/connect-data-platform/sqlserver-setup
-- **Apache Airflow Databricks provider:** https://airflow.apache.org/docs/apache-airflow-providers-databricks/stable/
-- **Azure free credits:** https://azure.microsoft.com/en-gb/free/
+- **Terraform Azure provider:** <https://registry.terraform.io/providers/hashicorp/azurerm/latest>
+- **Databricks Terraform provider:** <https://registry.terraform.io/providers/databricks/databricks/latest>
+- **Delta Live Tables docs:** <https://docs.databricks.com/delta-live-tables/>
+- **Auto Loader docs (Binary File):** <https://docs.databricks.com/en/ingestion/auto-loader/file-formats.html#binary-file-format>
+- **Azure SQL + dbt:** <https://docs.getdbt.com/docs/core/connect-data-platform/sqlserver-setup>
+- **Apache Airflow Databricks provider:** <https://airflow.apache.org/docs/apache-airflow-providers-databricks/stable/>
+- **Azure free credits:** <https://azure.microsoft.com/en-gb/free/>
