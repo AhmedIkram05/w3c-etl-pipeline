@@ -69,6 +69,10 @@ jobs:
       W3C_DB_NAME: w3c_warehouse
       W3C_DB_USER: airflow
       W3C_DB_PASS: airflow
+      AZURE_SQL_SERVER: ci-test.database.windows.net
+      AZURE_SQL_DB: w3c_warehouse
+      AZURE_SQL_USER: ci_user
+      AZURE_SQL_PASSWORD: ci_password
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -82,5 +86,12 @@ jobs:
         run: dbt compile --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
       - name: Install dbt-sqlserver
         run: pip install "dbt-sqlserver==1.8.4"
+      - name: Install ODBC Driver 18 for SQL Server (required by dbt-sqlserver adapter)
+        run: |
+          sudo apt-get update && sudo apt-get install -y curl gnupg2
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
       - name: dbt parse (Azure SQL/T-SQL validation)
-        run: dbt parse --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3c_azure --target azure_sql_ci || echo "Note: dbt parse with --profile w3c_azure validates model DAG structure; requires active Azure SQL DB for full compile."
+        run: dbt parse --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3c_azure --target azure_sql_ci
