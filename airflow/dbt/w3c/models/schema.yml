@@ -367,6 +367,12 @@ models:
         description: "Count of requests with response time exceeding 5000ms"
       - name: pct_slow_requests
         description: "Percentage of requests with response time exceeding 5000ms"
+      - name: peak_hour_requests
+        description: "Highest request count across all 24 hours for this day"
+      - name: peak_traffic_hour
+        description: "Hour of day (0-23) with the most requests"
+      - name: top_browser_share
+        description: "Percentage of the day's total traffic from the #1 browser by request count"
 
   - name: mart_crawler_analysis
     description: "Crawler behavior analysis with error rates, resource usage, and host-level metrics"
@@ -479,3 +485,26 @@ models:
         description: "Percentage of the day's total traffic"
       - name: browser_rank
         description: "Rank of this browser family for the day (1 = most traffic)"
+
+  - name: mart_country_browser_share
+    description: "Top browser share broken down by country per day, showing the dominant browser and its share of each country's traffic"
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "top_browser_share_pct >= 0 AND top_browser_share_pct <= 100"
+    columns:
+      - name: date_sk
+        description: "Foreign key to dim_date"
+        tests:
+          - not_null
+      - name: date
+        description: "Calendar date"
+      - name: country
+        description: "Country name"
+        tests:
+          - not_null
+      - name: top_browser
+        description: "Browser family with the highest request count for this country and day"
+      - name: top_browser_requests
+        description: "Request count for the top browser"
+      - name: top_browser_share_pct
+        description: "Percentage of the country's daily traffic from the top browser"
