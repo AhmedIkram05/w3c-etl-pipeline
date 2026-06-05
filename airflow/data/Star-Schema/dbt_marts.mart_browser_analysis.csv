@@ -1,0 +1,1657 @@
+date_sk,date,browser_name,operating_system,device_type,is_mobile,device_category,total_requests,unique_hosts,avg_response_time_ms,total_bytes_sent,pct_of_daily_traffic,browser_rank
+20091024,2009-10-24,Other,Other,Other,0,Desktop,5,1,171.20,0,45.45,1
+20091024,2009-10-24,IE,Windows,Desktop,0,Desktop,3,1,222.00,0,27.27,2
+20091024,2009-10-24,Firefox,Windows,Desktop,0,Desktop,3,2,130.00,0,27.27,3
+20091025,2009-10-25,IE,Windows,Desktop,0,Desktop,20,1,131.15,0,18.18,1
+20091102,2009-11-02,IE,Windows,Desktop,0,Desktop,3553,7,141.42,0,94.97,1
+20091102,2009-11-02,Firefox,Windows,Desktop,0,Desktop,88,2,252.15,0,2.35,2
+20091102,2009-11-02,Firefox,Mac OS X,Desktop,0,Desktop,71,1,162.41,0,1.90,3
+20091102,2009-11-02,Safari,Mac OS X,Desktop,0,Desktop,29,1,170.24,0,0.78,4
+20091103,2009-11-03,IE,Windows,Desktop,0,Desktop,2982,6,142.21,0,82.10,1
+20091103,2009-11-03,Firefox,Windows,Desktop,0,Desktop,299,2,445.16,0,8.23,2
+20091103,2009-11-03,Firefox,Mac OS X,Desktop,0,Desktop,207,1,161.99,0,5.70,3
+20091103,2009-11-03,Safari,Mac OS X,Desktop,0,Desktop,144,1,147.97,0,3.96,4
+20091106,2009-11-06,IE,Windows,Desktop,0,Desktop,187,2,175.66,0,66.55,1
+20091106,2009-11-06,Firefox,Mac OS X,Desktop,0,Desktop,72,1,128.82,0,25.62,2
+20091106,2009-11-06,Safari,Mac OS X,Desktop,0,Desktop,22,1,124.32,0,7.83,3
+20091120,2009-11-20,IE,Windows,Desktop,0,Desktop,939,2,313.46,0,97.10,1
+20091120,2009-11-20,Other,Other,Other,0,Desktop,18,1,143.17,0,1.86,2
+20091120,2009-11-20,IE,Windows,Other,0,Desktop,10,1,81.00,0,1.03,3
+20091123,2009-11-23,IE,Windows,Desktop,0,Desktop,1444,7,136.60,0,73.94,1
+20091123,2009-11-23,Safari,Mac OS X,Desktop,0,Desktop,326,2,60.68,0,16.69,2
+20091123,2009-11-23,Firefox,Windows,Desktop,0,Desktop,172,2,90.77,0,8.81,3
+20091123,2009-11-23,Firefox,Linux,Desktop,0,Desktop,2,1,930.00,0,0.10,4
+20091130,2009-11-30,Firefox,Mac OS X,Desktop,0,Desktop,410,2,625.20,0,67.88,1
+20091130,2009-11-30,Googlebot,Other,Bot,0,Mobile/Tablet,168,1,326.59,0,27.81,2
+20091130,2009-11-30,Googlebot-Image,Other,Bot,0,Mobile/Tablet,17,1,158.41,0,2.81,3
+20091130,2009-11-30,Firefox,Windows,Desktop,0,Desktop,6,2,431.00,0,0.99,4
+20091130,2009-11-30,IE,Windows,Desktop,0,Desktop,1,1,319.00,0,0.17,5
+20091130,2009-11-30,Maxthon,Windows,Desktop,0,Desktop,1,1,368.00,0,0.17,6
+20091130,2009-11-30,Safari,Mac OS X,Desktop,0,Desktop,1,1,496.00,0,0.17,7
+20091207,2009-12-07,Googlebot,Other,Bot,0,Mobile/Tablet,1681,4,342.09,0,50.95,1
+20091207,2009-12-07,IE,Windows,Desktop,0,Desktop,922,34,363.74,0,27.95,2
+20091207,2009-12-07,robot,Other,Bot,0,Mobile/Tablet,201,1,638.55,0,6.09,3
+20091207,2009-12-07,Firefox,Windows,Desktop,0,Desktop,171,19,614.81,0,5.18,4
+20091207,2009-12-07,Googlebot-Image,Other,Bot,0,Mobile/Tablet,106,1,289.62,0,3.21,5
+20091207,2009-12-07,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,70,1,723.36,0,2.12,6
+20091207,2009-12-07,Safari,Mac OS X,Desktop,0,Desktop,43,4,229.37,0,1.30,7
+20091207,2009-12-07,Maxthon,Windows,Desktop,0,Desktop,21,3,791.86,0,0.64,8
+20091207,2009-12-07,Chrome,Linux,Desktop,0,Desktop,17,1,94.24,0,0.52,9
+20091207,2009-12-07,Other,Windows,Other,0,Desktop,6,2,698.50,0,0.18,10
+20091207,2009-12-07,Exabot,Other,Bot,0,Mobile/Tablet,5,1,133.00,0,0.15,11
+20091207,2009-12-07,IE,Windows,Other,0,Desktop,5,1,45.80,0,0.15,12
+20091207,2009-12-07,Firefox,Ubuntu,Desktop,0,Desktop,4,3,3767.25,0,0.12,13
+20091207,2009-12-07,Other,Other,Other,0,Desktop,4,2,515.25,0,0.12,14
+20091207,2009-12-07,FacebookBot,Other,Bot,0,Mobile/Tablet,3,2,683.00,0,0.09,15
+20091207,2009-12-07,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,2,275.67,0,0.09,16
+20091207,2009-12-07,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,677.00,0,0.06,17
+20091207,2009-12-07,MLBot,Other,Bot,0,Mobile/Tablet,2,1,518.00,0,0.06,18
+20091207,2009-12-07,Firefox,Mac OS X,Desktop,0,Desktop,2,2,334.00,0,0.06,19
+20091207,2009-12-07,Baiduspider,Other,Bot,0,Mobile/Tablet,1,1,270.00,0,0.03,20
+20091207,2009-12-07,Opera,Windows,Desktop,0,Desktop,1,1,819.00,0,0.03,21
+20091207,2009-12-07,Firefox,Fedora,Desktop,0,Desktop,1,1,1373.00,0,0.03,22
+20091211,2009-12-11,IE,Windows,Desktop,0,Desktop,287,24,376.84,0,27.41,1
+20091211,2009-12-11,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,231,2,620.87,0,22.06,2
+20091211,2009-12-11,Googlebot-Image,Other,Bot,0,Mobile/Tablet,102,3,811.91,0,9.74,3
+20091211,2009-12-11,robot,Other,Bot,0,Mobile/Tablet,82,1,605.51,0,7.83,4
+20091211,2009-12-11,IE,Windows,Other,0,Desktop,76,2,273.11,0,7.26,5
+20091211,2009-12-11,Googlebot,Other,Bot,0,Mobile/Tablet,75,3,356.39,0,7.16,6
+20091211,2009-12-11,Safari,Mac OS X,Desktop,0,Desktop,74,2,323.05,0,7.07,7
+20091211,2009-12-11,Firefox,Windows,Desktop,0,Desktop,69,5,421.96,0,6.59,8
+20091211,2009-12-11,Firefox,Mac OS X,Desktop,0,Desktop,16,1,260.63,0,1.53,9
+20091211,2009-12-11,Safari,Other,Other,0,Desktop,14,3,339.86,0,1.34,10
+20091211,2009-12-11,Other,Windows,Other,0,Desktop,5,2,546.60,0,0.48,11
+20091211,2009-12-11,Opera,Windows,Desktop,0,Desktop,4,2,1802.50,0,0.38,12
+20091211,2009-12-11,Ask Jeeves,Other,Bot,0,Mobile/Tablet,2,1,237.50,0,0.19,13
+20091211,2009-12-11,Other,Other,Other,0,Desktop,2,2,95.50,0,0.19,14
+20091211,2009-12-11,Chrome,Windows,Desktop,0,Desktop,2,1,721.50,0,0.19,15
+20091211,2009-12-11,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,654.50,0,0.19,16
+20091211,2009-12-11,Baiduspider,Other,Bot,0,Mobile/Tablet,1,1,260.00,0,0.10,17
+20091213,2009-12-13,robot,Other,Bot,0,Mobile/Tablet,380,1,739.68,0,25.78,1
+20091213,2009-12-13,Firefox,Windows,Desktop,0,Desktop,261,9,412.03,0,17.71,2
+20091213,2009-12-13,Googlebot,Other,Bot,0,Mobile/Tablet,254,2,579.95,0,17.23,3
+20091213,2009-12-13,IE,Windows,Desktop,0,Desktop,252,8,445.81,0,17.10,4
+20091213,2009-12-13,Safari,Mac OS X,Desktop,0,Desktop,101,3,269.11,0,6.85,5
+20091213,2009-12-13,Googlebot-Image,Other,Bot,0,Mobile/Tablet,92,2,902.16,0,6.24,6
+20091213,2009-12-13,Firefox,Mac OS X,Desktop,0,Desktop,84,2,568.33,0,5.70,7
+20091213,2009-12-13,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,26,1,652.46,0,1.76,8
+20091213,2009-12-13,Chrome,Windows,Desktop,0,Desktop,15,1,743.67,0,1.02,9
+20091213,2009-12-13,Other,Windows,Other,0,Desktop,3,2,186.00,0,0.20,10
+20091213,2009-12-13,Ask Jeeves,Other,Bot,0,Mobile/Tablet,2,1,345.50,0,0.14,11
+20091213,2009-12-13,FacebookBot,Other,Bot,0,Mobile/Tablet,2,1,337.50,0,0.14,12
+20091213,2009-12-13,Other,Other,Other,0,Desktop,1,1,427.00,0,0.07,13
+20091213,2009-12-13,Baiduspider,Other,Bot,0,Mobile/Tablet,1,1,287.00,0,0.07,14
+20100104,2010-01-04,Nutscrape,Other,Other,0,Desktop,548,1,1066.06,0,33.56,1
+20100104,2010-01-04,IE,Windows,Desktop,0,Desktop,475,27,624.61,0,29.09,2
+20100104,2010-01-04,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,210,2,575.34,0,12.86,3
+20100104,2010-01-04,Other,Windows,Other,0,Desktop,165,1,293.76,0,10.10,4
+20100104,2010-01-04,Googlebot,Other,Bot,0,Mobile/Tablet,57,2,370.79,0,3.49,5
+20100104,2010-01-04,Chrome,Windows,Desktop,0,Desktop,55,3,557.18,0,3.37,6
+20100104,2010-01-04,Googlebot-Image,Other,Bot,0,Mobile/Tablet,39,3,163.46,0,2.39,7
+20100104,2010-01-04,Mobile Safari,iOS,Mobile,1,Mobile/Tablet,23,1,800.13,0,1.41,8
+20100104,2010-01-04,Opera,Windows,Desktop,0,Desktop,17,1,262.88,0,1.04,9
+20100104,2010-01-04,IE,Windows,Other,0,Desktop,10,2,252.50,0,0.61,10
+20100104,2010-01-04,robot,Other,Bot,0,Mobile/Tablet,7,1,544.57,0,0.43,11
+20100104,2010-01-04,msnbot,Other,Bot,0,Mobile/Tablet,7,4,220.00,0,0.43,12
+20100104,2010-01-04,Firefox,Windows,Desktop,0,Desktop,6,5,501.83,0,0.37,13
+20100104,2010-01-04,Ask Jeeves,Other,Bot,0,Mobile/Tablet,4,2,288.25,0,0.24,14
+20100104,2010-01-04,SurveyBot,Windows,Desktop,0,Desktop,3,1,455.33,0,0.18,15
+20100104,2010-01-04,yacybot,Linux,Bot,0,Mobile/Tablet,2,1,165.50,0,0.12,16
+20100104,2010-01-04,Baiduspider,Other,Bot,0,Mobile/Tablet,2,2,276.00,0,0.12,17
+20100104,2010-01-04,Other,Other,Other,0,Desktop,1,1,62.00,0,0.06,18
+20100105,2010-01-05,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,359,2,637.71,0,22.51,1
+20100105,2010-01-05,IE,Windows,Desktop,0,Desktop,350,23,949.15,0,21.94,2
+20100105,2010-01-05,Zune,Windows,Desktop,0,Desktop,225,1,495.31,0,14.11,3
+20100105,2010-01-05,Other,Windows,Other,0,Desktop,193,1,305.84,0,12.10,4
+20100105,2010-01-05,Firefox,Windows,Desktop,0,Desktop,96,5,574.28,0,6.02,5
+20100105,2010-01-05,Firefox,Ubuntu,Desktop,0,Desktop,95,1,215.42,0,5.96,6
+20100105,2010-01-05,robot,Other,Bot,0,Mobile/Tablet,73,1,687.08,0,4.58,7
+20100105,2010-01-05,Googlebot,Other,Bot,0,Mobile/Tablet,46,1,433.70,0,2.88,8
+20100105,2010-01-05,Googlebot-Image,Other,Bot,0,Mobile/Tablet,42,2,104.00,0,2.63,9
+20100105,2010-01-05,Safari,Mac OS X,Desktop,0,Desktop,30,1,205.67,0,1.88,10
+20100105,2010-01-05,Chrome,Windows,Desktop,0,Desktop,19,1,422.16,0,1.19,11
+20100105,2010-01-05,Firefox,Mac OS X,Desktop,0,Desktop,17,1,396.82,0,1.07,12
+20100105,2010-01-05,Opera,Windows,Desktop,0,Desktop,16,1,212.25,0,1.00,13
+20100105,2010-01-05,AOL,Windows,Desktop,0,Desktop,15,1,325.07,0,0.94,14
+20100105,2010-01-05,Orgbybot,Other,Bot,0,Mobile/Tablet,4,1,210.75,0,0.25,15
+20100105,2010-01-05,IE,Windows,Other,0,Desktop,3,1,21.00,0,0.19,16
+20100105,2010-01-05,msnbot,Other,Bot,0,Mobile/Tablet,2,1,323.50,0,0.13,17
+20100105,2010-01-05,FacebookBot,Other,Bot,0,Mobile/Tablet,2,2,604.50,0,0.13,18
+20100105,2010-01-05,Baiduspider,Other,Bot,0,Mobile/Tablet,2,2,306.50,0,0.13,19
+20100105,2010-01-05,Firefox,Linux,Desktop,0,Desktop,2,1,432.00,0,0.13,20
+20100105,2010-01-05,Sogou web spider,Other,Bot,0,Mobile/Tablet,1,1,276.00,0,0.06,21
+20100106,2010-01-06,IE,Windows,Desktop,0,Desktop,2228,23,376.28,0,62.39,1
+20100106,2010-01-06,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,449,1,621.05,0,12.57,2
+20100106,2010-01-06,Other,Windows,Other,0,Desktop,294,2,316.34,0,8.23,3
+20100106,2010-01-06,Firefox,Windows,Desktop,0,Desktop,193,11,273.79,0,5.40,4
+20100106,2010-01-06,Googlebot,Other,Bot,0,Mobile/Tablet,89,4,357.42,0,2.49,5
+20100106,2010-01-06,Googlebot-Image,Other,Bot,0,Mobile/Tablet,64,3,143.39,0,1.79,6
+20100106,2010-01-06,Other,Other,Other,0,Desktop,64,2,421.16,0,1.79,7
+20100106,2010-01-06,Firefox,Ubuntu,Desktop,0,Desktop,52,1,555.52,0,1.46,8
+20100106,2010-01-06,robot,Other,Bot,0,Mobile/Tablet,48,1,634.94,0,1.34,9
+20100106,2010-01-06,Zune,Windows,Desktop,0,Desktop,42,1,395.48,0,1.18,10
+20100106,2010-01-06,Chrome,Linux,Desktop,0,Desktop,19,1,145.74,0,0.53,11
+20100106,2010-01-06,Firefox,Mac OS X,Desktop,0,Desktop,15,1,257.53,0,0.42,12
+20100106,2010-01-06,msnbot,Other,Bot,0,Mobile/Tablet,9,5,250.33,0,0.25,13
+20100106,2010-01-06,Baiduspider,Other,Bot,0,Mobile/Tablet,2,2,282.50,0,0.06,14
+20100106,2010-01-06,IE,Windows,Other,0,Desktop,1,1,159.00,0,0.03,15
+20100106,2010-01-06,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,325.00,0,0.03,16
+20100106,2010-01-06,Safari,Mac OS X,Desktop,0,Desktop,1,1,827.00,0,0.03,17
+20100112,2010-01-12,Other,Other,Other,0,Desktop,3760,74,194.75,0,53.08,1
+20100112,2010-01-12,Googlebot,Other,Bot,0,Mobile/Tablet,1822,2,510.61,0,25.72,2
+20100112,2010-01-12,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,372,1,581.72,0,5.25,3
+20100112,2010-01-12,Firefox,Windows,Desktop,0,Desktop,368,14,346.21,0,5.19,4
+20100112,2010-01-12,IE,Windows,Desktop,0,Desktop,330,25,1632.26,0,4.66,5
+20100112,2010-01-12,Googlebot-Image,Other,Bot,0,Mobile/Tablet,101,1,239.93,0,1.43,6
+20100112,2010-01-12,Other,Windows,Other,0,Desktop,97,2,278.25,0,1.37,7
+20100112,2010-01-12,Firefox,Mac OS X,Desktop,0,Desktop,90,2,238.08,0,1.27,8
+20100112,2010-01-12,robot,Other,Bot,0,Mobile/Tablet,58,1,654.91,0,0.82,9
+20100112,2010-01-12,Safari,Mac OS X,Desktop,0,Desktop,42,2,109.38,0,0.59,10
+20100112,2010-01-12,Firefox,Ubuntu,Desktop,0,Desktop,16,1,150.31,0,0.23,11
+20100112,2010-01-12,Chrome,Windows,Desktop,0,Desktop,8,1,181.75,0,0.11,12
+20100112,2010-01-12,msnbot,Other,Bot,0,Mobile/Tablet,8,4,236.38,0,0.11,13
+20100112,2010-01-12,Baiduspider,Other,Bot,0,Mobile/Tablet,4,3,297.25,0,0.06,14
+20100112,2010-01-12,Nutch,Other,Bot,0,Mobile/Tablet,2,1,550.50,0,0.03,15
+20100112,2010-01-12,Ask Jeeves,Other,Bot,0,Mobile/Tablet,2,1,235.50,0,0.03,16
+20100112,2010-01-12,FacebookBot,Other,Bot,0,Mobile/Tablet,2,2,337.00,0,0.03,17
+20100112,2010-01-12,Zune,Windows,Desktop,0,Desktop,1,1,7216.00,0,0.01,18
+20100112,2010-01-12,Other,Other,Mobile,1,Mobile/Tablet,1,1,62.00,0,0.01,19
+20100113,2010-01-13,Googlebot,Other,Bot,0,Mobile/Tablet,1382,4,559.36,0,43.23,1
+20100113,2010-01-13,IE,Windows,Desktop,0,Desktop,853,21,283.29,0,26.68,2
+20100113,2010-01-13,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,367,1,601.41,0,11.48,3
+20100113,2010-01-13,Firefox,Windows,Desktop,0,Desktop,305,11,539.15,0,9.54,4
+20100113,2010-01-13,Other,Windows,Other,0,Desktop,83,2,321.83,0,2.60,5
+20100113,2010-01-13,Googlebot-Image,Other,Bot,0,Mobile/Tablet,76,3,250.54,0,2.38,6
+20100113,2010-01-13,Chrome,Windows,Desktop,0,Desktop,31,2,332.52,0,0.97,7
+20100113,2010-01-13,Other,Other,Other,0,Desktop,27,2,345.89,0,0.84,8
+20100113,2010-01-13,robot,Other,Bot,0,Mobile/Tablet,26,1,555.42,0,0.81,9
+20100113,2010-01-13,Firefox,Mac OS X,Desktop,0,Desktop,15,1,316.67,0,0.47,10
+20100113,2010-01-13,SeaMonkey,Mac OS X,Desktop,0,Desktop,15,1,481.07,0,0.47,11
+20100113,2010-01-13,msnbot,Other,Bot,0,Mobile/Tablet,6,3,286.33,0,0.19,12
+20100113,2010-01-13,Exabot,Other,Bot,0,Mobile/Tablet,3,1,110.00,0,0.09,13
+20100113,2010-01-13,Outlook,Windows,Desktop,0,Desktop,2,1,366.00,0,0.06,14
+20100113,2010-01-13,Baiduspider,Other,Bot,0,Mobile/Tablet,2,2,294.00,0,0.06,15
+20100113,2010-01-13,Ask Jeeves,Other,Bot,0,Mobile/Tablet,2,1,231.00,0,0.06,16
+20100113,2010-01-13,IE,Windows,Other,0,Desktop,1,1,22.00,0,0.03,17
+20100113,2010-01-13,TerraSpider,Other,Bot,0,Mobile/Tablet,1,1,896.00,0,0.03,18
+20100117,2010-01-17,Googlebot,Other,Bot,0,Mobile/Tablet,1191,2,386.00,0,43.72,1
+20100117,2010-01-17,IE,Windows,Desktop,0,Desktop,634,25,551.35,0,23.27,2
+20100117,2010-01-17,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,236,1,531.46,0,8.66,3
+20100117,2010-01-17,Other,Windows,Other,0,Desktop,189,1,279.45,0,6.94,4
+20100117,2010-01-17,Chrome,Windows,Desktop,0,Desktop,173,4,297.77,0,6.35,5
+20100117,2010-01-17,Firefox,Windows,Desktop,0,Desktop,123,9,521.26,0,4.52,6
+20100117,2010-01-17,Googlebot-Image,Other,Bot,0,Mobile/Tablet,91,1,217.59,0,3.34,7
+20100117,2010-01-17,Safari,Mac OS X,Desktop,0,Desktop,26,1,552.73,0,0.95,8
+20100117,2010-01-17,Firefox,Ubuntu,Desktop,0,Desktop,16,1,81.13,0,0.59,9
+20100117,2010-01-17,Firefox,Mac OS X,Desktop,0,Desktop,15,1,195.20,0,0.55,10
+20100117,2010-01-17,msnbot,Other,Bot,0,Mobile/Tablet,12,7,448.58,0,0.44,11
+20100117,2010-01-17,robot,Other,Bot,0,Mobile/Tablet,4,1,450.25,0,0.15,12
+20100117,2010-01-17,Other,Other,Other,0,Desktop,4,4,164.25,0,0.15,13
+20100117,2010-01-17,Baiduspider,Other,Bot,0,Mobile/Tablet,2,2,281.50,0,0.07,14
+20100117,2010-01-17,Speedy Spider,Other,Bot,0,Mobile/Tablet,2,1,489.00,0,0.07,15
+20100117,2010-01-17,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,849.50,0,0.07,16
+20100117,2010-01-17,Avant,Windows,Desktop,0,Desktop,1,1,611.00,0,0.04,17
+20100117,2010-01-17,Obigo,Other,Mobile,1,Mobile/Tablet,1,1,1168.00,0,0.04,18
+20100117,2010-01-17,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,341.00,0,0.04,19
+20100131,2010-01-31,IE,Windows,Desktop,0,Desktop,585,17,346.79,0,38.21,1
+20100131,2010-01-31,Other,Windows,Other,0,Desktop,224,1,316.95,0,14.63,2
+20100131,2010-01-31,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,189,2,655.60,0,12.34,3
+20100131,2010-01-31,Firefox,Windows,Desktop,0,Desktop,181,9,630.39,0,11.82,4
+20100131,2010-01-31,Googlebot,Other,Bot,0,Mobile/Tablet,173,3,815.06,0,11.30,5
+20100131,2010-01-31,Chrome,Windows,Desktop,0,Desktop,42,3,563.05,0,2.74,6
+20100131,2010-01-31,Googlebot-Image,Other,Bot,0,Mobile/Tablet,28,1,162.18,0,1.83,7
+20100131,2010-01-31,Firefox,Ubuntu,Desktop,0,Desktop,16,1,117.50,0,1.05,8
+20100131,2010-01-31,Safari,Mac OS X,Desktop,0,Desktop,15,1,198.13,0,0.98,9
+20100131,2010-01-31,msnbot,Other,Bot,0,Mobile/Tablet,4,2,357.00,0,0.26,10
+20100131,2010-01-31,Exabot,Other,Bot,0,Mobile/Tablet,2,1,109.00,0,0.13,11
+20100131,2010-01-31,ia_archiver,Other,Bot,0,Mobile/Tablet,2,1,332.00,0,0.13,12
+20100131,2010-01-31,Nutch,Other,Bot,0,Mobile/Tablet,2,1,179.00,0,0.13,13
+20100131,2010-01-31,Other,Other,Other,0,Desktop,2,2,202.00,0,0.13,14
+20100131,2010-01-31,robot,Other,Bot,0,Mobile/Tablet,1,1,173.00,0,0.07,15
+20100131,2010-01-31,IE,Windows,Other,0,Desktop,1,1,13.00,0,0.07,16
+20100131,2010-01-31,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,900.00,0,0.07,17
+20100204,2010-02-04,IE,Windows,Desktop,0,Desktop,1045,20,206.63,0,34.03,1
+20100204,2010-02-04,ichiro,Other,Bot,0,Mobile/Tablet,462,1,1058.69,0,15.04,2
+20100204,2010-02-04,Firefox,Windows,Desktop,0,Desktop,444,13,2771.89,0,14.46,3
+20100204,2010-02-04,Safari,Mac OS X,Desktop,0,Desktop,362,6,324.23,0,11.79,4
+20100204,2010-02-04,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,300,2,637.40,0,9.77,5
+20100204,2010-02-04,Other,Windows,Other,0,Desktop,198,1,288.98,0,6.45,6
+20100204,2010-02-04,Googlebot,Other,Bot,0,Mobile/Tablet,123,2,533.29,0,4.01,7
+20100204,2010-02-04,Other,Other,Other,0,Desktop,65,1,527.11,0,2.12,8
+20100204,2010-02-04,Nutscrape,Other,Other,0,Desktop,46,1,1599.26,0,1.50,9
+20100204,2010-02-04,msnbot,Other,Bot,0,Mobile/Tablet,17,14,305.00,0,0.55,10
+20100204,2010-02-04,SurveyBot,Windows,Desktop,0,Desktop,3,1,423.67,0,0.10,11
+20100204,2010-02-04,Ask Jeeves,Other,Bot,0,Mobile/Tablet,2,1,474.50,0,0.07,12
+20100204,2010-02-04,IE,Windows,Other,0,Desktop,1,1,3609.00,0,0.03,13
+20100204,2010-02-04,Maxthon,Windows,Desktop,0,Desktop,1,1,506.00,0,0.03,14
+20100204,2010-02-04,robot,Other,Bot,0,Mobile/Tablet,1,1,227.00,0,0.03,15
+20100204,2010-02-04,curl,Linux,Other,0,Desktop,1,1,1743.00,0,0.03,16
+20100205,2010-02-05,Firefox,Windows,Desktop,0,Desktop,205,13,482.58,0,24.85,1
+20100205,2010-02-05,IE,Windows,Desktop,0,Desktop,202,18,299.01,0,24.48,2
+20100205,2010-02-05,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,140,4,553.47,0,16.97,3
+20100205,2010-02-05,Other,Windows,Other,0,Desktop,88,1,351.80,0,10.67,4
+20100205,2010-02-05,Googlebot,Other,Bot,0,Mobile/Tablet,76,2,683.59,0,9.21,5
+20100205,2010-02-05,msnbot,Other,Bot,0,Mobile/Tablet,43,35,676.05,0,5.21,6
+20100205,2010-02-05,ichiro,Other,Bot,0,Mobile/Tablet,36,1,1033.00,0,4.36,7
+20100205,2010-02-05,IE,Windows,Other,0,Desktop,14,1,592.43,0,1.70,8
+20100205,2010-02-05,008,Other,Bot,0,Mobile/Tablet,4,3,468.75,0,0.48,9
+20100205,2010-02-05,Sogou web spider,Other,Bot,0,Mobile/Tablet,3,1,723.67,0,0.36,10
+20100205,2010-02-05,Other,Other,Other,0,Desktop,3,2,445.33,0,0.36,11
+20100205,2010-02-05,Ask Jeeves,Other,Bot,0,Mobile/Tablet,2,2,1027.50,0,0.24,12
+20100205,2010-02-05,Baiduspider,Other,Bot,0,Mobile/Tablet,2,2,278.50,0,0.24,13
+20100205,2010-02-05,Sogou-Test-Spider,Windows,Bot,0,Mobile/Tablet,2,1,880.50,0,0.24,14
+20100205,2010-02-05,Yeti,Other,Bot,0,Mobile/Tablet,2,1,367.00,0,0.24,15
+20100205,2010-02-05,robot,Other,Bot,0,Mobile/Tablet,1,1,174.00,0,0.12,16
+20100205,2010-02-05,Java,Other,Bot,0,Mobile/Tablet,1,1,233.00,0,0.12,17
+20100221,2010-02-21,Firefox,Windows,Desktop,0,Desktop,358,6,117.48,0,31.57,1
+20100221,2010-02-21,IE,Windows,Desktop,0,Desktop,157,18,3055.43,0,13.84,2
+20100221,2010-02-21,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,149,2,598.64,0,13.14,3
+20100221,2010-02-21,Other,Windows,Other,0,Desktop,96,1,304.34,0,8.47,4
+20100221,2010-02-21,msnbot,Other,Bot,0,Mobile/Tablet,86,66,449.38,0,7.58,5
+20100221,2010-02-21,Googlebot-Image,Other,Bot,0,Mobile/Tablet,85,1,162.82,0,7.50,6
+20100221,2010-02-21,Googlebot,Other,Bot,0,Mobile/Tablet,76,1,538.11,0,6.70,7
+20100221,2010-02-21,Safari,Mac OS X,Desktop,0,Desktop,47,4,454.40,0,4.14,8
+20100221,2010-02-21,Opera,Windows,Desktop,0,Desktop,42,2,1500.81,0,3.70,9
+20100221,2010-02-21,Firefox,Mac OS X,Desktop,0,Desktop,31,1,210.52,0,2.73,10
+20100221,2010-02-21,IE,Windows,Other,0,Desktop,2,1,135.00,0,0.18,11
+20100221,2010-02-21,hitcrawler_0,Other,Bot,0,Mobile/Tablet,2,1,396.50,0,0.18,12
+20100221,2010-02-21,robot,Other,Bot,0,Mobile/Tablet,1,1,182.00,0,0.09,13
+20100221,2010-02-21,Other,Other,Other,0,Desktop,1,1,98.00,0,0.09,14
+20100221,2010-02-21,Baiduspider,Other,Bot,0,Mobile/Tablet,1,1,288.00,0,0.09,15
+20100302,2010-03-02,IE,Windows,Desktop,0,Desktop,1897,21,196.55,0,65.48,1
+20100302,2010-03-02,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,220,3,665.20,0,7.59,2
+20100302,2010-03-02,Safari,Mac OS X,Desktop,0,Desktop,209,7,391.04,0,7.21,3
+20100302,2010-03-02,Firefox,Windows,Desktop,0,Desktop,172,6,350.35,0,5.94,4
+20100302,2010-03-02,Other,Windows,Other,0,Desktop,130,1,307.68,0,4.49,5
+20100302,2010-03-02,Googlebot-Image,Other,Bot,0,Mobile/Tablet,83,1,91.78,0,2.87,6
+20100302,2010-03-02,Googlebot,Other,Bot,0,Mobile/Tablet,50,2,313.44,0,1.73,7
+20100302,2010-03-02,msnbot,Other,Bot,0,Mobile/Tablet,42,28,488.55,0,1.45,8
+20100302,2010-03-02,Chrome,Windows,Desktop,0,Desktop,38,1,2997.74,0,1.31,9
+20100302,2010-03-02,Yahoo-MMCrawler,Other,Bot,0,Mobile/Tablet,27,1,331.19,0,0.93,10
+20100302,2010-03-02,Speedy Spider,Other,Bot,0,Mobile/Tablet,6,2,167.83,0,0.21,11
+20100302,2010-03-02,larbin,Other,Bot,0,Mobile/Tablet,6,3,154.17,0,0.21,12
+20100302,2010-03-02,008,Other,Bot,0,Mobile/Tablet,4,2,682.00,0,0.14,13
+20100302,2010-03-02,robot,Other,Bot,0,Mobile/Tablet,3,1,316.33,0,0.10,14
+20100302,2010-03-02,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,1305.00,0,0.07,15
+20100302,2010-03-02,spbot,Other,Bot,0,Mobile/Tablet,2,1,89.50,0,0.07,16
+20100302,2010-03-02,Other,Other,Other,0,Desktop,1,1,2397.00,0,0.03,17
+20100302,2010-03-02,Opera,Windows,Desktop,0,Desktop,1,1,378.00,0,0.03,18
+20100302,2010-03-02,Other,Mac OS X,Desktop,0,Desktop,1,1,498.00,0,0.03,19
+20100304,2010-03-04,IE,Windows,Desktop,0,Desktop,543,23,267.47,0,32.30,1
+20100304,2010-03-04,Firefox,Windows,Desktop,0,Desktop,263,12,411.78,0,15.65,2
+20100304,2010-03-04,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,203,1,625.56,0,12.08,3
+20100304,2010-03-04,Other,Windows,Other,0,Desktop,157,1,257.95,0,9.34,4
+20100304,2010-03-04,Chrome,Windows,Desktop,0,Desktop,143,1,239.00,0,8.51,5
+20100304,2010-03-04,Safari,Mac OS X,Desktop,0,Desktop,111,5,818.62,0,6.60,6
+20100304,2010-03-04,Googlebot,Other,Bot,0,Mobile/Tablet,74,5,318.97,0,4.40,7
+20100304,2010-03-04,Firefox,Mac OS X,Desktop,0,Desktop,51,1,184.53,0,3.03,8
+20100304,2010-03-04,msnbot,Other,Bot,0,Mobile/Tablet,49,36,447.59,0,2.91,9
+20100304,2010-03-04,Googlebot-Image,Other,Bot,0,Mobile/Tablet,44,3,90.02,0,2.62,10
+20100304,2010-03-04,Other,Other,Other,0,Desktop,24,1,886.04,0,1.43,11
+20100304,2010-03-04,Zune,Windows,Desktop,0,Desktop,15,1,279.47,0,0.89,12
+20100304,2010-03-04,Baiduspider,Other,Bot,0,Mobile/Tablet,1,1,271.00,0,0.06,13
+20100304,2010-03-04,Other,Mac OS X,Desktop,0,Desktop,1,1,684.00,0,0.06,14
+20100304,2010-03-04,Other,Windows,Desktop,0,Desktop,1,1,57.00,0,0.06,15
+20100304,2010-03-04,robot,Other,Bot,0,Mobile/Tablet,1,1,163.00,0,0.06,16
+20100307,2010-03-07,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,256,1,594.11,0,23.62,1
+20100307,2010-03-07,Other,Other,Other,0,Desktop,239,3,280.85,0,22.05,2
+20100307,2010-03-07,IE,Windows,Desktop,0,Desktop,229,15,443.30,0,21.13,3
+20100307,2010-03-07,Other,Windows,Other,0,Desktop,91,1,234.25,0,8.39,4
+20100307,2010-03-07,Googlebot,Other,Bot,0,Mobile/Tablet,88,1,330.51,0,8.12,5
+20100307,2010-03-07,msnbot,Other,Bot,0,Mobile/Tablet,52,39,465.88,0,4.80,6
+20100307,2010-03-07,Googlebot-Image,Other,Bot,0,Mobile/Tablet,51,2,89.80,0,4.70,7
+20100307,2010-03-07,Firefox,Windows,Desktop,0,Desktop,47,4,600.53,0,4.34,8
+20100307,2010-03-07,Firefox,Mac OS X,Desktop,0,Desktop,13,1,302.08,0,1.20,9
+20100307,2010-03-07,Safari,Mac OS X,Desktop,0,Desktop,5,1,272.40,0,0.46,10
+20100307,2010-03-07,Speedy Spider,Other,Bot,0,Mobile/Tablet,4,1,1357.50,0,0.37,11
+20100307,2010-03-07,008,Other,Bot,0,Mobile/Tablet,4,3,827.50,0,0.37,12
+20100307,2010-03-07,yacybot,Linux,Bot,0,Mobile/Tablet,3,1,106.67,0,0.28,13
+20100307,2010-03-07,robot,Other,Bot,0,Mobile/Tablet,1,1,163.00,0,0.09,14
+20100307,2010-03-07,Baiduspider,Other,Bot,0,Mobile/Tablet,1,1,288.00,0,0.09,15
+20100309,2010-03-09,IE,Windows,Desktop,0,Desktop,739,28,264.83,0,49.53,1
+20100309,2010-03-09,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,224,1,593.74,0,15.01,2
+20100309,2010-03-09,Firefox,Windows,Desktop,0,Desktop,171,9,276.61,0,11.46,3
+20100309,2010-03-09,Firefox,Mac OS X,Desktop,0,Desktop,102,1,125.75,0,6.84,4
+20100309,2010-03-09,Other,Windows,Other,0,Desktop,90,1,223.10,0,6.03,5
+20100309,2010-03-09,Googlebot,Other,Bot,0,Mobile/Tablet,71,2,382.20,0,4.76,6
+20100309,2010-03-09,msnbot,Other,Bot,0,Mobile/Tablet,46,30,411.67,0,3.08,7
+20100309,2010-03-09,Googlebot-Image,Other,Bot,0,Mobile/Tablet,34,2,103.24,0,2.28,8
+20100309,2010-03-09,Ask Jeeves,Other,Bot,0,Mobile/Tablet,4,2,229.25,0,0.27,9
+20100309,2010-03-09,Speedy Spider,Other,Bot,0,Mobile/Tablet,4,1,2500.25,0,0.27,10
+20100309,2010-03-09,Firefox,Other,Other,0,Desktop,3,1,1029.33,0,0.20,11
+20100309,2010-03-09,Baiduspider,Other,Bot,0,Mobile/Tablet,1,1,264.00,0,0.07,12
+20100309,2010-03-09,Outlook,Windows,Desktop,0,Desktop,1,1,187.00,0,0.07,13
+20100309,2010-03-09,robot,Other,Bot,0,Mobile/Tablet,1,1,171.00,0,0.07,14
+20100309,2010-03-09,Maxthon,Windows,Desktop,0,Desktop,1,1,731.00,0,0.07,15
+20100314,2010-03-14,IE,Windows,Desktop,0,Desktop,834,55,230.17,0,46.05,1
+20100314,2010-03-14,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,288,2,725.76,0,15.90,2
+20100314,2010-03-14,Firefox,Windows,Desktop,0,Desktop,247,6,140.20,0,13.64,3
+20100314,2010-03-14,Other,Windows,Other,0,Desktop,92,1,354.87,0,5.08,4
+20100314,2010-03-14,msnbot,Other,Bot,0,Mobile/Tablet,57,46,505.58,0,3.15,5
+20100314,2010-03-14,Googlebot,Other,Bot,0,Mobile/Tablet,57,1,515.14,0,3.15,6
+20100314,2010-03-14,Googlebot-Image,Other,Bot,0,Mobile/Tablet,56,1,111.43,0,3.09,7
+20100314,2010-03-14,Firefox,Mac OS X,Desktop,0,Desktop,53,1,99.30,0,2.93,8
+20100314,2010-03-14,Chrome,Windows,Desktop,0,Desktop,39,2,234.18,0,2.15,9
+20100314,2010-03-14,Mobile Safari,iOS,Mobile,1,Mobile/Tablet,25,2,501.60,0,1.38,10
+20100314,2010-03-14,Safari,Windows,Desktop,0,Desktop,21,1,328.38,0,1.16,11
+20100314,2010-03-14,Safari,Mac OS X,Desktop,0,Desktop,15,1,55.27,0,0.83,12
+20100314,2010-03-14,Other,Other,Other,0,Desktop,8,1,1021.50,0,0.44,13
+20100314,2010-03-14,MJ12bot,Other,Bot,0,Mobile/Tablet,5,1,2383.00,0,0.28,14
+20100314,2010-03-14,Ask Jeeves,Other,Bot,0,Mobile/Tablet,2,1,364.00,0,0.11,15
+20100314,2010-03-14,Speedy Spider,Windows,Desktop,0,Desktop,2,1,240.00,0,0.11,16
+20100314,2010-03-14,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,843.50,0,0.11,17
+20100314,2010-03-14,008,Other,Bot,0,Mobile/Tablet,2,1,713.00,0,0.11,18
+20100314,2010-03-14,Opera,Windows,Desktop,0,Desktop,2,2,1847.50,0,0.11,19
+20100314,2010-03-14,robot,Other,Bot,0,Mobile/Tablet,1,1,179.00,0,0.06,20
+20100314,2010-03-14,Baiduspider,Other,Bot,0,Mobile/Tablet,1,1,298.00,0,0.06,21
+20100314,2010-03-14,Avant,Windows,Desktop,0,Desktop,1,1,635.00,0,0.06,22
+20100315,2010-03-15,IE,Windows,Desktop,0,Desktop,1733,19,146.84,0,50.96,1
+20100315,2010-03-15,Firefox,Mac OS X,Desktop,0,Desktop,480,4,365.44,0,14.11,2
+20100315,2010-03-15,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,280,3,611.33,0,8.23,3
+20100315,2010-03-15,Other,Windows,Other,0,Desktop,196,1,317.95,0,5.76,4
+20100315,2010-03-15,Firefox,Windows,Desktop,0,Desktop,166,7,538.24,0,4.88,5
+20100315,2010-03-15,Safari,Mac OS X,Desktop,0,Desktop,160,2,427.91,0,4.70,6
+20100315,2010-03-15,Googlebot,Other,Bot,0,Mobile/Tablet,123,1,236.03,0,3.62,7
+20100315,2010-03-15,Googlebot-Image,Other,Bot,0,Mobile/Tablet,96,2,104.54,0,2.82,8
+20100315,2010-03-15,msnbot,Other,Bot,0,Mobile/Tablet,51,35,446.82,0,1.50,9
+20100315,2010-03-15,Maxthon,Windows,Desktop,0,Desktop,45,2,710.36,0,1.32,10
+20100315,2010-03-15,IE,Windows,Other,0,Desktop,15,1,138.87,0,0.44,11
+20100315,2010-03-15,Other,Other,Other,0,Desktop,14,1,2877.14,0,0.41,12
+20100315,2010-03-15,Avant,Windows,Desktop,0,Desktop,14,1,157.93,0,0.41,13
+20100315,2010-03-15,Speedy Spider,Windows,Desktop,0,Desktop,8,1,1056.38,0,0.24,14
+20100315,2010-03-15,Chrome,Windows,Desktop,0,Desktop,5,1,371.00,0,0.15,15
+20100315,2010-03-15,msnbot-media,Other,Bot,0,Mobile/Tablet,3,1,317.67,0,0.09,16
+20100315,2010-03-15,MSIECrawler,Windows,Bot,0,Mobile/Tablet,3,1,61.00,0,0.09,17
+20100315,2010-03-15,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,1634.00,0,0.06,18
+20100315,2010-03-15,spbot,Other,Bot,0,Mobile/Tablet,2,1,96.00,0,0.06,19
+20100315,2010-03-15,Baiduspider,Other,Bot,0,Mobile/Tablet,1,1,285.00,0,0.03,20
+20100315,2010-03-15,Avant,Other,Mobile,1,Mobile/Tablet,1,1,66.00,0,0.03,21
+20100322,2010-03-22,IE,Windows,Desktop,0,Desktop,725,41,346.29,0,38.04,1
+20100322,2010-03-22,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,240,2,758.18,0,12.59,2
+20100322,2010-03-22,Firefox,Windows,Desktop,0,Desktop,235,7,401.52,0,12.33,3
+20100322,2010-03-22,Safari,Mac OS X,Desktop,0,Desktop,191,13,532.58,0,10.02,4
+20100322,2010-03-22,Other,Windows,Other,0,Desktop,163,1,390.82,0,8.55,5
+20100322,2010-03-22,Googlebot-Image,Other,Bot,0,Mobile/Tablet,97,1,290.57,0,5.09,6
+20100322,2010-03-22,msnbot,Other,Bot,0,Mobile/Tablet,68,50,372.78,0,3.57,7
+20100322,2010-03-22,Googlebot,Other,Bot,0,Mobile/Tablet,65,1,348.52,0,3.41,8
+20100322,2010-03-22,Chrome,Windows,Desktop,0,Desktop,65,4,858.35,0,3.41,9
+20100322,2010-03-22,Other,Other,Other,0,Desktop,40,4,479.60,0,2.10,10
+20100322,2010-03-22,FacebookBot,Other,Bot,0,Mobile/Tablet,7,5,417.86,0,0.37,11
+20100322,2010-03-22,IE,Windows,Other,0,Desktop,2,1,47.00,0,0.10,12
+20100322,2010-03-22,CFNetwork,Mac OS X,Desktop,0,Desktop,2,1,272.50,0,0.10,13
+20100322,2010-03-22,spbot,Other,Bot,0,Mobile/Tablet,2,1,94.50,0,0.10,14
+20100322,2010-03-22,robot,Other,Bot,0,Mobile/Tablet,1,1,164.00,0,0.05,15
+20100322,2010-03-22,Baiduspider,Other,Bot,0,Mobile/Tablet,1,1,286.00,0,0.05,16
+20100322,2010-03-22,Other,Other,Mobile,1,Mobile/Tablet,1,1,167.00,0,0.05,17
+20100322,2010-03-22,Opera,Windows,Desktop,0,Desktop,1,1,596.00,0,0.05,18
+20100406,2010-04-06,IE,Windows,Desktop,0,Desktop,1913,33,498.50,0,69.87,1
+20100406,2010-04-06,Other,Windows,Other,0,Desktop,258,1,527.43,0,9.42,2
+20100406,2010-04-06,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,121,2,636.07,0,4.42,3
+20100406,2010-04-06,Firefox,Windows,Desktop,0,Desktop,103,8,268.14,0,3.76,4
+20100406,2010-04-06,Googlebot-Image,Other,Bot,0,Mobile/Tablet,65,3,168.03,0,2.37,5
+20100406,2010-04-06,Firefox,Mac OS X,Desktop,0,Desktop,60,2,259.25,0,2.19,6
+20100406,2010-04-06,Chrome,Windows,Desktop,0,Desktop,56,4,502.09,0,2.05,7
+20100406,2010-04-06,msnbot,Other,Bot,0,Mobile/Tablet,54,47,361.06,0,1.97,8
+20100406,2010-04-06,Safari,Mac OS X,Desktop,0,Desktop,36,2,359.92,0,1.31,9
+20100406,2010-04-06,Googlebot,Other,Bot,0,Mobile/Tablet,27,3,819.89,0,0.99,10
+20100406,2010-04-06,Netscape,Linux,Desktop,0,Desktop,15,1,222.20,0,0.55,11
+20100406,2010-04-06,IE,Windows,Other,0,Desktop,10,1,213.70,0,0.37,12
+20100406,2010-04-06,Opera Mini,Other,Mobile,1,Mobile/Tablet,9,1,391.56,0,0.33,13
+20100406,2010-04-06,Opera,Windows,Desktop,0,Desktop,3,1,53.33,0,0.11,14
+20100406,2010-04-06,Nutch,Other,Bot,0,Mobile/Tablet,2,1,197.00,0,0.07,15
+20100406,2010-04-06,Other,Other,Other,0,Desktop,1,1,26.00,0,0.04,16
+20100406,2010-04-06,robot,Other,Bot,0,Mobile/Tablet,1,1,181.00,0,0.04,17
+20100406,2010-04-06,Sogou web spider,Other,Bot,0,Mobile/Tablet,1,1,1114.00,0,0.04,18
+20100406,2010-04-06,Baiduspider,Other,Bot,0,Mobile/Tablet,1,1,302.00,0,0.04,19
+20100419,2010-04-19,IE,Windows,Desktop,0,Desktop,860,30,293.43,0,46.24,1
+20100419,2010-04-19,Other,Windows,Other,0,Desktop,404,2,550.62,0,21.72,2
+20100419,2010-04-19,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,173,1,642.27,0,9.30,3
+20100419,2010-04-19,Firefox,Windows,Desktop,0,Desktop,147,14,857.24,0,7.90,4
+20100419,2010-04-19,msnbot,Other,Bot,0,Mobile/Tablet,86,63,456.76,0,4.62,5
+20100419,2010-04-19,Firefox,Mac OS X,Desktop,0,Desktop,51,2,879.33,0,2.74,6
+20100419,2010-04-19,Googlebot,Other,Bot,0,Mobile/Tablet,34,4,717.32,0,1.83,7
+20100419,2010-04-19,Googlebot-Image,Other,Bot,0,Mobile/Tablet,24,6,137.63,0,1.29,8
+20100419,2010-04-19,Firefox,Ubuntu,Desktop,0,Desktop,21,1,310.62,0,1.13,9
+20100419,2010-04-19,Chrome,Windows,Desktop,0,Desktop,15,1,524.73,0,0.81,10
+20100419,2010-04-19,Safari,Mac OS X,Desktop,0,Desktop,15,1,108.40,0,0.81,11
+20100419,2010-04-19,DotBot,Other,Bot,0,Mobile/Tablet,11,1,472.73,0,0.59,12
+20100419,2010-04-19,Other,Other,Other,0,Desktop,7,5,219.00,0,0.38,13
+20100419,2010-04-19,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,2,410.67,0,0.16,14
+20100419,2010-04-19,IE,Windows,Other,0,Desktop,3,1,185.00,0,0.16,15
+20100419,2010-04-19,Baiduspider,Other,Bot,0,Mobile/Tablet,2,2,284.00,0,0.11,16
+20100419,2010-04-19,Avant,Windows,Desktop,0,Desktop,1,1,637.00,0,0.05,17
+20100419,2010-04-19,IE,Other,Other,0,Desktop,1,1,186.00,0,0.05,18
+20100419,2010-04-19,Opera,Windows,Desktop,0,Desktop,1,1,455.00,0,0.05,19
+20100419,2010-04-19,robot,Other,Bot,0,Mobile/Tablet,1,1,168.00,0,0.05,20
+20100422,2010-04-22,Googlebot,Other,Bot,0,Mobile/Tablet,972,4,387.53,0,49.77,1
+20100422,2010-04-22,IE,Windows,Desktop,0,Desktop,429,31,587.75,0,21.97,2
+20100422,2010-04-22,Firefox,Windows,Desktop,0,Desktop,188,11,784.25,0,9.63,3
+20100422,2010-04-22,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,174,1,620.21,0,8.91,4
+20100422,2010-04-22,msnbot,Other,Bot,0,Mobile/Tablet,84,61,390.13,0,4.30,5
+20100422,2010-04-22,Chrome,Windows,Desktop,0,Desktop,46,1,218.65,0,2.36,6
+20100422,2010-04-22,Googlebot-Image,Other,Bot,0,Mobile/Tablet,28,2,84.04,0,1.43,7
+20100422,2010-04-22,Firefox,Mac OS X,Desktop,0,Desktop,16,1,1018.13,0,0.82,8
+20100422,2010-04-22,Other,Other,Other,0,Desktop,6,2,1848.67,0,0.31,9
+20100422,2010-04-22,Baiduspider,Other,Bot,0,Mobile/Tablet,2,2,1180.00,0,0.10,10
+20100422,2010-04-22,Nutch,Other,Bot,0,Mobile/Tablet,2,1,432.00,0,0.10,11
+20100422,2010-04-22,Other,Windows,Other,0,Desktop,2,1,269.50,0,0.10,12
+20100422,2010-04-22,Yeti,Other,Bot,0,Mobile/Tablet,2,1,307.00,0,0.10,13
+20100422,2010-04-22,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,349.00,0,0.05,14
+20100422,2010-04-22,robot,Other,Bot,0,Mobile/Tablet,1,1,205.00,0,0.05,15
+20100423,2010-04-23,Googlebot,Other,Bot,0,Mobile/Tablet,848,5,456.41,0,39.76,1
+20100423,2010-04-23,IE,Windows,Desktop,0,Desktop,552,29,566.70,0,25.88,2
+20100423,2010-04-23,Firefox,Windows,Desktop,0,Desktop,220,10,649.80,0,10.31,3
+20100423,2010-04-23,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,181,1,586.40,0,8.49,4
+20100423,2010-04-23,msnbot,Other,Bot,0,Mobile/Tablet,73,57,418.73,0,3.42,5
+20100423,2010-04-23,Safari,Mac OS X,Desktop,0,Desktop,66,5,328.64,0,3.09,6
+20100423,2010-04-23,Firefox,Windows,Other,0,Desktop,41,1,267.54,0,1.92,7
+20100423,2010-04-23,Baiduspider,Other,Bot,0,Mobile/Tablet,41,38,390.63,0,1.92,8
+20100423,2010-04-23,Chrome,Windows,Desktop,0,Desktop,31,2,1621.35,0,1.45,9
+20100423,2010-04-23,Other,Windows,Other,0,Desktop,27,2,506.48,0,1.27,10
+20100423,2010-04-23,Googlebot-Image,Other,Bot,0,Mobile/Tablet,19,2,92.84,0,0.89,11
+20100423,2010-04-23,Safari,Other,Other,0,Desktop,14,1,65.50,0,0.66,12
+20100423,2010-04-23,Other,Other,Other,0,Desktop,7,4,531.43,0,0.33,13
+20100423,2010-04-23,Firefox,Mac OS X,Desktop,0,Desktop,4,1,757.00,0,0.19,14
+20100423,2010-04-23,Ask Jeeves,Other,Bot,0,Mobile/Tablet,2,1,443.50,0,0.09,15
+20100423,2010-04-23,Sogou-Test-Spider,Windows,Bot,0,Mobile/Tablet,2,1,849.50,0,0.09,16
+20100423,2010-04-23,Sogou web spider,Other,Bot,0,Mobile/Tablet,1,1,271.00,0,0.05,17
+20100423,2010-04-23,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,329.00,0,0.05,18
+20100423,2010-04-23,Opera,Windows,Desktop,0,Desktop,1,1,2868.00,0,0.05,19
+20100423,2010-04-23,robot,Other,Bot,0,Mobile/Tablet,1,1,198.00,0,0.05,20
+20100424,2010-04-24,IE,Windows,Desktop,0,Desktop,242,30,1104.21,0,23.82,1
+20100424,2010-04-24,Firefox,Windows,Desktop,0,Desktop,230,13,444.36,0,22.64,2
+20100424,2010-04-24,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,181,1,579.25,0,17.81,3
+20100424,2010-04-24,Googlebot,Other,Bot,0,Mobile/Tablet,95,2,523.01,0,9.35,4
+20100424,2010-04-24,msnbot,Other,Bot,0,Mobile/Tablet,74,59,445.65,0,7.28,5
+20100424,2010-04-24,Other,Windows,Other,0,Desktop,61,2,513.11,0,6.00,6
+20100424,2010-04-24,Baiduspider,Other,Bot,0,Mobile/Tablet,49,40,344.88,0,4.82,7
+20100424,2010-04-24,Safari,Mac OS X,Desktop,0,Desktop,35,2,93.43,0,3.44,8
+20100424,2010-04-24,Chrome,Windows,Desktop,0,Desktop,22,1,1160.77,0,2.17,9
+20100424,2010-04-24,Googlebot-Image,Other,Bot,0,Mobile/Tablet,15,1,91.53,0,1.48,10
+20100424,2010-04-24,Other,Other,Other,0,Desktop,6,3,230.00,0,0.59,11
+20100424,2010-04-24,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,878.00,0,0.20,12
+20100424,2010-04-24,robot,Other,Bot,0,Mobile/Tablet,1,1,170.00,0,0.10,13
+20100424,2010-04-24,AOL,Windows,Desktop,0,Desktop,1,1,127.00,0,0.10,14
+20100424,2010-04-24,Avant,Windows,Desktop,0,Desktop,1,1,655.00,0,0.10,15
+20100425,2010-04-25,IE,Windows,Desktop,0,Desktop,689,28,421.30,0,39.80,1
+20100425,2010-04-25,Firefox,Windows,Desktop,0,Desktop,511,7,581.08,0,29.52,2
+20100425,2010-04-25,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,148,1,873.53,0,8.55,3
+20100425,2010-04-25,Googlebot,Other,Bot,0,Mobile/Tablet,109,2,584.84,0,6.30,4
+20100425,2010-04-25,msnbot,Other,Bot,0,Mobile/Tablet,54,40,473.19,0,3.12,5
+20100425,2010-04-25,Other,Windows,Other,0,Desktop,48,2,523.31,0,2.77,6
+20100425,2010-04-25,Baiduspider,Other,Bot,0,Mobile/Tablet,45,39,348.80,0,2.60,7
+20100425,2010-04-25,Safari,Mac OS X,Desktop,0,Desktop,22,1,124.73,0,1.27,8
+20100425,2010-04-25,Firefox,Mac OS X,Desktop,0,Desktop,18,1,443.33,0,1.04,9
+20100425,2010-04-25,Googlebot-Image,Other,Bot,0,Mobile/Tablet,17,2,100.53,0,0.98,10
+20100425,2010-04-25,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,2,407.33,0,0.17,11
+20100425,2010-04-25,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,1888.50,0,0.12,12
+20100425,2010-04-25,Opera,Windows,Desktop,0,Desktop,2,1,1141.00,0,0.12,13
+20100425,2010-04-25,Other,Other,Other,0,Desktop,2,1,281.00,0,0.12,14
+20100425,2010-04-25,sai-crawler,Other,Bot,0,Mobile/Tablet,2,1,272.50,0,0.12,15
+20100425,2010-04-25,spbot,Other,Bot,0,Mobile/Tablet,2,1,90.00,0,0.12,16
+20100425,2010-04-25,robot,Other,Bot,0,Mobile/Tablet,1,1,159.00,0,0.06,17
+20100425,2010-04-25,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,315.00,0,0.06,18
+20100425,2010-04-25,Chrome,Windows,Desktop,0,Desktop,1,1,2348.00,0,0.06,19
+20100430,2010-04-30,IE,Windows,Desktop,0,Desktop,757,41,429.62,0,39.74,1
+20100430,2010-04-30,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,209,1,565.09,0,10.97,2
+20100430,2010-04-30,Other,Windows,Other,0,Desktop,194,2,443.97,0,10.18,3
+20100430,2010-04-30,Firefox,Windows,Desktop,0,Desktop,157,4,1380.12,0,8.24,4
+20100430,2010-04-30,Chrome,Mac OS X,Desktop,0,Desktop,128,1,63.32,0,6.72,5
+20100430,2010-04-30,Firefox,Mac OS X,Desktop,0,Desktop,125,1,201.65,0,6.56,6
+20100430,2010-04-30,CatchBot,Other,Bot,0,Mobile/Tablet,73,2,628.97,0,3.83,7
+20100430,2010-04-30,msnbot,Other,Bot,0,Mobile/Tablet,64,53,385.81,0,3.36,8
+20100430,2010-04-30,Googlebot-Image,Other,Bot,0,Mobile/Tablet,54,2,95.96,0,2.83,9
+20100430,2010-04-30,Baiduspider,Other,Bot,0,Mobile/Tablet,49,40,396.35,0,2.57,10
+20100430,2010-04-30,Googlebot,Other,Bot,0,Mobile/Tablet,22,2,388.86,0,1.15,11
+20100430,2010-04-30,Chrome,Windows,Desktop,0,Desktop,20,1,131.90,0,1.05,12
+20100430,2010-04-30,Chrome,Linux,Desktop,0,Desktop,20,1,47.60,0,1.05,13
+20100430,2010-04-30,AOL,Windows,Desktop,0,Desktop,14,12,76.21,0,0.73,14
+20100430,2010-04-30,Other,Other,Other,0,Desktop,6,2,29.67,0,0.31,15
+20100430,2010-04-30,Sogou web spider,Other,Bot,0,Mobile/Tablet,3,1,663.33,0,0.16,16
+20100430,2010-04-30,Sogou-Test-Spider,Windows,Bot,0,Mobile/Tablet,2,1,867.00,0,0.10,17
+20100430,2010-04-30,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,172.00,0,0.05,18
+20100430,2010-04-30,robot,Other,Bot,0,Mobile/Tablet,1,1,167.00,0,0.05,19
+20100430,2010-04-30,Apache-HttpClient,Other,Other,0,Desktop,1,1,2055.00,0,0.05,20
+20100430,2010-04-30,Avant,Windows,Desktop,0,Desktop,1,1,645.00,0,0.05,21
+20100430,2010-04-30,Firefox,Linux,Desktop,0,Desktop,1,1,204.00,0,0.05,22
+20100519,2010-05-19,IE,Windows,Desktop,0,Desktop,353,33,527.98,0,22.83,1
+20100519,2010-05-19,Firefox,Mac OS X,Desktop,0,Desktop,248,1,112.64,0,16.04,2
+20100519,2010-05-19,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,217,1,606.17,0,14.04,3
+20100519,2010-05-19,Firefox,Windows,Desktop,0,Desktop,177,9,1473.87,0,11.45,4
+20100519,2010-05-19,Other,Windows,Other,0,Desktop,120,3,530.99,0,7.76,5
+20100519,2010-05-19,robot,Other,Bot,0,Mobile/Tablet,74,19,509.59,0,4.79,6
+20100519,2010-05-19,DotBot,Other,Bot,0,Mobile/Tablet,66,1,579.44,0,4.27,7
+20100519,2010-05-19,msnbot,Other,Bot,0,Mobile/Tablet,62,47,485.63,0,4.01,8
+20100519,2010-05-19,Baiduspider,Other,Bot,0,Mobile/Tablet,48,40,367.46,0,3.10,9
+20100519,2010-05-19,Googlebot,Other,Bot,0,Mobile/Tablet,44,6,350.25,0,2.85,10
+20100519,2010-05-19,Safari,Mac OS X,Desktop,0,Desktop,20,1,155.45,0,1.29,11
+20100519,2010-05-19, (bot,Windows,Desktop,0,Desktop,7,1,304.14,0,0.45,12
+20100519,2010-05-19,Other,Other,Other,0,Desktop,5,2,1129.20,0,0.32,13
+20100519,2010-05-19,ia_archiver,Other,Bot,0,Mobile/Tablet,3,1,284.67,0,0.19,14
+20100519,2010-05-19,Googlebot-Image,Other,Bot,0,Mobile/Tablet,3,1,90.33,0,0.19,15
+20100519,2010-05-19,larbin,Other,Bot,0,Mobile/Tablet,2,1,156.00,0,0.13,16
+20100519,2010-05-19,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,910.00,0,0.13,17
+20100519,2010-05-19,Avant,Windows,Other,0,Desktop,1,1,638.00,0,0.06,18
+20100519,2010-05-19,Outlook,Windows,Desktop,0,Desktop,1,1,258.00,0,0.06,19
+20100519,2010-05-19,Crazy Browser,Windows,Desktop,0,Desktop,1,1,171.00,0,0.06,20
+20100520,2010-05-20,Other,Windows,Other,0,Desktop,260,3,527.16,0,21.36,1
+20100520,2010-05-20,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,187,1,868.59,0,15.37,2
+20100520,2010-05-20,IE,Windows,Desktop,0,Desktop,167,19,303.26,0,13.72,3
+20100520,2010-05-20,Chrome,Windows,Desktop,0,Desktop,84,4,854.96,0,6.90,4
+20100520,2010-05-20,DotBot,Other,Bot,0,Mobile/Tablet,75,1,586.39,0,6.16,5
+20100520,2010-05-20,msnbot,Other,Bot,0,Mobile/Tablet,68,54,496.37,0,5.59,6
+20100520,2010-05-20,Googlebot-Image,Other,Bot,0,Mobile/Tablet,67,4,91.12,0,5.51,7
+20100520,2010-05-20,Googlebot,Other,Bot,0,Mobile/Tablet,64,5,441.25,0,5.26,8
+20100520,2010-05-20,Opera,Windows,Desktop,0,Desktop,59,1,288.97,0,4.85,9
+20100520,2010-05-20,Baiduspider,Other,Bot,0,Mobile/Tablet,49,44,337.53,0,4.03,10
+20100520,2010-05-20,Firefox,Windows,Desktop,0,Desktop,45,5,323.04,0,3.70,11
+20100520,2010-05-20,Safari,Mac OS X,Desktop,0,Desktop,41,2,255.44,0,3.37,12
+20100520,2010-05-20,robot,Other,Bot,0,Mobile/Tablet,22,17,290.77,0,1.81,13
+20100520,2010-05-20,Other,Other,Other,0,Desktop,15,2,593.33,0,1.23,14
+20100520,2010-05-20,ia_archiver,Other,Bot,0,Mobile/Tablet,2,1,238.50,0,0.16,15
+20100520,2010-05-20,Exabot,Other,Bot,0,Mobile/Tablet,2,1,71.50,0,0.16,16
+20100520,2010-05-20,msnbot-media,Other,Bot,0,Mobile/Tablet,2,1,157.00,0,0.16,17
+20100520,2010-05-20,discobot,Other,Bot,0,Mobile/Tablet,2,1,444.50,0,0.16,18
+20100520,2010-05-20,Search17Bot,Other,Bot,0,Mobile/Tablet,2,1,540.00,0,0.16,19
+20100520,2010-05-20,Chrome,Linux,Desktop,0,Desktop,2,1,1568.00,0,0.16,20
+20100520,2010-05-20,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,456.00,0,0.08,21
+20100526,2010-05-26,Firefox,Windows,Desktop,0,Desktop,338,14,565.72,0,23.15,1
+20100526,2010-05-26,IE,Windows,Desktop,0,Desktop,240,24,771.13,0,16.44,2
+20100526,2010-05-26,robot,Other,Bot,0,Mobile/Tablet,167,20,583.82,0,11.44,3
+20100526,2010-05-26,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,150,3,565.13,0,10.27,4
+20100526,2010-05-26,Other,Windows,Other,0,Desktop,119,1,398.69,0,8.15,5
+20100526,2010-05-26,Firefox,Mac OS X,Desktop,0,Desktop,102,1,144.49,0,6.99,6
+20100526,2010-05-26,DotBot,Other,Bot,0,Mobile/Tablet,64,1,585.34,0,4.38,7
+20100526,2010-05-26,msnbot,Other,Bot,0,Mobile/Tablet,59,42,432.76,0,4.04,8
+20100526,2010-05-26,Safari,Mac OS X,Desktop,0,Desktop,52,5,425.48,0,3.56,9
+20100526,2010-05-26,Baiduspider,Other,Bot,0,Mobile/Tablet,50,43,651.42,0,3.42,10
+20100526,2010-05-26,Chrome,Windows,Desktop,0,Desktop,36,2,775.17,0,2.47,11
+20100526,2010-05-26,Opera,Windows,Desktop,0,Desktop,18,3,483.50,0,1.23,12
+20100526,2010-05-26,Googlebot,Other,Bot,0,Mobile/Tablet,17,1,405.47,0,1.16,13
+20100526,2010-05-26,Chrome,Mac OS X,Desktop,0,Desktop,16,1,292.19,0,1.10,14
+20100526,2010-05-26,Netscape,Mac OS X,Desktop,0,Desktop,16,1,475.44,0,1.10,15
+20100526,2010-05-26,Googlebot-Image,Other,Bot,0,Mobile/Tablet,13,1,107.23,0,0.89,16
+20100526,2010-05-26,IE,Windows,Other,0,Desktop,1,1,388.00,0,0.07,17
+20100526,2010-05-26,Opera,Windows,Other,0,Desktop,1,1,710.00,0,0.07,18
+20100526,2010-05-26,Firefox,Linux,Desktop,0,Desktop,1,1,297.00,0,0.07,19
+20100528,2010-05-28,IE,Windows,Desktop,0,Desktop,369,35,371.33,0,24.75,1
+20100528,2010-05-28,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,212,2,539.95,0,14.22,2
+20100528,2010-05-28,Firefox,Linux,Desktop,0,Desktop,193,1,126.15,0,12.94,3
+20100528,2010-05-28,robot,Other,Bot,0,Mobile/Tablet,187,20,647.51,0,12.54,4
+20100528,2010-05-28,Other,Windows,Other,0,Desktop,170,1,557.21,0,11.40,5
+20100528,2010-05-28,Googlebot-Image,Other,Bot,0,Mobile/Tablet,91,2,151.41,0,6.10,6
+20100528,2010-05-28,msnbot,Other,Bot,0,Mobile/Tablet,82,57,397.90,0,5.50,7
+20100528,2010-05-28,Firefox,Windows,Desktop,0,Desktop,77,8,408.44,0,5.16,8
+20100528,2010-05-28,Baiduspider,Other,Bot,0,Mobile/Tablet,50,45,373.44,0,3.35,9
+20100528,2010-05-28,Googlebot,Other,Bot,0,Mobile/Tablet,22,2,610.41,0,1.48,10
+20100528,2010-05-28,DotBot,Other,Bot,0,Mobile/Tablet,10,1,614.90,0,0.67,11
+20100528,2010-05-28,Other,Other,Other,0,Desktop,5,1,824.20,0,0.34,12
+20100528,2010-05-28,Safari,Mac OS X,Desktop,0,Desktop,4,1,867.50,0,0.27,13
+20100528,2010-05-28,Nutch,Other,Bot,0,Mobile/Tablet,4,2,430.25,0,0.27,14
+20100528,2010-05-28,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,254.33,0,0.20,15
+20100528,2010-05-28,Sogou web spider,Other,Bot,0,Mobile/Tablet,3,1,712.67,0,0.20,16
+20100528,2010-05-28,Sogou-Test-Spider,Windows,Bot,0,Mobile/Tablet,2,1,910.50,0,0.13,17
+20100528,2010-05-28,ia_archiver,Other,Bot,0,Mobile/Tablet,2,1,130.50,0,0.13,18
+20100528,2010-05-28,IE,Windows,Other,0,Desktop,1,1,181.00,0,0.07,19
+20100528,2010-05-28,Opera,Windows,Desktop,0,Desktop,1,1,536.00,0,0.07,20
+20100612,2010-06-12,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,217,1,569.90,0,22.17,1
+20100612,2010-06-12,Firefox,Windows,Desktop,0,Desktop,151,5,217.01,0,15.42,2
+20100612,2010-06-12,Other,Windows,Other,0,Desktop,130,1,543.80,0,13.28,3
+20100612,2010-06-12,IE,Windows,Desktop,0,Desktop,103,12,288.26,0,10.52,4
+20100612,2010-06-12,robot,Other,Bot,0,Mobile/Tablet,87,19,502.84,0,8.89,5
+20100612,2010-06-12,Googlebot-Image,Other,Bot,0,Mobile/Tablet,70,3,88.60,0,7.15,6
+20100612,2010-06-12,DotBot,Other,Bot,0,Mobile/Tablet,67,1,591.96,0,6.84,7
+20100612,2010-06-12,Googlebot,Other,Bot,0,Mobile/Tablet,49,2,357.02,0,5.01,8
+20100612,2010-06-12,Baiduspider,Other,Bot,0,Mobile/Tablet,48,35,741.50,0,4.90,9
+20100612,2010-06-12,Firefox,Mac OS X,Desktop,0,Desktop,16,1,1520.69,0,1.63,10
+20100612,2010-06-12,Chrome,Windows,Desktop,0,Desktop,15,1,132.00,0,1.53,11
+20100612,2010-06-12,Mobile Safari,iOS,Mobile,1,Mobile/Tablet,9,1,243.33,0,0.92,12
+20100612,2010-06-12,msnbot,Other,Bot,0,Mobile/Tablet,9,5,219.33,0,0.92,13
+20100612,2010-06-12,libwww-perl,Other,Mobile,1,Mobile/Tablet,2,1,273.00,0,0.20,14
+20100612,2010-06-12,Sosospider,Other,Bot,0,Mobile/Tablet,2,1,282.00,0,0.20,15
+20100612,2010-06-12,FacebookBot,Other,Bot,0,Mobile/Tablet,2,2,328.50,0,0.20,16
+20100612,2010-06-12,Other,Other,Other,0,Desktop,1,1,272.00,0,0.10,17
+20100612,2010-06-12,Other,Other,Mobile,1,Mobile/Tablet,1,1,2156.00,0,0.10,18
+20100615,2010-06-15,IE,Windows,Desktop,0,Desktop,277,30,434.81,0,24.45,1
+20100615,2010-06-15,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,210,1,844.93,0,18.53,2
+20100615,2010-06-15,Safari,Mac OS X,Desktop,0,Desktop,158,2,1107.24,0,13.95,3
+20100615,2010-06-15,Other,Windows,Other,0,Desktop,135,1,624.01,0,11.92,4
+20100615,2010-06-15,Firefox,Windows,Desktop,0,Desktop,126,10,1097.36,0,11.12,5
+20100615,2010-06-15,robot,Other,Bot,0,Mobile/Tablet,88,19,480.65,0,7.77,6
+20100615,2010-06-15,Googlebot-Image,Other,Bot,0,Mobile/Tablet,63,2,135.35,0,5.56,7
+20100615,2010-06-15,Baiduspider,Other,Bot,0,Mobile/Tablet,49,42,350.16,0,4.32,8
+20100615,2010-06-15,msnbot,Other,Bot,0,Mobile/Tablet,8,6,256.25,0,0.71,9
+20100615,2010-06-15,Chrome,Windows,Desktop,0,Desktop,4,1,665.00,0,0.35,10
+20100615,2010-06-15,WinHTTP,Other,Bot,0,Mobile/Tablet,4,1,223.75,0,0.35,11
+20100615,2010-06-15,Firefox,Linux,Desktop,0,Desktop,3,1,334.33,0,0.26,12
+20100615,2010-06-15,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,321.00,0,0.18,13
+20100615,2010-06-15,Googlebot,Other,Bot,0,Mobile/Tablet,2,1,573.00,0,0.18,14
+20100615,2010-06-15,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,1449.50,0,0.18,15
+20100615,2010-06-15,Opera,Windows,Desktop,0,Desktop,1,1,661.00,0,0.09,16
+20100619,2010-06-19,Chrome,Windows,Desktop,0,Desktop,322,1,328.76,0,29.41,1
+20100619,2010-06-19,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,165,1,571.88,0,15.07,2
+20100619,2010-06-19,IE,Windows,Desktop,0,Desktop,131,18,249.66,0,11.96,3
+20100619,2010-06-19,Other,Windows,Other,0,Desktop,124,1,568.77,0,11.32,4
+20100619,2010-06-19,Firefox,Windows,Desktop,0,Desktop,94,6,567.72,0,8.58,5
+20100619,2010-06-19,robot,Other,Bot,0,Mobile/Tablet,87,19,488.72,0,7.95,6
+20100619,2010-06-19,Googlebot-Image,Other,Bot,0,Mobile/Tablet,67,1,24.63,0,6.12,7
+20100619,2010-06-19,Baiduspider,Other,Bot,0,Mobile/Tablet,49,39,345.06,0,4.47,8
+20100619,2010-06-19,Googlebot,Other,Bot,0,Mobile/Tablet,25,2,152.72,0,2.28,9
+20100619,2010-06-19,msnbot,Other,Bot,0,Mobile/Tablet,17,12,261.00,0,1.55,10
+20100619,2010-06-19,msnbot-media,Other,Bot,0,Mobile/Tablet,5,2,293.00,0,0.46,11
+20100619,2010-06-19,Nutch,Other,Bot,0,Mobile/Tablet,3,1,111.00,0,0.27,12
+20100619,2010-06-19,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,910.00,0,0.18,13
+20100619,2010-06-19,Other,Other,Other,0,Desktop,2,1,565.00,0,0.18,14
+20100619,2010-06-19,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,299.00,0,0.09,15
+20100622,2010-06-22,IE,Windows,Desktop,0,Desktop,386,28,337.82,0,24.40,1
+20100622,2010-06-22,Safari,Mac OS X,Desktop,0,Desktop,307,3,666.15,0,19.41,2
+20100622,2010-06-22,Other,Windows,Other,0,Desktop,167,1,419.07,0,10.56,3
+20100622,2010-06-22,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,148,1,581.80,0,9.36,4
+20100622,2010-06-22,Firefox,Windows,Desktop,0,Desktop,137,8,249.41,0,8.66,5
+20100622,2010-06-22,Other,Other,Other,0,Desktop,113,3,278.22,0,7.14,6
+20100622,2010-06-22,robot,Other,Bot,0,Mobile/Tablet,101,19,533.33,0,6.38,7
+20100622,2010-06-22,Googlebot-Image,Other,Bot,0,Mobile/Tablet,80,3,61.04,0,5.06,8
+20100622,2010-06-22,Baiduspider,Other,Bot,0,Mobile/Tablet,49,42,379.14,0,3.10,9
+20100622,2010-06-22,Googlebot,Other,Bot,0,Mobile/Tablet,40,3,312.48,0,2.53,10
+20100622,2010-06-22,msnbot,Other,Bot,0,Mobile/Tablet,24,17,363.08,0,1.52,11
+20100622,2010-06-22,Chrome,Windows,Desktop,0,Desktop,15,1,684.47,0,0.95,12
+20100622,2010-06-22,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,248.33,0,0.19,13
+20100622,2010-06-22,msnbot-media,Other,Bot,0,Mobile/Tablet,3,1,590.67,0,0.19,14
+20100622,2010-06-22,Chrome Frame,Windows,Desktop,0,Desktop,2,1,837.50,0,0.13,15
+20100622,2010-06-22,Sosospider,Other,Bot,0,Mobile/Tablet,2,1,968.00,0,0.13,16
+20100622,2010-06-22,Speedy Spider,Windows,Desktop,0,Desktop,2,1,412.50,0,0.13,17
+20100622,2010-06-22,Other,Other,Mobile,1,Mobile/Tablet,1,1,944.00,0,0.06,18
+20100626,2010-06-26,IE,Windows,Desktop,0,Desktop,173,18,443.88,0,17.95,1
+20100626,2010-06-26,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,168,1,617.53,0,17.43,2
+20100626,2010-06-26,Other,Windows,Other,0,Desktop,165,1,534.91,0,17.12,3
+20100626,2010-06-26,robot,Other,Bot,0,Mobile/Tablet,107,20,467.94,0,11.10,4
+20100626,2010-06-26,Firefox,Mac OS X,Desktop,0,Desktop,55,2,112.05,0,5.71,5
+20100626,2010-06-26,Baiduspider,Other,Bot,0,Mobile/Tablet,49,40,415.61,0,5.08,6
+20100626,2010-06-26,Safari,Mac OS X,Desktop,0,Desktop,39,2,284.97,0,4.05,7
+20100626,2010-06-26,Firefox,Windows,Desktop,0,Desktop,39,4,350.67,0,4.05,8
+20100626,2010-06-26,Googlebot-Image,Other,Bot,0,Mobile/Tablet,32,2,43.75,0,3.32,9
+20100626,2010-06-26,Firefox,Ubuntu,Desktop,0,Desktop,26,1,550.08,0,2.70,10
+20100626,2010-06-26,Chrome,Mac OS X,Desktop,0,Desktop,21,1,260.10,0,2.18,11
+20100626,2010-06-26,Googlebot,Other,Bot,0,Mobile/Tablet,18,2,230.67,0,1.87,12
+20100626,2010-06-26,msnbot,Other,Bot,0,Mobile/Tablet,17,13,181.18,0,1.76,13
+20100626,2010-06-26,Chrome,Windows,Desktop,0,Desktop,17,2,460.06,0,1.76,14
+20100626,2010-06-26,Mobile Safari,iOS,Mobile,1,Mobile/Tablet,14,1,96.36,0,1.45,15
+20100626,2010-06-26,DotBot,Other,Bot,0,Mobile/Tablet,8,1,2178.00,0,0.83,16
+20100626,2010-06-26,Other,Other,Other,0,Desktop,7,2,49.71,0,0.73,17
+20100626,2010-06-26,Nutch,Other,Bot,0,Mobile/Tablet,3,1,110.67,0,0.31,18
+20100626,2010-06-26,Sosospider,Other,Bot,0,Mobile/Tablet,3,1,385.67,0,0.31,19
+20100626,2010-06-26,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,919.00,0,0.21,20
+20100628,2010-06-28,IE,Windows,Desktop,0,Desktop,395,22,346.17,0,34.62,1
+20100628,2010-06-28,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,145,1,624.70,0,12.71,2
+20100628,2010-06-28,Other,Windows,Other,0,Desktop,138,1,618.62,0,12.09,3
+20100628,2010-06-28,Firefox,Windows,Desktop,0,Desktop,119,5,284.36,0,10.43,4
+20100628,2010-06-28,robot,Other,Bot,0,Mobile/Tablet,98,20,590.09,0,8.59,5
+20100628,2010-06-28,YandexBot,Other,Bot,0,Mobile/Tablet,56,1,669.89,0,4.91,6
+20100628,2010-06-28,DotBot,Other,Bot,0,Mobile/Tablet,55,1,701.95,0,4.82,7
+20100628,2010-06-28,Baiduspider,Other,Bot,0,Mobile/Tablet,49,41,847.92,0,4.29,8
+20100628,2010-06-28,Googlebot-Image,Other,Bot,0,Mobile/Tablet,34,5,130.15,0,2.98,9
+20100628,2010-06-28,msnbot,Other,Bot,0,Mobile/Tablet,16,9,190.69,0,1.40,10
+20100628,2010-06-28,Chrome,Windows,Desktop,0,Desktop,16,1,528.94,0,1.40,11
+20100628,2010-06-28,Googlebot,Other,Bot,0,Mobile/Tablet,14,4,538.36,0,1.23,12
+20100628,2010-06-28,Other,Other,Other,0,Desktop,5,1,478.40,0,0.44,13
+20100628,2010-06-28,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,298.00,0,0.09,14
+20100629,2010-06-29,IE,Windows,Desktop,0,Desktop,262,22,345.52,0,24.13,1
+20100629,2010-06-29,Chrome,Windows,Desktop,0,Desktop,176,3,241.01,0,16.21,2
+20100629,2010-06-29,YandexBot,Other,Bot,0,Mobile/Tablet,165,1,675.19,0,15.19,3
+20100629,2010-06-29,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,152,1,638.72,0,14.00,4
+20100629,2010-06-29,robot,Other,Bot,0,Mobile/Tablet,78,18,595.19,0,7.18,5
+20100629,2010-06-29,DotBot,Other,Bot,0,Mobile/Tablet,56,1,878.91,0,5.16,6
+20100629,2010-06-29,Firefox,Windows,Desktop,0,Desktop,49,3,189.92,0,4.51,7
+20100629,2010-06-29,Baiduspider,Other,Bot,0,Mobile/Tablet,46,38,463.83,0,4.24,8
+20100629,2010-06-29,Safari,Mac OS X,Desktop,0,Desktop,44,1,120.52,0,4.05,9
+20100629,2010-06-29,Other,Other,Other,0,Desktop,28,5,416.64,0,2.58,10
+20100629,2010-06-29,msnbot,Other,Bot,0,Mobile/Tablet,21,12,363.24,0,1.93,11
+20100629,2010-06-29,YandexImages,Other,Bot,0,Mobile/Tablet,5,2,211.40,0,0.46,12
+20100629,2010-06-29,Ask Jeeves,Other,Bot,0,Mobile/Tablet,2,1,139.50,0,0.18,13
+20100629,2010-06-29,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,327.00,0,0.09,14
+20100629,2010-06-29,IE,Windows,Mobile,1,Mobile/Tablet,1,1,824.00,0,0.09,15
+20100630,2010-06-30,IE,Windows,Desktop,0,Desktop,241,16,347.27,0,22.54,1
+20100630,2010-06-30,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,160,1,592.69,0,14.97,2
+20100630,2010-06-30,YandexBot,Other,Bot,0,Mobile/Tablet,158,1,472.22,0,14.78,3
+20100630,2010-06-30,robot,Other,Bot,0,Mobile/Tablet,102,19,569.29,0,9.54,4
+20100630,2010-06-30,DotBot,Other,Bot,0,Mobile/Tablet,92,1,716.55,0,8.61,5
+20100630,2010-06-30,Googlebot,Other,Bot,0,Mobile/Tablet,69,6,166.74,0,6.45,6
+20100630,2010-06-30,Googlebot-Image,Other,Bot,0,Mobile/Tablet,54,6,97.26,0,5.05,7
+20100630,2010-06-30,Chrome,Windows,Desktop,0,Desktop,52,2,323.40,0,4.86,8
+20100630,2010-06-30,Baiduspider,Other,Bot,0,Mobile/Tablet,47,38,418.19,0,4.40,9
+20100630,2010-06-30,msnbot,Other,Bot,0,Mobile/Tablet,26,16,331.50,0,2.43,10
+20100630,2010-06-30,Firefox,Windows,Desktop,0,Desktop,22,1,109.27,0,2.06,11
+20100630,2010-06-30,Firefox,Mac OS X,Desktop,0,Desktop,21,1,94.62,0,1.96,12
+20100630,2010-06-30,Safari,Mac OS X,Desktop,0,Desktop,15,1,106.80,0,1.40,13
+20100630,2010-06-30,Other,Other,Other,0,Desktop,3,2,483.00,0,0.28,14
+20100630,2010-06-30,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,1524.00,0,0.19,15
+20100630,2010-06-30,Opera,Windows,Desktop,0,Desktop,2,1,1622.50,0,0.19,16
+20100630,2010-06-30,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,857.00,0,0.09,17
+20100630,2010-06-30,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,307.00,0,0.09,18
+20100705,2010-07-05,IE,Windows,Desktop,0,Desktop,476,16,319.87,0,43.79,1
+20100705,2010-07-05,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,157,1,593.31,0,14.44,2
+20100705,2010-07-05,DotBot,Other,Bot,0,Mobile/Tablet,127,1,614.79,0,11.68,3
+20100705,2010-07-05,robot,Other,Bot,0,Mobile/Tablet,80,1,573.98,0,7.36,4
+20100705,2010-07-05,YandexBot,Other,Bot,0,Mobile/Tablet,70,1,292.13,0,6.44,5
+20100705,2010-07-05,Baiduspider,Other,Bot,0,Mobile/Tablet,47,41,425.06,0,4.32,6
+20100705,2010-07-05,msnbot,Other,Bot,0,Mobile/Tablet,24,16,282.21,0,2.21,7
+20100705,2010-07-05,Googlebot,Other,Bot,0,Mobile/Tablet,23,1,188.35,0,2.12,8
+20100705,2010-07-05,Safari,Mac OS X,Desktop,0,Desktop,21,1,92.90,0,1.93,9
+20100705,2010-07-05,Firefox,Mac OS X,Desktop,0,Desktop,16,1,364.31,0,1.47,10
+20100705,2010-07-05,Chrome,Windows,Desktop,0,Desktop,15,1,753.13,0,1.38,11
+20100705,2010-07-05,IE,Windows,Other,0,Desktop,9,1,207.67,0,0.83,12
+20100705,2010-07-05,Googlebot-Image,Other,Bot,0,Mobile/Tablet,8,1,29.13,0,0.74,13
+20100705,2010-07-05,Sosospider,Other,Bot,0,Mobile/Tablet,6,1,385.50,0,0.55,14
+20100705,2010-07-05,acquia-crawler,Other,Bot,0,Mobile/Tablet,3,1,92.33,0,0.28,15
+20100705,2010-07-05,Daumoa,Windows,Bot,0,Mobile/Tablet,2,1,390.00,0,0.18,16
+20100705,2010-07-05,Firefox,Linux,Desktop,0,Desktop,2,1,492.50,0,0.18,17
+20100705,2010-07-05,Wget,Red Hat,Other,0,Desktop,1,1,298.00,0,0.09,18
+20100708,2010-07-08,Safari,Mac OS X,Desktop,0,Desktop,478,1,75.88,0,27.74,1
+20100708,2010-07-08,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,158,1,569.12,0,9.17,2
+20100708,2010-07-08,Chrome,Windows,Desktop,0,Desktop,156,2,322.74,0,9.05,3
+20100708,2010-07-08,YandexBot,Other,Bot,0,Mobile/Tablet,128,1,241.83,0,7.43,4
+20100708,2010-07-08,IE,Windows,Desktop,0,Desktop,122,12,741.55,0,7.08,5
+20100708,2010-07-08,DotBot,Other,Bot,0,Mobile/Tablet,105,1,709.35,0,6.09,6
+20100708,2010-07-08,Firefox,Ubuntu,Desktop,0,Desktop,63,1,450.73,0,3.66,7
+20100708,2010-07-08,robot,Other,Bot,0,Mobile/Tablet,60,1,570.68,0,3.48,8
+20100708,2010-07-08,Firefox,Windows,Desktop,0,Desktop,53,7,889.68,0,3.08,9
+20100708,2010-07-08,Baiduspider,Other,Bot,0,Mobile/Tablet,46,38,973.43,0,2.67,10
+20100708,2010-07-08,Googlebot,Other,Bot,0,Mobile/Tablet,36,7,339.22,0,2.09,11
+20100708,2010-07-08,Firefox,Mac OS X,Desktop,0,Desktop,26,1,70.00,0,1.51,12
+20100708,2010-07-08,IE,Windows,Other,0,Desktop,19,3,152.68,0,1.10,13
+20100708,2010-07-08,msnbot,Other,Bot,0,Mobile/Tablet,17,14,214.29,0,0.99,14
+20100708,2010-07-08,Googlebot-Image,Other,Bot,0,Mobile/Tablet,11,3,95.18,0,0.64,15
+20100708,2010-07-08,Sosospider,Other,Bot,0,Mobile/Tablet,7,3,511.57,0,0.41,16
+20100708,2010-07-08,Other,Other,Other,0,Desktop,4,2,972.50,0,0.23,17
+20100708,2010-07-08,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,254.33,0,0.17,18
+20100708,2010-07-08,Firefox,Linux,Desktop,0,Desktop,2,1,436.00,0,0.12,19
+20100708,2010-07-08,YandexImages,Other,Bot,0,Mobile/Tablet,2,1,62.50,0,0.12,20
+20100714,2010-07-14,IE,Windows,Desktop,0,Desktop,312,23,425.64,0,31.93,1
+20100714,2010-07-14,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,156,1,698.40,0,15.97,2
+20100714,2010-07-14,YandexBot,Other,Bot,0,Mobile/Tablet,114,1,391.94,0,11.67,3
+20100714,2010-07-14,Firefox,Windows,Desktop,0,Desktop,78,3,188.86,0,7.98,4
+20100714,2010-07-14,robot,Other,Bot,0,Mobile/Tablet,69,1,780.42,0,7.06,5
+20100714,2010-07-14,Googlebot,Other,Bot,0,Mobile/Tablet,57,7,1163.18,0,5.83,6
+20100714,2010-07-14,Baiduspider,Other,Bot,0,Mobile/Tablet,44,33,1084.14,0,4.50,7
+20100714,2010-07-14,Safari,Mac OS X,Desktop,0,Desktop,42,1,100.62,0,4.30,8
+20100714,2010-07-14,Firefox,Mac OS X,Desktop,0,Desktop,23,1,110.22,0,2.35,9
+20100714,2010-07-14,msnbot,Other,Bot,0,Mobile/Tablet,23,17,252.00,0,2.35,10
+20100714,2010-07-14,Googlebot-Image,Other,Bot,0,Mobile/Tablet,23,7,109.65,0,2.35,11
+20100714,2010-07-14,Outlook,Windows,Desktop,0,Desktop,14,1,363.29,0,1.43,12
+20100714,2010-07-14,Sosospider,Other,Bot,0,Mobile/Tablet,12,4,880.92,0,1.23,13
+20100714,2010-07-14,SurveyBot,Windows,Desktop,0,Desktop,3,1,424.33,0,0.31,14
+20100714,2010-07-14,FacebookBot,Other,Bot,0,Mobile/Tablet,2,2,465.00,0,0.20,15
+20100714,2010-07-14,Wget,Red Hat,Other,0,Desktop,1,1,157.00,0,0.10,16
+20100714,2010-07-14,IE,Windows,Mobile,1,Mobile/Tablet,1,1,658.00,0,0.10,17
+20100714,2010-07-14,IE,Windows,Other,0,Desktop,1,1,163.00,0,0.10,18
+20100714,2010-07-14,Other,Other,Mobile,1,Mobile/Tablet,1,1,53.00,0,0.10,19
+20100718,2010-07-18,Firefox,Windows,Desktop,0,Desktop,578,5,354.11,3617293,34.45,1
+20100718,2010-07-18,IE,Windows,Desktop,0,Desktop,291,88,815.41,4631571,17.34,2
+20100718,2010-07-18,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,158,1,589.68,2018220,9.42,3
+20100718,2010-07-18,Zune,Windows,Desktop,0,Desktop,105,1,230.40,645244,6.26,4
+20100718,2010-07-18,robot,Other,Bot,0,Mobile/Tablet,90,1,654.58,1097002,5.36,5
+20100718,2010-07-18,DotBot,Other,Bot,0,Mobile/Tablet,77,1,670.83,800910,4.59,6
+20100718,2010-07-18,Safari,Mac OS X,Desktop,0,Desktop,62,2,827.55,17758533,3.69,7
+20100718,2010-07-18,Firefox,Mac OS X,Desktop,0,Desktop,53,2,106.43,2639807,3.16,8
+20100718,2010-07-18,Googlebot,Other,Bot,0,Mobile/Tablet,50,5,338.86,16306475,2.98,9
+20100718,2010-07-18,Baiduspider,Other,Bot,0,Mobile/Tablet,49,41,586.80,20570,2.92,10
+20100718,2010-07-18,YandexBot,Other,Bot,0,Mobile/Tablet,43,1,261.12,517578,2.56,11
+20100718,2010-07-18,msnbot,Other,Bot,0,Mobile/Tablet,27,17,263.85,173123,1.61,12
+20100718,2010-07-18,Sosospider,Other,Bot,0,Mobile/Tablet,7,3,586.43,7954,0.42,13
+20100718,2010-07-18,Other,Other,Other,0,Desktop,6,4,287.50,72831,0.36,14
+20100718,2010-07-18,msnbot-media,Other,Bot,0,Mobile/Tablet,5,2,446.60,307206,0.30,15
+20100718,2010-07-18,Googlebot-Image,Other,Bot,0,Mobile/Tablet,4,3,72.25,842,0.24,16
+20100718,2010-07-18,Opera,Mac OS,Other,0,Desktop,1,1,164.00,378,0.06,17
+20100718,2010-07-18,Wget,Red Hat,Other,0,Desktop,1,1,159.00,378,0.06,18
+20100725,2010-07-25,IE,Windows,Desktop,0,Desktop,254,9,316.68,1894248,18.80,1
+20100725,2010-07-25,Firefox,Windows,Desktop,0,Desktop,240,2,412.69,742289,17.76,2
+20100725,2010-07-25,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,147,1,549.37,1755452,10.88,3
+20100725,2010-07-25,DotBot,Other,Bot,0,Mobile/Tablet,147,1,530.75,1312182,10.88,4
+20100725,2010-07-25,YandexBot,Other,Bot,0,Mobile/Tablet,141,1,267.52,1652995,10.44,5
+20100725,2010-07-25,Googlebot,Other,Bot,0,Mobile/Tablet,96,8,300.95,976976,7.11,6
+20100725,2010-07-25,Chrome,Windows,Desktop,0,Desktop,78,2,1491.09,869759,5.77,7
+20100725,2010-07-25,Baiduspider,Other,Bot,0,Mobile/Tablet,52,42,466.77,113160,3.85,8
+20100725,2010-07-25,Googlebot-Image,Other,Bot,0,Mobile/Tablet,35,6,131.54,27125,2.59,9
+20100725,2010-07-25,robot,Other,Bot,0,Mobile/Tablet,30,1,609.63,331550,2.22,10
+20100725,2010-07-25,Other,Other,Other,0,Desktop,25,1,234.84,0,1.85,11
+20100725,2010-07-25,Safari,Mac OS X,Desktop,0,Desktop,20,1,233.25,148779,1.48,12
+20100725,2010-07-25,Firefox,Mac OS X,Desktop,0,Desktop,19,1,147.16,112517,1.41,13
+20100725,2010-07-25,msnbot,Other,Bot,0,Mobile/Tablet,18,13,316.06,288281,1.33,14
+20100725,2010-07-25,Sosospider,Other,Bot,0,Mobile/Tablet,7,3,812.71,9322,0.52,15
+20100725,2010-07-25,AppEngine-Google,Other,Bot,0,Mobile/Tablet,4,4,659.75,98260,0.30,16
+20100725,2010-07-25,msnbot-media,Other,Bot,0,Mobile/Tablet,3,1,303.00,29283,0.22,17
+20100725,2010-07-25,Java,Other,Bot,0,Mobile/Tablet,2,1,244.00,92130,0.15,18
+20100725,2010-07-25,YandexFavicons,Other,Bot,0,Mobile/Tablet,2,1,65.00,1764,0.15,19
+20100725,2010-07-25,libwww-perl,Other,Mobile,1,Mobile/Tablet,1,1,219.00,359,0.07,20
+20100725,2010-07-25,Wget,Red Hat,Other,0,Desktop,1,1,158.00,378,0.07,21
+20100801,2010-08-01,Firefox,Windows,Desktop,0,Desktop,225,7,154.96,1100703,26.19,1
+20100801,2010-08-01,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,124,1,928.97,18926474,14.44,2
+20100801,2010-08-01,IE,Windows,Desktop,0,Desktop,120,14,714.24,1416339,13.97,3
+20100801,2010-08-01,YandexBot,Other,Bot,0,Mobile/Tablet,113,1,255.43,1397886,13.15,4
+20100801,2010-08-01,Googlebot,Other,Bot,0,Mobile/Tablet,84,2,397.20,1044972,9.78,5
+20100801,2010-08-01,Baiduspider,Other,Bot,0,Mobile/Tablet,50,39,1409.48,19480,5.82,6
+20100801,2010-08-01,Firefox,Mac OS X,Desktop,0,Desktop,45,2,85.29,395995,5.24,7
+20100801,2010-08-01,Opera,Windows,Desktop,0,Desktop,25,1,230.04,162027,2.91,8
+20100801,2010-08-01,Googlebot-Image,Other,Bot,0,Mobile/Tablet,22,2,137.00,4634,2.56,9
+20100801,2010-08-01,msnbot,Other,Bot,0,Mobile/Tablet,21,14,407.43,512005,2.44,10
+20100801,2010-08-01,Chrome,Windows,Desktop,0,Desktop,20,2,478.60,224581,2.33,11
+20100801,2010-08-01,Ask Jeeves,Other,Bot,0,Mobile/Tablet,5,2,245.20,61261,0.58,12
+20100801,2010-08-01,Nokia OSS Browser,Symbian OS,Mobile,1,Mobile/Tablet,3,1,1045.67,120994,0.35,13
+20100801,2010-08-01,Sosospider,Other,Bot,0,Mobile/Tablet,2,1,293.50,2810,0.23,14
+20100808,2010-08-08,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,155,1,688.77,1710022,19.40,1
+20100808,2010-08-08,YandexBot,Other,Bot,0,Mobile/Tablet,153,1,297.54,1276168,19.15,2
+20100808,2010-08-08,IE,Windows,Desktop,0,Desktop,112,10,387.54,2562047,14.02,3
+20100808,2010-08-08,Googlebot,Other,Bot,0,Mobile/Tablet,110,7,419.13,1211467,13.77,4
+20100808,2010-08-08,DotBot,Other,Bot,0,Mobile/Tablet,77,1,749.51,807744,9.64,5
+20100808,2010-08-08,Googlebot-Image,Other,Bot,0,Mobile/Tablet,61,7,99.74,14031,7.63,6
+20100808,2010-08-08,Baiduspider,Other,Bot,0,Mobile/Tablet,36,33,398.00,15700,4.51,7
+20100808,2010-08-08,msnbot,Other,Bot,0,Mobile/Tablet,29,19,318.34,240279,3.63,8
+20100808,2010-08-08,Safari,Other,Other,0,Desktop,18,2,208.78,139185,2.25,9
+20100808,2010-08-08,Firefox,Mac OS X,Desktop,0,Desktop,16,1,157.06,100645,2.00,10
+20100808,2010-08-08,Firefox,Windows,Desktop,0,Desktop,14,1,159.79,88726,1.75,11
+20100808,2010-08-08,Maxthon,Windows,Desktop,0,Desktop,6,4,622.17,117585,0.75,12
+20100808,2010-08-08,Other,Other,Other,0,Desktop,2,2,107.50,1783,0.25,13
+20100808,2010-08-08,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,930.50,46462,0.25,14
+20100808,2010-08-08,AppEngine-Google,Other,Bot,0,Mobile/Tablet,2,2,540.50,9707,0.25,15
+20100808,2010-08-08,Exabot,Other,Bot,0,Mobile/Tablet,2,1,114.00,47516,0.25,16
+20100808,2010-08-08,BlackBerry,Windows,Mobile,1,Mobile/Tablet,1,1,700.00,19079,0.13,17
+20100808,2010-08-08,Wget,Red Hat,Other,0,Desktop,1,1,169.00,378,0.13,18
+20100809,2010-08-09,Firefox,Windows,Desktop,0,Desktop,1109,4,713.39,6017106,32.82,1
+20100809,2010-08-09,IE,Windows,Desktop,0,Desktop,946,90,651.75,6333762,28.00,2
+20100809,2010-08-09,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,275,2,656.51,2232518,8.14,3
+20100809,2010-08-09,Safari,Mac OS X,Desktop,0,Desktop,256,2,1844.27,1057747,7.58,4
+20100809,2010-08-09,YandexBot,Other,Bot,0,Mobile/Tablet,185,1,288.20,1201493,5.47,5
+20100809,2010-08-09,Googlebot,Other,Bot,0,Mobile/Tablet,141,4,355.20,941164,4.17,6
+20100809,2010-08-09,DotBot,Other,Bot,0,Mobile/Tablet,112,1,718.77,673790,3.31,7
+20100809,2010-08-09,Googlebot-Image,Other,Bot,0,Mobile/Tablet,107,4,95.74,15436,3.17,8
+20100809,2010-08-09,Chrome,Windows,Desktop,0,Desktop,94,5,628.28,443620,2.78,9
+20100809,2010-08-09,Baiduspider,Other,Bot,0,Mobile/Tablet,72,35,1453.26,16834,2.13,10
+20100809,2010-08-09,msnbot,Other,Bot,0,Mobile/Tablet,51,20,327.51,371738,1.51,11
+20100809,2010-08-09,Other,Other,Other,0,Desktop,14,5,836.57,129021,0.41,12
+20100809,2010-08-09,Other,Mac OS X,Desktop,0,Desktop,6,1,1533.67,138071,0.18,13
+20100809,2010-08-09,YandexImages,Other,Bot,0,Mobile/Tablet,4,1,92.00,1616,0.12,14
+20100809,2010-08-09,FacebookBot,Other,Bot,0,Mobile/Tablet,2,1,485.00,9831,0.06,15
+20100809,2010-08-09,MSIECrawler,Windows,Desktop,0,Desktop,2,1,556.00,19079,0.06,16
+20100809,2010-08-09,AppEngine-Google,Other,Bot,0,Mobile/Tablet,1,1,423.00,7828,0.03,17
+20100809,2010-08-09,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,316.00,1405,0.03,18
+20100830,2010-08-30,IE,Windows,Desktop,0,Desktop,215,13,664.45,3300359,23.97,1
+20100830,2010-08-30,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,139,1,566.68,1512333,15.50,2
+20100830,2010-08-30,Googlebot,Other,Bot,0,Mobile/Tablet,111,1,168.72,1532415,12.37,3
+20100830,2010-08-30,YandexBot,Other,Bot,0,Mobile/Tablet,93,1,321.72,1055301,10.37,4
+20100830,2010-08-30,Firefox,Windows,Desktop,0,Desktop,68,4,630.78,515396,7.58,5
+20100830,2010-08-30,Mobile Safari,iOS,Tablet,0,Mobile/Tablet,54,1,477.81,445739,6.02,6
+20100830,2010-08-30,Googlebot-Image,Other,Bot,0,Mobile/Tablet,52,1,26.21,19481,5.80,7
+20100830,2010-08-30,Baiduspider,Other,Bot,0,Mobile/Tablet,50,44,442.14,20992,5.57,8
+20100830,2010-08-30,Firefox,Ubuntu,Desktop,0,Desktop,24,1,58.38,152994,2.68,9
+20100830,2010-08-30,Firefox,Mac OS X,Desktop,0,Desktop,24,1,209.08,202172,2.68,10
+20100830,2010-08-30,msnbot,Other,Bot,0,Mobile/Tablet,23,18,229.43,233673,2.56,11
+20100830,2010-08-30,Safari,Mac OS X,Desktop,0,Desktop,20,1,151.40,149825,2.23,12
+20100830,2010-08-30,Chrome,Windows,Desktop,0,Desktop,15,1,495.33,112473,1.67,13
+20100830,2010-08-30,msnbot-media,Other,Bot,0,Mobile/Tablet,3,1,313.00,24352,0.33,14
+20100830,2010-08-30,IE,Windows,Other,0,Desktop,2,1,184.00,2858,0.22,15
+20100830,2010-08-30,Python-urllib,Other,Bot,0,Mobile/Tablet,1,1,1054.00,46084,0.11,16
+20100830,2010-08-30,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,307.00,1405,0.11,17
+20100830,2010-08-30,Wget,Red Hat,Other,0,Desktop,1,1,193.00,378,0.11,18
+20100906,2010-09-06,YandexBot,Other,Bot,0,Mobile/Tablet,165,1,241.43,1703158,19.86,1
+20100906,2010-09-06,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,144,1,570.81,1757074,17.33,2
+20100906,2010-09-06,IE,Windows,Desktop,0,Desktop,136,16,312.50,961674,16.37,3
+20100906,2010-09-06,Googlebot,Other,Bot,0,Mobile/Tablet,79,2,134.47,592787,9.51,4
+20100906,2010-09-06,DotBot,Other,Bot,0,Mobile/Tablet,77,1,567.69,803269,9.27,5
+20100906,2010-09-06,Baiduspider,Other,Bot,0,Mobile/Tablet,47,37,489.32,63472,5.66,6
+20100906,2010-09-06,Firefox,Windows,Desktop,0,Desktop,39,4,393.44,640546,4.69,7
+20100906,2010-09-06,msnbot,Other,Bot,0,Mobile/Tablet,39,14,1967.74,1468754,4.69,8
+20100906,2010-09-06,Googlebot-Image,Other,Bot,0,Mobile/Tablet,37,1,26.08,14575,4.45,9
+20100906,2010-09-06,Safari,Mac OS X,Desktop,0,Desktop,25,1,392.80,207781,3.01,10
+20100906,2010-09-06,Android,Android,Mobile,1,Mobile/Tablet,16,1,788.81,122238,1.93,11
+20100906,2010-09-06,Other,Other,Other,0,Desktop,10,2,84.40,24227,1.20,12
+20100906,2010-09-06,Sogou web spider,Other,Bot,0,Mobile/Tablet,6,1,1484.33,139386,0.72,13
+20100906,2010-09-06,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,253.67,47894,0.36,14
+20100906,2010-09-06,Chrome,Windows,Desktop,0,Desktop,2,1,820.50,79226,0.24,15
+20100906,2010-09-06,Wget,Red Hat,Other,0,Desktop,2,2,303.50,378,0.24,16
+20100906,2010-09-06,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,308.00,1405,0.12,17
+20100906,2010-09-06,Firefox,Mac OS X,Desktop,0,Desktop,1,1,621.00,27882,0.12,18
+20100912,2010-09-12,IE,Windows,Desktop,0,Desktop,287,15,307.75,2589683,21.91,1
+20100912,2010-09-12,YandexBot,Other,Bot,0,Mobile/Tablet,189,1,250.86,2835656,14.43,2
+20100912,2010-09-12,Firefox,Windows,Desktop,0,Desktop,169,4,355.60,2050620,12.90,3
+20100912,2010-09-12,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,142,1,547.69,1918340,10.84,4
+20100912,2010-09-12,Chrome,Windows,Desktop,0,Desktop,142,4,218.46,1091037,10.84,5
+20100912,2010-09-12,Googlebot,Other,Bot,0,Mobile/Tablet,128,9,241.14,1692861,9.77,6
+20100912,2010-09-12,Googlebot-Image,Other,Bot,0,Mobile/Tablet,58,6,189.83,14365296,4.43,7
+20100912,2010-09-12,Other,Other,Other,0,Desktop,55,1,11113.76,2119347,4.20,8
+20100912,2010-09-12,Baiduspider,Other,Bot,0,Mobile/Tablet,48,39,483.63,18144,3.66,9
+20100912,2010-09-12,msnbot,Other,Bot,0,Mobile/Tablet,34,14,169.65,157739,2.60,10
+20100912,2010-09-12,MJ12bot,Other,Bot,0,Mobile/Tablet,20,1,314.55,207374,1.53,11
+20100912,2010-09-12,Safari,Mac OS X,Desktop,0,Desktop,14,1,118.57,104908,1.07,12
+20100912,2010-09-12,Sogou web spider,Other,Bot,0,Mobile/Tablet,11,1,937.91,232310,0.84,13
+20100912,2010-09-12,Googlebot-Mobile,Other,Mobile,1,Mobile/Tablet,4,3,272.75,48409,0.31,14
+20100912,2010-09-12,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,253.67,47894,0.23,15
+20100912,2010-09-12,FacebookBot,Other,Bot,0,Mobile/Tablet,2,2,325.50,47289,0.15,16
+20100916,2010-09-16,IE,Windows,Desktop,0,Desktop,466,15,896.77,4060797,26.91,1
+20100916,2010-09-16,Chrome,Windows,Desktop,0,Desktop,325,5,215.34,2613707,18.76,2
+20100916,2010-09-16,YandexBot,Other,Bot,0,Mobile/Tablet,193,1,242.18,2549262,11.14,3
+20100916,2010-09-16,Safari,Mac OS X,Desktop,0,Desktop,160,8,354.35,1223578,9.24,4
+20100916,2010-09-16,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,127,1,594.57,1486913,7.33,5
+20100916,2010-09-16,Googlebot,Other,Bot,0,Mobile/Tablet,104,5,170.38,683433,6.00,6
+20100916,2010-09-16,Firefox,Mac OS X,Desktop,0,Desktop,97,3,276.57,2983058,5.60,7
+20100916,2010-09-16,Googlebot-Image,Other,Bot,0,Mobile/Tablet,56,5,55.11,35506,3.23,8
+20100916,2010-09-16,Other,Other,Other,0,Desktop,56,1,90.66,79744,3.23,9
+20100916,2010-09-16,Baiduspider,Other,Bot,0,Mobile/Tablet,50,40,796.38,64228,2.89,10
+20100916,2010-09-16,Firefox,Windows,Desktop,0,Desktop,23,4,394.00,169901,1.33,11
+20100916,2010-09-16,msnbot,Other,Bot,0,Mobile/Tablet,17,12,250.41,220779,0.98,12
+20100916,2010-09-16,Firefox,Ubuntu,Desktop,0,Desktop,16,1,527.69,100406,0.92,13
+20100916,2010-09-16,AOL,Windows,Desktop,0,Desktop,15,13,76.93,97937,0.87,14
+20100916,2010-09-16,Speedy Spider,Windows,Desktop,0,Desktop,10,6,134.40,57087,0.58,15
+20100916,2010-09-16,msnbot-media,Other,Bot,0,Mobile/Tablet,3,1,336.33,34103,0.17,16
+20100916,2010-09-16,Sogou web spider,Other,Bot,0,Mobile/Tablet,3,1,7924.67,60808,0.17,17
+20100916,2010-09-16,Nutch,Other,Bot,0,Mobile/Tablet,2,2,2252.00,47508,0.12,18
+20100916,2010-09-16,Huaweisymantecspider,Other,Other,0,Desktop,2,1,163.00,1802,0.12,19
+20100916,2010-09-16,SiteBot,Other,Bot,0,Mobile/Tablet,2,1,75.00,1764,0.12,20
+20100916,2010-09-16,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,298.00,1405,0.06,21
+20100923,2010-09-23,IE,Windows,Desktop,0,Desktop,511,10,162.66,3434496,27.58,1
+20100923,2010-09-23,Firefox,Mac OS X,Desktop,0,Desktop,347,1,397.59,3155372,18.73,2
+20100923,2010-09-23,Firefox,Windows,Desktop,0,Desktop,308,10,315.38,3393120,16.62,3
+20100923,2010-09-23,YandexBot,Other,Bot,0,Mobile/Tablet,229,2,310.07,2397959,12.36,4
+20100923,2010-09-23,Googlebot,Other,Bot,0,Mobile/Tablet,166,1,138.90,1674650,8.96,5
+20100923,2010-09-23,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,151,1,977.70,19452300,8.15,6
+20100923,2010-09-23,Baiduspider,Other,Bot,0,Mobile/Tablet,48,40,443.92,18144,2.59,7
+20100923,2010-09-23,msnbot,Other,Bot,0,Mobile/Tablet,25,15,1089.08,330588,1.35,8
+20100923,2010-09-23,Googlebot-Image,Other,Bot,0,Mobile/Tablet,24,1,36.96,75258,1.30,9
+20100923,2010-09-23,Other,Other,Other,0,Desktop,20,3,378.25,198238,1.08,10
+20100923,2010-09-23,Safari,Mac OS X,Desktop,0,Desktop,15,1,195.67,95106,0.81,11
+20100923,2010-09-23,Huaweisymantecspider,Other,Other,0,Desktop,4,1,393.75,54434,0.22,12
+20100923,2010-09-23,Chrome,Windows,Desktop,0,Desktop,3,1,59.33,14071,0.16,13
+20100923,2010-09-23,FlightDeckReports Bot,Other,Bot,0,Mobile/Tablet,1,1,106.00,359,0.05,14
+20100923,2010-09-23,Firefox Beta,Linux,Desktop,0,Desktop,1,1,116.00,1424,0.05,15
+20100924,2010-09-24,Firefox,Windows,Desktop,0,Desktop,357,5,199.96,5398930,29.33,1
+20100924,2010-09-24,IE,Windows,Desktop,0,Desktop,279,8,207.24,2360443,22.93,2
+20100924,2010-09-24,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,164,1,616.54,1949406,13.48,3
+20100924,2010-09-24,YandexBot,Other,Bot,0,Mobile/Tablet,151,1,310.66,1974381,12.41,4
+20100924,2010-09-24,Googlebot,Other,Bot,0,Mobile/Tablet,66,1,130.86,747481,5.42,5
+20100924,2010-09-24,Baiduspider,Other,Bot,0,Mobile/Tablet,49,41,402.71,19568,4.03,6
+20100924,2010-09-24,Googlebot-Image,Other,Bot,0,Mobile/Tablet,48,1,28.90,28485,3.94,7
+20100924,2010-09-24,Chrome,Windows,Desktop,0,Desktop,31,2,426.90,211081,2.55,8
+20100924,2010-09-24,Safari,Mac OS X,Desktop,0,Desktop,22,1,174.68,153667,1.81,9
+20100924,2010-09-24,msnbot,Other,Bot,0,Mobile/Tablet,21,16,210.38,200454,1.73,10
+20100924,2010-09-24,Android,Android,Mobile,1,Mobile/Tablet,15,1,1044.47,104458,1.23,11
+20100924,2010-09-24,Ask Jeeves,Other,Bot,0,Mobile/Tablet,5,2,282.40,88889,0.41,12
+20100924,2010-09-24,Huaweisymantecspider,Other,Other,0,Desktop,4,1,393.75,54434,0.33,13
+20100924,2010-09-24,Other,Other,Other,0,Desktop,2,1,64.50,2848,0.16,14
+20100924,2010-09-24,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,383.00,1405,0.08,15
+20100924,2010-09-24,Wget,Red Hat,Other,0,Desktop,1,1,202.00,378,0.08,16
+20100926,2010-09-26,YandexBot,Other,Bot,0,Mobile/Tablet,340,1,300.62,4038463,24.75,1
+20100926,2010-09-26,IE,Windows,Desktop,0,Desktop,246,16,811.83,2456211,17.90,2
+20100926,2010-09-26,IE,Windows,Other,0,Desktop,183,2,194.90,664672,13.32,3
+20100926,2010-09-26,Dow Jones Searchbot,Other,Bot,0,Mobile/Tablet,157,1,397.53,2654226,11.43,4
+20100926,2010-09-26,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,140,1,588.80,1796338,10.19,5
+20100926,2010-09-26,Googlebot,Other,Bot,0,Mobile/Tablet,90,1,128.56,863058,6.55,6
+20100926,2010-09-26,Baiduspider,Other,Bot,0,Mobile/Tablet,50,41,569.36,110312,3.64,7
+20100926,2010-09-26,Googlebot-Image,Other,Bot,0,Mobile/Tablet,45,1,25.53,10660,3.28,8
+20100926,2010-09-26,TurnitinBot,Other,Bot,0,Mobile/Tablet,41,1,597.71,452962,2.98,9
+20100926,2010-09-26,Firefox,Windows,Desktop,0,Desktop,38,2,5316.76,194485,2.77,10
+20100926,2010-09-26,msnbot,Other,Bot,0,Mobile/Tablet,22,13,259.41,232948,1.60,11
+20100926,2010-09-26,Firefox,Mac OS X,Desktop,0,Desktop,15,1,391.13,123484,1.09,12
+20100926,2010-09-26,SurveyBot,Windows,Desktop,0,Desktop,3,1,424.00,47848,0.22,13
+20100926,2010-09-26,Java,Other,Bot,0,Mobile/Tablet,2,2,5020.50,7006,0.15,14
+20100926,2010-09-26,Other,Other,Other,0,Desktop,2,1,1390.50,47516,0.15,15
+20101008,2010-10-08,Purebot,Other,Bot,0,Mobile/Tablet,1250,1,163.43,17916851,47.86,1
+20101008,2010-10-08,IE,Windows,Desktop,0,Desktop,319,12,416.29,2431055,12.21,2
+20101008,2010-10-08,Chrome,Windows,Desktop,0,Desktop,216,4,269.88,2011596,8.27,3
+20101008,2010-10-08,Googlebot,Other,Bot,0,Mobile/Tablet,176,8,271.97,2196242,6.74,4
+20101008,2010-10-08,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,147,1,606.97,1832318,5.63,5
+20101008,2010-10-08,Firefox,Windows,Desktop,0,Desktop,137,11,495.25,862223,5.25,6
+20101008,2010-10-08,IE,Windows,Other,0,Desktop,100,1,63.63,142400,3.83,7
+20101008,2010-10-08,DotBot,Other,Bot,0,Mobile/Tablet,76,1,558.79,782342,2.91,8
+20101008,2010-10-08,Baiduspider,Other,Bot,0,Mobile/Tablet,49,41,787.61,65274,1.88,9
+20101008,2010-10-08,Opera,Windows,Desktop,0,Desktop,44,1,560.34,280206,1.68,10
+20101008,2010-10-08,YandexBot,Other,Bot,0,Mobile/Tablet,36,1,261.97,353176,1.38,11
+20101008,2010-10-08,msnbot,Other,Bot,0,Mobile/Tablet,26,16,213.19,179389,1.00,12
+20101008,2010-10-08,Googlebot-Image,Other,Bot,0,Mobile/Tablet,26,6,193.19,2533011,1.00,13
+20101008,2010-10-08,Other,Other,Other,0,Desktop,4,3,251.00,48141,0.15,14
+20101008,2010-10-08,discobot,Other,Bot,0,Mobile/Tablet,4,1,583.50,95032,0.15,15
+20101008,2010-10-08,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,662.00,1368,0.04,16
+20101008,2010-10-08,Wget,Red Hat,Other,0,Desktop,1,1,1469.00,0,0.04,17
+20101020,2010-10-20,IE,Windows,Desktop,0,Desktop,368,17,908.02,4359538,30.54,1
+20101020,2010-10-20,Firefox,Mac OS X,Desktop,0,Desktop,154,3,177.03,3575328,12.78,2
+20101020,2010-10-20,IE,Windows,Other,0,Desktop,100,1,69.64,142400,8.30,3
+20101020,2010-10-20,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,100,2,609.08,1472889,8.30,4
+20101020,2010-10-20,Firefox,Windows,Desktop,0,Desktop,88,5,271.31,644959,7.30,5
+20101020,2010-10-20,DotBot,Other,Bot,0,Mobile/Tablet,77,1,683.52,777144,6.39,6
+20101020,2010-10-20,Chrome,Windows,Desktop,0,Desktop,57,4,558.61,550102,4.73,7
+20101020,2010-10-20,Baiduspider,Other,Bot,0,Mobile/Tablet,46,37,507.80,17388,3.82,8
+20101020,2010-10-20,Googlebot,Other,Bot,0,Mobile/Tablet,46,5,328.59,344952,3.82,9
+20101020,2010-10-20,YandexBot,Other,Bot,0,Mobile/Tablet,45,1,305.62,456828,3.73,10
+20101020,2010-10-20,Safari,Mac OS X,Desktop,0,Desktop,29,2,406.14,173272,2.41,11
+20101020,2010-10-20,Googlebot-Image,Other,Bot,0,Mobile/Tablet,23,5,96.04,6039,1.91,12
+20101020,2010-10-20,bingbot,Other,Bot,0,Mobile/Tablet,19,14,189.42,110190,1.58,13
+20101020,2010-10-20,Other,Other,Other,0,Desktop,19,3,435.32,361374,1.58,14
+20101020,2010-10-20,msnbot,Other,Bot,0,Mobile/Tablet,11,11,234.36,32787,0.91,15
+20101020,2010-10-20,Firefox,Linux,Desktop,0,Desktop,11,2,11729.55,119764,0.91,16
+20101020,2010-10-20,Nokia Services (WAP) Browser,Other,Mobile,1,Mobile/Tablet,6,1,45659.33,21442,0.50,17
+20101020,2010-10-20,Other,Other,Bot,0,Mobile/Tablet,2,2,13.00,2858,0.17,18
+20101020,2010-10-20,Outlook,Windows,Desktop,0,Desktop,1,1,823.00,120282,0.08,19
+20101020,2010-10-20,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,380.00,1405,0.08,20
+20101020,2010-10-20,Encyclopedia/Bot,Other,Bot,0,Mobile/Tablet,1,1,486.00,11169,0.08,21
+20101020,2010-10-20,YandexImages,Other,Bot,0,Mobile/Tablet,1,1,64.00,1405,0.08,22
+20101023,2010-10-23,Purebot,Other,Bot,0,Mobile/Tablet,1250,1,192.40,18430831,56.84,1
+20101023,2010-10-23,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,150,1,646.47,1961687,6.82,2
+20101023,2010-10-23,Chrome,Windows,Desktop,0,Desktop,121,2,546.63,1248513,5.50,3
+20101023,2010-10-23,Sosospider,Other,Bot,0,Mobile/Tablet,115,58,969.71,2650309,5.23,4
+20101023,2010-10-23,Firefox,Windows,Desktop,0,Desktop,95,2,317.83,648224,4.32,5
+20101023,2010-10-23,IE,Windows,Desktop,0,Desktop,84,16,1401.82,2186316,3.82,6
+20101023,2010-10-23,Firefox,Mac OS X,Desktop,0,Desktop,55,1,126.36,370061,2.50,7
+20101023,2010-10-23,Safari,Mac OS X,Desktop,0,Desktop,55,2,418.69,740028,2.50,8
+20101023,2010-10-23,Other,Other,Other,0,Desktop,55,1,10523.33,2119347,2.50,9
+20101023,2010-10-23,Baiduspider,Other,Bot,0,Mobile/Tablet,48,41,545.50,113301,2.18,10
+20101023,2010-10-23,Googlebot,Other,Bot,0,Mobile/Tablet,36,8,282.94,188713,1.64,11
+20101023,2010-10-23,DotBot,Other,Bot,0,Mobile/Tablet,32,1,578.28,349281,1.46,12
+20101023,2010-10-23,Googlebot-Image,Other,Bot,0,Mobile/Tablet,27,6,98.07,6875,1.23,13
+20101023,2010-10-23,YandexBot,Other,Bot,0,Mobile/Tablet,25,1,355.84,236251,1.14,14
+20101023,2010-10-23,bingbot,Other,Bot,0,Mobile/Tablet,23,15,213.70,135069,1.05,15
+20101023,2010-10-23,msnbot,Other,Bot,0,Mobile/Tablet,6,5,426.33,112291,0.27,16
+20101023,2010-10-23,IE,Windows,Other,0,Desktop,5,1,80.00,7120,0.23,17
+20101023,2010-10-23,Nutch,Other,Bot,0,Mobile/Tablet,4,3,729.50,3604,0.18,18
+20101023,2010-10-23,Flock,Windows,Desktop,0,Desktop,3,1,158.67,4215,0.14,19
+20101023,2010-10-23,ICC-Crawler,Other,Bot,0,Mobile/Tablet,2,1,1008.50,47516,0.09,20
+20101023,2010-10-23,Sogou Pic Spider,Other,Bot,0,Mobile/Tablet,2,2,603.50,0,0.09,21
+20101023,2010-10-23,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,2,314.50,2848,0.09,22
+20101023,2010-10-23,Googlebot-Mobile,Other,Mobile,1,Mobile/Tablet,2,1,226.00,25024,0.09,23
+20101023,2010-10-23,Maxthon,Windows,Desktop,0,Desktop,1,1,171.00,378,0.05,24
+20101025,2010-10-25,Firefox,Windows,Desktop,0,Desktop,334,10,407.25,2275063,27.74,1
+20101025,2010-10-25,IE,Windows,Desktop,0,Desktop,288,26,563.77,2476025,23.92,2
+20101025,2010-10-25,Sosospider,Other,Bot,0,Mobile/Tablet,145,73,984.97,3347389,12.04,3
+20101025,2010-10-25,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,120,1,598.48,1514276,9.97,4
+20101025,2010-10-25,Chrome,Windows,Desktop,0,Desktop,84,6,818.55,1094242,6.98,5
+20101025,2010-10-25,Googlebot,Other,Bot,0,Mobile/Tablet,72,4,284.46,398597,5.98,6
+20101025,2010-10-25,Baiduspider,Other,Bot,0,Mobile/Tablet,49,41,380.31,19568,4.07,7
+20101025,2010-10-25,Googlebot-Image,Other,Bot,0,Mobile/Tablet,34,3,378.97,4558922,2.82,8
+20101025,2010-10-25,YandexBot,Other,Bot,0,Mobile/Tablet,24,1,389.13,308407,1.99,9
+20101025,2010-10-25,bingbot,Other,Bot,0,Mobile/Tablet,24,18,164.25,62377,1.99,10
+20101025,2010-10-25,msnbot,Other,Bot,0,Mobile/Tablet,10,9,188.70,32787,0.83,11
+20101025,2010-10-25,SiteBot,Other,Bot,0,Mobile/Tablet,8,4,86.50,7056,0.66,12
+20101025,2010-10-25,HuaweiSymantecSpider,Windows,Desktop,0,Desktop,4,1,384.25,54434,0.33,13
+20101025,2010-10-25,IE,Windows,Other,0,Desktop,2,1,33.00,2810,0.17,14
+20101025,2010-10-25,Other,Other,Other,0,Desktop,2,2,226.00,6242,0.17,15
+20101025,2010-10-25,Googlebot-Mobile,Other,Mobile,1,Mobile/Tablet,2,1,314.00,45423,0.17,16
+20101025,2010-10-25,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,427.00,37458,0.08,17
+20101027,2010-10-27,Firefox,Windows,Desktop,0,Desktop,880,6,275.69,8610950,45.04,1
+20101027,2010-10-27,IE,Windows,Desktop,0,Desktop,372,21,412.92,5761757,19.04,2
+20101027,2010-10-27,Other,Other,Other,0,Desktop,202,2,547.02,296147,10.34,3
+20101027,2010-10-27,Sosospider,Other,Bot,0,Mobile/Tablet,144,72,949.33,3345984,7.37,4
+20101027,2010-10-27,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,113,1,580.69,1482432,5.78,5
+20101027,2010-10-27,Googlebot,Other,Bot,0,Mobile/Tablet,85,6,387.65,700693,4.35,6
+20101027,2010-10-27,Baiduspider,Other,Bot,0,Mobile/Tablet,75,62,7335.95,1355008,3.84,7
+20101027,2010-10-27,Googlebot-Image,Other,Bot,0,Mobile/Tablet,33,4,124.06,8142,1.69,8
+20101027,2010-10-27,bingbot,Other,Bot,0,Mobile/Tablet,17,13,176.53,74238,0.87,9
+20101027,2010-10-27,YandexBot,Other,Bot,0,Mobile/Tablet,16,1,339.00,200859,0.82,10
+20101027,2010-10-27,msnbot-media,Other,Bot,0,Mobile/Tablet,6,2,404.00,153763,0.31,11
+20101027,2010-10-27,msnbot,Other,Bot,0,Mobile/Tablet,5,4,126.20,7025,0.26,12
+20101027,2010-10-27,Chrome,Windows,Desktop,0,Desktop,2,1,948.50,79226,0.10,13
+20101027,2010-10-27,DotBot,Other,Bot,0,Mobile/Tablet,2,1,167.50,2810,0.10,14
+20101027,2010-10-27,Wget,Red Hat,Other,0,Desktop,1,1,194.00,378,0.05,15
+20101027,2010-10-27,Firefox,Ubuntu,Desktop,0,Desktop,1,1,14548.00,122596,0.05,16
+20101031,2010-10-31,IE,Windows,Desktop,0,Desktop,215,21,1189.63,2841277,19.69,1
+20101031,2010-10-31,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,143,1,623.79,1916063,13.10,2
+20101031,2010-10-31,Sosospider,Other,Bot,0,Mobile/Tablet,141,72,959.91,3208739,12.91,3
+20101031,2010-10-31,Firefox,Windows,Desktop,0,Desktop,132,9,566.65,1192162,12.09,4
+20101031,2010-10-31,DotBot,Other,Bot,0,Mobile/Tablet,77,1,550.12,751344,7.05,5
+20101031,2010-10-31,Googlebot,Other,Bot,0,Mobile/Tablet,71,2,242.63,426353,6.50,6
+20101031,2010-10-31,Firefox,Ubuntu,Desktop,0,Desktop,55,1,353.85,370061,5.04,7
+20101031,2010-10-31,Googlebot-Image,Other,Bot,0,Mobile/Tablet,55,2,90.16,11575,5.04,8
+20101031,2010-10-31,Baiduspider,Other,Bot,0,Mobile/Tablet,48,40,408.54,18144,4.40,9
+20101031,2010-10-31,Chrome,Windows,Desktop,0,Desktop,25,2,484.88,218226,2.29,10
+20101031,2010-10-31,Safari,Mac OS X,Desktop,0,Desktop,25,2,570.68,437115,2.29,11
+20101031,2010-10-31,YandexBot,Other,Bot,0,Mobile/Tablet,23,1,295.96,411633,2.11,12
+20101031,2010-10-31,Other,Other,Other,0,Desktop,21,4,307.86,348987,1.92,13
+20101031,2010-10-31,Safari,Other,Bot,0,Mobile/Tablet,14,3,600.21,103373,1.28,14
+20101031,2010-10-31,bingbot,Other,Bot,0,Mobile/Tablet,13,8,245.31,70642,1.19,15
+20101031,2010-10-31,msnbot,Other,Bot,0,Mobile/Tablet,11,7,243.73,126355,1.01,16
+20101031,2010-10-31,IE,Windows,Other,0,Desktop,5,1,81.00,7120,0.46,17
+20101031,2010-10-31,Opera,Windows,Desktop,0,Desktop,4,2,1849.00,158452,0.37,18
+20101031,2010-10-31,FacebookBot,Other,Bot,0,Mobile/Tablet,4,4,310.75,46411,0.37,19
+20101031,2010-10-31,Huaweisymantecspider,Other,Other,0,Desktop,4,1,414.75,54434,0.37,20
+20101031,2010-10-31,MLBot,Other,Bot,0,Mobile/Tablet,3,1,575.67,59367,0.27,21
+20101031,2010-10-31,Firefox,Gentoo,Desktop,0,Desktop,2,1,30.50,654,0.18,22
+20101031,2010-10-31,Java,Other,Bot,0,Mobile/Tablet,1,1,38.00,359,0.09,23
+20101101,2010-11-01,IE,Windows,Desktop,0,Desktop,868,37,556.59,8233833,42.78,1
+20101101,2010-11-01,Firefox,Windows,Desktop,0,Desktop,230,9,419.97,1806476,11.34,2
+20101101,2010-11-01,Chrome,Windows,Desktop,0,Desktop,215,5,858.86,2183911,10.60,3
+20101101,2010-11-01,Sosospider,Other,Bot,0,Mobile/Tablet,143,72,972.87,3299895,7.05,4
+20101101,2010-11-01,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,107,1,586.43,1666954,5.27,5
+20101101,2010-11-01,DotBot,Other,Bot,0,Mobile/Tablet,99,1,501.40,885445,4.88,6
+20101101,2010-11-01,Firefox,Mac OS X,Desktop,0,Desktop,69,3,1994.72,2300885,3.40,7
+20101101,2010-11-01,Googlebot-Image,Other,Bot,0,Mobile/Tablet,62,4,132.40,1549497,3.06,8
+20101101,2010-11-01,Firefox Beta,Windows,Desktop,0,Desktop,60,1,553.00,498518,2.96,9
+20101101,2010-11-01,Baiduspider,Other,Bot,0,Mobile/Tablet,45,39,445.47,62716,2.22,10
+20101101,2010-11-01,Googlebot,Other,Bot,0,Mobile/Tablet,32,2,252.56,197054,1.58,11
+20101101,2010-11-01,Safari,Mac OS X,Desktop,0,Desktop,25,2,206.84,196232,1.23,12
+20101101,2010-11-01,bingbot,Other,Bot,0,Mobile/Tablet,22,13,221.73,124785,1.08,13
+20101101,2010-11-01,Apple Mail,Mac OS X,Desktop,0,Desktop,18,1,735.67,129996,0.89,14
+20101101,2010-11-01,YandexBot,Other,Bot,0,Mobile/Tablet,16,1,272.75,180330,0.79,15
+20101101,2010-11-01,msnbot,Other,Bot,0,Mobile/Tablet,5,5,124.60,7025,0.25,16
+20101101,2010-11-01,Huaweisymantecspider,Other,Other,0,Desktop,4,1,390.25,54434,0.20,17
+20101101,2010-11-01,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,256.33,47894,0.15,18
+20101101,2010-11-01,YandexImages,Other,Bot,0,Mobile/Tablet,2,1,71.50,2916,0.10,19
+20101101,2010-11-01,Speedy Spider,Windows,Desktop,0,Desktop,2,2,106.50,9279,0.10,20
+20101101,2010-11-01,Wget,Red Hat,Other,0,Desktop,1,1,161.00,378,0.05,21
+20101101,2010-11-01,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,388.00,4267,0.05,22
+20101111,2010-11-11,IE,Windows,Desktop,0,Desktop,403,20,264.52,2500099,32.45,1
+20101111,2010-11-11,Firefox,Mac OS X,Desktop,0,Desktop,161,1,112.58,1180853,12.96,2
+20101111,2010-11-11,Googlebot,Other,Bot,0,Mobile/Tablet,139,7,472.87,7954537,11.19,3
+20101111,2010-11-11,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,94,1,569.49,1121136,7.57,4
+20101111,2010-11-11,Baiduspider,Other,Bot,0,Mobile/Tablet,92,65,418.25,94166,7.41,5
+20101111,2010-11-11,Firefox,Windows,Desktop,0,Desktop,77,6,298.69,579849,6.20,6
+20101111,2010-11-11,DotBot,Other,Bot,0,Mobile/Tablet,77,1,554.03,792105,6.20,7
+20101111,2010-11-11,YandexBot,Other,Bot,0,Mobile/Tablet,44,1,369.36,902118,3.54,8
+20101111,2010-11-11,Safari,Windows,Desktop,0,Desktop,43,1,174.74,431924,3.46,9
+20101111,2010-11-11,Googlebot-Image,Other,Bot,0,Mobile/Tablet,31,5,974.29,10169376,2.50,10
+20101111,2010-11-11,Safari,Mac OS X,Desktop,0,Desktop,24,1,226.58,190125,1.93,11
+20101111,2010-11-11,bingbot,Other,Bot,0,Mobile/Tablet,20,14,242.15,130452,1.61,12
+20101111,2010-11-11,Chrome,Windows,Desktop,0,Desktop,12,1,673.92,348258,0.97,13
+20101111,2010-11-11,Other,Other,Other,0,Desktop,8,1,40.00,48509,0.64,14
+20101111,2010-11-11,Sosospider,Other,Bot,0,Mobile/Tablet,6,3,970.67,139416,0.48,15
+20101111,2010-11-11,Huaweisymantecspider,Other,Other,0,Desktop,4,1,399.50,54434,0.32,16
+20101111,2010-11-11,IE,Windows,Other,0,Desktop,4,1,12.50,5620,0.32,17
+20101111,2010-11-11,Nutch,Other,Bot,0,Mobile/Tablet,2,1,208.50,1802,0.16,18
+20101111,2010-11-11,Wget,Red Hat,Other,0,Desktop,1,1,199.00,378,0.08,19
+20101113,2010-11-13,IE,Windows,Desktop,0,Desktop,315,30,874.40,3162033,24.32,1
+20101113,2010-11-13,Firefox,Windows,Desktop,0,Desktop,157,5,400.84,1160877,12.12,2
+20101113,2010-11-13,Sosospider,Other,Bot,0,Mobile/Tablet,148,55,2889.87,3025915,11.43,3
+20101113,2010-11-13,DotBot,Other,Bot,0,Mobile/Tablet,127,1,604.43,2380452,9.81,4
+20101113,2010-11-13,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,111,1,592.32,1290513,8.57,5
+20101113,2010-11-13,Googlebot,Other,Bot,0,Mobile/Tablet,94,2,512.59,1424980,7.26,6
+20101113,2010-11-13,Baiduspider,Other,Bot,0,Mobile/Tablet,93,71,764.34,80104,7.18,7
+20101113,2010-11-13,Googlebot-Image,Other,Bot,0,Mobile/Tablet,53,2,1647.38,20957586,4.09,8
+20101113,2010-11-13,Chrome,Windows,Desktop,0,Desktop,52,3,248.60,314617,4.02,9
+20101113,2010-11-13,YandexBot,Other,Bot,0,Mobile/Tablet,45,1,289.40,722742,3.47,10
+20101113,2010-11-13,Safari,Mac OS X,Desktop,0,Desktop,37,1,165.84,555395,2.86,11
+20101113,2010-11-13,bingbot,Other,Bot,0,Mobile/Tablet,20,13,179.15,94134,1.54,12
+20101113,2010-11-13,Opera,Windows,Desktop,0,Desktop,15,1,198.07,99526,1.16,13
+20101113,2010-11-13,Safari,Other,Bot,0,Mobile/Tablet,14,2,236.07,97494,1.08,14
+20101113,2010-11-13,Nutch,Other,Bot,0,Mobile/Tablet,4,1,448.00,49310,0.31,15
+20101113,2010-11-13,Huaweisymantecspider,Other,Other,0,Desktop,4,1,388.00,54434,0.31,16
+20101113,2010-11-13,ichiro/mobile,Other,Bot,0,Mobile/Tablet,2,1,340.00,1802,0.15,17
+20101113,2010-11-13,Wget,Red Hat,Other,0,Desktop,2,1,537.00,46462,0.15,18
+20101113,2010-11-13,FacebookBot,Other,Bot,0,Mobile/Tablet,1,1,1130.00,61638,0.08,19
+20101118,2010-11-18,Googlebot,Other,Bot,0,Mobile/Tablet,289,3,489.80,20526414,23.03,1
+20101118,2010-11-18,IE,Windows,Desktop,0,Desktop,253,21,1217.33,2781014,20.16,2
+20101118,2010-11-18,Firefox,Windows,Desktop,0,Desktop,186,6,441.94,1293402,14.82,3
+20101118,2010-11-18,Baiduspider,Other,Bot,0,Mobile/Tablet,114,73,1545.57,1632042,9.08,4
+20101118,2010-11-18,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,106,1,1522.45,18628929,8.45,5
+20101118,2010-11-18,DotBot,Other,Bot,0,Mobile/Tablet,76,1,554.43,781059,6.06,6
+20101118,2010-11-18,Other,Other,Other,0,Desktop,44,3,88.73,107324,3.51,7
+20101118,2010-11-18,YandexBot,Other,Bot,0,Mobile/Tablet,37,1,287.81,499073,2.95,8
+20101118,2010-11-18,Safari,Mac OS X,Desktop,0,Desktop,35,2,209.46,247581,2.79,9
+20101118,2010-11-18,Sosospider,Other,Bot,0,Mobile/Tablet,25,13,1232.40,559069,1.99,10
+20101118,2010-11-18,Firefox,Mac OS X,Desktop,0,Desktop,16,1,310.63,101041,1.27,11
+20101118,2010-11-18,Avant,Windows,Desktop,0,Desktop,16,1,170.19,113341,1.27,12
+20101118,2010-11-18,bingbot,Other,Bot,0,Mobile/Tablet,16,10,250.25,135478,1.27,13
+20101118,2010-11-18,Safari,Other,Bot,0,Mobile/Tablet,14,4,233.07,95757,1.12,14
+20101118,2010-11-18,Safari,Other,Other,0,Desktop,12,2,74.17,105664,0.96,15
+20101118,2010-11-18,Huaweisymantecspider,Other,Other,0,Desktop,6,2,331.50,56709,0.48,16
+20101118,2010-11-18,Wget,Red Hat,Other,0,Desktop,4,3,1362.00,152912,0.32,17
+20101118,2010-11-18,ichiro/mobile,Other,Bot,0,Mobile/Tablet,3,2,764.33,45889,0.24,18
+20101118,2010-11-18,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,363.00,11466,0.16,19
+20101118,2010-11-18,Other,Other,Mobile,1,Mobile/Tablet,1,1,323.00,7427,0.08,20
+20101126,2010-11-26,IE,Windows,Desktop,0,Desktop,1012,26,560.18,10987854,55.36,1
+20101126,2010-11-26,ichiro/mobile,Other,Bot,0,Mobile/Tablet,162,3,1345.09,4371928,8.86,2
+20101126,2010-11-26,DotBot,Other,Bot,0,Mobile/Tablet,146,1,500.13,1374435,7.99,3
+20101126,2010-11-26,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,119,1,591.50,1857026,6.51,4
+20101126,2010-11-26,Googlebot,Other,Bot,0,Mobile/Tablet,52,1,334.69,467653,2.84,5
+20101126,2010-11-26,YandexBot,Other,Bot,0,Mobile/Tablet,48,1,313.60,773973,2.63,6
+20101126,2010-11-26,Sosospider,Other,Bot,0,Mobile/Tablet,47,25,1127.23,1023533,2.57,7
+20101126,2010-11-26,Safari,Mac OS X,Desktop,0,Desktop,46,3,206.65,320157,2.52,8
+20101126,2010-11-26,Firefox,Windows,Desktop,0,Desktop,45,6,1298.18,327886,2.46,9
+20101126,2010-11-26,Chrome,Windows,Desktop,0,Desktop,34,3,550.76,500613,1.86,10
+20101126,2010-11-26,bingbot,Other,Bot,0,Mobile/Tablet,32,22,343.97,687670,1.75,11
+20101126,2010-11-26,Safari,Other,Bot,0,Mobile/Tablet,30,9,397.33,242363,1.64,12
+20101126,2010-11-26,Baiduspider,Other,Bot,0,Mobile/Tablet,26,18,546.92,95123,1.42,13
+20101126,2010-11-26,Other,Other,Other,0,Desktop,14,4,963.36,139497,0.77,14
+20101126,2010-11-26,Nutch,Other,Bot,0,Mobile/Tablet,4,1,457.50,49310,0.22,15
+20101126,2010-11-26,SiteBot,Other,Bot,0,Mobile/Tablet,3,1,265.00,47837,0.16,16
+20101126,2010-11-26,Sogou-Test-Spider,Windows,Bot,0,Mobile/Tablet,2,1,921.50,46462,0.11,17
+20101126,2010-11-26,Outlook,Windows,Desktop,0,Desktop,2,1,607.00,45864,0.11,18
+20101126,2010-11-26,Googlebot-Image,Other,Bot,0,Mobile/Tablet,2,1,266.00,21178,0.11,19
+20101126,2010-11-26,sgbot,Other,Bot,0,Mobile/Tablet,1,1,43.00,1405,0.05,20
+20101126,2010-11-26,Sogou web spider,Other,Bot,0,Mobile/Tablet,1,1,285.00,1424,0.05,21
+20101202,2010-12-02,Googlebot,Other,Bot,0,Mobile/Tablet,236,3,331.09,2752495,26.49,1
+20101202,2010-12-02,IE,Windows,Desktop,0,Desktop,182,20,538.63,1915170,20.43,2
+20101202,2010-12-02,Firefox,Windows,Desktop,0,Desktop,106,10,570.73,922060,11.90,3
+20101202,2010-12-02,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,89,2,527.22,829721,9.99,4
+20101202,2010-12-02,Sosospider,Other,Bot,0,Mobile/Tablet,56,28,985.30,1301216,6.29,5
+20101202,2010-12-02,Baiduspider,Other,Bot,0,Mobile/Tablet,49,35,455.49,102771,5.50,6
+20101202,2010-12-02,YandexBot,Other,Bot,0,Mobile/Tablet,42,1,290.17,585099,4.71,7
+20101202,2010-12-02,Safari,Mac OS X,Desktop,0,Desktop,37,3,374.43,375506,4.15,8
+20101202,2010-12-02,bingbot,Other,Bot,0,Mobile/Tablet,27,18,170.78,79462,3.03,9
+20101202,2010-12-02,Safari,Other,Bot,0,Mobile/Tablet,27,11,396.00,251815,3.03,10
+20101202,2010-12-02,Chrome,Windows,Desktop,0,Desktop,15,1,1843.47,110462,1.68,11
+20101202,2010-12-02,msnbot-media,Other,Bot,0,Mobile/Tablet,6,2,438.33,184279,0.67,12
+20101202,2010-12-02,Googlebot-Image,Other,Bot,0,Mobile/Tablet,6,2,673.67,1698488,0.67,13
+20101202,2010-12-02,YandexImages,Other,Bot,0,Mobile/Tablet,4,1,98.00,8914,0.45,14
+20101202,2010-12-02,HuaweiSymantecSpider,Windows,Desktop,0,Desktop,4,1,387.25,54434,0.45,15
+20101202,2010-12-02,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,253.33,47894,0.34,16
+20101202,2010-12-02,ichiro/mobile,Other,Bot,0,Mobile/Tablet,2,1,547.50,8068,0.22,17
+20101212,2010-12-12,IE,Windows,Desktop,0,Desktop,239,17,607.69,1979774,17.98,1
+20101212,2010-12-12,DotBot,Other,Bot,0,Mobile/Tablet,146,1,490.61,1293596,10.99,2
+20101212,2010-12-12,Firefox,Windows,Desktop,0,Desktop,134,5,205.07,1208682,10.08,3
+20101212,2010-12-12,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,133,1,601.96,1722571,10.01,4
+20101212,2010-12-12,Sosospider,Other,Bot,0,Mobile/Tablet,118,54,960.62,2741848,8.88,5
+20101212,2010-12-12,Safari,Other,Bot,0,Mobile/Tablet,117,13,210.59,902340,8.80,6
+20101212,2010-12-12,Other,Other,Other,0,Desktop,101,2,313.43,143824,7.60,7
+20101212,2010-12-12,Googlebot,Other,Bot,0,Mobile/Tablet,70,2,283.60,477011,5.27,8
+20101212,2010-12-12,Baiduspider,Other,Bot,0,Mobile/Tablet,48,30,479.19,74109,3.61,9
+20101212,2010-12-12,Firefox,Linux Mint,Desktop,0,Desktop,47,1,543.81,318074,3.54,10
+20101212,2010-12-12,Firefox,Ubuntu,Desktop,0,Desktop,37,2,232.16,556005,2.78,11
+20101212,2010-12-12,Safari,Mac OS X,Desktop,0,Desktop,36,2,546.56,262487,2.71,12
+20101212,2010-12-12,bingbot,Other,Bot,0,Mobile/Tablet,35,27,202.49,183632,2.63,13
+20101212,2010-12-12,Firefox,Linux,Desktop,0,Desktop,19,1,424.79,102222,1.43,14
+20101212,2010-12-12,YandexBot,Other,Bot,0,Mobile/Tablet,17,1,301.53,180202,1.28,15
+20101212,2010-12-12,Chrome,Windows,Desktop,0,Desktop,15,1,120.80,98438,1.13,16
+20101212,2010-12-12,ichiro/mobile,Other,Bot,0,Mobile/Tablet,5,1,970.40,46258,0.38,17
+20101212,2010-12-12,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,313.33,47894,0.23,18
+20101212,2010-12-12,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,1,748.50,1424,0.15,19
+20101212,2010-12-12,Sogou-Test-Spider,Windows,Bot,0,Mobile/Tablet,2,1,2724.50,46462,0.15,20
+20101212,2010-12-12,YandexImages,Other,Bot,0,Mobile/Tablet,2,1,64.50,1616,0.15,21
+20101212,2010-12-12,Opera,Windows,Desktop,0,Desktop,1,1,301.00,6444,0.08,22
+20101212,2010-12-12,Wget,Red Hat,Other,0,Desktop,1,1,160.00,378,0.08,23
+20101215,2010-12-15,IE,Windows,Desktop,0,Desktop,309,26,532.89,7139082,20.96,1
+20101215,2010-12-15,ichiro/mobile,Other,Bot,0,Mobile/Tablet,206,2,1116.37,3586937,13.98,2
+20101215,2010-12-15,008,Other,Bot,0,Mobile/Tablet,134,92,1729.66,5995331,9.09,3
+20101215,2010-12-15,DotBot,Other,Bot,0,Mobile/Tablet,126,1,796.96,7142385,8.55,4
+20101215,2010-12-15,Sosospider,Other,Bot,0,Mobile/Tablet,114,49,944.25,2648904,7.73,5
+20101215,2010-12-15,Firefox,Windows,Desktop,0,Desktop,114,8,817.04,1636222,7.73,6
+20101215,2010-12-15,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,102,3,584.13,1177818,6.92,7
+20101215,2010-12-15,Chrome,Windows,Desktop,0,Desktop,71,5,823.10,556784,4.82,8
+20101215,2010-12-15,Googlebot,Other,Bot,0,Mobile/Tablet,51,1,553.73,633937,3.46,9
+20101215,2010-12-15,YandexBot,Other,Bot,0,Mobile/Tablet,47,1,342.34,545040,3.19,10
+20101215,2010-12-15,Baiduspider,Other,Bot,0,Mobile/Tablet,47,34,478.60,78202,3.19,11
+20101215,2010-12-15,Safari,Mac OS X,Desktop,0,Desktop,40,4,330.53,341752,2.71,12
+20101215,2010-12-15,bingbot,Other,Bot,0,Mobile/Tablet,32,23,325.00,616769,2.17,13
+20101215,2010-12-15,Firefox,Mac OS X,Desktop,0,Desktop,31,2,212.52,193262,2.10,14
+20101215,2010-12-15,Safari,Other,Bot,0,Mobile/Tablet,30,11,152.47,229498,2.04,15
+20101215,2010-12-15,discobot,Other,Bot,0,Mobile/Tablet,4,1,1035.25,89862,0.27,16
+20101215,2010-12-15,IE,Windows,Other,0,Desktop,4,1,12.75,5620,0.27,17
+20101215,2010-12-15,YandexImages,Other,Bot,0,Mobile/Tablet,2,1,65.50,1616,0.14,18
+20101215,2010-12-15,Sogou Pic Spider,Other,Bot,0,Mobile/Tablet,2,2,535.50,0,0.14,19
+20101215,2010-12-15,Sogou web spider,Other,Bot,0,Mobile/Tablet,2,2,279.50,2848,0.14,20
+20101215,2010-12-15,Yeti,Other,Bot,0,Mobile/Tablet,2,1,317.00,1802,0.14,21
+20101215,2010-12-15,Other,Other,Other,0,Desktop,1,1,29.00,1429,0.07,22
+20101215,2010-12-15,Wget,Red Hat,Other,0,Desktop,1,1,179.00,378,0.07,23
+20101223,2010-12-23,Firefox,Windows,Desktop,0,Desktop,288,5,414.60,1039385,29.39,1
+20101223,2010-12-23,IE,Windows,Desktop,0,Desktop,132,14,852.66,1563777,13.47,2
+20101223,2010-12-23,DotBot,Other,Bot,0,Mobile/Tablet,126,1,492.37,1140726,12.86,3
+20101223,2010-12-23,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,114,1,681.86,2344123,11.63,4
+20101223,2010-12-23,Googlebot,Other,Bot,0,Mobile/Tablet,93,3,385.58,877042,9.49,5
+20101223,2010-12-23,Baiduspider,Other,Bot,0,Mobile/Tablet,49,38,417.27,66320,5.00,6
+20101223,2010-12-23,Chrome,Windows,Desktop,0,Desktop,46,2,680.78,518857,4.69,7
+20101223,2010-12-23,YandexBot,Other,Bot,0,Mobile/Tablet,41,1,370.71,612573,4.18,8
+20101223,2010-12-23,bingbot,Other,Bot,0,Mobile/Tablet,33,21,210.88,117305,3.37,9
+20101223,2010-12-23,Safari,Other,Bot,0,Mobile/Tablet,25,1,71.60,231571,2.55,10
+20101223,2010-12-23,Safari,Mac OS X,Desktop,0,Desktop,16,2,118.69,106367,1.63,11
+20101223,2010-12-23,MJ12bot,Other,Bot,0,Mobile/Tablet,6,1,280.83,37842,0.61,12
+20101223,2010-12-23,ichiro/mobile,Other,Bot,0,Mobile/Tablet,5,1,784.60,51449,0.51,13
+20101223,2010-12-23,Googlebot-Mobile,Other,Mobile,1,Mobile/Tablet,2,1,263.50,25024,0.20,14
+20101223,2010-12-23,Sosospider,Other,Bot,0,Mobile/Tablet,2,1,926.00,46472,0.20,15
+20101223,2010-12-23,Other,Other,Other,0,Desktop,1,1,640.00,6545,0.10,16
+20101223,2010-12-23,IE,Windows,Other,0,Desktop,1,1,207.00,378,0.10,17
+20101225,2010-12-25,Googlebot,Other,Bot,0,Mobile/Tablet,196,1,297.43,1304021,24.17,1
+20101225,2010-12-25,DotBot,Other,Bot,0,Mobile/Tablet,146,1,476.21,1238331,18.00,2
+20101225,2010-12-25,Firefox,Windows,Desktop,0,Desktop,115,5,326.78,1057907,14.18,3
+20101225,2010-12-25,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,114,1,569.87,1376024,14.06,4
+20101225,2010-12-25,IE,Windows,Desktop,0,Desktop,52,9,834.27,551298,6.41,5
+20101225,2010-12-25,Baiduspider,Other,Bot,0,Mobile/Tablet,50,31,384.72,20948,6.17,6
+20101225,2010-12-25,YandexBot,Other,Bot,0,Mobile/Tablet,45,1,274.51,988059,5.55,7
+20101225,2010-12-25,bingbot,Other,Bot,0,Mobile/Tablet,38,24,217.16,174467,4.69,8
+20101225,2010-12-25,Chrome,Windows,Desktop,0,Desktop,20,3,788.05,280639,2.47,9
+20101225,2010-12-25,Safari,Mac OS X,Desktop,0,Desktop,15,1,129.93,98802,1.85,10
+20101225,2010-12-25,Nutch,Other,Bot,0,Mobile/Tablet,4,2,460.25,3604,0.49,11
+20101225,2010-12-25,msnbot-media,Other,Bot,0,Mobile/Tablet,3,1,335.33,51079,0.37,12
+20101225,2010-12-25,Other,Windows,Other,0,Desktop,3,1,423.33,62265,0.37,13
+20101225,2010-12-25,Other,Other,Other,0,Desktop,2,2,95.50,1690,0.25,14
+20101225,2010-12-25,Sosospider,Other,Bot,0,Mobile/Tablet,2,1,963.50,46472,0.25,15
+20101225,2010-12-25,ia_archiver,Other,Bot,0,Mobile/Tablet,2,1,238.50,13173,0.25,16
+20101225,2010-12-25,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,163.50,1802,0.25,17
+20101225,2010-12-25,Other,Other,Mobile,1,Mobile/Tablet,1,1,52.00,1368,0.12,18
+20101225,2010-12-25,Avant,Windows,Desktop,0,Desktop,1,1,275.00,378,0.12,19
+20110119,2011-01-19,SiteBot,Other,Bot,0,Mobile/Tablet,547,1,184.80,7283918,26.91,1
+20110119,2011-01-19,IE,Windows,Desktop,0,Desktop,482,13,449.12,3153693,23.71,2
+20110119,2011-01-19,Firefox,Windows,Desktop,0,Desktop,211,6,466.87,2797283,10.38,3
+20110119,2011-01-19,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,170,11,784.36,19440973,8.36,4
+20110119,2011-01-19,DotBot,Other,Bot,0,Mobile/Tablet,118,1,811.86,1141200,5.80,5
+20110119,2011-01-19,Chrome,Windows,Desktop,0,Desktop,106,2,136.82,1040381,5.21,6
+20110119,2011-01-19,Googlebot,Other,Bot,0,Mobile/Tablet,80,3,256.56,1782538,3.94,7
+20110119,2011-01-19,Other,Other,Other,0,Desktop,67,2,423.21,91224,3.30,8
+20110119,2011-01-19,bingbot,Other,Bot,0,Mobile/Tablet,62,39,263.45,378958,3.05,9
+20110119,2011-01-19,Baiduspider,Other,Bot,0,Mobile/Tablet,51,36,528.53,73304,2.51,10
+20110119,2011-01-19,Safari,Other,Bot,0,Mobile/Tablet,41,5,245.63,347488,2.02,11
+20110119,2011-01-19,YandexBot,Other,Bot,0,Mobile/Tablet,36,2,310.86,462717,1.77,12
+20110119,2011-01-19,Safari,Mac OS X,Desktop,0,Desktop,22,2,463.86,420463,1.08,13
+20110119,2011-01-19,msnbot,Other,Bot,0,Mobile/Tablet,18,1,772.61,1132078,0.89,14
+20110119,2011-01-19,Googlebot-Image,Other,Bot,0,Mobile/Tablet,12,1,221.33,80661,0.59,15
+20110119,2011-01-19,Huaweisymantecspider,Other,Other,0,Desktop,4,1,389.00,54434,0.20,16
+20110119,2011-01-19,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,22.50,1783,0.10,17
+20110119,2011-01-19,Wget,Red Hat,Other,0,Desktop,1,1,160.00,378,0.05,18
+20110119,2011-01-19,IE,Windows,Other,0,Desktop,1,1,914.00,72721,0.05,19
+20110119,2011-01-19,Xenu Link Sleuth,Other,Bot,0,Mobile/Tablet,1,1,109.00,247,0.05,20
+20110119,2011-01-19,Opera,Windows,Desktop,0,Desktop,1,1,454.00,86556,0.05,21
+20110130,2011-01-30,IE,Windows,Desktop,0,Desktop,294,13,261.23,2848917,33.49,1
+20110130,2011-01-30,DotBot,Other,Bot,0,Mobile/Tablet,128,1,2126.59,2545902,14.58,2
+20110130,2011-01-30,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,116,1,575.57,1475244,13.21,3
+20110130,2011-01-30,Googlebot,Other,Bot,0,Mobile/Tablet,104,2,335.60,2449775,11.85,4
+20110130,2011-01-30,Baiduspider,Other,Bot,0,Mobile/Tablet,49,30,385.73,19568,5.58,5
+20110130,2011-01-30,bingbot,Other,Bot,0,Mobile/Tablet,46,35,266.78,373096,5.24,6
+20110130,2011-01-30,ichiro/mobile,Other,Bot,0,Mobile/Tablet,30,1,1016.77,309038,3.42,7
+20110130,2011-01-30,YandexImages,Other,Bot,0,Mobile/Tablet,26,1,70.23,14828,2.96,8
+20110130,2011-01-30,Chrome,Windows,Desktop,0,Desktop,17,2,443.12,185043,1.94,9
+20110130,2011-01-30,Safari,Mac OS X,Desktop,0,Desktop,16,1,106.44,118189,1.82,10
+20110130,2011-01-30,Mobile Safari,iOS,Mobile,1,Mobile/Tablet,14,1,123.71,99347,1.59,11
+20110130,2011-01-30,Firefox,Windows,Desktop,0,Desktop,9,3,1095.11,133836,1.03,12
+20110130,2011-01-30,YandexBot,Other,Bot,0,Mobile/Tablet,8,1,290.75,104204,0.91,13
+20110130,2011-01-30,Other,Other,Other,0,Desktop,7,2,94.43,8810,0.80,14
+20110130,2011-01-30,Safari,Other,Bot,0,Mobile/Tablet,5,1,106.00,64589,0.57,15
+20110130,2011-01-30,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,258.33,47894,0.34,16
+20110130,2011-01-30,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,16.00,1802,0.23,17
+20110130,2011-01-30,Sogou web spider,Other,Bot,0,Mobile/Tablet,1,1,1302.00,0,0.11,18
+20110130,2011-01-30,Opera,Windows,Desktop,0,Desktop,1,1,1108.00,86556,0.11,19
+20110130,2011-01-30,Baiduspider-image,Other,Bot,0,Mobile/Tablet,1,1,366.00,1424,0.11,20
+20110205,2011-02-05,IE,Windows,Desktop,0,Desktop,207,16,314.06,1523638,27.13,1
+20110205,2011-02-05,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,104,1,577.32,1655308,13.63,2
+20110205,2011-02-05,Googlebot,Other,Bot,0,Mobile/Tablet,86,2,356.44,1267794,11.27,3
+20110205,2011-02-05,Firefox,Windows,Desktop,0,Desktop,75,8,6799.88,1093004,9.83,4
+20110205,2011-02-05,bingbot,Other,Bot,0,Mobile/Tablet,63,47,334.49,841416,8.26,5
+20110205,2011-02-05,Baiduspider,Other,Bot,0,Mobile/Tablet,50,34,405.10,66698,6.55,6
+20110205,2011-02-05,Mobile Safari,iOS,Tablet,0,Mobile/Tablet,46,1,106.07,326402,6.03,7
+20110205,2011-02-05,Chrome,Windows,Desktop,0,Desktop,44,3,289.91,421364,5.77,8
+20110205,2011-02-05,YandexImages,Other,Bot,0,Mobile/Tablet,22,1,72.91,22049,2.88,9
+20110205,2011-02-05,Safari,Other,Bot,0,Mobile/Tablet,14,1,78.86,94390,1.83,10
+20110205,2011-02-05,Firefox,Fedora,Desktop,0,Desktop,11,1,311.45,139095,1.44,11
+20110205,2011-02-05,YandexBot,Other,Bot,0,Mobile/Tablet,10,1,253.00,151579,1.31,12
+20110205,2011-02-05,ezooms.bot,Other,Bot,0,Mobile/Tablet,6,1,571.33,142434,0.79,13
+20110205,2011-02-05,Other,Other,Other,0,Desktop,6,1,312.83,8544,0.79,14
+20110205,2011-02-05,SiteBot,Other,Bot,0,Mobile/Tablet,6,1,440.17,252624,0.79,15
+20110205,2011-02-05,Googlebot-Image,Other,Bot,0,Mobile/Tablet,5,1,341.60,1815503,0.66,16
+20110205,2011-02-05,Nutch,Other,Bot,0,Mobile/Tablet,2,1,150.50,47508,0.26,17
+20110205,2011-02-05,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,159.50,1783,0.26,18
+20110205,2011-02-05,Opera,Windows,Desktop,0,Desktop,1,1,293.00,12059,0.13,19
+20110205,2011-02-05,Googlebot-Mobile,Other,Mobile,1,Mobile/Tablet,1,1,94.00,1405,0.13,20
+20110205,2011-02-05,BlackBerry,BlackBerry OS,Mobile,1,Mobile/Tablet,1,1,171.00,1405,0.13,21
+20110205,2011-02-05,Avant,Windows,Desktop,0,Desktop,1,1,1403.00,19079,0.13,22
+20110209,2011-02-09,Firefox,Windows,Desktop,0,Desktop,1308,11,431.36,10984683,61.21,1
+20110209,2011-02-09,IE,Windows,Desktop,0,Desktop,219,17,481.80,1856930,10.25,2
+20110209,2011-02-09,Chrome,Windows,Desktop,0,Desktop,113,7,1520.54,729867,5.29,3
+20110209,2011-02-09,Firefox,Mac OS X,Desktop,0,Desktop,99,3,228.11,785041,4.63,4
+20110209,2011-02-09,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,91,2,1119.75,18430182,4.26,5
+20110209,2011-02-09,Googlebot,Other,Bot,0,Mobile/Tablet,61,2,217.33,610313,2.85,6
+20110209,2011-02-09,bingbot,Other,Bot,0,Mobile/Tablet,60,44,297.92,423947,2.81,7
+20110209,2011-02-09,Baiduspider,Other,Bot,0,Mobile/Tablet,51,31,485.08,112782,2.39,8
+20110209,2011-02-09,Safari,Mac OS X,Desktop,0,Desktop,32,2,295.13,242173,1.50,9
+20110209,2011-02-09,Firefox,Ubuntu,Desktop,0,Desktop,20,2,91.70,130842,0.94,10
+20110209,2011-02-09,YandexImages,Other,Bot,0,Mobile/Tablet,17,1,70.35,4777,0.80,11
+20110209,2011-02-09,YandexBot,Other,Bot,0,Mobile/Tablet,13,1,421.15,263736,0.61,12
+20110209,2011-02-09,Googlebot-Image,Other,Bot,0,Mobile/Tablet,13,2,149.00,196103,0.61,13
+20110209,2011-02-09,IE,Windows,Other,0,Desktop,11,3,145.73,99712,0.51,14
+20110209,2011-02-09,Other,Other,Other,0,Desktop,6,1,452.67,8544,0.28,15
+20110209,2011-02-09,agbot,Other,Bot,0,Mobile/Tablet,4,1,456.25,95016,0.19,16
+20110209,2011-02-09,Robot,Windows,Desktop,0,Desktop,3,1,64.33,47901,0.14,17
+20110209,2011-02-09,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,251.67,47894,0.14,18
+20110209,2011-02-09,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,118.50,1802,0.09,19
+20110209,2011-02-09,Firefox,Linux,Desktop,0,Desktop,2,1,446.00,46462,0.09,20
+20110209,2011-02-09,Python-urllib,Other,Bot,0,Mobile/Tablet,2,1,484.50,21584,0.09,21
+20110209,2011-02-09,Exabot,Other,Bot,0,Mobile/Tablet,2,1,76.50,4897,0.09,22
+20110209,2011-02-09,Googlebot-Mobile,Other,Mobile,1,Mobile/Tablet,1,1,94.00,1405,0.05,23
+20110209,2011-02-09,Avant,Windows,Desktop,0,Desktop,1,1,993.00,75388,0.05,24
+20110209,2011-02-09,Sogou web spider,Other,Bot,0,Mobile/Tablet,1,1,1436.00,46084,0.05,25
+20110212,2011-02-12,IE,Windows,Desktop,0,Desktop,331,24,458.64,1970723,33.81,1
+20110212,2011-02-12,Googlebot,Other,Bot,0,Mobile/Tablet,121,2,217.71,1764982,12.36,2
+20110212,2011-02-12,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,105,1,575.43,1590843,10.73,3
+20110212,2011-02-12,YandexBot,Other,Bot,0,Mobile/Tablet,94,1,219.62,767827,9.60,4
+20110212,2011-02-12,Baiduspider,Other,Bot,0,Mobile/Tablet,74,44,1096.39,1496316,7.56,5
+20110212,2011-02-12,bingbot,Other,Bot,0,Mobile/Tablet,61,45,307.18,595745,6.23,6
+20110212,2011-02-12,DotBot,Other,Bot,0,Mobile/Tablet,55,1,593.24,509962,5.62,7
+20110212,2011-02-12,Firefox,Windows,Desktop,0,Desktop,48,4,2670.79,480142,4.90,8
+20110212,2011-02-12,Chrome,Windows,Desktop,0,Desktop,22,1,684.05,174737,2.25,9
+20110212,2011-02-12,Safari,Other,Bot,0,Mobile/Tablet,14,7,208.57,97596,1.43,10
+20110212,2011-02-12,YandexImages,Other,Bot,0,Mobile/Tablet,11,1,63.91,2313,1.12,11
+20110212,2011-02-12,Other,Other,Other,0,Desktop,8,5,947.00,50101,0.82,12
+20110212,2011-02-12,ichiro,Other,Bot,0,Mobile/Tablet,7,1,716.43,41871,0.72,13
+20110212,2011-02-12,ezooms.bot,Other,Bot,0,Mobile/Tablet,7,1,500.14,125232,0.72,14
+20110212,2011-02-12,Huaweisymantecspider,Other,Other,0,Desktop,4,1,388.75,54434,0.41,15
+20110212,2011-02-12,Outlook,Windows,Desktop,0,Desktop,4,1,1309.75,50466,0.41,16
+20110212,2011-02-12,Yeti,Other,Bot,0,Mobile/Tablet,4,2,1065.25,169311,0.41,17
+20110212,2011-02-12,msnbot-media,Other,Bot,0,Mobile/Tablet,3,1,293.67,32683,0.31,18
+20110212,2011-02-12,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,118.50,1802,0.20,19
+20110212,2011-02-12,MLBot,Other,Bot,0,Mobile/Tablet,2,1,450.50,47508,0.20,20
+20110212,2011-02-12,Java,Other,Bot,0,Mobile/Tablet,1,1,108.00,359,0.10,21
+20110212,2011-02-12,Baiduspider-image,Other,Bot,0,Mobile/Tablet,1,1,379.00,1424,0.10,22
+20110218,2011-02-18,IE,Windows,Desktop,0,Desktop,640,39,445.13,9071909,31.30,1
+20110218,2011-02-18,Googlebot,Other,Bot,0,Mobile/Tablet,473,2,406.30,22859562,23.13,2
+20110218,2011-02-18,Firefox,Windows,Desktop,0,Desktop,195,7,962.33,1555891,9.54,3
+20110218,2011-02-18,Chrome,Windows,Desktop,0,Desktop,168,5,684.25,2074016,8.22,4
+20110218,2011-02-18,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,121,1,586.57,1411198,5.92,5
+20110218,2011-02-18,DotBot,Other,Bot,0,Mobile/Tablet,105,1,685.74,985005,5.13,6
+20110218,2011-02-18,YandexBot,Other,Bot,0,Mobile/Tablet,89,1,309.81,998687,4.35,7
+20110218,2011-02-18,Safari,Mac OS X,Desktop,0,Desktop,84,2,707.81,3486226,4.11,8
+20110218,2011-02-18,Baiduspider,Other,Bot,0,Mobile/Tablet,49,27,429.39,29827,2.40,9
+20110218,2011-02-18,bingbot,Other,Bot,0,Mobile/Tablet,44,26,277.30,341137,2.15,10
+20110218,2011-02-18,SiteBot,Other,Bot,0,Mobile/Tablet,39,1,160.21,473732,1.91,11
+20110218,2011-02-18,Googlebot-Image,Other,Bot,0,Mobile/Tablet,8,1,220.63,46285,0.39,12
+20110218,2011-02-18,YandexImages,Other,Bot,0,Mobile/Tablet,6,1,125.50,26117,0.29,13
+20110218,2011-02-18,ichiro,Other,Bot,0,Mobile/Tablet,4,1,733.75,49310,0.20,14
+20110218,2011-02-18,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,255.00,47894,0.15,15
+20110218,2011-02-18,Sogou-Test-Spider,Windows,Bot,0,Mobile/Tablet,2,1,1887.50,46462,0.10,16
+20110218,2011-02-18,Googlebot-Mobile,Other,Mobile,1,Mobile/Tablet,2,1,962.00,88086,0.10,17
+20110218,2011-02-18,ezooms.bot,Other,Bot,0,Mobile/Tablet,2,1,773.00,47478,0.10,18
+20110218,2011-02-18,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,103.00,1802,0.10,19
+20110218,2011-02-18,agbot,Other,Bot,0,Mobile/Tablet,2,1,489.00,47508,0.10,20
+20110218,2011-02-18,Avant,Windows,Desktop,0,Desktop,1,1,311.00,378,0.05,21
+20110218,2011-02-18,IE,Windows,Other,0,Desktop,1,1,881.00,46084,0.05,22
+20110218,2011-02-18,Other,Other,Other,0,Desktop,1,1,326.00,1405,0.05,23
+20110218,2011-02-18,Safari,Other,Other,0,Desktop,1,1,585.00,5557,0.05,24
+20110218,2011-02-18,Sogou web spider,Other,Bot,0,Mobile/Tablet,1,1,615.00,1424,0.05,25
+20110218,2011-02-18,Wget,Red Hat,Other,0,Desktop,1,1,158.00,378,0.05,26
+20110218,2011-02-18,Baiduspider-image,Other,Bot,0,Mobile/Tablet,1,1,351.00,1424,0.05,27
+20110306,2011-03-06,Firefox,Windows,Desktop,0,Desktop,272,8,874.95,1774293,26.56,1
+20110306,2011-03-06,IE,Windows,Desktop,0,Desktop,208,24,611.94,2303226,20.31,2
+20110306,2011-03-06,Safari,Mac OS X,Desktop,0,Desktop,149,3,900.60,1137070,14.55,3
+20110306,2011-03-06,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,116,1,949.38,18634458,11.33,4
+20110306,2011-03-06,Googlebot,Other,Bot,0,Mobile/Tablet,83,2,249.98,1368557,8.11,5
+20110306,2011-03-06,Baiduspider,Other,Bot,0,Mobile/Tablet,49,33,368.80,19568,4.79,6
+20110306,2011-03-06,YandexImages,Other,Bot,0,Mobile/Tablet,48,1,106.21,193956,4.69,7
+20110306,2011-03-06,bingbot,Other,Bot,0,Mobile/Tablet,25,14,263.68,170249,2.44,8
+20110306,2011-03-06,Lunascape,Windows,Desktop,0,Desktop,23,1,479.13,100993,2.25,9
+20110306,2011-03-06,Mobile Safari,iOS,Tablet,0,Mobile/Tablet,12,3,729.83,73179,1.17,10
+20110306,2011-03-06,YandexBot,Other,Bot,0,Mobile/Tablet,12,1,280.25,123610,1.17,11
+20110306,2011-03-06,Safari,Other,Bot,0,Mobile/Tablet,10,1,103.30,110953,0.98,12
+20110306,2011-03-06,Googlebot-Image,Other,Bot,0,Mobile/Tablet,3,1,364.00,55831,0.29,13
+20110306,2011-03-06,Ask Jeeves,Other,Bot,0,Mobile/Tablet,3,1,245.67,47894,0.29,14
+20110306,2011-03-06,Exabot,Other,Bot,0,Mobile/Tablet,3,1,407.67,47894,0.29,15
+20110306,2011-03-06,Teleca Browser,Other,Mobile,1,Mobile/Tablet,3,2,241.67,41146,0.29,16
+20110306,2011-03-06,ezooms.bot,Other,Bot,0,Mobile/Tablet,2,1,1274.50,47478,0.20,17
+20110306,2011-03-06,Opera,Windows,Desktop,0,Desktop,1,1,397.00,28304,0.10,18
+20110306,2011-03-06,IE,Windows,Other,0,Desktop,1,1,39.00,1424,0.10,19
+20110306,2011-03-06,Sosospider,Other,Bot,0,Mobile/Tablet,1,1,408.00,1405,0.10,20
+20110405,2011-04-05,SiteBot,Other,Bot,0,Mobile/Tablet,1002,1,138.98,11704438,43.57,1
+20110405,2011-04-05,IE,Windows,Desktop,0,Desktop,267,22,302.34,2057358,11.61,2
+20110405,2011-04-05,Firefox,Windows,Desktop,0,Desktop,243,10,446.19,1764362,10.57,3
+20110405,2011-04-05,Googlebot,Other,Bot,0,Mobile/Tablet,186,3,182.56,2846040,8.09,4
+20110405,2011-04-05,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,134,2,555.54,2253813,5.83,5
+20110405,2011-04-05,Chrome,Windows,Desktop,0,Desktop,121,8,3522.78,3393187,5.26,6
+20110405,2011-04-05,Googlebot-Image,Other,Bot,0,Mobile/Tablet,90,2,151.88,7891220,3.91,7
+20110405,2011-04-05,Baiduspider,Other,Bot,0,Mobile/Tablet,48,32,685.79,67344,2.09,8
+20110405,2011-04-05,YandexImages,Other,Bot,0,Mobile/Tablet,43,1,103.70,155831,1.87,9
+20110405,2011-04-05,bingbot,Other,Bot,0,Mobile/Tablet,41,28,339.68,661996,1.78,10
+20110405,2011-04-05,Firefox,Mac OS X,Desktop,0,Desktop,34,3,462.59,246185,1.48,11
+20110405,2011-04-05,Safari,Mac OS X,Desktop,0,Desktop,18,1,226.61,131093,0.78,12
+20110405,2011-04-05,YandexBot,Other,Bot,0,Mobile/Tablet,15,1,233.67,153966,0.65,13
+20110405,2011-04-05,Safari,Other,Bot,0,Mobile/Tablet,15,2,128.07,116324,0.65,14
+20110405,2011-04-05,AOL,Windows,Desktop,0,Desktop,15,12,67.20,102242,0.65,15
+20110405,2011-04-05,IE,Windows,Other,0,Desktop,7,4,286.43,7762,0.30,16
+20110405,2011-04-05,Other,Other,Other,0,Desktop,5,4,733.20,17664,0.22,17
+20110405,2011-04-05,Huaweisymantecspider,Other,Other,0,Desktop,4,1,369.75,55880,0.17,18
+20110405,2011-04-05,topyx-crawler,Other,Bot,0,Mobile/Tablet,3,1,131.33,15001,0.13,19
+20110405,2011-04-05,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,100.50,1802,0.09,20
+20110405,2011-04-05,ezooms.bot,Other,Bot,0,Mobile/Tablet,2,1,373.50,12470,0.09,21
+20110405,2011-04-05,Outlook,Windows,Desktop,0,Desktop,1,1,1325.00,18659,0.04,22
+20110405,2011-04-05,findlinks,Other,Bot,0,Mobile/Tablet,1,1,44.00,378,0.04,23
+20110405,2011-04-05,Opera,Windows,Desktop,0,Desktop,1,1,19933.00,111894,0.04,24
+20110405,2011-04-05,Wget,Red Hat,Other,0,Desktop,1,1,155.00,378,0.04,25
+20110405,2011-04-05,WordPress,Other,Bot,0,Mobile/Tablet,1,1,12.00,179,0.04,26
+20110407,2011-04-07,IE,Windows,Desktop,0,Desktop,553,21,461.81,4104362,30.24,1
+20110407,2011-04-07,Googlebot,Other,Bot,0,Mobile/Tablet,312,2,152.46,3321744,17.06,2
+20110407,2011-04-07,YandexBot,Other,Bot,0,Mobile/Tablet,167,1,273.57,2585913,9.13,3
+20110407,2011-04-07,YandexImages,Other,Bot,0,Mobile/Tablet,141,1,100.79,366480,7.71,4
+20110407,2011-04-07,Safari,Mac OS X,Desktop,0,Desktop,132,4,111.65,1480878,7.22,5
+20110407,2011-04-07,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,102,1,529.80,1218237,5.58,6
+20110407,2011-04-07,Chrome,Windows,Desktop,0,Desktop,94,5,876.63,874288,5.14,7
+20110407,2011-04-07,Firefox,Windows,Desktop,0,Desktop,84,5,482.30,1581958,4.59,8
+20110407,2011-04-07,Googlebot-Image,Other,Bot,0,Mobile/Tablet,79,2,42.95,31764,4.32,9
+20110407,2011-04-07,Baiduspider,Other,Bot,0,Mobile/Tablet,47,30,572.02,65964,2.57,10
+20110407,2011-04-07,bingbot,Other,Bot,0,Mobile/Tablet,36,25,249.86,307937,1.97,11
+20110407,2011-04-07,Safari,Other,Bot,0,Mobile/Tablet,28,10,424.79,206742,1.53,12
+20110407,2011-04-07,UC Browser,Windows,Desktop,0,Desktop,15,1,2232.67,101354,0.82,13
+20110407,2011-04-07,topyx-crawler,Other,Bot,0,Mobile/Tablet,14,1,267.57,474752,0.77,14
+20110407,2011-04-07,IE,Windows,Other,0,Desktop,13,2,180.15,18512,0.71,15
+20110407,2011-04-07,Firefox,Ubuntu,Desktop,0,Desktop,4,1,347.00,26367,0.22,16
+20110407,2011-04-07,Outlook,Windows,Desktop,0,Desktop,2,1,254.00,422,0.11,17
+20110407,2011-04-07,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,100.50,1783,0.11,18
+20110407,2011-04-07,Python-urllib,Other,Bot,0,Mobile/Tablet,1,1,168.00,378,0.05,19
+20110407,2011-04-07,ichiro,Other,Bot,0,Mobile/Tablet,1,1,2222.00,113000,0.05,20
+20110407,2011-04-07,Other,Other,Other,0,Desktop,1,1,94.00,1405,0.05,21
+20110407,2011-04-07,Wget,Red Hat,Other,0,Desktop,1,1,161.00,378,0.05,22
+20110411,2011-04-11,Googlebot,Other,Bot,0,Mobile/Tablet,1002,4,174.56,10890919,39.94,1
+20110411,2011-04-11,Firefox,Windows,Desktop,0,Desktop,368,11,225.30,4239961,14.67,2
+20110411,2011-04-11,IE,Windows,Desktop,0,Desktop,343,42,760.76,3788141,13.67,3
+20110411,2011-04-11,YandexImages,Other,Bot,0,Mobile/Tablet,140,1,67.32,30653,5.58,4
+20110411,2011-04-11,SiteBot,Other,Bot,0,Mobile/Tablet,140,1,157.26,1889811,5.58,5
+20110411,2011-04-11,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,104,2,4069.97,7766238,4.15,6
+20110411,2011-04-11,Googlebot-Image,Other,Bot,0,Mobile/Tablet,58,2,47.83,40059,2.31,7
+20110411,2011-04-11,Chrome,Windows,Desktop,0,Desktop,56,3,278.75,383415,2.23,8
+20110411,2011-04-11,Chrome,Mac OS X,Desktop,0,Desktop,49,1,344.88,862413,1.95,9
+20110411,2011-04-11,Baiduspider,Other,Bot,0,Mobile/Tablet,48,31,489.90,66342,1.91,10
+20110411,2011-04-11,bingbot,Other,Bot,0,Mobile/Tablet,47,26,303.77,473746,1.87,11
+20110411,2011-04-11,Safari,Other,Bot,0,Mobile/Tablet,28,7,132.75,199394,1.12,12
+20110411,2011-04-11,Other,Other,Other,0,Desktop,26,2,251.19,37024,1.04,13
+20110411,2011-04-11,Firefox,Mac OS X,Desktop,0,Desktop,17,2,288.29,107218,0.68,14
+20110411,2011-04-11,Mobile Safari,iOS,Mobile,1,Mobile/Tablet,17,1,538.18,132895,0.68,15
+20110411,2011-04-11,Safari,Mac OS X,Desktop,0,Desktop,16,1,228.31,125059,0.64,16
+20110411,2011-04-11,Opera,Windows,Desktop,0,Desktop,16,1,502.75,102986,0.64,17
+20110411,2011-04-11,Other,Windows,Bot,0,Mobile/Tablet,12,1,111.42,569488,0.48,18
+20110411,2011-04-11,Opera Mini,Other,Mobile,1,Mobile/Tablet,10,1,300.80,81048,0.40,19
+20110411,2011-04-11,HuaweiSymantecSpider,Windows,Desktop,0,Desktop,2,1,159.00,1802,0.08,20
+20110411,2011-04-11,BOTW Spider,Other,Bot,0,Mobile/Tablet,2,1,296.00,718,0.08,21
+20110411,2011-04-11,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,24.50,1802,0.08,22
+20110411,2011-04-11,IE,Windows,Other,0,Desktop,2,1,35.50,2810,0.08,23
+20110411,2011-04-11,topyx-crawler,Other,Bot,0,Mobile/Tablet,2,1,105.00,11041,0.08,24
+20110411,2011-04-11,Xenu Link Sleuth,Other,Bot,0,Mobile/Tablet,1,1,32.00,247,0.04,25
+20110424,2011-04-24,Chrome,Windows,Desktop,0,Desktop,242,7,228.43,1838593,18.36,1
+20110424,2011-04-24,YandexImages,Other,Bot,0,Mobile/Tablet,232,1,173.52,1827490,17.60,2
+20110424,2011-04-24,SiteBot,Other,Bot,0,Mobile/Tablet,228,1,178.61,2621050,17.30,3
+20110424,2011-04-24,Googlebot,Other,Bot,0,Mobile/Tablet,162,2,206.26,1317316,12.29,4
+20110424,2011-04-24,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,152,1,606.60,1779351,11.53,5
+20110424,2011-04-24,Firefox,Windows,Desktop,0,Desktop,113,10,1138.19,1074393,8.57,6
+20110424,2011-04-24,IE,Windows,Desktop,0,Desktop,74,9,620.27,630976,5.61,7
+20110424,2011-04-24,Baiduspider,Other,Bot,0,Mobile/Tablet,49,33,837.45,66342,3.72,8
+20110424,2011-04-24,bingbot,Other,Bot,0,Mobile/Tablet,20,10,240.30,177737,1.52,9
+20110424,2011-04-24,Chrome,Mac OS X,Desktop,0,Desktop,15,1,249.33,101224,1.14,10
+20110424,2011-04-24,YandexBot,Other,Bot,0,Mobile/Tablet,13,1,441.62,416553,0.99,11
+20110424,2011-04-24,Huaweisymantecspider,Other,Other,0,Desktop,4,1,371.25,55880,0.30,12
+20110424,2011-04-24,MJ12bot,Other,Bot,0,Mobile/Tablet,4,2,789.25,50745,0.30,13
+20110424,2011-04-24,SurveyBot,Windows,Desktop,0,Desktop,3,1,474.00,49294,0.23,14
+20110424,2011-04-24,Googlebot-Mobile,Other,Mobile,1,Mobile/Tablet,2,2,96.00,25020,0.15,15
+20110424,2011-04-24,Firefox,Linux,Desktop,0,Desktop,1,1,166.00,359,0.08,16
+20110424,2011-04-24,Googlebot-Image,Other,Bot,0,Mobile/Tablet,1,1,293.00,15934,0.08,17
+20110424,2011-04-24,IE,Windows,Other,0,Desktop,1,1,128.00,1424,0.08,18
+20110424,2011-04-24,Java,Other,Bot,0,Mobile/Tablet,1,1,105.00,359,0.08,19
+20110424,2011-04-24,Firefox Beta,Windows,Desktop,0,Desktop,1,1,8156.00,6036,0.08,20
+20110427,2011-04-27,IE,Windows,Desktop,0,Desktop,754,24,394.45,8637635,47.63,1
+20110427,2011-04-27,Firefox,Mac OS X,Desktop,0,Desktop,140,2,167.64,2665414,8.84,2
+20110427,2011-04-27,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,130,2,998.54,18936032,8.21,3
+20110427,2011-04-27,SiteBot,Other,Bot,0,Mobile/Tablet,123,1,130.87,1343754,7.77,4
+20110427,2011-04-27,Googlebot,Other,Bot,0,Mobile/Tablet,108,4,163.64,1227881,6.82,5
+20110427,2011-04-27,Firefox,Windows,Desktop,0,Desktop,68,10,967.93,532318,4.30,6
+20110427,2011-04-27,Chrome,Windows,Desktop,0,Desktop,52,4,347.50,380078,3.28,7
+20110427,2011-04-27,Baiduspider,Other,Bot,0,Mobile/Tablet,46,34,605.89,57364,2.91,8
+20110427,2011-04-27,Safari,Other,Bot,0,Mobile/Tablet,41,11,172.27,309784,2.59,9
+20110427,2011-04-27,YandexImages,Other,Bot,0,Mobile/Tablet,33,1,68.67,8144,2.08,10
+20110427,2011-04-27,Opera,Windows,Desktop,0,Desktop,24,1,233.92,258095,1.52,11
+20110427,2011-04-27,Safari,Mac OS X,Desktop,0,Desktop,17,1,204.29,111603,1.07,12
+20110427,2011-04-27,MJ12bot,Other,Bot,0,Mobile/Tablet,16,2,238.13,146848,1.01,13
+20110427,2011-04-27,bingbot,Other,Bot,0,Mobile/Tablet,14,8,315.07,253740,0.88,14
+20110427,2011-04-27,Huaweisymantecspider,Other,Other,0,Desktop,4,1,373.25,55880,0.25,15
+20110427,2011-04-27,Googlebot-Image,Other,Bot,0,Mobile/Tablet,3,2,228.33,34731,0.19,16
+20110427,2011-04-27,Other,Other,Other,0,Desktop,2,1,133.00,378,0.13,17
+20110427,2011-04-27,ia_archiver,Other,Bot,0,Mobile/Tablet,2,1,119.00,1802,0.13,18
+20110427,2011-04-27,Nutch,Other,Bot,0,Mobile/Tablet,2,1,447.50,48954,0.13,19
+20110427,2011-04-27,IE,Windows,Other,0,Desktop,2,1,13.00,2810,0.13,20
+20110427,2011-04-27,Wget,Red Hat,Other,0,Desktop,1,1,166.00,378,0.06,21
+20110427,2011-04-27,Chrome,Other,Other,0,Desktop,1,1,594.00,6036,0.06,22
+20110504,2011-05-04,Chrome,Windows,Desktop,0,Desktop,259,9,797.16,2236358,17.42,1
+20110504,2011-05-04,IE,Windows,Desktop,0,Desktop,239,22,477.81,1945898,16.07,2
+20110504,2011-05-04,Firefox,Windows,Desktop,0,Desktop,163,14,351.44,1167399,10.96,3
+20110504,2011-05-04,Googlebot,Other,Bot,0,Mobile/Tablet,153,2,155.96,1356089,10.29,4
+20110504,2011-05-04,SiteBot,Other,Bot,0,Mobile/Tablet,148,1,135.18,1653919,9.95,5
+20110504,2011-05-04,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,128,2,544.06,1637673,8.61,6
+20110504,2011-05-04,Googlebot-Image,Other,Bot,0,Mobile/Tablet,76,2,48.09,34635,5.11,7
+20110504,2011-05-04,BlackBerry,BlackBerry OS,Mobile,1,Mobile/Tablet,67,2,49.25,443949,4.51,8
+20110504,2011-05-04,bingbot,Other,Bot,0,Mobile/Tablet,46,26,293.15,608474,3.09,9
+20110504,2011-05-04,Baiduspider,Other,Bot,0,Mobile/Tablet,42,33,1780.14,64074,2.82,10
+20110504,2011-05-04,Safari,Other,Bot,0,Mobile/Tablet,40,3,129.73,306220,2.69,11
+20110504,2011-05-04,discobot,Other,Bot,0,Mobile/Tablet,28,1,2363.39,185722,1.88,12
+20110504,2011-05-04,ichiro,Other,Bot,0,Mobile/Tablet,23,1,1412.87,1006053,1.55,13
+20110504,2011-05-04,YandexImages,Other,Bot,0,Mobile/Tablet,16,1,86.94,32861,1.08,14
+20110504,2011-05-04,Other,Other,Other,0,Desktop,16,7,302.25,12067,1.08,15
+20110504,2011-05-04,Opera,Windows,Desktop,0,Desktop,15,1,253.47,105645,1.01,16
+20110504,2011-05-04,msnbot,Other,Bot,0,Mobile/Tablet,10,1,616.00,573114,0.67,17
+20110504,2011-05-04,YandexBot,Other,Bot,0,Mobile/Tablet,9,1,369.78,433473,0.61,18
+20110504,2011-05-04,MJ12bot,Other,Bot,0,Mobile/Tablet,4,3,291.75,14313,0.27,19
+20110504,2011-05-04,Huaweisymantecspider,Other,Other,0,Desktop,4,1,375.25,55880,0.27,20
+20110504,2011-05-04,Chrome,Other,Other,0,Desktop,1,1,1136.00,19449,0.07,21
+20110510,2011-05-10,Chrome,Windows,Desktop,0,Desktop,804,5,183.49,12519199,30.48,1
+20110510,2011-05-10,IE,Windows,Desktop,0,Desktop,503,19,358.84,5630623,19.07,2
+20110510,2011-05-10,Firefox,Windows,Desktop,0,Desktop,208,6,218.55,1515771,7.88,3
+20110510,2011-05-10,Googlebot,Other,Bot,0,Mobile/Tablet,207,3,331.41,2299130,7.85,4
+20110510,2011-05-10,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,128,1,616.97,1955662,4.85,5
+20110510,2011-05-10,Googlebot-Image,Other,Bot,0,Mobile/Tablet,121,3,144.87,1846770,4.59,6
+20110510,2011-05-10,Safari,Mac OS X,Desktop,0,Desktop,110,3,268.57,783169,4.17,7
+20110510,2011-05-10,YandexImages,Other,Bot,0,Mobile/Tablet,105,1,65.48,23308,3.98,8
+20110510,2011-05-10,DotBot,Other,Bot,0,Mobile/Tablet,105,1,552.64,966108,3.98,9
+20110510,2011-05-10,discobot,Other,Bot,0,Mobile/Tablet,86,1,6915.28,580538,3.26,10
+20110510,2011-05-10,Baiduspider,Other,Bot,0,Mobile/Tablet,76,48,941.78,1652272,2.88,11
+20110510,2011-05-10,WordPress,Other,Bot,0,Mobile/Tablet,68,1,275.78,588000,2.58,12
+20110510,2011-05-10,Firefox,Mac OS X,Desktop,0,Desktop,27,1,228.11,483149,1.02,13
+20110510,2011-05-10,bingbot,Other,Bot,0,Mobile/Tablet,24,14,245.88,216678,0.91,14
+20110510,2011-05-10,Opera,Windows,Desktop,0,Desktop,19,2,287.79,111675,0.72,15
+20110510,2011-05-10,Zune,Windows,Desktop,0,Desktop,15,1,355.33,123654,0.57,16
+20110510,2011-05-10,Outlook,Windows,Desktop,0,Desktop,11,2,278.09,2319,0.42,17
+20110510,2011-05-10,YandexBot,Other,Bot,0,Mobile/Tablet,5,1,227.40,156617,0.19,18
+20110510,2011-05-10,ezooms.bot,Other,Bot,0,Mobile/Tablet,4,1,390.50,75871,0.15,19
+20110510,2011-05-10,msnbot,Other,Bot,0,Mobile/Tablet,4,1,580.75,217793,0.15,20
+20110510,2011-05-10,Other,Other,Other,0,Desktop,3,3,196.00,915,0.11,21
+20110510,2011-05-10,BOTW Spider,Other,Bot,0,Mobile/Tablet,2,1,295.00,718,0.08,22
+20110510,2011-05-10,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,163.50,1783,0.08,23
+20110510,2011-05-10,Safari,Other,Bot,0,Mobile/Tablet,1,1,258.00,6023,0.04,24
+20110516,2011-05-16,IE,Windows,Desktop,0,Desktop,341,28,776.04,4155482,22.55,1
+20110516,2011-05-16,Firefox,Windows,Desktop,0,Desktop,302,10,786.54,2568625,19.97,2
+20110516,2011-05-16,DotBot,Other,Bot,0,Mobile/Tablet,125,1,542.49,1279673,8.27,3
+20110516,2011-05-16,Yahoo! Slurp,Other,Bot,0,Mobile/Tablet,123,1,544.28,1461810,8.13,4
+20110516,2011-05-16,Chrome,Windows,Desktop,0,Desktop,104,6,525.23,1001363,6.88,5
+20110516,2011-05-16,YandexImages,Other,Bot,0,Mobile/Tablet,102,1,65.10,22657,6.75,6
+20110516,2011-05-16,Firefox,Ubuntu,Desktop,0,Desktop,59,3,486.73,690942,3.90,7
+20110516,2011-05-16,discobot,Other,Bot,0,Mobile/Tablet,57,1,1282.75,1374829,3.77,8
+20110516,2011-05-16,IE,Windows,Other,0,Desktop,52,3,153.02,340887,3.44,9
+20110516,2011-05-16,Googlebot-Image,Other,Bot,0,Mobile/Tablet,49,2,28.47,56902,3.24,10
+20110516,2011-05-16,Baiduspider,Other,Bot,0,Mobile/Tablet,43,33,415.42,63414,2.84,11
+20110516,2011-05-16,Googlebot,Other,Bot,0,Mobile/Tablet,32,2,184.63,811612,2.12,12
+20110516,2011-05-16,Chrome,Linux,Desktop,0,Desktop,25,2,67.12,196163,1.65,13
+20110516,2011-05-16,bingbot,Other,Bot,0,Mobile/Tablet,25,14,314.92,184162,1.65,14
+20110516,2011-05-16,Firefox,Mac OS X,Desktop,0,Desktop,16,1,146.25,106065,1.06,15
+20110516,2011-05-16,Mobile Safari,iOS,Tablet,0,Mobile/Tablet,14,1,109.57,103506,0.93,16
+20110516,2011-05-16,Chrome,Mac OS X,Desktop,0,Desktop,14,1,277.86,90180,0.93,17
+20110516,2011-05-16,YandexBot,Other,Bot,0,Mobile/Tablet,11,1,290.73,254046,0.73,18
+20110516,2011-05-16,Huaweisymantecspider,Other,Other,0,Desktop,4,1,374.75,55880,0.26,19
+20110516,2011-05-16,ezooms.bot,Other,Bot,0,Mobile/Tablet,3,1,360.33,19170,0.20,20
+20110516,2011-05-16,Exabot,Other,Bot,0,Mobile/Tablet,2,1,20.00,1654,0.13,21
+20110516,2011-05-16,ichiro,Other,Bot,0,Mobile/Tablet,2,1,1062.50,55131,0.13,22
+20110516,2011-05-16,MJ12bot,Other,Bot,0,Mobile/Tablet,2,1,76.00,1802,0.13,23
+20110516,2011-05-16,Other,Other,Bot,0,Mobile/Tablet,2,1,87.00,1764,0.13,24
+20110516,2011-05-16,Wget,Red Hat,Other,0,Desktop,1,1,165.00,378,0.07,25
+20110516,2011-05-16,Crazy Browser,Windows,Desktop,0,Desktop,1,1,163.00,378,0.07,26
