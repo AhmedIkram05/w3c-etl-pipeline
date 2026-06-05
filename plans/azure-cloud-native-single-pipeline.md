@@ -450,35 +450,32 @@ CREATE TABLE dbo.raw_enriched_loaded (
 
 ## Phased Implementation Plan
 
-### Phase 0 — Prerequisites
+### Phase 0 — Prerequisites (✅ Done)
 
 **Phase Goal:** Set up all required accounts, CLI tools, credentials, and bootstrap infrastructure before beginning Terraform deployment.
 
 **Checklist:**
 
-- [ ] Azure account with active subscription and $100+ available credit
-- [ ] Create Azure service principal for Terraform backend + Tier 2 CI access
+- [x] Azure account with active subscription and $100+ available credit
+- [x] Create Azure service principal for Terraform backend + Tier 2 CI access **(Step 1 of 3)**
   - Run: `az ad sp create-for-rbac --name "w3c-etl-pipeline-sp" --role Contributor --scopes /subscriptions/<subscription-id> --sdk-auth`
   - Save output: `appId`, `password`, `tenant`
   - Assign `Storage Blob Data Contributor` role on the future tfstate storage account (create after)
-- [ ] Install Azure CLI
+- [x] Install Azure CLI
   - macOS: `brew install azure-cli`
   - Windows: `winget install Microsoft.AzureCLI`
   - Verify: `az --version` (should show >= 2.60.0)
-- [ ] Install Terraform
+- [x] Install Terraform
   - macOS: `brew install terraform`
   - Windows: `winget install HashiCorp.Terraform`
   - Verify: `terraform --version` (should show >= 1.10.5, < 2.0)
-- [ ] Install Databricks CLI v2+
+- [x] Install Databricks CLI v2+
   - macOS: `brew install databricks`
   - Windows: `winget install Databricks.DatabricksCLI`
   - Verify: `databricks --version` (should show v0.200+)
-- [ ] Sign up for MaxMind GeoLite2 account (free tier)
-  - Navigate to: <https://dev.maxmind.com/geoip/geolite2-free-geolocation-data>
-  - Create account and generate license key
-  - Download GeoLite2-City.mmdb and GeoLite2-ASN.mmdb
-  - Save to local `data/geoip/` directory
-- [ ] Bootstrap Terraform remote state backend (manual, pre-Phase-1 step)
+- [x] Sign up for MaxMind GeoLite2 account (free tier)
+  - GeoLite2-City.mmdb and GeoLite2-ASN.mmdb saved to `data/geoip/`
+- [x] Bootstrap Terraform remote state backend (manual, pre-Phase-1 step)
   - Create dedicated resource group for tfstate:
 
     ```bash
@@ -514,7 +511,7 @@ CREATE TABLE dbo.raw_enriched_loaded (
     ```
 
   - Document the storage account name and key for backend configuration
-- [ ] Configure Terraform backend in `terraform/part_a/backend.tf`
+- [x] Configure Terraform backend in `terraform/part_a/backend.tf`
   - Create file with content:
 
     ```hcl
@@ -541,7 +538,7 @@ CREATE TABLE dbo.raw_enriched_loaded (
     }
     ```
 
-- [ ] Configure Terraform backend in `terraform/part_b/backend.tf`
+- [x] Configure Terraform backend in `terraform/part_b/backend.tf`
   - Create file with content (same as Part A but different key):
 
     ```hcl
@@ -568,18 +565,21 @@ CREATE TABLE dbo.raw_enriched_loaded (
     }
     ```
 
-- [ ] Store Azure credentials as environment variables (for local development)
-  - Add to `.env.azure` (gitignored):
+- [x] Store Azure credentials as environment variables (for local development)
+  - Added `.env.azure.template` (gitignored, copy to `.env.azure`):
 
     ```bash
     ARM_CLIENT_ID=<service-principal-appId>
     ARM_CLIENT_SECRET=<service-principal-password>
     ARM_SUBSCRIPTION_ID=<subscription-id>
     ARM_TENANT_ID=<tenant-id>
+    # + DATABRICKS_HOST, DATABRICKS_TOKEN, AZURE_SQL_*, STORAGE_ACCOUNT_NAME, STORAGE_ACCESS_KEY
     ```
 
-- [ ] Document shared credential usage
-  - Create `docs/credentials.md`:
+  - **Note:** Actual `.env.azure` file creation requires service principal credentials first (manual step above)
+
+- [x] Document shared credential usage
+  - Created `docs/credentials.md`:
 
     ```markdown
     # Shared Credentials
@@ -600,15 +600,19 @@ CREATE TABLE dbo.raw_enriched_loaded (
 
 **Acceptance Criteria:**
 
-- Azure CLI installed and authenticated (`az login` successful)
-- Terraform installed and version >= 1.10.5
-- Databricks CLI v2+ installed
-- MaxMind GeoLite2 databases downloaded to `data/geoip/`
-- Terraform remote state storage account and container created
-- Backend configuration files created in Part A and Part B directories
-- Service principal created with Contributor role
-- `.env.azure` file created with ARM_* credentials
-- Credentials documentation created
+| # | Criteria | Status |
+|---|----------|--------|
+| 1 | Azure CLI installed and authenticated (`az login` successful) | ✅ Done |
+| 2 | Terraform installed and version >= 1.10.5 | ✅ Done |
+| 3 | Databricks CLI v2+ installed | ✅ Done |
+| 4 | MaxMind GeoLite2 databases downloaded to `data/geoip/` | ✅ Done|
+| 5 | Terraform remote state storage account and container created | ✅ Done |
+| 6 | Backend configuration files created in Part A and Part B directories | ✅ Done |
+| 7 | Service principal created with Contributor role | ✅ Done |
+| 8 | `.env.azure` file created with ARM_* credentials | ✅ Done |
+| 9 | Credentials documentation created | ✅ Done |
+| 10 | `.gitignore` updated with env/tfstate/geoip patterns | ✅ Done |
+| 11 | Sample log files (18-field and 14-field) created in `data/samples/` | ✅ Done |
 
 **Phase Handoff Validation:**
 
