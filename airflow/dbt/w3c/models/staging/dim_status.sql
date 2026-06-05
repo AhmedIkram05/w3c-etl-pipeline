@@ -61,7 +61,7 @@ status_entries AS (
             WHEN rs.status_code = 502 THEN 'Bad Gateway - Upstream server returned an invalid response'
             WHEN rs.status_code = 503 THEN 'Service Unavailable - Server is temporarily unable to handle the request'
             WHEN rs.status_code = 504 THEN 'Gateway Timeout - Upstream server failed to respond in time'
-            ELSE 'Other - ' || rs.status_code::text || ' status code'
+            ELSE CONCAT('Other - ', rs.status_code, ' status code')
         END AS description,
         CASE
             WHEN rs.status_code >= 500 THEN 'Critical'

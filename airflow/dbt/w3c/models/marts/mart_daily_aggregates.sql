@@ -16,7 +16,7 @@ WITH daily_stats AS (
         COUNT(DISTINCT CASE WHEN fw.geolocation_sk > 0 THEN dg.country END) AS active_countries,
         SUM(fw.is_404::INT) AS total_404,
         AVG(fw.response_time_ms)::NUMERIC(10,2) AS avg_response_time_ms,
-        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2) AS p95_response_time_ms,
+        {% if target.type == 'sqlserver' %}PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms) OVER (){% else %}PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2){% endif %} AS p95_response_time_ms,
         SUM(fw.bytes_sent) AS total_bytes_sent,
         SUM(CASE WHEN fw.is_crawler THEN 1 ELSE 0 END) AS crawler_requests,
         SUM(CASE WHEN fw.is_direct_traffic THEN 1 ELSE 0 END) AS direct_traffic_requests,
@@ -25,29 +25,56 @@ WITH daily_stats AS (
     JOIN {{ ref('dim_date') }} dd ON dd.date_sk = fw.date_sk
     LEFT JOIN {{ source('w3c', 'dim_geolocation') }} dg ON dg.geolocation_sk = fw.geolocation_sk
     GROUP BY fw.date_sk, dd.date, dd.day_name, dd.is_weekend, dd.holiday_flag, dd.year, dd.month
+),
+peak_hour AS (
+    SELECT
+        date_sk,
+        hour AS peak_traffic_hour,
+        total_requests AS peak_hour_requests
+    FROM (
+        SELECT
+            date_sk,
+            hour,
+            total_requests,
+            ROW_NUMBER() OVER (PARTITION BY date_sk ORDER BY total_requests DESC) AS rn
+        FROM {{ ref('mart_timeofday_analysis') }}
+    ) ranked
+    WHERE rn = 1
+),
+top_browser AS (
+    SELECT
+        date_sk,
+        pct_of_daily_traffic AS top_browser_share
+    FROM {{ ref('mart_browser_analysis') }}
+    WHERE browser_rank = 1
 )
 
 SELECT
-    date_sk,
-    date,
-    day_name,
-    is_weekend,
-    holiday_flag,
-    year,
-    month,
-    total_requests,
-    unique_hosts,
-    unique_human_hosts,
-    unique_pages,
-    active_countries,
-    total_404,
-    ROUND(100.0 * total_404 / NULLIF(total_requests, 0), 2) AS pct_404,
-    avg_response_time_ms,
-    p95_response_time_ms,
-    total_bytes_sent,
-    crawler_requests,
-    ROUND(100.0 * crawler_requests / NULLIF(total_requests, 0), 2) AS pct_crawler,
-    direct_traffic_requests,
-    slow_requests,
-    ROUND(100.0 * slow_requests / NULLIF(total_requests, 0), 2) AS pct_slow_requests
-FROM daily_stats
+    ds.date_sk,
+    ds.date,
+    ds.day_name,
+    ds.is_weekend,
+    ds.holiday_flag,
+    ds.year,
+    ds.month,
+    ds.total_requests,
+    ds.unique_hosts,
+    ds.unique_human_hosts,
+    ds.unique_pages,
+    ds.active_countries,
+    ds.total_404,
+    ROUND(100.0 * ds.total_404 / NULLIF(ds.total_requests, 0), 2) AS pct_404,
+    ds.avg_response_time_ms,
+    ds.p95_response_time_ms,
+    ds.total_bytes_sent,
+    ds.crawler_requests,
+    ROUND(100.0 * ds.crawler_requests / NULLIF(ds.total_requests, 0), 2) AS pct_crawler,
+    ds.direct_traffic_requests,
+    ds.slow_requests,
+    ROUND(100.0 * ds.slow_requests / NULLIF(ds.total_requests, 0), 2) AS pct_slow_requests,
+    ph.peak_hour_requests,
+    ph.peak_traffic_hour,
+    tb.top_browser_share
+FROM daily_stats ds
+LEFT JOIN peak_hour ph ON ph.date_sk = ds.date_sk
+LEFT JOIN top_browser tb ON tb.date_sk = ds.date_sk

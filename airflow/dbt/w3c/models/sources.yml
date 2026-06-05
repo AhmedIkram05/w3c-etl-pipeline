@@ -2,8 +2,8 @@ version: 2
 
 sources:
   - name: w3c
-    database: w3c_warehouse
-    schema: public
+    database: "{% if target.type == 'sqlserver' %}{{ env_var('AZURE_SQL_DB', 'w3c_warehouse') }}{% else %}w3c_warehouse{% endif %}"
+    schema: "{% if target.type == 'sqlserver' %}dbo{% else %}public{% endif %}"
     tables:
       - name: raw_enriched
         description: "Denormalized enriched log table populated by Spark pipeline via GeoLite2 + PySpark UDFs. Contains all raw log fields plus geo, user-agent, and computed enrichment columns."
@@ -20,6 +20,18 @@ sources:
             description: "Client IP address"
           - name: country
             description: "Country name"
+          - name: region
+            description: "Region/state name"
+          - name: city
+            description: "City name"
+          - name: postcode
+            description: "Postal code ('-' if unknown)"
+          - name: latitude
+            description: "Latitude coordinate"
+          - name: longitude
+            description: "Longitude coordinate"
+          - name: isp
+            description: "Internet Service Provider name"
 
       - name: dim_useragent
         description: "User-Agent dimension populated by Airflow export_dimensions task via user_agents library. Surrogate key -1 = Unknown."

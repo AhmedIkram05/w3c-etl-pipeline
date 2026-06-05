@@ -1,5 +1,6 @@
 # Secrets — never commit
 .env
+.vscode
 
 # macOS junk
 .DS_Store

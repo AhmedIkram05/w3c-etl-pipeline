@@ -96,7 +96,7 @@ def discover_crawler_ips(spark) -> Set[str]:
 def ensure_silver_table(spark):
     """Create the Unity Catalog silver table if it does not exist.
 
-    35 columns matching the enriched schema (bronze fields + 16 enrichment columns).
+    30 columns matching the enriched schema (19 bronze fields + 11 enrichment columns).
     """
     spark.sql(
         f"""
