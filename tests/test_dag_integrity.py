@@ -305,7 +305,9 @@ class TestSparkIngestionAzureDAG:
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
         dag = dag_bag.get_dag(dag_id="w3c_spark_ingestion_azure")
-        assert dag is not None, "w3c_spark_ingestion_azure DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
+        assert dag is not None, (
+            "w3c_spark_ingestion_azure DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
+        )
         assert len(dag.tasks) == 2, (
             f"Expected 2 tasks (bronze_silver_jdbc_pipeline, export_dimensions), "
             f"got {len(dag.tasks)}: {[t.task_id for t in dag.tasks]}"
