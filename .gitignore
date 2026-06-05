@@ -1,5 +1,6 @@
 # Secrets — never commit
 .env
+.env.azure
 .vscode
 
 # macOS junk
@@ -18,12 +19,11 @@ airflow.cfg
 airflow-webserver.pid
 standalone_admin_password.txt
 
-# Runtime data folders inside the DAG
-dags/w3c/LogFiles/
-dags/w3c/StarSchema/
+# Generated data — not committed
+/data/dbt-docs/
 
-# Empty placeholder folders (keep the dirs with .gitkeep instead)
-data/
+# MaxMind GeoLite2 databases — too large, download manually per Phase 0
+/data/geoip/
 copilot-instructions.md
 .agents
 
@@ -41,6 +41,9 @@ AGENTS.md
 # Spark Delta Lake data (generated at runtime)
 airflow/spark/delta/*
 !airflow/spark/delta/.gitkeep
+
+# Terraform — provider binaries per environment
+**/.terraform/
 
 # Pre-commit
 .pre-commit-cache/
