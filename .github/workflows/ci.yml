@@ -98,6 +98,8 @@ jobs:
             # Debian Bookworm (Airflow Docker base image)
             echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
           fi
+          # Remove pre-existing Microsoft repo config to avoid Signed-By conflicts
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
       - name: dbt compile (Azure SQL/T-SQL validation)
