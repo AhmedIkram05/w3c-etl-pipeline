@@ -585,7 +585,7 @@ The pipeline integrates **dbt** as the transformation layer for **10 staging mod
 
 | Benefit | Before (pure Python) | After (dbt) |
 | --- | --- | --- |
-| **Testing** | Great Expectations (6 expectations) | 64 dbt data tests - generic + singular + source |
+| **Testing** | No automated testing | 64 dbt data tests - generic + singular + source |
 | **Documentation** | README only | Auto-generated column-level docs with lineage graph |
 | **SQL transparency** | Buried in Python f-strings | Declarative `.sql` files, Jinja-templated |
 | **Dependency management** | Airflow fan-in choreography | dbt `ref()` macros resolve DAG automatically |
@@ -1032,8 +1032,7 @@ The table below captures **granular implementation choices** that build on the h
 |---|---|---|
 | 1 | **Combined pipeline over dual-pipeline** - Spark + dbt into a single flow | Eliminates duplicate processing, single source of truth, lower maintenance. Old DAGs (`Process_W3C_Data`, `w3c-spark-dag.py`) are superseded. |
 | 2 | **Export Warehouse over Gold aggregations in Spark** | dbt is the right tool for analytics transformations; tests + docs + lineage live with the model. |
-| 3 | **dbt over Great Expectations** | 64 dbt tests > 6 GE expectations; one tool instead of two; tests travel with models. |
-| 4 | **INNER JOIN for dbt dims, LEFT JOIN for Airflow dims** | dbt dims have 100% referential integrity (same source). Airflow dims use `LEFT JOIN` + `COALESCE(-1)` to gracefully absorb missing enrichment (no IP, no UA, etc.). |
+| 3 | **INNER JOIN for dbt dims, LEFT JOIN for Airflow dims** | dbt dims have 100% referential integrity (same source). Airflow dims use `LEFT JOIN` + `COALESCE(-1)` to gracefully absorb missing enrichment (no IP, no UA, etc.). |
 | 5 | **Local MaxMind GeoLite2 over external HTTP geolocation APIs** | Previous batch-geolocation approach was rate-limited, returned zeros in this Docker env (0% country coverage), and silently dropped geo fields. Local `.mmdb` lookups are offline, deterministic, and yield 99.99% country + 100% ISP coverage. The `geoip-downloader` init service keeps the DB file up to date with no manual steps. |
 | 6 | **Silver Delta as the single source of truth for geolocation** | Spark's GeoLite2 enrichment runs once, then `export_dimensions` reads the Silver table via `pandas` to build `dim_geolocation` — no duplicate work and no drift between what the warehouse sees and what the analytics see. |
 | 7 | **12-component MD5 dedup key in `fact_webrequest`** | Adding `uri_query`, `method`, `sub_status`, `win32_status` to the prior key disambiguates concurrent identical-looking requests. Guarded by the singular test `fact_webrequest_dedup_safety.sql`, which fails CI if a single hash bucket ever contains >1 distinct value for any of the three new fields. |
