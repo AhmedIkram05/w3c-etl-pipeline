@@ -15,6 +15,10 @@ terraform {
       source  = "databricks/databricks"
       version = "~> 1.70"
     }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.12"
+    }
   }
 
   required_version = ">= 1.10.5, < 2.0"
