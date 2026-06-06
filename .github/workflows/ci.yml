@@ -85,7 +85,7 @@ jobs:
       - name: dbt compile (PostgreSQL)
         run: dbt compile --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
       - name: Install dbt-sqlserver
-        run: pip install "dbt-sqlserver==1.8.4"
+        run: pip install "dbt-sqlserver==1.8.4" "dbt-fabric<1.8.8"
       - name: Install ODBC Driver 18 for SQL Server (required by dbt-sqlserver adapter)
         run: |
           sudo apt-get update && sudo apt-get install -y curl gnupg2
