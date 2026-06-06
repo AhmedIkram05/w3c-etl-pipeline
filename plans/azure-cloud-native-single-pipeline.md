@@ -632,9 +632,11 @@ databricks secrets create-scope w3c-etl-pipeline
 # Add storage access key
 databricks secrets put --scope w3c-etl-pipeline --key storage-access-key
 
-# Add Azure SQL credentials
-databricks secrets put --scope w3c-etl-pipeline --key sql-username
-databricks secrets put --scope w3c-etl-pipeline --key sql-password
+# Add Azure SQL credentials (consistent with Phase 5 spark.conf.get keys)
+databricks secrets put --scope w3c-etl-pipeline --key azure.sql.server
+databricks secrets put --scope w3c-etl-pipeline --key azure.sql.database
+databricks secrets put --scope w3c-etl-pipeline --key azure.sql.username
+databricks secrets put --scope w3c-etl-pipeline --key azure.sql.password
 ```
 
 **Unity Catalog creation (via Databricks CLI or SQL):**
@@ -672,7 +674,7 @@ az consumption budget create \
   --category Cost \
   --amount 50 \
   --time-grain Monthly \
-  --notification '{"threshold":50,"contactEmails":["your-email@example.com"],"operator":"GreaterThan"}'
+  --notification '{"threshold":50,"contactEmails":["ahmedikram30@gmail.com"],"operator":"GreaterThan"}'
 
 # Create hard cap at $100
 az consumption budget create \
@@ -681,7 +683,7 @@ az consumption budget create \
   --category Cost \
   --amount 100 \
   --time-grain Monthly \
-  --notification '{"threshold":100,"contactEmails":["your-email@example.com"],"operator":"GreaterThan"}'
+  --notification '{"threshold":100,"contactEmails":["ahmedikram30@gmail.com"],"operator":"GreaterThan"}'
 ```
 
 **Updated `.env.azure`:**
@@ -752,7 +754,7 @@ EOF
 - Databricks workspace accessible via browser and CLI
 - Databricks authentication successful (`databricks workspace list` works)
 - Secret scope `w3c-etl-pipeline` created
-- Secrets added: storage-access-key, sql-username, sql-password
+- Secrets added: storage-access-key, azure.sql.server, azure.sql.database, azure.sql.username, azure.sql.password
 - Unity Catalog `w3c_catalog` created
 - Schemas created: bronze, silver, gold
 - Budget alerts configured: $50 warning, $100 hard cap
@@ -768,6 +770,9 @@ source .env.azure
 
 # Verify Databricks
 databricks secrets list --scope w3c-etl-pipeline
+
+# Verify secret keys match expected naming (azure.sql.*)
+databricks secrets list --scope w3c-etl-pipeline | grep -E "(storage-access-key|azure.sql)"
 
 # Verify Unity Catalog (via Databricks SQL)
 databricks sql execute --warehouse-id <warehouse-id> --sql "SHOW CATALOGS"
