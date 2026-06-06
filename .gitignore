@@ -45,6 +45,10 @@ airflow/spark/delta/*
 # Terraform — provider binaries per environment
 **/.terraform/
 
+# Terraform state files — never commit
+*.tfstate
+*.tfstate.*
+
 # Pre-commit
 .pre-commit-cache/
 
