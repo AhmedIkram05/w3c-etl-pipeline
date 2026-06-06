@@ -1,11 +1,10 @@
 # Azure Cloud-Native Single-Pipeline ETL Platform Implementation Plan
 
 **Version:** v2.0  
-**Status:** Draft  
+**Status:** Phase 1 Complete ✅ | Phase 2 In Progress  
 **Replaces:** v1.8 (dual-path architecture)  
 **Budget:** $100 Azure credit cap (with $50 alert threshold)  
-**Effort Estimate:** 40-50 hours implementation + 10 hours testing/validation  
-**CV Impact:** High - demonstrates cloud-native DE, Databricks DLT, Unity Catalog, Great Expectations, dbt, Azure SQL, and end-to-end data platform ownership  
+**CV Impact:** High - demonstrates cloud-native DE, Databricks DLT, Unity Catalog, dbt, Azure SQL, and end-to-end data platform ownership  
 **Target Roles:** Data Engineer, Cloud Data Engineer, Data Platform Engineer
 
 ---
@@ -15,7 +14,7 @@
 Build a single, cloud-native ETL pipeline that processes W3C web logs from ADLS Gen2 through Databricks Delta Live Tables (Bronze → Silver), exports to Azure SQL, builds dimensional models via dbt, and produces Power BI-ready CSV exports. The pipeline eliminates architectural complexity by removing the parallel Docker Spark production path, establishing Databricks DLT as the sole production ETL engine while preserving Docker for local development and orchestration hosting.
 
 **Target Resume Line:**
-"Architected and implemented a cloud-native W3C log ETL platform on Azure using Databricks Delta Live Tables, Unity Catalog, and Azure SQL. Built Bronze/Silver DLT pipelines with custom W3C parsing, MaxMind GeoIP enrichment, and Great Expectations data quality checks. Orchestrated via Airflow with Databricks Workflows integration, deployed dimensional models with dbt (T-SQL migration), and automated CI/CD with split-tier GitHub Actions. Delivered 18 Power BI-ready CSV exports with end-to-end monitoring and $100 cost controls."
+"Architected and implemented a cloud-native W3C log ETL platform on Azure using Databricks Delta Live Tables, Unity Catalog, and Azure SQL. Built Bronze/Silver DLT pipelines with custom W3C parsing, MaxMind GeoIP enrichment, and data quality checks. Orchestrated via Airflow with Databricks Workflows integration, deployed dimensional models with dbt (T-SQL migration), and automated CI/CD with split-tier GitHub Actions. Delivered 18 Power BI-ready CSV exports with end-to-end monitoring and $100 cost controls."
 
 ---
 
@@ -47,7 +46,6 @@ DLT Silver Pipeline (dlt_silver.py)
   - UA columns (agent_type, browser_name, browser_version, os, device_type) excluded from Silver DDL
   - 6 geo columns preserved in Silver (country, region, city, lat, lon, isp) for dim_geolocation
   - @dlt.expect_or_drop quality rules
-  - Great Expectations checkpoint integration
       │
       ▼
 JDBC Export (jdbc_export_azure.py — Databricks Python task)
@@ -85,8 +83,7 @@ Airflow (Docker container)
        └─ DatabricksRunNowOperator → Databricks Workflows
             ├─ Task 1: DLT Bronze pipeline
             ├─ Task 2: DLT Silver pipeline
-            ├─ Task 3: jdbc_export_azure.py (Python task)
-            └─ Task 4: Great Expectations checkpoint (optional, warning-level)
+            └─ Task 3: jdbc_export_azure.py (Python task)
   └─ dbt_marts_azure.py DAG (Dataset-triggered after export_dimensions_azure fires)
        ├─ export_dimensions_azure operator (PythonOperator)
        └─ DatabricksSubmitRunOperator running dbt against Azure SQL
@@ -121,7 +118,6 @@ Docker is NOT a production data platform.
 | **Apache Airflow** | Pipeline orchestration, DAG scheduling, Dataset triggers |
 | **dbt** | Transformation layer, dimensional models, data quality tests |
 | **MaxMind GeoLite2** | IP geolocation enrichment (country, region, city, lat, lon, postcode, ISP) |
-| **Great Expectations** | Data quality validation on Silver pipeline |
 | **MSSQL JDBC Driver** | Direct Silver → Azure SQL export from Databricks |
 | **Power BI** | Analytics consumption layer (CSV-based semantic model) |
 | **Grafana + Prometheus** | Monitoring and alerting |
@@ -132,7 +128,7 @@ Docker is NOT a production data platform.
 
 ---
 
-## Current State Audit
+## Current State Audit (pre-plan beginning)
 
 ### What Exists (Carried Forward from v1.8)
 
@@ -179,7 +175,6 @@ Docker is NOT a production data platform.
 
 - `dlt_bronze.py` — Bronze DLT pipeline with Auto Loader and W3C parser
 - `dlt_silver.py` — Silver DLT pipeline with GeoIP and computed fields
-- Great Expectations checkpoint integration
 - MaxMind GeoLite2 database files uploaded to DBFS
 
 **Azure Integration:**
@@ -454,149 +449,21 @@ CREATE TABLE dbo.raw_enriched_loaded (
 
 **Phase Goal:** Set up all required accounts, CLI tools, credentials, and bootstrap infrastructure before beginning Terraform deployment.
 
+**Summary:** All prerequisite setup completed. Azure service principal (`w3c-etl-pipeline-sp`) created with Contributor role. Terraform remote state backend bootstrapped (`rg-tfstate` resource group, storage account with `tfstate` container). MaxMind GeoLite2 databases downloaded to `data/geoip/`. Backend configuration files created for both Part A and Part B. Shared credential documentation created in `docs/credentials.md`.
+
 **Checklist:**
 
 - [x] Azure account with active subscription and $100+ available credit
-- [x] Create Azure service principal for Terraform backend + Tier 2 CI access **(Step 1 of 3)**
-  - Run: `az ad sp create-for-rbac --name "w3c-etl-pipeline-sp" --role Contributor --scopes /subscriptions/<subscription-id> --sdk-auth`
-  - Save output: `appId`, `password`, `tenant`
-  - Assign `Storage Blob Data Contributor` role on the future tfstate storage account (create after)
+- [x] Create Azure service principal for Terraform backend + Tier 2 CI access
 - [x] Install Azure CLI
-  - macOS: `brew install azure-cli`
-  - Windows: `winget install Microsoft.AzureCLI`
-  - Verify: `az --version` (should show >= 2.60.0)
 - [x] Install Terraform
-  - macOS: `brew install terraform`
-  - Windows: `winget install HashiCorp.Terraform`
-  - Verify: `terraform --version` (should show >= 1.10.5, < 2.0)
 - [x] Install Databricks CLI v2+
-  - macOS: `brew install databricks`
-  - Windows: `winget install Databricks.DatabricksCLI`
-  - Verify: `databricks --version` (should show v0.200+)
 - [x] Sign up for MaxMind GeoLite2 account (free tier)
-  - GeoLite2-City.mmdb and GeoLite2-ASN.mmdb saved to `data/geoip/`
 - [x] Bootstrap Terraform remote state backend (manual, pre-Phase-1 step)
-  - Create dedicated resource group for tfstate:
-
-    ```bash
-    az group create --name rg-tfstate --location eastus
-    ```
-
-  - Create dedicated storage account for tfstate:
-
-    ```bash
-    az storage account create \
-      --name tfstate<unique-suffix> \
-      --resource-group rg-tfstate \
-      --location eastus \
-      --sku Standard_LRS \
-      --kind StorageV2 \
-      --hierarchical-namespace true
-    ```
-
-  - Create container for tfstate:
-
-    ```bash
-    az storage container create \
-      --name tfstate \
-      --account-name tfstate<unique-suffix>
-    ```
-
-  - Get storage account key:
-
-    ```bash
-    az storage account keys list \
-      --account-name tfstate<unique-suffix> \
-      --query '[0].value' -o tsv
-    ```
-
-  - Document the storage account name and key for backend configuration
 - [x] Configure Terraform backend in `terraform/part_a/backend.tf`
-  - Create file with content:
-
-    ```hcl
-    terraform {
-      backend "azurerm" {
-        resource_group_name   = "rg-tfstate"
-        storage_account_name  = "tfstate<unique-suffix>"
-        container_name        = "tfstate"
-        key                   = "w3c-platform/part_a.tfstate"
-      }
-      
-      required_providers {
-        azurerm = {
-          source  = "hashicorp/azurerm"
-          version = "~> 4.75.0"
-        }
-        databricks = {
-          source  = "databricks/databricks"
-          version = "~> 1.70"
-        }
-      }
-      
-      required_version = ">= 1.10.5, < 2.0"
-    }
-    ```
-
 - [x] Configure Terraform backend in `terraform/part_b/backend.tf`
-  - Create file with content (same as Part A but different key):
-
-    ```hcl
-    terraform {
-      backend "azurerm" {
-        resource_group_name   = "rg-tfstate"
-        storage_account_name  = "tfstate<unique-suffix>"
-        container_name        = "tfstate"
-        key                   = "w3c-platform/part_b.tfstate"
-      }
-      
-      required_providers {
-        azurerm = {
-          source  = "hashicorp/azurerm"
-          version = "~> 4.75.0"
-        }
-        databricks = {
-          source  = "databricks/databricks"
-          version = "~> 1.70"
-        }
-      }
-      
-      required_version = ">= 1.10.5, < 2.0"
-    }
-    ```
-
-- [x] Store Azure credentials as environment variables (for local development)
-  - Added `.env.azure.template` (gitignored, copy to `.env.azure`):
-
-    ```bash
-    ARM_CLIENT_ID=<service-principal-appId>
-    ARM_CLIENT_SECRET=<service-principal-password>
-    ARM_SUBSCRIPTION_ID=<subscription-id>
-    ARM_TENANT_ID=<tenant-id>
-    # + DATABRICKS_HOST, DATABRICKS_TOKEN, AZURE_SQL_*, STORAGE_ACCOUNT_NAME, STORAGE_ACCESS_KEY
-    ```
-
-  - **Note:** Actual `.env.azure` file creation requires service principal credentials first (manual step above)
-
-- [x] Document shared credential usage
-  - Created `docs/credentials.md`:
-
-    ```markdown
-    # Shared Credentials
-    
-    The same Azure service principal is used for:
-    1. Terraform remote state backend access (ARM_* env vars)
-    2. Tier 2 GitHub Actions CI (ARM_* secrets)
-    
-    Service Principal: w3c-etl-pipeline-sp
-    Role: Contributor (subscription-level)
-    Additional Role: Storage Blob Data Contributor (on tfstate storage account)
-    
-    This credential reuse simplifies management but requires:
-    - Regular rotation (quarterly)
-    - Monitoring for unusual activity
-    - Immediate revocation if compromised
-    ```
+- [x] Store Azure credentials as environment variables
+- [x] Document shared credential usage in `docs/credentials.md`
 
 **Acceptance Criteria:**
 
@@ -638,456 +505,67 @@ source .env.azure
 echo $ARM_CLIENT_ID
 ```
 
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| Azure CLI auth fails | `az login` returns error | Check credentials, verify subscription status, re-authenticate |
-| Terraform version mismatch | `terraform --version` shows < 1.10.5 | Upgrade Terraform via brew/winget |
-| Databricks CLI v1 installed | `databricks --version` shows < 0.200 | Uninstall v1, install v2+ via brew/winget |
-| MaxMind signup fails | Unable to create account or download databases | Use alternative GeoIP provider (ip-api.com) — requires Silver pipeline code change |
-| Storage account name taken | `az storage account create` fails with "AlreadyExists" | Use different unique suffix in name |
-| Service principal creation fails | `az ad sp create-for-rbac` returns error | Check Azure AD permissions, use existing SP if available |
-
 ---
 
-### Phase 1 — Terraform Part A (Core Infrastructure)
+### Phase 1 — Terraform Part A (Core Infrastructure) (✅ Complete)
 
 **Phase Goal:** Deploy core Azure infrastructure (resource groups, networking, storage, Databricks workspace, Azure SQL) using Terraform Part A.
 
+**Summary:** All core Azure infrastructure deployed in `westus3`. Resources include: resource group `rg-w3c-etl`, VNet with 2 subnets (Databricks-delegated + SQL), ADLS Gen2 storage account `stw3cetlwestus3` with 4 containers (`raw-logs`, `bronze`, `silver`, `gold`), Databricks Premium workspace `w3c-etl-databricks`, and Azure SQL serverless database `w3c-etl-db` (GP_S_Gen5_1, auto-pause 60 min). NSG-based subnet isolation implemented. Network rules on storage account with `Deny` default action.
+
 **Checklist:**
 
-- [ ] Create `terraform/part_a/main.tf` with provider configuration
-- [ ] Create `terraform/part_a/variables.tf` with input variables
-- [ ] Create `terraform/part_a/outputs.tf` with output values
-- [ ] Create `terraform/part_a/modules/datalake/main.tf` for ADLS Gen2
-- [ ] Create `terraform/part_a/modules/databricks/main.tf` for Databricks workspace
-- [ ] Create `terraform/part_a/modules/networking/main.tf` for VNet and subnets
-- [ ] Create `terraform/part_a/modules/warehouse/main.tf` for Azure SQL
-- [ ] Create `terraform/part_a/environments/dev/terraform.tfvars` for dev environment values
-- [ ] Run `terraform init` in Part A directory
-- [ ] Run `terraform providers lock` to generate lock file
-- [ ] Run `terraform validate` to verify configuration
-- [ ] Run `terraform plan` to review changes
-- [ ] Run `terraform apply` to deploy infrastructure
-- [ ] Verify all resources created in Azure portal
+- [x] Create `terraform/part_a/main.tf`, `variables.tf`, `outputs.tf` and module files
+- [x] Create `terraform/part_a/environments/dev/terraform.tfvars`
+- [x] Run `terraform init`, `providers lock`, `validate`, `plan`, `apply`
+- [x] Verify all resources in Azure portal
 
-**Code Scaffolds:**
-
-**terraform/part_a/main.tf:**
+**terraform/part_a/environments/dev/terraform.tfvars (Deployed):**
 
 ```hcl
-provider "azurerm" {
-  features {}
-  subscription_id = var.subscription_id
-  tenant_id       = var.tenant_id
-  client_id       = var.client_id
-  client_secret   = var.client_secret
-}
-
-provider "databricks" {
-  host = module.databricks.workspace_url
-}
-
-module "networking" {
-  source              = "./modules/networking"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  vnet_name           = var.vnet_name
-  address_space       = var.address_space
-}
-
-module "datalake" {
-  source              = "./modules/datalake"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  storage_account_name = var.storage_account_name
-  containers          = var.containers
-  databricks_managed_identity_id = module.databricks.managed_identity_id
-}
-
-module "databricks" {
-  source              = "./modules/databricks"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  workspace_name      = var.databricks_workspace_name
-  sku                 = var.databricks_sku
-  vnet_id             = module.networking.vnet_id
-  private_subnet_id   = module.networking.databricks_subnet_id
-}
-
-module "warehouse" {
-  source              = "./modules/warehouse"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  server_name         = var.sql_server_name
-  database_name       = var.sql_database_name
-  administrator_login = var.sql_administrator_login
-  administrator_password = var.sql_administrator_password
-  vnet_id             = module.networking.vnet_id
-  sql_subnet_id       = module.networking.sql_subnet_id
-}
-```
-
-**terraform/part_a/variables.tf:**
-
-```hcl
-variable "subscription_id" {
-  description = "Azure subscription ID"
-  type        = string
-  sensitive   = true
-}
-
-variable "tenant_id" {
-  description = "Azure tenant ID"
-  type        = string
-  sensitive   = true
-}
-
-variable "client_id" {
-  description = "Service principal client ID"
-  type        = string
-  sensitive   = true
-}
-
-variable "client_secret" {
-  description = "Service principal client secret"
-  type        = string
-  sensitive   = true
-}
-
-variable "resource_group_name" {
-  description = "Resource group name"
-  type        = string
-  default     = "rg-w3c-etl"
-}
-
-variable "location" {
-  description = "Azure region"
-  type        = string
-  default     = "eastus"
-}
-
-variable "vnet_name" {
-  description = "Virtual network name"
-  type        = string
-  default     = "vnet-w3c-etl"
-}
-
-variable "address_space" {
-  description = "VNet address space"
-  type        = string
-  default     = "10.0.0.0/16"
-}
-
-variable "storage_account_name" {
-  description = "Storage account name"
-  type        = string
-}
-
-variable "containers" {
-  description = "ADLS Gen2 containers"
-  type        = list(string)
-  default     = ["raw-logs", "bronze", "silver", "gold"]
-}
-
-variable "databricks_workspace_name" {
-  description = "Databricks workspace name"
-  type        = string
-  default     = "w3c-etl-databricks"
-}
-
-variable "databricks_sku" {
-  description = "Databricks SKU tier"
-  type        = string
-  default     = "premium"
-}
-
-variable "sql_server_name" {
-  description = "Azure SQL server name"
-  type        = string
-}
-
-variable "sql_database_name" {
-  description = "Azure SQL database name"
-  type        = string
-  default     = "w3c-etl-db"
-}
-
-variable "sql_administrator_login" {
-  description = "SQL admin login"
-  type        = string
-  sensitive   = true
-}
-
-variable "sql_administrator_password" {
-  description = "SQL admin password"
-  type        = string
-  sensitive   = true
-}
-
-variable "enable_private_endpoints" {
-  description = "Enable private endpoints"
-  type        = bool
-  default     = false
-}
-```
-
-**terraform/part_a/outputs.tf:**
-
-```hcl
-output "storage_account_name" {
-  description = "Storage account name"
-  value       = module.datalake.storage_account_name
-}
-
-output "databricks_workspace_url" {
-  description = "Databricks workspace URL"
-  value       = module.databricks.workspace_url
-}
-
-output "databricks_workspace_id" {
-  description = "Databricks workspace ID"
-  value       = module.databricks.workspace_id
-}
-
-output "server_fqdn" {
-  description = "Azure SQL server FQDN"
-  value       = module.warehouse.server_fqdn
-}
-
-output "database_name" {
-  description = "Azure SQL database name"
-  value       = module.warehouse.database_name
-}
-
-output "resource_group_name" {
-  description = "Resource group name"
-  value       = var.resource_group_name
-}
-
-output "location" {
-  description = "Azure region"
-  value       = var.location
-}
-```
-
-**terraform/part_a/modules/networking/main.tf:**
-
-```hcl
-resource "azurerm_resource_group" "this" {
-  name     = var.resource_group_name
-  location = var.location
-}
-
-resource "azurerm_virtual_network" "this" {
-  name                = var.vnet_name
-  address_space       = [var.address_space]
-  location            = azurerm_resource_group.this.location
-  resource_group_name = azurerm_resource_group.this.name
-}
-
-resource "azurerm_subnet" "databricks" {
-  name                 = "snet-databricks"
-  resource_group_name  = azurerm_resource_group.this.name
-  virtual_network_name = azurerm_virtual_network.this.name
-  address_prefixes     = ["10.0.1.0/24"]
-  delegation {
-    name = "databricks-delegation"
-    service_delegation {
-      name = "Microsoft.Databricks/workspaces"
-      actions = [
-        "Microsoft.Network/virtualNetworks/subnets/join/action",
-        "Microsoft.Network/virtualNetworks/subnets/prepareNetworkPolicies/action"
-      ]
-    }
-  }
-}
-
-resource "azurerm_subnet" "sql" {
-  name                 = "snet-sql"
-  resource_group_name  = azurerm_resource_group.this.name
-  virtual_network_name = azurerm_virtual_network.this.name
-  address_prefixes     = ["10.0.2.0/24"]
-  service_endpoints    = var.enable_private_endpoints ? ["Microsoft.Sql"] : []
-}
-
-output "vnet_id" {
-  value = azurerm_virtual_network.this.id
-}
-
-output "databricks_subnet_id" {
-  value = azurerm_subnet.databricks.id
-}
-
-output "sql_subnet_id" {
-  value = azurerm_subnet.sql.id
-}
-```
-
-**terraform/part_a/modules/datalake/main.tf:**
-
-```hcl
-resource "azurerm_storage_account" "this" {
-  name                     = var.storage_account_name
-  resource_group_name      = var.resource_group_name
-  location                 = var.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  account_kind             = "StorageV2"
-  is_hns_enabled           = true
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "azurerm_storage_container" "this" {
-  for_each              = toset(var.containers)
-  name                  = each.value
-  storage_account_name  = azurerm_storage_account.this.name
-  container_access_type = "private"
-}
-
-resource "azurerm_role_assignment" "databricks_contributor" {
-  scope                = azurerm_storage_account.this.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = var.databricks_managed_identity_id
-}
-
-output "storage_account_name" {
-  value = azurerm_storage_account.this.name
-}
-
-output "storage_account_id" {
-  value = azurerm_storage_account.this.id
-}
-```
-
-**terraform/part_a/modules/databricks/main.tf:**
-
-```hcl
-resource "azurerm_databricks_workspace" "this" {
-  name                = var.workspace_name
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  sku                 = var.sku
-  managed_resource_group_name = "${var.resource_group_name}-managed"
-
-  custom_parameters {
-    no_public_ip = var.enable_private_endpoints
-    virtual_network_id = var.vnet_id
-    private_subnet_name = "snet-databricks"
-  }
-}
-
-data "azurerm_user_assigned_identity" "databricks" {
-  name                = "${azurerm_databricks_workspace.this.name}-identity"
-  resource_group_name = azurerm_databricks_workspace.this.managed_resource_group_name
-  depends_on          = [azurerm_databricks_workspace.this]
-}
-
-output "workspace_url" {
-  value = "https://${azurerm_databricks_workspace.this.workspace_url}/"
-}
-
-output "workspace_id" {
-  value = azurerm_databricks_workspace.this.id
-}
-
-output "managed_identity_id" {
-  value = data.azurerm_user_assigned_identity.databricks.principal_id
-}
-```
-
-**terraform/part_a/modules/warehouse/main.tf:**
-
-```hcl
-resource "azurerm_mssql_server" "this" {
-  name                         = var.server_name
-  resource_group_name          = var.resource_group_name
-  location                     = var.location
-  version                      = "12.0"
-  administrator_login          = var.administrator_login
-  administrator_login_password = var.administrator_password
-  
-  azuread_administrator {
-    login_username = "azuread_admin"
-    object_id      = var.azuread_admin_object_id
-  }
-}
-
-resource "azurerm_mssql_database" "this" {
-  name                = var.database_name
-  server_id           = azurerm_mssql_server.this.id
-  collation           = "SQL_Latin1_General_CP1_CI_AS"
-  
-  sku {
-    name     = "GP_S_Gen5"
-    tier     = "GeneralPurpose"
-    capacity = 1
-    family   = "Gen5"
-  }
-  
-  auto_pause_delay_in_minutes = 60
-  
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-# WARNING: Setting start_ip_address and end_ip_address to "0.0.0.0" allows access from all Azure-internal resources.
-# While required for Databricks to access the serverless Azure SQL server without private endpoints, 
-# this is a security trade-off suitable only for this development/evaluation environment. 
-# For production, restrict this to specific Subnets/VNets using private endpoints.
-resource "azurerm_mssql_firewall_rule" "allow_azure" {
-  name             = "AllowAzureServices"
-  server_id        = azurerm_mssql_server.this.id
-  start_ip_address = "0.0.0.0"
-  end_ip_address   = "0.0.0.0"
-}
-
-output "server_fqdn" {
-  value = azurerm_mssql_server.this.fully_qualified_domain_name
-}
-
-output "database_name" {
-  value = azurerm_mssql_database.this.name
-}
-```
-
-**terraform/part_a/environments/dev/terraform.tfvars:**
-
-```hcl
-subscription_id           = "<subscription-id>"
-tenant_id                 = "<tenant-id>"
-client_id                 = "<service-principal-appId>"
-client_secret             = "<service-principal-password>"
-resource_group_name       = "rg-w3c-etl-dev"
-location                  = "eastus"
-storage_account_name      = "stw3cetldev<unique-suffix>"
-databricks_workspace_name = "w3c-etl-databricks-dev"
-sql_server_name           = "sql-w3c-etl-dev"
+subscription_id           = "2cfbc457-25bd-4007-8585-6bfa6765ec30"
+tenant_id                 = "b52c550c-05c2-4689-a595-c1e0e25d4a2e"
+client_id                 = "179ff733-3af5-41f8-8009-f71c177daf01"
+client_secret             = "awV8Q~S9XXr.fYrR.tDE5EXq_CjhPK8a0jSWXdcE"
+resource_group_name       = "rg-w3c-etl"
+location                  = "westus3"
+storage_account_name      = "stw3cetlwestus3"
+databricks_workspace_name = "w3c-etl-databricks"
+sql_server_name           = "sql-w3c-etl"
 sql_administrator_login   = "sqladmin"
-sql_administrator_password = "<strong-password>"
+sql_administrator_password = "W3cEtl2024!Azure"
 enable_private_endpoints  = false
 ```
 
-**Acceptance Criteria:**
+**Acceptance Criteria — ALL PASSED ✅ (2026-06-05):**
 
-- Terraform init completes successfully
-- Terraform providers lock generates `terraform.lock.hcl`
-- Terraform validate passes
-- Terraform plan shows expected resources
-- Terraform apply completes without errors
-- All resources visible in Azure portal:
-  - Resource group: `rg-w3c-etl-dev`
-  - VNet: `vnet-w3c-etl` with 2 subnets
-  - Storage account: `stw3cetldev<unique-suffix>` with 4 containers
-  - Databricks workspace: `w3c-etl-databricks-dev` (Premium tier)
-  - Azure SQL server: `sql-w3c-etl-dev`
-  - Azure SQL database: `w3c-etl-db` (serverless, GP_S_Gen5)
-- Outputs captured: storage_account_name, databricks_workspace_url, server_fqdn, database_name
+- [x] Terraform init completes successfully
+- [x] Terraform providers lock generates `.terraform.lock.hcl`
+- [x] Terraform validate passes
+- [x] Terraform plan shows expected resources
+- [x] Terraform apply completes without errors
+- [x] All resources visible in Azure portal/CLI:
+  - [x] Resource group: `rg-w3c-etl` (westus3)
+  - [x] VNet: `vnet-w3c-etl` with 2 subnets (`snet-databricks` 10.0.1.0/24, `snet-sql` 10.0.2.0/24)
+  - [x] Storage account: `stw3cetlwestus3` with 4 containers (`raw-logs`, `bronze`, `silver`, `gold`)
+  - [x] Databricks workspace: `w3c-etl-databricks` (Premium tier)
+  - [x] Azure SQL server: `sql-w3c-etl`
+  - [x] Azure SQL database: `w3c-etl-db` (serverless, GP_S_Gen5_1, auto-pause 60 min)
+- [x] Outputs captured: storage_account_name, databricks_workspace_url, server_fqdn, database_name
+
+**Deployed Outputs:**
+```bash
+storage_account_name      = "stw3cetlwestus3"
+databricks_workspace_url  = "https://adb-7405616994554630.10.azuredatabricks.net/"
+server_fqdn               = "sql-w3c-etl.database.windows.net"
+database_name             = "w3c-etl-db"
+location                  = "westus3"
+resource_group_name       = "rg-w3c-etl"
+managed_identity_id       = "0c3a72bc-5782-4879-8f21-b27dedde6906"
+databricks_subnet_id      = "/subscriptions/2cfbc457-25bd-4007-8585-6bfa6765ec30/resourceGroups/rg-w3c-etl/providers/Microsoft.Network/virtualNetworks/vnet-w3c-etl/subnets/snet-databricks"
+sql_subnet_id             = "/subscriptions/2cfbc457-25bd-4007-8585-6bfa6765ec30/resourceGroups/rg-w3c-etl/providers/Microsoft.Network/virtualNetworks/vnet-w3c-etl/subnets/snet-sql"
+vnet_id                   = "/subscriptions/2cfbc457-25bd-4007-8585-6bfa6765ec30/resourceGroups/rg-w3c-etl/providers/Microsoft.Network/virtualNetworks/vnet-w3c-etl"
+```
 
 **Phase Handoff Validation:**
 
@@ -1103,21 +581,14 @@ terraform output server_fqdn
 terraform output database_name
 
 # Verify Azure resources
-az resource list --resource-group rg-w3c-etl-dev --query '[].name' -o tsv
+az resource list --resource-group rg-w3c-etl --query '[].{Name:name, Type:type, Location:location}' -o table
 
 # Verify storage containers
 az storage container list --account-name $(terraform output storage_account_name) --query '[].name' -o tsv
+
+# Verify VNet subnets
+az network vnet subnet list --vnet-name vnet-w3c-etl --resource-group rg-w3c-etl --query '[].{Name:name, Prefix:addressPrefix}' -o table
 ```
-
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| Terraform init fails | Backend authentication error | Verify ARM_* env vars, check storage account access |
-| Provider lock fails | Version conflict | Check Terraform version, update provider constraints |
-| Resource creation fails | Azure API error | Check quota limits, verify resource name uniqueness, retry |
-| Databricks workspace creation hangs | Timeout after 30 min | Check Azure portal for stuck deployment, cancel and retry |
-| SQL server creation fails | Invalid password or name | Use stronger password, verify name uniqueness |
 
 ---
 
@@ -1529,7 +1000,7 @@ databricks sql execute --warehouse-id <warehouse-id> --sql "SHOW PARTITIONS w3c_
 
 ### Phase 4 — DLT Silver Pipeline
 
-**Phase Goal:** Create and deploy the DLT Silver pipeline with MaxMind GeoIP enrichment, computed fields, and Great Expectations integration.
+**Phase Goal:** Create and deploy the DLT Silver pipeline with MaxMind GeoIP enrichment and computed fields.
 
 **Checklist:**
 
@@ -1541,7 +1012,6 @@ databricks sql execute --warehouse-id <warehouse-id> --sql "SHOW PARTITIONS w3c_
 - [ ] Exclude UA columns from Silver DDL
 - [ ] Preserve 6 geo columns in Silver (country, region, city, lat, lon, isp)
 - [ ] Add @dlt.expect_or_drop quality rules
-- [ ] Integrate Great Expectations checkpoint
 - [ ] Configure Silver table properties
 - [ ] Install geoip2==5.0.1 as PyPI library on cluster
 - [ ] Test Silver pipeline with Bronze data
@@ -1754,7 +1224,7 @@ def silver_enriched_logs():
     # Note: UA columns (agent_type, browser_name, browser_version, os, device_type) are excluded
     # They are computed but not materialized in Silver DDL to reduce storage
     
-    # Select final Silver columns (25 core + 6 geo = 31 total)
+# Select final Silver columns (25 core + 6 geo = 31 total)
     silver_df = silver_df.select(
         "log_date", "log_time", "server_ip", "method", "uri_stem",
         "uri_query", "client_ip", "user_agent", "cookie", "referrer",
@@ -1764,53 +1234,8 @@ def silver_enriched_logs():
         "is_crawler", "size_band",
         "country", "region", "city", "latitude", "longitude", "isp"
     )
-    
+
     return silver_df
-```
-
-**Great Expectations checkpoint integration:**
-
-```python
-# Add to dlt_silver.py after silver table definition
-
-import great_expectations as ge
-from great_expectations.core import ExpectationSuite, ExpectationConfiguration
-
-# Create expectation suite
-suite = ExpectationSuite("silver_enriched_logs_suite")
-
-# Add expectations
-suite.add_expectation(ExpectationConfiguration(
-    expectation_type="expect_column_to_exist",
-    kwargs={"column": "client_ip"}
-))
-
-suite.add_expectation(ExpectationConfiguration(
-    expectation_type="expect_column_values_to_not_be_null",
-    kwargs={"column": "client_ip"}
-))
-
-suite.add_expectation(ExpectationConfiguration(
-    expectation_type="expect_column_values_to_be_between",
-    kwargs={"column": "status", "min_value": 100, "max_value": 599}
-))
-
-suite.add_expectation(ExpectationConfiguration(
-    expectation_type="expect_column_values_to_be_between",
-    kwargs={"column": "bytes_sent", "min_value": 0}
-))
-
-suite.add_expectation(ExpectationConfiguration(
-    expectation_type="expect_column_values_to_not_be_null",
-    kwargs={"column": "referrer_domain"}
-))
-
-# Create checkpoint
-@dlt.expectation_suite("silver_enriched_logs_suite")
-def ge_checkpoint():
-    # This will be integrated as Task 4 in Databricks Workflow
-    # For now, define the expectation structure
-    pass
 ```
 
 **Acceptance Criteria:**
@@ -1823,7 +1248,6 @@ def ge_checkpoint():
 - UA columns excluded from Silver DDL
 - 6 geo columns preserved in Silver
 - Quality expectations added: valid_country, valid_traffic_type, valid_page_category
-- Great Expectations checkpoint structure defined
 - geoip2==5.0.1 installed as cluster PyPI library
 - Silver table created via DLT pipeline
 - Silver table schema matches 31 columns
@@ -1854,7 +1278,6 @@ databricks sql execute --warehouse-id <warehouse-id> --sql "SELECT page_category
 | Lazy reader pattern error | Spark context error in UDF | Move reader initialization to driver level, use spark.conf.get |
 | Computed field UDF errors | Null values or incorrect categorization | Test UDF logic with sample data, adjust regex patterns |
 | Silver table creation fails | DLT pipeline error | Verify Bronze table exists, check column compatibility, review expectations |
-| Great Expectations integration fails | GE import error or checkpoint error | Install great-expectations as PyPI library, verify configuration |
 
 ---
 
@@ -2191,271 +1614,11 @@ conn.close()
 
 ---
 
-### Phase 6 — Great Expectations Checkpoint
 
-**Phase Goal:** Integrate Great Expectations data quality validation into the Silver pipeline with expectation suite and HTML docs publication.
 
-**Checklist:**
+### Phase 6 — Databricks Workflows + Terraform Part B
 
-- [ ] Install great-expectations as PyPI library on Databricks cluster
-- [ ] Create Great Expectations expectation suite for Silver table
-- [ ] Define expectations: null rate on critical columns
-- [ ] Define expectations: value ranges (status codes, bytes_sent)
-- [ ] Define expectations: referrer_domain not null
-- [ ] Define expectations: geo enrichment completeness
-- [ ] Create Great Expectations checkpoint
-- [ ] Integrate checkpoint as optional Task 4 in Databricks Workflow
-- [ ] Configure HTML data docs publication to ADLS Gen2
-- [ ] Test checkpoint with sample Silver data
-- [ ] Verify HTML docs generated and published
-
-**Code Scaffolds:**
-
-**Great Expectations expectation suite:**
-
-```python
-# airflow/spark/databricks/ge_silver_suite.py
-
-import great_expectations as ge
-from great_expectations.core import ExpectationSuite, ExpectationConfiguration
-from great_expectations.checkpoint import SimpleCheckpoint
-
-def create_silver_expectation_suite():
-    """Create expectation suite for Silver table."""
-    suite = ExpectationSuite(expectation_suite_name="silver_enriched_logs_suite")
-    
-    # Null rate expectations on critical columns
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_to_exist",
-        kwargs={"column": "client_ip"}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_not_be_null",
-        kwargs={"column": "client_ip"}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_to_exist",
-        kwargs={"column": "log_date"}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_not_be_null",
-        kwargs={"column": "log_date"}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_to_exist",
-        kwargs={"column": "status"}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_not_be_null",
-        kwargs={"column": "status"}
-    ))
-    
-    # Value range expectations
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_be_between",
-        kwargs={"column": "status", "min_value": 100, "max_value": 599}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_be_between",
-        kwargs={"column": "bytes_sent", "min_value": 0, "strict_min": False}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_be_between",
-        kwargs={"column": "bytes_recv", "min_value": 0, "strict_min": False}
-    ))
-    
-    # Referrer domain expectation
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_to_exist",
-        kwargs={"column": "referrer_domain"}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_not_be_null",
-        kwargs={"column": "referrer_domain"}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_be_in_set",
-        kwargs={
-            "column": "referrer_domain",
-            "value_set": ["Direct", "google.com", "bing.com", "facebook.com", "twitter.com", "linkedin.com"],
-            "mostly": 0.8  # Allow 20% other domains
-        }
-    ))
-    
-    # Geo enrichment completeness expectations
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_to_exist",
-        kwargs={"column": "country"}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_not_be_null",
-        kwargs={"column": "country"}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_be_in_set",
-        kwargs={
-            "column": "country",
-            "value_set": ["Unknown"],  # Will be updated with actual countries
-            "mostly": 0.1  # Max 10% Unknown
-        },
-        meta={"severity": "warning"}  # Warning level, not blocking
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_not_be_null",
-        kwargs={"column": "latitude"}
-    ))
-    
-    suite.add_expectation(ExpectationConfiguration(
-        expectation_type="expect_column_values_to_not_be_null",
-        kwargs={"column": "longitude"}
-    ))
-    
-    return suite
-
-def create_ge_checkpoint(context, silver_table_path):
-    """Create Great Expectations checkpoint for Silver table."""
-    # Create batch from Silver table
-    batch = context.get_batch(
-        {
-            "path": silver_table_path,
-            "datasource": "silver_datasource",
-            "data_asset_name": "silver_enriched_logs"
-        },
-        create_silver_expectation_suite()
-    )
-    
-    # Create checkpoint
-    checkpoint = SimpleCheckpoint(
-        name="silver_checkpoint",
-        context=context,
-        batches=[batch]
-    )
-    
-    return checkpoint
-
-def run_ge_checkpoint(spark, silver_table_path, docs_output_path):
-    """Run Great Expectations checkpoint and publish HTML docs."""
-    # Initialize GE context
-    context = ge.get_context()
-    
-    # Create and run checkpoint
-    checkpoint = create_ge_checkpoint(context, silver_table_path)
-    result = checkpoint.run()
-    
-    # Publish HTML docs to ADLS
-    if result.success:
-        context.build_data_docs()
-        
-        # Copy docs to ADLS
-        import shutil
-        docs_local_path = context.get_docs_sites()[0]["site_root"]
-        
-        # Upload to ADLS
-        spark._jvm.scala.sys.process.Process(
-            s"az storage blob upload-batch "
-            s"--source {docs_local_path} "
-            s"--destination gold/ge-docs "
-            s"--account-name {spark.conf.get('storage.account_name')}",
-            spark._jsc.sc
-        ).waitFor()
-        
-        print(f"Great Expectations docs published to ADLS: gold/ge-docs/")
-    else:
-        print(f"Great Expectations checkpoint failed: {result}")
-        raise Exception("Data quality validation failed")
-    
-    return result
-```
-
-**Integration in Databricks Workflow (Task 4):**
-
-```python
-# airflow/spark/databricks/ge_checkpoint_task.py
-
-from pyspark.sql import SparkSession
-import sys
-sys.path.append("/dbfs/mnt/w3c-data/")
-
-from ge_silver_suite import run_ge_checkpoint
-
-if __name__ == "__main__":
-    spark = SparkSession.builder.appName("Great Expectations Checkpoint").getOrCreate()
-    
-    silver_table_path = spark.conf.get("silver.table.path", "dbfs:/mnt/w3c-data/silver")
-    docs_output_path = spark.conf.get("ge.docs.output", "dbfs:/mnt/w3c-data/ge-docs")
-    
-    result = run_ge_checkpoint(spark, silver_table_path, docs_output_path)
-    
-    if not result.success:
-        sys.exit(1)
-    
-    spark.stop()
-```
-
-**Acceptance Criteria:**
-
-- great-expectations installed as cluster PyPI library
-- Expectation suite created with all required expectations
-- Null rate expectations on: client_ip, log_date, status
-- Value range expectations on: status (100-599), bytes_sent (>=0), bytes_recv (>=0)
-- Referrer_domain not null expectation
-- Geo enrichment completeness expectation (max 10% Unknown country)
-- Checkpoint created and integrated as Task 4
-- HTML docs configured to publish to ADLS gold/ge-docs/
-- Checkpoint tested with sample Silver data
-- HTML docs generated and published to ADLS
-- Warning-level violations don't block pipeline
-- Error-level violations block pipeline
-
-**Phase Handoff Validation:**
-
-```bash
-# Verify GE docs in ADLS
-az storage blob list \
-  --container-name gold \
-  --prefix ge-docs/ \
-  --account-name $STORAGE_ACCOUNT_NAME \
-  --query '[].name' -o tsv
-
-# Download and view HTML docs
-az storage blob download \
-  --container-name gold \
-  --name ge-docs/index.html \
-  --file /tmp/ge-docs.html \
-  --account-name $STORAGE_ACCOUNT_NAME
-
-open /tmp/ge-docs.html  # macOS
-# or
-start /tmp/ge-docs.html  # Windows
-```
-
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| GE import fails | ModuleNotFoundError | Install great-expectations as PyPI library, restart cluster |
-| Expectation suite creation fails | Validation error | Review expectation configuration, adjust value sets |
-| Checkpoint run fails | Data quality violations | Review violation details, adjust data or expectations |
-| HTML docs publication fails | ADLS upload error | Verify storage access, check container permissions |
-| Task 4 blocks pipeline | Error-level violation | Review severity levels, downgrade to warning if appropriate |
-
----
-
-### Phase 7 — Databricks Workflows + Terraform Part B
-
-**Phase Goal:** Deploy Databricks Workflows orchestration with Bronze, Silver, JDBC export, and GE tasks using Terraform Part B.
+**Phase Goal:** Deploy Databricks Workflows orchestration with Bronze, Silver, and JDBC export tasks using Terraform Part B.
 
 **Checklist:**
 
@@ -2464,13 +1627,12 @@ start /tmp/ge-docs.html  # Windows
 - [ ] Create `terraform/part_b/outputs.tf` with output values
 - [ ] Create Databricks pipeline resource for Bronze
 - [ ] Create Databricks pipeline resource for Silver
-- [ ] Create Databricks job resource with 4 tasks
+- [ ] Create Databricks job resource with 3 tasks
 - [ ] Configure Task 1: DLT Bronze pipeline
 - [ ] Configure Task 2: DLT Silver pipeline
 - [ ] Configure Task 3: JDBC export Python task
-- [ ] Configure Task 4: Great Expectations checkpoint (optional)
 - [ ] Add cluster configuration (Standard_DS3_v2, 1-2 workers)
-- [ ] Add PyPI libraries: geoip2==5.0.1, great-expectations==0.18.12
+- [ ] Add PyPI library: geoip2==5.0.1
 - [ ] Add Maven library: mssql-jdbc
 - [ ] Configure lifecycle ignore_changes for dev flexibility
 - [ ] Run terraform init in Part B directory
@@ -2578,7 +1740,7 @@ resource "databricks_pipeline" "silver" {
 # Databricks Workflow Job
 resource "databricks_job" "w3c_etl_workflow" {
   name = "w3c-etl-workflow"
-  description = "W3C ETL workflow: Bronze -> Silver -> JDBC Export -> GE"
+  description = "W3C ETL workflow: Bronze -> Silver -> JDBC Export"
   
   workflow_tasks {
     task_key {
@@ -2621,22 +1783,6 @@ resource "databricks_job" "w3c_etl_workflow" {
     }
   }
   
-  workflow_tasks {
-    task_key {
-      description = "Great Expectations Checkpoint"
-      notebook_task {
-        notebook_path = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/ge_checkpoint_task.py"
-        base_parameters = {
-          "silver.table.path" = "dbfs:/mnt/w3c-data/silver"
-          "ge.docs.output"    = "dbfs:/mnt/w3c-data/ge-docs"
-        }
-      }
-    }
-    depends_on {
-      task_key = ["jdbc_export"]
-    }
-  }
-  
   job_cluster {
     job_cluster_key = "w3c_etl_cluster"
     new_cluster {
@@ -2650,11 +1796,6 @@ resource "databricks_job" "w3c_etl_workflow" {
       custom_library {
         pypi {
           package = "geoip2==5.0.1"
-        }
-      }
-      custom_library {
-        pypi {
-          package = "great-expectations==0.18.12"
         }
       }
       custom_library {
@@ -2737,17 +1878,17 @@ azure_sql_database  = "w3c-etl-db"
 - Terraform Part B directory structure created
 - Bronze DLT pipeline resource configured
 - Silver DLT pipeline resource configured
-- Databricks Workflow job resource configured with 4 tasks
-- Task dependencies: Bronze → Silver → JDBC Export → GE
+- Databricks Workflow job resource configured with 3 tasks
+- Task dependencies: Bronze → Silver → JDBC Export
 - Cluster configuration: Standard_DS3_v2, 1-2 workers
-- PyPI libraries: geoip2==5.0.1, great-expectations==0.18.12
+- PyPI library: geoip2==5.0.1
 - Maven library: mssql-jdbc
 - Lifecycle ignore_changes configured
 - Terraform init, validate, plan, apply successful
 - Databricks Workflow visible in workspace
 - Workflow run tested with sample data
-- All 4 tasks execute successfully
-- Data flows end-to-end: Bronze → Silver → Azure SQL → GE docs
+- All 3 tasks execute successfully
+- Data flows end-to-end: Bronze → Silver → Azure SQL
 
 **Phase Handoff Validation:**
 
@@ -2771,9 +1912,6 @@ databricks runs list --job-id <workflow-job-id>
 
 # Verify Azure SQL data after run
 sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.raw_enriched"
-
-# Verify GE docs
-az storage blob list --container-name gold --prefix ge-docs/ --account-name $STORAGE_ACCOUNT_NAME
 ```
 
 **Failure Recovery Table:**
@@ -2785,11 +1923,10 @@ az storage blob list --container-name gold --prefix ge-docs/ --account-name $STO
 | Workflow job creation fails | Task dependency error | Verify task keys match, check depends_on configuration |
 | Workflow run fails | Task execution error | Review task logs, verify library installations, check data paths |
 | Task 3 (JDBC export) fails | Connection or write error | Verify Azure SQL credentials, check network connectivity |
-| Task 4 (GE) fails | GE checkpoint error | Review expectation violations, adjust severity levels |
 
 ---
 
-### Phase 8 — export_dimensions_azure
+### Phase 7 — export_dimensions_azure
 
 **Phase Goal:** Create Airflow operator to build dimensional tables (dim_geolocation, dim_useragent) from Azure SQL and trigger dbt DAG via Dataset outlet.
 
@@ -3094,7 +2231,7 @@ sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PA
 
 ---
 
-### Phase 9a — dbt T-SQL Macros + Simple Model Migration
+### Phase 8a — dbt T-SQL Macros + Simple Model Migration
 
 **Phase Goal:** Create T-SQL compatibility macros and migrate simple dbt models with casts, EXTRACT, TO_CHAR, and boolean-to-int conversions.
 
@@ -3374,7 +2511,7 @@ grep -r "tsql_datepart" target/compiled/
 
 ---
 
-### Phase 9b — dbt Complex Model Migration
+### Phase 8b — dbt Complex Model Migration
 
 **Phase Goal:** Migrate complex dbt models with regex, generate_series, PERCENTILE_CONT, and advanced T-SQL patterns.
 
@@ -3545,7 +2682,7 @@ dbt run-operation test_generate_series --profile w3c_azure
 
 ---
 
-### Phase 9c — dbt Docs, Source Freshness, and CSV Export
+### Phase 8c — dbt Docs, Source Freshness, and CSV Export
 
 **Phase Goal:** Configure dbt docs generation, source freshness checks, hosting for the data catalog, and automated CSV export from Azure SQL to Airflow for Power BI consumption.
 
@@ -3686,7 +2823,7 @@ packages:
 ```yaml
 dbt-core==1.8.9
 dbt-sqlserver==1.8.4
-great-expectations==0.18.12
+
 ```
 
 **airflow/dags/operators/export_csv_azure.py (new CSV export operator logic):**
@@ -4031,7 +3168,7 @@ curl https://<username>.github.io/w3c-etl-pipeline/
 
 ---
 
-### Phase 10 — Split CI/CD
+### Phase 9 — Split CI/CD
 
 **Phase Goal:** Configure split-tier CI/CD with Tier 1 (every push, no Azure creds) and Tier 2 (nightly integration, protected by GitHub Environment).
 
@@ -4315,7 +3452,7 @@ git push origin develop
 
 ---
 
-### Phase 11 — Monitoring
+### Phase 10 — Monitoring
 
 **Phase Goal:** Configure Grafana + Prometheus monitoring for Airflow and Azure Monitor alerts for budget and Databricks pipeline failures.
 
@@ -4476,7 +3613,7 @@ az monitor metrics alert list --resource-group rg-w3c-etl-dev
 
 ---
 
-### Phase 12 — Cost Management and Teardown Documentation
+### Phase 11 — Cost Management and Teardown Documentation
 
 **Phase Goal:** Document cost management procedures and provide clear teardown instructions to prevent unexpected charges.
 
@@ -4515,7 +3652,7 @@ az monitor metrics alert list --resource-group rg-w3c-etl-dev
 
 ### ADLS Gen2
 - Hot tier for frequent access (raw-logs, bronze, silver)
-- Cool tier for archival (gold, ge-docs, dbt-docs)
+- Cool tier for archival (gold, dbt-docs)
 - Lifecycle policies for data retention (90 days for raw logs)
 
 ### CI/CD
@@ -4734,7 +3871,7 @@ chmod +x scripts/teardown.sh
 
 ---
 
-### Phase 13 — Documentation and README Update
+### Phase 12 — Documentation and README Update
 
 **Phase Goal:** Update project README with architecture diagram, deployment instructions, badges, and links to documentation.
 
@@ -4781,7 +3918,7 @@ See [plans/azure-cloud-native-single-pipeline.md](plans/azure-cloud-native-singl
 - **Apache Airflow** - Pipeline orchestration
 - **dbt** - Transformation layer
 - **MaxMind GeoLite2** - IP geolocation
-- **Great Expectations** - Data quality
+
 - **Grafana + Prometheus** - Monitoring
 
 ## Deployment
@@ -4840,7 +3977,7 @@ markdown-link-check README.md
 
 ---
 
-### Phase 14 — Final Verification
+### Phase 13 — Final Verification
 
 **Phase Goal:** Perform end-to-end verification of the complete pipeline, validate Power BI compatibility, and confirm all 18 CSV exports are produced correctly.
 
@@ -4852,7 +3989,7 @@ markdown-link-check README.md
 - [ ] Verify Bronze pipeline execution
 - [ ] Verify Silver pipeline execution
 - [ ] Verify JDBC export to Azure SQL
-- [ ] Verify Great Expectations checkpoint
+
 - [ ] Verify export_dimensions_azure execution
 - [ ] Verify dbt run execution
 - [ ] Verify dbt test execution
@@ -4943,7 +4080,7 @@ echo "End-to-end verification completed successfully!"
 - Bronze pipeline executed without errors
 - Silver pipeline executed without errors
 - JDBC export completed successfully
-- Great Expectations checkpoint passed
+
 - export_dimensions_azure completed successfully
 - dbt run completed successfully
 - dbt tests passed
@@ -4995,7 +4132,7 @@ curl http://localhost:9090/api/v1/targets
 | GeoIP database license expiration | Medium | Low | Monitor license validity, set renewal reminders, use free tier |
 | T-SQL migration syntax errors | High | Medium | Comprehensive testing of all macros, Azure SQL compat level verification |
 | dbt docs generation failure | Low | Low | Separate task in workflow, error handling, manual fallback |
-| Great Expectations false positives | Medium | Low | Warning-level violations don't block, review expectation thresholds |
+
 | CI/CD Tier 2 approval delays | Low | Medium | Multiple approvers, clear documentation, automated retry logic |
 | Service principal credential compromise | High | Low | Regular rotation (quarterly), monitoring for unusual activity, immediate revocation if compromised |
 | Terraform state corruption | High | Low | Azure Blob Storage backend, regular state backups, state locking |
@@ -5030,7 +4167,7 @@ curl http://localhost:9090/api/v1/targets
 - [ ] Silver table with 31 columns (25 core + 6 geo)
 - [ ] MaxMind GeoLite2 enrichment (7 UDFs) working
 - [ ] Computed fields (5 UDFs) working
-- [ ] Great Expectations checkpoint integrated
+
 
 ### Azure Integration
 
@@ -5115,12 +4252,12 @@ Phase 0  → Phase 1  → Phase 2  → Phase 3  → Phase 4  → Phase 5
     ↓         ↓         ↓         ↓         ↓         ↓
     └─────────┴─────────┴─────────┴─────────┴─────────┘
                           ↓
-Phase 6  → Phase 7  → Phase 8  → Phase 9a → Phase 9b → Phase 9c
-(GE)     (Workflows) (Dims)   (Macros) (Complex) (Docs)
-    ↓         ↓         ↓         ↓         ↓         ↓
-    └─────────┴─────────┴─────────┴─────────┴─────────┘
+Phase 6  → Phase 7  → Phase 8a → Phase 8b → Phase 8c
+(Workflows) (Dims)   (Macros) (Complex) (Docs)
+    ↓         ↓         ↓         ↓         ↓
+    └─────────┴─────────┴─────────┴─────────┘
                           ↓
-Phase 10 → Phase 11 → Phase 12 → Phase 13 → Phase 14
+Phase 9  → Phase 10 → Phase 11 → Phase 12 → Phase 13
 (CI/CD)  (Monitor) (Cost)    (Docs)    (E2E)
 ```
 
@@ -5130,12 +4267,12 @@ Phase 10 → Phase 11 → Phase 12 → Phase 13 → Phase 14
 
 ### Primary Data Engineer Variant
 
-"Designed and implemented a cloud-native W3C log ETL platform on Azure using Databricks Delta Live Tables, Unity Catalog, and Azure SQL. Built Bronze/Silver DLT pipelines with custom W3C parsing, MaxMind GeoIP enrichment, and Great Expectations data quality checks. Orchestrated via Airflow with Databricks Workflows integration, deployed dimensional models with dbt (T-SQL migration), and automated CI/CD with split-tier GitHub Actions. Delivered 18 Power BI-ready CSV exports with end-to-end monitoring and $100 cost controls."
+"Designed and implemented a cloud-native W3C log ETL platform on Azure using Databricks Delta Live Tables, Unity Catalog, and Azure SQL. Built Bronze/Silver DLT pipelines with custom W3C parsing, MaxMind GeoIP enrichment, and data quality checks. Orchestrated via Airflow with Databricks Workflows integration, deployed dimensional models with dbt (T-SQL migration), and automated CI/CD with split-tier GitHub Actions. Delivered 18 Power BI-ready CSV exports with end-to-end monitoring and $100 cost controls."
 
 ### IaC/DevOps Angle Variant
 
-"Architected Azure infrastructure for a W3C log ETL platform using Terraform with remote state backend (Azure Blob Storage). Deployed Databricks Premium workspace with Unity Catalog, Azure SQL serverless database, and ADLS Gen2 storage. Implemented Databricks Workflows orchestration with Bronze/Silver DLT pipelines, JDBC export, and Great Expectations integration. Built dbt transformation layer with T-SQL macros for Azure SQL compatibility. Configured split-tier CI/CD with GitHub Actions (Tier 1: every push, Tier 2: nightly integration with manual approval). Implemented cost controls with $100 budget cap and automated teardown procedures."
+"Architected Azure infrastructure for a W3C log ETL platform using Terraform with remote state backend (Azure Blob Storage). Deployed Databricks Premium workspace with Unity Catalog, Azure SQL serverless database, and ADLS Gen2 storage. Implemented Databricks Workflows orchestration with Bronze/Silver DLT pipelines and JDBC export. Built dbt transformation layer with T-SQL macros for Azure SQL compatibility. Configured split-tier CI/CD with GitHub Actions (Tier 1: every push, Tier 2: nightly integration with manual approval). Implemented cost controls with $100 budget cap and automated teardown procedures."
 
 ### Full-Stack Data Platform Engineer Variant
 
-"End-to-end data platform ownership: from raw W3C log ingestion to Power BI analytics. Built cloud-native ETL on Azure (Databricks DLT, Unity Catalog, Azure SQL) with custom W3C parsing, MaxMind GeoIP enrichment, and Great Expectations data quality. Implemented dimensional modeling with dbt (T-SQL migration for Azure SQL), Airflow orchestration with Dataset triggers, and Grafana/Prometheus monitoring. Delivered 18 Power BI-ready CSV exports with semantic contract validation. Automated CI/CD with split-tier GitHub Actions and implemented cost management with $100 budget controls and automated teardown procedures."
+"End-to-end data platform ownership: from raw W3C log ingestion to Power BI analytics. Built cloud-native ETL on Azure (Databricks DLT, Unity Catalog, Azure SQL) with custom W3C parsing, MaxMind GeoIP enrichment, and data quality checks. Implemented dimensional modeling with dbt (T-SQL migration for Azure SQL), Airflow orchestration with Dataset triggers, and Grafana/Prometheus monitoring. Delivered 18 Power BI-ready CSV exports with semantic contract validation. Automated CI/CD with split-tier GitHub Actions and implemented cost management with $100 budget controls and automated teardown procedures."
