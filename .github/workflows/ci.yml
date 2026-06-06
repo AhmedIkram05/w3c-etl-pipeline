@@ -69,10 +69,10 @@ jobs:
       W3C_DB_NAME: w3c_warehouse
       W3C_DB_USER: airflow
       W3C_DB_PASS: airflow
-      AZURE_SQL_SERVER: ci-test.database.windows.net
-      AZURE_SQL_DB: w3c_warehouse
-      AZURE_SQL_USER: ci_user
-      AZURE_SQL_PASSWORD: ci_password
+      AZURE_SQL_SERVER: sql-w3c-etl
+      AZURE_SQL_DB: w3c-etl-db
+      AZURE_SQL_USER: sqladmin
+      AZURE_SQL_PASSWORD: ${{ secrets.AZURE_SQL_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
