@@ -1,8 +1,17 @@
-import dlt
-from pyspark.sql.functions import udf, col, split, explode, to_date, concat_ws, row_number, decode
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, LongType, DateType
-from pyspark.sql.window import Window
+from datetime import datetime
 
+import dlt
+from pyspark.sql.functions import col, concat_ws, explode, row_number, to_date, udf
+from pyspark.sql.types import (
+    ArrayType,
+    DateType,
+    IntegerType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+)
+from pyspark.sql.window import Window
 
 # ─── W3C Parser (from authoritative w3c_parser.py) ───
 
@@ -17,14 +26,13 @@ def safe_int(val: str):
 
 def safe_date(val: str):
     """Parse an ISO YYYY-MM-DD date string, or return None."""
-    from datetime import datetime
     try:
         return datetime.strptime(val.strip(), "%Y-%m-%d").date()
     except (ValueError, TypeError, AttributeError):
         return None
 
 
-def parse_log_line(line: str, file_format: int, source_file: str):
+def _parse_log_line(line: str, file_format: int, source_file: str):
     """Parse a single W3C log line into a dict matching bronze schema.
 
     Uses rsplit field-counting to handle unquoted user-agent strings.
@@ -102,47 +110,91 @@ def parse_log_line(line: str, file_format: int, source_file: str):
     return None
 
 
-def detect_file_format(file_path: str) -> int:
-    """Detect IIS format (14 or 18) from #Fields header line.
+def _detect_format_from_content(content_bytes: bytes) -> int:
+    """Detect IIS format (14 or 18) by reading #Fields: header from file content.
 
-    In DLT streaming, we use a broadcast variable approach.
-    All files in a batch should have the same format.
+    Counts field names in the header line to determine whether this is
+    a 14-field (2009-mid 2010) or 18-field (mid 2010+) IIS W3C log.
+    Defaults to 18 if no header is found.
     """
-    # In DLT, we can't easily read files in UDF. For simplicity,
-    # we detect from the first non-comment line structure.
-    # Real implementation would use a broadcast variable or file listing.
-    # Default to 18 (modern format), can be overridden via spark.conf
+    try:
+        text = content_bytes.decode("utf-8", errors="replace")
+        for line in text.split("\n"):
+            if line.startswith("#Fields:"):
+                fields = line.replace("#Fields:", "").strip().split()
+                return 14 if len(fields) == 14 else 18
+    except Exception:
+        pass
     return 18
 
 
-# ─── Broadcast format detection ───
-# In practice, all files in a batch should have same format
-file_format = detect_file_format("")
+def _parse_file_content(content_bytes: bytes, source_path: str) -> list:
+    """Parse entire W3C log file content into a list of row dicts.
 
-# Parse UDF - returns struct
-parse_udf = udf(
-    lambda line, src: parse_log_line(line, file_format, src),
-    StructType([
-        StructField("log_date", DateType(), True),
-        StructField("log_time", StringType(), True),
-        StructField("server_ip", StringType(), True),
-        StructField("method", StringType(), True),
-        StructField("uri_stem", StringType(), True),
-        StructField("uri_query", StringType(), True),
-        StructField("server_port", IntegerType(), True),
-        StructField("username", StringType(), True),
-        StructField("client_ip", StringType(), True),
-        StructField("user_agent", StringType(), True),
-        StructField("cookie", StringType(), True),
-        StructField("referrer", StringType(), True),
-        StructField("status", IntegerType(), True),
-        StructField("sub_status", IntegerType(), True),
-        StructField("win32_status", IntegerType(), True),
-        StructField("bytes_sent", LongType(), True),
-        StructField("bytes_recv", LongType(), True),
-        StructField("time_taken", LongType(), True),
-        StructField("source_file", StringType(), True),
-    ])
+    Detects the file format (14 or 18 fields) from the ``#Fields:``
+    header, then parses every non-comment data line.  Returns a list
+    of dicts matching ``_PARSED_ROW_SCHEMA``.
+
+    This runs inside a UDF on each worker — one call per file row in
+    the binaryFile stream.
+    """
+    try:
+        text = content_bytes.decode("utf-8", errors="replace")
+        lines = text.split("\n")
+
+        # Detect format from #Fields: header (first matching line)
+        file_format = 18
+        for line in lines:
+            if line.startswith("#Fields:"):
+                fields = line.replace("#Fields:", "").strip().split()
+                file_format = 14 if len(fields) == 14 else 18
+                break
+
+        # Parse every non-comment, non-empty line
+        results = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            result = _parse_log_line(stripped, file_format, source_path)
+            if result is not None:
+                results.append(result)
+
+        return results
+    except Exception:
+        return []
+
+
+# Schema for a single parsed log row
+_PARSED_ROW_SCHEMA = StructType([
+    StructField("log_date", DateType(), True),
+    StructField("log_time", StringType(), True),
+    StructField("server_ip", StringType(), True),
+    StructField("method", StringType(), True),
+    StructField("uri_stem", StringType(), True),
+    StructField("uri_query", StringType(), True),
+    StructField("server_port", IntegerType(), True),
+    StructField("username", StringType(), True),
+    StructField("client_ip", StringType(), True),
+    StructField("user_agent", StringType(), True),
+    StructField("cookie", StringType(), True),
+    StructField("referrer", StringType(), True),
+    StructField("status", IntegerType(), True),
+    StructField("sub_status", IntegerType(), True),
+    StructField("win32_status", IntegerType(), True),
+    StructField("bytes_sent", LongType(), True),
+    StructField("bytes_recv", LongType(), True),
+    StructField("time_taken", LongType(), True),
+    StructField("source_file", StringType(), True),
+])
+
+# UDF: binary file content -> array of parsed row structs
+# Each call processes one complete file, detects format from #Fields: header,
+# and returns all parsed rows.  This replaces the old per-line UDF pattern
+# that was closed over a stale module-level file_format variable.
+parse_file_udf = udf(
+    _parse_file_content,
+    ArrayType(_PARSED_ROW_SCHEMA),
 )
 
 
@@ -166,39 +218,52 @@ parse_udf = udf(
 @dlt.expect_or_drop("valid_user_agent", "user_agent IS NOT NULL AND user_agent != '-'")
 @dlt.expect_or_drop("valid_bytes", "(bytes_sent IS NULL OR bytes_sent >= 0) AND (bytes_recv IS NULL OR bytes_recv >= 0)")
 def bronze_raw_logs():
-    """Bronze DLT pipeline with Auto Loader and W3C parser."""
-    # Auto Loader configuration
-    df = spark.readStream.format("cloudFiles") \
-        .option("cloudFiles.format", "binaryFile") \
-        .option("cloudFiles.includeExistingFiles", "true") \
-        .option("cloudFiles.schemaLocation", "dbfs:/Volumes/w3c_etl_databricks/bronze/w3c_data/_schemas/bronze") \
-        .option("cloudFiles.schemaEvolutionMode", "addNewColumns") \
-        .option("cloudFiles.rescuedDataColumn", "_rescued_data") \
-        .option("maxFilesPerTrigger", "10") \
-        .option("maxFileSize", 209715200) \
-        .load(f"abfss://raw-logs@{spark.conf.get('storage.account_name')}.dfs.core.windows.net/")
+    """Bronze DLT pipeline with Auto Loader and W3C parser.
 
-    # binaryFile returns content as binary; decode UTF-8, split by newline
-    lines_df = df.withColumn("line", explode(split(decode(col("content"), "utf-8"), "\n")))
-    lines_df = lines_df.filter(~col("line").startswith("#") & (col("line") != ""))
+    Uses a per-file UDF pattern (not per-line) so that each file's
+    ``#Fields:`` header is read to detect 14-field vs 18-field format.
+    This fixes CRIT-01 (hardcoded format) and CRIT-02 (UDF closure
+    over a stale module variable).
+    """
+    # Validate required config before reading
+    storage_account = spark.conf.get("storage.account_name")  # noqa: F821
+    if not storage_account:
+        raise ValueError(
+            "Missing required Spark config: 'storage.account_name'. "
+            "Set via pipeline configuration or spark.conf.set()."
+        )
 
-    # Parse each line
-    parsed_df = lines_df.withColumn("parsed", parse_udf(col("line"), col("path")))
+    # Auto Loader configuration (binaryFile -> per-file rows)
+    df = (spark.readStream.format("cloudFiles")  # noqa: F821
+        .option("cloudFiles.format", "binaryFile")
+        .option("cloudFiles.includeExistingFiles", "true")
+        .option("cloudFiles.schemaLocation", "dbfs:/Volumes/w3c_etl_databricks/bronze/w3c_data/_schemas/bronze")
+        .option("cloudFiles.schemaEvolutionMode", "addNewColumns")
+        .option("cloudFiles.rescuedDataColumn", "_rescued_data")
+        .option("maxFilesPerTrigger", "10")
+        .option("maxFileSize", 209715200)
+        .load(f"abfss://raw-logs@{storage_account}.dfs.core.windows.net/"))
 
-    # Extract fields from parsed struct (direct struct access, NO explode)
+    # Parse entire file content per file: detect format from #Fields: header,
+    # parse all lines, return array of structs — then explode to rows.
+    # The UDF is self-contained and detects format per-file, fixing both
+    # CRIT-01 (always-return-18) and CRIT-02 (closure over module variable).
+    parsed_df = df.withColumn("parsed_rows", parse_file_udf(col("content"), col("path")))
+
+    # Explode array of structs into individual rows
+    parsed_df = parsed_df.select(explode(col("parsed_rows")).alias("parsed"))
+
+    # Extract fields from parsed struct (direct struct access, no explode)
     for field_name in ["log_date", "log_time", "server_ip", "method", "uri_stem",
                        "uri_query", "server_port", "username", "client_ip", "user_agent",
                        "cookie", "referrer", "status", "sub_status", "win32_status",
                        "bytes_sent", "bytes_recv", "time_taken", "source_file"]:
         parsed_df = parsed_df.withColumn(field_name, col(f"parsed.{field_name}"))
 
-    # Preserve _rescued_data column for debugging malformed lines
-    parsed_df = parsed_df.withColumn("_rescued_data", col("_rescued_data"))
-
-    parsed_df = parsed_df.drop("parsed", "line", "content", "path")
+    parsed_df = parsed_df.drop("parsed")
 
     # Cast log_date to Date for partitioning (Silver integration)
-    # Note: safe_date already returns date object, but ensure type
+    # safe_date already returns a date, but ensure Spark type
     parsed_df = parsed_df.withColumn("log_date", to_date(col("log_date")))
 
     # Deduplication using ROW_NUMBER (for full_refresh idempotency)
