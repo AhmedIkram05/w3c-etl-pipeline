@@ -14,29 +14,48 @@ Tests cover the core enrichment and deduplication logic:
 
 GeoIP-dependent tests use ``unittest.mock`` to avoid needing a real MaxMind
 database — all DB reader interactions are patched.
+
+NOTE: The ``dlt`` module is only available in a Databricks runtime.  The
+``unittest.mock`` setup below supplies a minimal stub so the module can
+be imported for unit testing outside Databricks.
 """
 
 import os
 import sys
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from pyspark.sql import Row
 
+# ── Mock the ``dlt`` module (not available outside Databricks) ────────
+_dlt_stub = MagicMock()
+_dlt_stub.table.return_value = lambda f: f
+_dlt_stub.streaming_table.return_value = lambda f: f
+_dlt_stub.expect_or_drop.return_value = lambda f: f
+sys.modules["dlt"] = _dlt_stub
+
 # ── Module under test ──────────────────────────────────────────────────
 # Ensure the ``databricks`` package directory is on sys.path.
-_DATABRICKS_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "airflow", "spark", "databricks",
-)
-if _DATABRICKS_DIR not in sys.path:
-    sys.path.insert(0, _DATABRICKS_DIR)
+_TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.join(_TEST_DIR, "..")
 
-_SPARK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "airflow", "spark")
-if _SPARK_DIR not in sys.path:
-    sys.path.insert(0, _SPARK_DIR)
+_NESTED_DATABRICKS = os.path.join(_PROJECT_ROOT, "airflow", "spark", "databricks")
+_FLAT_DATABRICKS = os.path.join(_PROJECT_ROOT, "spark", "databricks")
+
+for _db_path in (_NESTED_DATABRICKS, _FLAT_DATABRICKS):
+    if os.path.isdir(_db_path) and _db_path not in sys.path:
+        sys.path.insert(0, _db_path)
+
+_NESTED_SPARK = os.path.join(_PROJECT_ROOT, "airflow", "spark")
+_FLAT_SPARK = os.path.join(_PROJECT_ROOT, "spark")
+
+for _sp_path in (_NESTED_SPARK, _FLAT_SPARK):
+    if os.path.isdir(_sp_path) and _sp_path not in sys.path:
+        sys.path.insert(0, _sp_path)
 
 if TYPE_CHECKING:
-    from airflow.spark.databricks.dlt_silver import (
+    from dlt_silver import (
         _asn_lookup,
         _ensure_asn_reader,
         _ensure_geo_reader,
@@ -54,7 +73,7 @@ if TYPE_CHECKING:
     )
 else:
     try:
-        from airflow.spark.databricks.dlt_silver import (
+        from dlt_silver import (
             _asn_lookup,
             _ensure_asn_reader,
             _ensure_geo_reader,
@@ -71,58 +90,22 @@ else:
             silver_enriched_logs,
         )
     except ImportError:
-        try:
-            from databricks.dlt_silver import (
-                _asn_lookup,
-                _ensure_asn_reader,
-                _ensure_geo_reader,
-                _extract_domain,
-                _geo_lookup,
-                _is_usable_ip,
-                get_geo_fields,
-                get_is_crawler,
-                get_isp,
-                get_page_category,
-                get_referrer_domain,
-                get_size_band,
-                get_traffic_type,
-                silver_enriched_logs,
-            )
-        except ImportError:
-            try:
-                from dlt_silver import (
-                    _asn_lookup,
-                    _ensure_asn_reader,
-                    _ensure_geo_reader,
-                    _extract_domain,
-                    _geo_lookup,
-                    _is_usable_ip,
-                    get_geo_fields,
-                    get_is_crawler,
-                    get_isp,
-                    get_page_category,
-                    get_referrer_domain,
-                    get_size_band,
-                    get_traffic_type,
-                    silver_enriched_logs,
-                )
-            except ImportError:
-                from spark.databricks.dlt_silver import (
-                    _asn_lookup,
-                    _ensure_asn_reader,
-                    _ensure_geo_reader,
-                    _extract_domain,
-                    _geo_lookup,
-                    _is_usable_ip,
-                    get_geo_fields,
-                    get_is_crawler,
-                    get_isp,
-                    get_page_category,
-                    get_referrer_domain,
-                    get_size_band,
-                    get_traffic_type,
-                    silver_enriched_logs,
-                )
+        from databricks.dlt_silver import (
+            _asn_lookup,
+            _ensure_asn_reader,
+            _ensure_geo_reader,
+            _extract_domain,
+            _geo_lookup,
+            _is_usable_ip,
+            get_geo_fields,
+            get_is_crawler,
+            get_isp,
+            get_page_category,
+            get_referrer_domain,
+            get_size_band,
+            get_traffic_type,
+            silver_enriched_logs,
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════
