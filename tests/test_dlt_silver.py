@@ -16,12 +16,24 @@ GeoIP-dependent tests use ``unittest.mock`` to avoid needing a real MaxMind
 database — all DB reader interactions are patched.
 """
 
+import os
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
 from pyspark.sql import Row
 
 # ── Module under test ──────────────────────────────────────────────────
+# Ensure the ``databricks`` package directory is on sys.path.
+_DATABRICKS_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "airflow", "spark", "databricks",
+)
+if _DATABRICKS_DIR not in sys.path:
+    sys.path.insert(0, _DATABRICKS_DIR)
+
+_SPARK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "airflow", "spark")
+if _SPARK_DIR not in sys.path:
+    sys.path.insert(0, _SPARK_DIR)
 
 if TYPE_CHECKING:
     from airflow.spark.databricks.dlt_silver import (
@@ -77,22 +89,40 @@ else:
                 silver_enriched_logs,
             )
         except ImportError:
-            from dlt_silver import (
-                _asn_lookup,
-                _ensure_asn_reader,
-                _ensure_geo_reader,
-                _extract_domain,
-                _geo_lookup,
-                _is_usable_ip,
-                get_geo_fields,
-                get_is_crawler,
-                get_isp,
-                get_page_category,
-                get_referrer_domain,
-                get_size_band,
-                get_traffic_type,
-                silver_enriched_logs,
-            )
+            try:
+                from dlt_silver import (
+                    _asn_lookup,
+                    _ensure_asn_reader,
+                    _ensure_geo_reader,
+                    _extract_domain,
+                    _geo_lookup,
+                    _is_usable_ip,
+                    get_geo_fields,
+                    get_is_crawler,
+                    get_isp,
+                    get_page_category,
+                    get_referrer_domain,
+                    get_size_band,
+                    get_traffic_type,
+                    silver_enriched_logs,
+                )
+            except ImportError:
+                from spark.databricks.dlt_silver import (
+                    _asn_lookup,
+                    _ensure_asn_reader,
+                    _ensure_geo_reader,
+                    _extract_domain,
+                    _geo_lookup,
+                    _is_usable_ip,
+                    get_geo_fields,
+                    get_is_crawler,
+                    get_isp,
+                    get_page_category,
+                    get_referrer_domain,
+                    get_size_band,
+                    get_traffic_type,
+                    silver_enriched_logs,
+                )
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -191,8 +221,9 @@ class TestExtractDomain:
 #  3. GeoIP lazy singleton — _ensure_geo_reader and _ensure_asn_reader
 # ══════════════════════════════════════════════════════════════════════
 
-# Save originals so we can restore after mutating module state
-import airflow.spark.databricks.dlt_silver as _silver_mod  # noqa: E402
+# Module reference for patching globals in GeoIP singleton tests.
+# Uses the unqualified import (relies on _SPARK_DIR being on sys.path).
+import dlt_silver as _silver_mod  # noqa: E402
 
 
 class TestEnsureGeoReader:
