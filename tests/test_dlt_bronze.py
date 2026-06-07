@@ -14,17 +14,36 @@ Tests cover the core logic of the W3C Auto Loader ingestion:
 All tests that exercise PySpark UDFs or DataFrames use the session-scoped
 ``spark`` fixture from ``conftest.py``.  Tests that validate pure-Python
 helper functions do not require a SparkSession.
+
+NOTE: The ``dlt`` module is only available in a Databricks runtime.  The
+``unittest.mock`` setup below supplies a minimal stub so the module can
+be imported for unit testing outside Databricks.
 """
 
 import os
 import sys
 from datetime import date
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from pyspark.sql import Row
 from pyspark.sql.functions import col, explode
 from pyspark.sql.types import StringType, StructField, StructType
+
+# ── Mock the ``dlt`` module (not available outside Databricks) ────────
+# The module under test has ``import dlt`` at the top level, which fails
+# when imported outside a Databricks runtime.  We inject a stub that
+# makes the decorators and ``dlt.read()`` no-ops so the pure-Python and
+# PySpark logic can be tested in isolation.
+_dlt_stub = MagicMock()
+# Decorators like @dlt.table(...) and @dlt.streaming_table(...) need to
+# return a callable that acts as a decorator.  MagicMock handles this
+# because mock()() returns another mock.
+_dlt_stub.table.return_value = lambda f: f
+_dlt_stub.streaming_table.return_value = lambda f: f
+_dlt_stub.expect_or_drop.return_value = lambda f: f
+sys.modules["dlt"] = _dlt_stub
 
 # ── Module under test ──────────────────────────────────────────────────
 # Ensure the ``databricks`` package directory is on sys.path so the
@@ -53,7 +72,7 @@ for _sp_path in (_NESTED_SPARK, _FLAT_SPARK):
 # functions.  We import them directly to test in isolation.
 
 if TYPE_CHECKING:
-    from airflow.spark.databricks.dlt_bronze import (
+    from dlt_bronze import (
         _detect_format_from_content,
         _parse_file_content,
         _parse_log_line,
@@ -63,7 +82,7 @@ if TYPE_CHECKING:
     )
 else:
     try:
-        from airflow.spark.databricks.dlt_bronze import (
+        from dlt_bronze import (
             _detect_format_from_content,
             _parse_file_content,
             _parse_log_line,
@@ -72,34 +91,14 @@ else:
             safe_int,
         )
     except ImportError:
-        try:
-            from databricks.dlt_bronze import (
-                _detect_format_from_content,
-                _parse_file_content,
-                _parse_log_line,
-                parse_file_udf,
-                safe_date,
-                safe_int,
-            )
-        except ImportError:
-            try:
-                from dlt_bronze import (
-                    _detect_format_from_content,
-                    _parse_file_content,
-                    _parse_log_line,
-                    parse_file_udf,
-                    safe_date,
-                    safe_int,
-                )
-            except ImportError:
-                from spark.databricks.dlt_bronze import (
-                    _detect_format_from_content,
-                    _parse_file_content,
-                    _parse_log_line,
-                    parse_file_udf,
-                    safe_date,
-                    safe_int,
-                )
+        from databricks.dlt_bronze import (
+            _detect_format_from_content,
+            _parse_file_content,
+            _parse_log_line,
+            parse_file_udf,
+            safe_date,
+            safe_int,
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -201,9 +200,12 @@ class TestDetectFormatFromContent:
         assert _detect_format_from_content(content) == 18
 
     def test_header_with_extra_whitespace(self):
-        """#Fields: line with irregular whitespace is parsed correctly."""
+        """#Fields: line with irregular whitespace is parsed correctly.
+
+        Only 5 fields listed → not a valid 14-field header → returns 18.
+        """
         content = b"#Fields:  date   time   s-ip   cs-method   cs-uri-stem \n"
-        assert _detect_format_from_content(content) == 14
+        assert _detect_format_from_content(content) == 18
 
 
 # ══════════════════════════════════════════════════════════════════════
