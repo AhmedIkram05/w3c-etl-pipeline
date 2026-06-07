@@ -93,7 +93,8 @@ CREATE TABLE IF NOT EXISTS public.raw_enriched_loaded (
 def create_spark_session(app_name: str = "W3C_Export_Warehouse") -> SparkSession:
     """Build a SparkSession with Delta Lake support."""
     return (
-        SparkSession.builder.appName(app_name)
+        SparkSession.builder
+        .appName(app_name)
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config(
             "spark.sql.catalog.spark_catalog",
@@ -112,7 +113,8 @@ def get_loaded_source_files(spark: SparkSession, jdbc_url: str, jdbc_props: dict
     """
     try:
         df = (
-            spark.read.format("jdbc")
+            spark.read
+            .format("jdbc")
             .option("url", jdbc_url)
             .option("dbtable", TRACKING_TABLE)
             .options(**jdbc_props)
