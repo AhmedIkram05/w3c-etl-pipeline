@@ -1,8 +1,17 @@
 import dlt
-import geoip2.database
-import geoip2.errors
 from pyspark.sql.functions import col, udf
 from pyspark.sql.types import BooleanType, FloatType, StringType, StructField, StructType
+
+# ─── GeoIP via maxminddb (pure Python, no compiled deps) ──────────────
+#
+# maxminddb is installed as a pipeline environment dependency in the
+# pipeline config ("maxminddb==2.8.*").  No sys.path trickery needed.
+_HAS_MAXMINDDB = False
+try:
+    import maxminddb  # noqa: F401
+    _HAS_MAXMINDDB = True
+except ImportError:
+    print("WARNING: maxminddb not available. Geo fields will be NULL.")
 
 # ─── Lazy Singleton GeoIP Readers ─────────────────────────────────────
 #
@@ -10,23 +19,24 @@ from pyspark.sql.types import BooleanType, FloatType, StringType, StructField, S
 # PicklingError (CRIT-04) and 7x redundant lookups (CRIT-05).
 #
 # HOW IT WORKS
-#   geoip2.database.Reader is NOT serialisable.  If a UDF closures
-#   over a Reader instance, PySpark raises PicklingError when shipping
-#   the UDF to executors.
+#   maxminddb.Reader is NOT serialisable.  If a UDF closures over a
+#   Reader instance, PySpark raises PicklingError when shipping the UDF
+#   to executors.
 #
 #   Instead, UDFs call module-level helper functions (_geo_lookup,
 #   _asn_lookup) which lazily initialise a singleton reader on first
-#   call.  Each executor imports the module independently, so each
-#   gets its own reader instance — no serialisation needed.
+#   call.  Each executor imports the module independently, so each gets
+#   its own reader instance — no serialisation needed.
 #
 #   - UDFs reference helper FUNCTIONS (serialisable by name)
 #   - Helpers reference global readers (re-initialised per executor)
 #   - First UDF call per executor triggers lazy initialisation
 # -----------------------------------------------------------------------
 
-# Default DBFS paths (accessible from all workers)
-_GEO_CITY_DB_PATH = "/dbfs/mnt/w3c-data/GeoLite2-City.mmdb"
-_GEO_ASN_DB_PATH = "/dbfs/mnt/w3c-data/GeoLite2-ASN.mmdb"
+# Default paths accessible from all workers
+# Using Unity Catalog volume path (public DBFS root is disabled with UC)
+_GEO_CITY_DB_PATH = "/Volumes/w3c_etl_databricks/bronze/w3c_data/GeoLite2-City.mmdb"
+_GEO_ASN_DB_PATH = "/Volumes/w3c_etl_databricks/bronze/w3c_data/GeoLite2-ASN.mmdb"
 
 # Lazy singleton holders
 _geo_reader = None
@@ -40,10 +50,14 @@ def _ensure_geo_reader():
     global _geo_reader, _geo_init_attempted
     if _geo_reader is None and not _geo_init_attempted:
         _geo_init_attempted = True
+        if not _HAS_MAXMINDDB:
+            print("WARNING: maxminddb package not available. Geo fields will be NULL.")
+            return
         try:
-            _geo_reader = geoip2.database.Reader(_GEO_CITY_DB_PATH)
+            import maxminddb
+            _geo_reader = maxminddb.open_database(_GEO_CITY_DB_PATH)
         except Exception as e:
-            print(f"WARNING: GeoLite2-City database could not be loaded: {e}. Geo fields will default to Unknown.")
+            print(f"WARNING: GeoLite2-City database could not be loaded: {e}")
             _geo_reader = None
 
 
@@ -52,10 +66,14 @@ def _ensure_asn_reader():
     global _asn_reader, _asn_init_attempted
     if _asn_reader is None and not _asn_init_attempted:
         _asn_init_attempted = True
+        if not _HAS_MAXMINDDB:
+            print("WARNING: maxminddb package not available. ISP field will be NULL.")
+            return
         try:
-            _asn_reader = geoip2.database.Reader(_GEO_ASN_DB_PATH)
+            import maxminddb
+            _asn_reader = maxminddb.open_database(_GEO_ASN_DB_PATH)
         except Exception as e:
-            print(f"WARNING: GeoLite2-ASN database could not be loaded: {e}. ISP field will default to Unknown.")
+            print(f"WARNING: GeoLite2-ASN database could not be loaded: {e}")
             _asn_reader = None
 
 
@@ -77,8 +95,8 @@ def _is_usable_ip(ip: str) -> bool:
 def _geo_lookup(ip: str) -> dict | None:
     """Single consolidated GeoIP city lookup returning all fields.
 
-    Replaces the old pattern of 7 independent calls to
-    ``geo_reader.city(ip)`` per row (CRIT-05).
+    Uses maxminddb directly (returns raw dict), avoiding the geoip2
+    dependency chain that isn't available on serverless DLT.
     """
     if not _is_usable_ip(ip):
         return None
@@ -86,17 +104,29 @@ def _geo_lookup(ip: str) -> dict | None:
     if _geo_reader is None:
         return None
     try:
-        response = _geo_reader.city(ip.strip())
+        response = _geo_reader.get(ip.strip())
+        if response is None:
+            return None
         return {
-            "country": response.country.name or "Unknown",
-            "region": response.subdivisions.most_specific.name or "Unknown",
-            "city": response.city.name or "Unknown",
-            "latitude": float(response.location.latitude) if response.location.latitude else None,
-            "longitude": float(response.location.longitude) if response.location.longitude else None,
-            "postcode": response.postal.code or "Unknown",
+            "country": response.get("country", {}).get("names", {}).get("en", "Unknown"),
+            "region": (
+                response.get("subdivisions", [{}])[0].get("names", {}).get("en", "Unknown")
+                if response.get("subdivisions")
+                else "Unknown"
+            ),
+            "city": response.get("city", {}).get("names", {}).get("en", "Unknown"),
+            "latitude": (
+                float(response.get("location", {}).get("latitude"))
+                if response.get("location", {}).get("latitude") is not None
+                else None
+            ),
+            "longitude": (
+                float(response.get("location", {}).get("longitude"))
+                if response.get("location", {}).get("longitude") is not None
+                else None
+            ),
+            "postcode": response.get("postal", {}).get("code", "Unknown"),
         }
-    except geoip2.errors.AddressNotFoundError:
-        return None
     except Exception:
         return None
 
@@ -109,10 +139,10 @@ def _asn_lookup(ip: str) -> str | None:
     if _asn_reader is None:
         return None
     try:
-        response = _asn_reader.asn(ip.strip())
-        return response.autonomous_system_organization or "Unknown"
-    except geoip2.errors.AddressNotFoundError:
-        return None
+        response = _asn_reader.get(ip.strip())
+        if response is None:
+            return None
+        return response.get("autonomous_system_organization", "Unknown")
     except Exception:
         return None
 
@@ -250,8 +280,8 @@ def silver_enriched_logs():
     - CRIT-05 fix: consolidated get_geo_fields struct UDF (1 lookup → 6 fields)
     - CRIT-06 fix: left_anti join on source_file for idempotent re-runs
     """
-    # Read from Bronze
-    bronze_df = dlt.read("bronze_raw_logs")
+    # Read from Bronze (cross-pipeline via full UC path)
+    bronze_df = spark.table("w3c_etl_databricks.bronze.bronze_raw_logs")  # noqa: F821
 
     # ── Deduplication against existing Silver data (CRIT-06) ──
     # Prevent duplicate rows on pipeline re-runs by filtering out
