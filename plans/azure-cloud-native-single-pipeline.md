@@ -1,10 +1,10 @@
 # Azure Cloud-Native Single-Pipeline ETL Platform Implementation Plan
 
-**Version:** v2.0  
-**Status:** Phase 3 In Progress  
-**Replaces:** v1.8 (dual-path architecture)  
-**Budget:** $100 Azure credit cap (with $50 alert threshold)  
-**CV Impact:** High - demonstrates cloud-native DE, Databricks DLT, Unity Catalog, dbt, Azure SQL, and end-to-end data platform ownership  
+**Version:** v2.0
+**Status:** Phase 3 In Progress
+**Replaces:** v1.8 (dual-path architecture)
+**Budget:** $100 Azure credit cap (with $50 alert threshold)
+**CV Impact:** High - demonstrates cloud-native DE, Databricks DLT, Unity Catalog, dbt, Azure SQL, and end-to-end data platform ownership
 **Target Roles:** Data Engineer, Cloud Data Engineer, Data Platform Engineer
 
 ---
@@ -667,7 +667,7 @@ conn.close()
 
 **Phase Goal:** Create and deploy the DLT Bronze pipeline with Auto Loader, W3C parser UDF, and quality expectations.
 
-**Summary:** 
+**Summary:**
 
 **Checklist:**
 
@@ -738,7 +738,7 @@ databricks sql execute --warehouse-id <warehouse-id> --sql "SHOW PARTITIONS w3c_
 
 **Phase Goal:** Create and deploy the DLT Silver pipeline with MaxMind GeoIP enrichment and computed fields.
 
-**Summary:** 
+**Summary:**
 
 **Checklist:**
 
@@ -891,18 +891,18 @@ def execute_ddl(spark, jdbc_url, username, password, ddl):
         # Get JDBC driver via py4j
         driver_class = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
         spark._jvm.Class.forName(driver_class)
-        
+
         # Create connection
         connection = spark._jvm.java.sql.DriverManager.getConnection(jdbc_url, username, password)
         statement = connection.createStatement()
-        
+
         # Execute DDL
         statement.execute(ddl)
-        
+
         # Close resources
         statement.close()
         connection.close()
-        
+
         print(f"Successfully executed DDL")
     except Exception as e:
         print(f"DDL execution failed: {str(e)}")
@@ -923,7 +923,7 @@ def get_error_code(exception):
 
 def export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password):
     """Export Silver data to Azure SQL with idempotency tracking."""
-    
+
     # Pre-check: load JDBC driver
     try:
         spark._jvm.Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver")
@@ -931,7 +931,7 @@ def export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password):
     except Exception as e:
         print(f"Failed to load JDBC driver: {str(e)}")
         raise
-    
+
     # Create tables if not exist (with error 208 handling)
     for ddl_name, ddl in [("raw_enriched", RAW_ENRICHED_DDL), ("raw_enriched_loaded", TRACKING_DDL)]:
         max_attempts = 4
@@ -951,19 +951,19 @@ def export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password):
                 else:
                     print(f"DDL failed after {max_attempts} attempts: {str(e)}")
                     raise
-    
+
     # Read from Silver table
     silver_df = spark.read.format("delta").load(silver_table_path)
-    
+
     # Select export columns
     export_df = silver_df.select(EXPORT_COLUMNS)
-    
+
     # Cast is_crawler from string to BIT (Azure SQL expects 0/1)
     export_df = export_df.withColumn(
         "is_crawler",
         when(col("is_crawler") == "true", lit(1)).otherwise(lit(0))
     )
-    
+
     # Get list of already loaded files from tracking table
     try:
         loaded_files_df = spark.read.jdbc(
@@ -979,20 +979,20 @@ def export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password):
         else:
             print(f"Failed to read tracking table: {str(e)}")
             raise
-    
+
     # Filter out already loaded files
     new_data_df = export_df.filter(~col("source_file").isin(list(loaded_files)))
-    
+
     # Get unique source files in new data
     new_files = new_data_df.select("source_file").distinct().collect()
     new_file_list = [row.source_file for row in new_files]
-    
+
     if not new_file_list:
         print("No new files to export")
         return
-    
+
     print(f"Exporting {len(new_file_list)} new files")
-    
+
     # Write to Azure SQL with retry logic
     jdbc_properties = {
         "user": username,
@@ -1003,7 +1003,7 @@ def export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password):
         "encrypt": "true",
         "trustServerCertificate": "false"
     }
-    
+
     max_attempts = 4
     for attempt in range(max_attempts):
         try:
@@ -1023,7 +1023,7 @@ def export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password):
             else:
                 print(f"Export failed after {max_attempts} attempts: {str(e)}")
                 raise
-    
+
     # Update tracking table
     for source_file in new_file_list:
         max_attempts = 4
@@ -1045,24 +1045,24 @@ def export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password):
                 else:
                     print(f"Tracking update failed after {max_attempts} attempts: {str(e)}")
                     raise
-    
+
     print(f"Successfully updated tracking table with {len(new_file_list)} files")
 
 # Main execution
 if __name__ == "__main__":
     spark = SparkSession.builder.appName("JDBC Export to Azure SQL").getOrCreate()
-    
+
     # Configuration from Databricks secrets
     jdbc_url = f"jdbc:sqlserver://{spark.conf.get('azure.sql.server')}:1433;database={spark.conf.get('azure.sql.database')};encrypt=true;trustServerCertificate=false"
     username = spark.conf.get("azure.sql.username")
     password = spark.conf.get("azure.sql.password")
-    
+
     # Silver table path
     silver_table_path = spark.conf.get("silver.table.path", "dbfs:/mnt/w3c-data/silver")
-    
+
     # Execute export
     export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password)
-    
+
     spark.stop()
 ```
 
@@ -1171,7 +1171,7 @@ terraform {
       version = "~> 1.70"
     }
   }
-  
+
   required_version = ">= 1.10.5, < 2.0"
 }
 
@@ -1184,7 +1184,7 @@ provider "databricks" {
 resource "databricks_pipeline" "bronze" {
   name        = "w3c-bronze-pipeline"
   description = "Bronze DLT pipeline for W3C log ingestion"
-  
+
   cluster {
     label = "bronze_cluster"
     autoscale {
@@ -1195,17 +1195,17 @@ resource "databricks_pipeline" "bronze" {
     node_type_id  = "Standard_DS3_v2"
     data_security_mode = "SINGLE_USER"
   }
-  
+
   libraries {
     notebook {
       path = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_bronze.py"
     }
   }
-  
+
   configuration = {
     "storage.account_name" = var.storage_account_name
   }
-  
+
   lifecycle {
     ignore_changes = [cluster, continuous]
   }
@@ -1215,7 +1215,7 @@ resource "databricks_pipeline" "bronze" {
 resource "databricks_pipeline" "silver" {
   name        = "w3c-silver-pipeline"
   description = "Silver DLT pipeline for GeoIP enrichment and computed fields"
-  
+
   cluster {
     label = "silver_cluster"
     autoscale {
@@ -1231,19 +1231,19 @@ resource "databricks_pipeline" "silver" {
       }
     }
   }
-  
+
   libraries {
     notebook {
       path = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_silver.py"
     }
   }
-  
+
   configuration = {
     "storage.account_name" = var.storage_account_name
     "geoip.city_db_path"   = "/dbfs/mnt/w3c-data/GeoLite2-City.mmdb"
     "geoip.asn_db_path"    = "/dbfs/mnt/w3c-data/GeoLite2-ASN.mmdb"
   }
-  
+
   lifecycle {
     ignore_changes = [cluster, continuous]
   }
@@ -1253,7 +1253,7 @@ resource "databricks_pipeline" "silver" {
 resource "databricks_job" "w3c_etl_workflow" {
   name = "w3c-etl-workflow"
   description = "W3C ETL workflow: Bronze -> Silver -> JDBC Export"
-  
+
   workflow_tasks {
     task_key {
       description = "DLT Bronze Pipeline"
@@ -1265,7 +1265,7 @@ resource "databricks_job" "w3c_etl_workflow" {
       task_key = []
     }
   }
-  
+
   workflow_tasks {
     task_key {
       description = "DLT Silver Pipeline"
@@ -1277,7 +1277,7 @@ resource "databricks_job" "w3c_etl_workflow" {
       task_key = ["bronze"]
     }
   }
-  
+
   workflow_tasks {
     task_key {
       description = "JDBC Export to Azure SQL"
@@ -1294,7 +1294,7 @@ resource "databricks_job" "w3c_etl_workflow" {
       task_key = ["silver"]
     }
   }
-  
+
   job_cluster {
     job_cluster_key = "w3c_etl_cluster"
     new_cluster {
@@ -1317,7 +1317,7 @@ resource "databricks_job" "w3c_etl_workflow" {
       }
     }
   }
-  
+
   schedule {
     quartz_cron_expression = "0 2 * * *"  # Daily at 2 AM UTC
     timezone_id            = "UTC"
@@ -1491,7 +1491,7 @@ BEGIN
         created_at DATETIME DEFAULT GETDATE(),
         updated_at DATETIME DEFAULT GETDATE()
     );
-    
+
     CREATE INDEX idx_dim_geolocation_ip ON dbo.dim_geolocation(ip);
 END
 """
@@ -1510,7 +1510,7 @@ BEGIN
         created_at DATETIME DEFAULT GETDATE(),
         updated_at DATETIME DEFAULT GETDATE()
     );
-    
+
     CREATE INDEX idx_dim_useragent_user_agent ON dbo.dim_useragent(user_agent);
 END
 """
@@ -1521,7 +1521,7 @@ def _build_dim_geolocation(engine):
         # Create table if not exists
         conn.execute(text(DIM_GEOLOCATION_DDL))
         conn.commit()
-        
+
         # Insert -1 unknown row
         conn.execute(text("""
             IF NOT EXISTS (SELECT 1 FROM dbo.dim_geolocation WHERE geolocation_sk = -1)
@@ -1533,7 +1533,7 @@ def _build_dim_geolocation(engine):
             END
         """))
         conn.commit()
-        
+
         # Extract unique geolocation data from raw_enriched
         # CRITICAL: Rename client_ip → ip (PK column is ip not client_ip)
         conn.execute(text("""
@@ -1551,7 +1551,7 @@ def _build_dim_geolocation(engine):
             WHERE client_ip IS NOT NULL AND client_ip != '-'
         """))
         conn.commit()
-        
+
         print(f"Inserted geolocation data")
 
 def _build_dim_useragent(engine):
@@ -1560,7 +1560,7 @@ def _build_dim_useragent(engine):
         # Create table if not exists
         conn.execute(text(DIM_USERAGENT_DDL))
         conn.commit()
-        
+
         # Insert -1 unknown row
         conn.execute(text("""
             IF NOT EXISTS (SELECT 1 FROM dbo.dim_useragent WHERE user_agent_sk = -1)
@@ -1572,24 +1572,24 @@ def _build_dim_useragent(engine):
             END
         """))
         conn.commit()
-        
+
         # Extract unique user agents from raw_enriched
         result = conn.execute(text("""
             SELECT DISTINCT user_agent
             FROM dbo.raw_enriched
             WHERE user_agent IS NOT NULL AND user_agent != '-'
         """))
-        
+
         for row in result:
             user_agent = row[0]
             parsed_ua = ua_parse(user_agent)
-            
+
             browser_name = parsed_ua.browser.family if parsed_ua.browser else 'Unknown'
             browser_version = parsed_ua.browser.version_string if parsed_ua.browser else 'Unknown'
             operating_system = parsed_ua.os.family if parsed_ua.os else 'Unknown'
             device_type = parsed_ua.device.family if parsed_ua.device else 'Unknown'
             is_bot = 1 if parsed_ua.is_bot else 0
-            
+
             conn.execute(text("""
                 INSERT INTO dbo.dim_useragent (user_agent, browser_name, browser_version, operating_system, device_type, is_bot)
                 VALUES (:user_agent, :browser_name, :browser_version, :operating_system, :device_type, :is_bot)
@@ -1601,7 +1601,7 @@ def _build_dim_useragent(engine):
                 "device_type": device_type,
                 "is_bot": is_bot
             })
-        
+
         conn.commit()
         print(f"Inserted user agent data")
 
@@ -1611,9 +1611,9 @@ def _write_dim_to_azure(engine, table_name, natural_key, data_dict):
         # Build MERGE statement dynamically
         columns = list(data_dict.keys())
         values = list(data_dict.values())
-        
+
         set_clause = ", ".join([f"target.{col} = source.{col}" for col in columns if col != natural_key])
-        
+
         merge_sql = f"""
             MERGE INTO dbo.{table_name} AS target
             USING (SELECT :{', :'.join(columns)}) AS source ({', '.join(columns)})
@@ -1623,7 +1623,7 @@ def _write_dim_to_azure(engine, table_name, natural_key, data_dict):
             WHEN NOT MATCHED THEN
                 INSERT ({', '.join(columns)}) VALUES ({', '.join([f':{col}' for col in columns])});
         """
-        
+
         conn.execute(text(merge_sql), data_dict)
         conn.commit()
 
@@ -1634,20 +1634,20 @@ def export_dimensions_azure(**context):
     database = context["azure_sql_database"]
     username = context["azure_sql_user"]
     password = context["azure_sql_password"]
-    
+
     conn_str = f"mssql+pyodbc://{username}:{password}@{server}/{database}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no"
-    
+
     engine = sqlalchemy.create_engine(conn_str)
-    
+
     try:
         # Build dim_geolocation
         _build_dim_geolocation(engine)
-        
+
         # Build dim_useragent
         _build_dim_useragent(engine)
-        
+
         print("Dimensions export completed successfully")
-        
+
     finally:
         engine.dispose()
 
@@ -1667,7 +1667,7 @@ with DAG(
     catchup=False,
     description="Export dimensions from Azure SQL to dim tables"
 ) as dag:
-    
+
     export_dimensions_task = PythonOperator(
         task_id="export_dimensions",
         python_callable=export_dimensions_azure,
@@ -1855,22 +1855,22 @@ renamed AS (
         log_date,
         log_time,
         {{ tsql_cast('log_time', 'TIME') }} AS log_time_parsed,
-        
+
         -- Server fields
         server_ip,
         server_port,
         method,
-        
+
         -- URI fields
         uri_stem,
         uri_query,
-        
+
         -- Client fields
         client_ip,
         user_agent,
         cookie,
         referrer,
-        
+
         -- Response fields
         {{ tsql_cast('status', 'INT') }} AS status,
         {{ tsql_cast('sub_status', 'INT') }} AS sub_status,
@@ -1878,10 +1878,10 @@ renamed AS (
         {{ tsql_cast('bytes_sent', 'BIGINT') }} AS bytes_sent,
         {{ tsql_cast('bytes_recv', 'BIGINT') }} AS bytes_recv,
         {{ tsql_cast('time_taken', 'BIGINT') }} AS time_taken,
-        
+
         -- User fields
         username,
-        
+
         -- Enrichment fields
         postcode,
         page_category,
@@ -1889,7 +1889,7 @@ renamed AS (
         traffic_type,
         {{ tsql_cast('is_crawler', 'INT') }} AS is_crawler,
         size_band,
-        
+
         -- Geo fields
         country,
         region,
@@ -1897,7 +1897,7 @@ renamed AS (
         latitude,
         longitude,
         isp,
-        
+
         -- Metadata
         source_file
     FROM source
@@ -2312,17 +2312,17 @@ def export_csv_azure(**context):
     database = os.getenv("AZURE_SQL_DB")
     username = os.getenv("AZURE_SQL_USER")
     password = os.getenv("AZURE_SQL_PASSWORD")
-    
+
     conn_str = (
         f"DRIVER={{ODBC Driver 18 for SQL Server}};"
         f"SERVER={server};DATABASE={database};"
         f"UID={username};PWD={password};"
         f"Encrypt=yes;TrustServerCertificate=yes;"
     )
-    
+
     STAR_SCHEMA_DIR = "/opt/airflow/data/Star-Schema"
     os.makedirs(STAR_SCHEMA_DIR, exist_ok=True)
-    
+
     STAGING_TABLES = [
         "dbt_staging.fact_webrequest", "dbt_staging.dim_date", "dbt_staging.dim_time",
         "dbt_staging.dim_page", "dbt_staging.dim_status", "dbt_staging.dim_referrer",
@@ -2340,7 +2340,7 @@ def export_csv_azure(**context):
         "dbo.dim_geolocation",
         "dbo.dim_useragent",
     ]
-    
+
     conn = pyodbc.connect(conn_str)
     try:
         # Export staging and mart tables
@@ -2348,7 +2348,7 @@ def export_csv_azure(**context):
             df = pd.read_sql(f"SELECT * FROM {table}", conn)
             df.to_csv(f"{STAR_SCHEMA_DIR}/{table}.csv", index=False)
             print(f"Exported {table} to CSV")
-            
+
         # Export public/dbo tables, but save them with 'public.' prefix to match Power BI contract
         for table in PUBLIC_TABLES:
             df = pd.read_sql(f"SELECT * FROM {table}", conn)
@@ -2369,10 +2369,10 @@ def export_dbt_docs_to_airflow(**context):
     """Download dbt docs from Azure Blob Storage (gold container) to local Airflow directory."""
     local_docs_dir = "/opt/airflow/data/dbt-docs"
     os.makedirs(local_docs_dir, exist_ok=True)
-    
+
     hook = WasbHook(wasb_conn_id="wasb_default")
     container = "gold"
-    
+
     for filename in ["index.html", "manifest.json", "catalog.json"]:
         blob_path = f"dbt-docs/{filename}"
         local_path = os.path.join(local_docs_dir, filename)
@@ -2415,7 +2415,7 @@ with DAG(
     catchup=False,
     description="Run dbt models against Azure SQL and generate docs/CSVs"
 ) as dag:
-    
+
     # dbt source freshness check
     dbt_source_freshness = DatabricksSubmitRunOperator(
         task_id="dbt_source_freshness",
@@ -2435,7 +2435,7 @@ with DAG(
             }
         }
     )
-    
+
     # dbt run
     dbt_run = DatabricksSubmitRunOperator(
         task_id="dbt_run",
@@ -2455,7 +2455,7 @@ with DAG(
             }
         }
     )
-    
+
     # dbt test
     dbt_test = DatabricksSubmitRunOperator(
         task_id="dbt_test",
@@ -2475,7 +2475,7 @@ with DAG(
             }
         }
     )
-    
+
     # dbt docs generate
     dbt_docs = DatabricksSubmitRunOperator(
         task_id="dbt_docs",
@@ -2496,21 +2496,21 @@ with DAG(
             }
         }
     )
-    
+
     # Export dbt docs to Airflow
     export_dbt_docs = PythonOperator(
         task_id="export_dbt_docs",
         python_callable=export_dbt_docs_to_airflow,
         outlets=[DBT_DOCS_DATASET]
     )
-    
+
     # Export Power BI CSV files from Azure SQL
     export_csv = PythonOperator(
         task_id="export_csv",
         python_callable=export_csv_azure,
         outlets=[CSV_EXPORTS_DATASET]
     )
-    
+
     # Task dependencies
     dbt_source_freshness >> dbt_run >> dbt_test
     dbt_test >> dbt_docs >> export_dbt_docs
@@ -2527,37 +2527,37 @@ import shutil
 
 if __name__ == "__main__":
     spark = SparkSession.builder.appName("dbt Docs Generate").getOrCreate()
-    
+
     # Set environment variables
     os.environ["AZURE_SQL_SERVER"] = spark.conf.get("azure.sql.server")
     os.environ["AZURE_SQL_DATABASE"] = spark.conf.get("azure.sql.database")
     os.environ["AZURE_SQL_USER"] = spark.conf.get("azure.sql.username")
     os.environ["AZURE_SQL_PASSWORD"] = spark.conf.get("azure.sql.password")
-    
+
     # Change to dbt project directory
     os.chdir("/dbfs/Repos/w3c-etl-pipeline/airflow/dbt/w3c")
-    
+
     # Run dbt docs generate
     result = subprocess.run(
         ["dbt", "docs", "generate", "--profile", "w3c_azure"],
         capture_output=True,
         text=True
     )
-    
+
     if result.returncode != 0:
         print(f"dbt docs generate failed: {result.stderr}")
         raise Exception("dbt docs generate failed")
-    
+
     print(f"dbt docs generate succeeded")
-    
+
     # Copy docs to output path
     docs_output_path = spark.conf.get("docs.output.path", "/dbfs/mnt/w3c-data/dbt-docs")
     os.makedirs(docs_output_path, exist_ok=True)
-    
+
     shutil.copytree("target", docs_output_path, dirs_exist_ok=True)
-    
+
     print(f"dbt docs copied to {docs_output_path}")
-    
+
     spark.stop()
 ```
 
@@ -2776,14 +2776,14 @@ jobs:
     environment: azure-integration
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Azure Login
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.ARM_CLIENT_ID }}
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      
+
       - name: Upload sample logs to ADLS
         run: |
           az storage blob upload \
@@ -2791,7 +2791,7 @@ jobs:
             --file data/samples/18-field-sample.log \
             --name ci-test/18-field-sample.log \
             --account-name ${{ secrets.STORAGE_ACCOUNT_NAME }}
-      
+
       - name: Trigger Databricks Workflow
         run: |
           curl -X POST \
@@ -2799,13 +2799,13 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.DATABRICKS_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{"job_id": ${{ secrets.DATABRICKS_WORKFLOW_ID }}}'
-      
+
       - name: Poll job status
         run: |
           # Poll job status until completion
           # Implementation depends on Databricks API
           echo "Polling job status..."
-      
+
       - name: Query Azure SQL row counts
         run: |
           # Query dbo.raw_enriched for expected row counts
@@ -2814,7 +2814,7 @@ jobs:
             -U ${{ secrets.AZURE_SQL_USER }} \
             -P ${{ secrets.AZURE_SQL_PASSWORD }} \
             -Q "SELECT COUNT(*) FROM dbo.raw_enriched"
-      
+
       - name: Assert 18 CSV exports produced
         run: |
           # Verify 18 CSV files in airflow/data/Star-Schema/
@@ -2823,7 +2823,7 @@ jobs:
             echo "Expected 18 CSV files, found $count"
             exit 1
           fi
-      
+
       - name: Validate catalog.json
         run: |
           # Verify catalog.json exists in airflow/data/dbt-docs/
@@ -2833,7 +2833,7 @@ jobs:
           fi
           # Validate JSON structure
           python -m json.tool airflow/data/dbt-docs/catalog.json > /dev/null
-      
+
       - name: Azure Logout
         if: always()
         run: az logout
@@ -2930,14 +2930,14 @@ services:
       - AIRFLOW__METRICS__STATSD_HOST=prometheus
       - AIRFLOW__METRICS__STATSD_PORT=9125
       - AIRFLOW__METRICS__STATSD_PREFIX=airflow
-  
+
   prometheus:
     image: prom/prometheus:latest
     ports:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-  
+
   grafana:
     image: grafana/grafana:latest
     ports:

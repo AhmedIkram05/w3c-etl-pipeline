@@ -336,5 +336,3 @@ These cols will be NULL until the next DAG run re-populates them.
 | DAG #2 | `w3c_spark_ingestion` trigger | ✅ Idempotent, 0 new files for export |
 | Data integrity | 12 SQL checks (Phase 6) | ✅ All assertions hold |
 | Rollback | Documented | ✅ Code revert + clean rebuild |
-
-

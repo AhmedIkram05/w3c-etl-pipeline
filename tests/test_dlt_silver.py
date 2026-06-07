@@ -241,9 +241,8 @@ class TestEnsureGeoReader:
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(_silver_mod, "_GEO_CITY_DB_PATH", "/nonexistent/test.mmdb")
 
-            # First call — tries and fails
+            # First call — tries and fails (sets _geo_init_attempted = True)
             _ensure_geo_reader()
-            first_attempt = _silver_mod._geo_init_attempted
 
             # Reset the reader but keep init_attempted (simulating no retry)
             _silver_mod._geo_reader = None
@@ -284,7 +283,6 @@ class TestGeoLookup:
 
     def _setup_mock(self, monkeypatch, mock_response=None):
         """Patch geoip2.database.Reader and reset globals."""
-        import geoip2.database
 
         monkeypatch.setattr(_silver_mod, "_geo_reader", None)
         monkeypatch.setattr(_silver_mod, "_geo_init_attempted", False)
@@ -393,62 +391,74 @@ class TestGetPageCategory:
 
     def test_static_asset_css(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/Darwin/style.css")])
         result = df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"]
         assert result == "Static Asset"
 
     def test_static_asset_js(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/js/app.js")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
 
     def test_static_asset_png(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/images/photo.png")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
 
     def test_static_asset_jpg(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/images/photo.jpg")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
 
     def test_static_asset_gif(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/images/animated.gif")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
 
     def test_static_asset_ico(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/favicon.ico")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
 
     def test_api_endpoint(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/api/v1/users")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "API"
 
     def test_admin_page(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/admin/dashboard")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Admin"
 
     def test_homepage_trailing_slash(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Homepage"
 
     def test_homepage_directory_slash(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/about/")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Homepage"
 
     def test_content_page(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/about/team")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Content"
 
     def test_aspx_dynamic_page(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="/Darwin/MyAccount.aspx")])
         result = df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"]
         assert result == "Content"
@@ -456,12 +466,14 @@ class TestGetPageCategory:
     def test_null_uri(self, spark):
         from pyspark.sql.functions import col
         from pyspark.sql.types import StringType, StructField, StructType
+
         schema = StructType([StructField("uri_stem", StringType(), True)])
         df = spark.createDataFrame([Row(uri_stem=None)], schema=schema)
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Content"
 
     def test_empty_uri(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(uri_stem="")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Content"
 
@@ -477,6 +489,7 @@ class TestGetReferrerDomain:
     def test_udf_return_type_is_string(self):
         """The UDF returns a StringType."""
         from pyspark.sql.types import StringType
+
         assert get_referrer_domain.returnType == StringType()
 
 
@@ -485,46 +498,55 @@ class TestGetTrafficType:
 
     def test_direct(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ref_domain="Direct")])
         assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Direct"
 
     def test_search_google(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ref_domain="google.com")])
         assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search"
 
     def test_search_bing(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ref_domain="bing.com")])
         assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search"
 
     def test_search_yahoo(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ref_domain="yahoo.com")])
         assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search"
 
     def test_social_facebook(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ref_domain="facebook.com")])
         assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Social"
 
     def test_social_twitter(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ref_domain="twitter.com")])
         assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Social"
 
     def test_social_linkedin(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ref_domain="linkedin.com")])
         assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Social"
 
     def test_referral_other(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ref_domain="some-other-site.com")])
         assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Referral"
 
     def test_case_insensitive_search(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ref_domain="GOOGLE.com")])
         assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search"
 
@@ -534,50 +556,59 @@ class TestGetIsCrawler:
 
     def test_googlebot(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ua="Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")])
         assert df.select(get_is_crawler(col("ua")).alias("c")).collect()[0]["c"] is True
 
     def test_bingbot(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ua="Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)")])
         assert df.select(get_is_crawler(col("ua")).alias("c")).collect()[0]["c"] is True
 
     def test_curl(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ua="curl/7.68.0")])
         assert df.select(get_is_crawler(col("ua")).alias("c")).collect()[0]["c"] is True
 
     def test_wget(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ua="Wget/1.21")])
         assert df.select(get_is_crawler(col("ua")).alias("c")).collect()[0]["c"] is True
 
     def test_chrome_browser(self, spark):
         from pyspark.sql.functions import col
+
         ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
         df = spark.createDataFrame([Row(ua=ua)])
         assert df.select(get_is_crawler(col("ua")).alias("c")).collect()[0]["c"] is False
 
     def test_firefox_browser(self, spark):
         from pyspark.sql.functions import col
+
         ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0"
         df = spark.createDataFrame([Row(ua=ua)])
         assert df.select(get_is_crawler(col("ua")).alias("c")).collect()[0]["c"] is False
 
     def test_dash_user_agent(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ua="-")])
         assert df.select(get_is_crawler(col("ua")).alias("c")).collect()[0]["c"] is False
 
     def test_null_user_agent(self, spark):
         from pyspark.sql.functions import col
         from pyspark.sql.types import StringType, StructField, StructType
+
         schema = StructType([StructField("ua", StringType(), True)])
         df = spark.createDataFrame([Row(ua=None)], schema=schema)
         assert df.select(get_is_crawler(col("ua")).alias("c")).collect()[0]["c"] is False
 
     def test_python_requests(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(ua="python-requests/2.28.0")])
         assert df.select(get_is_crawler(col("ua")).alias("c")).collect()[0]["c"] is True
 
@@ -587,43 +618,51 @@ class TestGetSizeBand:
 
     def test_negative_bytes(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(bytes=-1)])
         assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "Unknown"
 
     def test_zero_bytes(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(bytes=0)])
         # ``not 0`` is True in Python so ``not bytes_sent`` returns "Unknown"
         assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "Unknown"
 
     def test_less_than_1kb(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(bytes=500)])
         assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "< 1KB"
 
     def test_1kb_to_10kb(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(bytes=5000)])
         assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "1KB-10KB"
 
     def test_10kb_to_100kb(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(bytes=50000)])
         assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "10KB-100KB"
 
     def test_100kb_to_1mb(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(bytes=500000)])
         assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "100KB-1MB"
 
     def test_greater_than_1mb(self, spark):
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(bytes=2_000_000)])
         assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "> 1MB"
 
     def test_none_bytes(self, spark):
         from pyspark.sql.functions import col
         from pyspark.sql.types import IntegerType, StructField, StructType
+
         schema = StructType([StructField("bytes", IntegerType(), True)])
         df = spark.createDataFrame([Row(bytes=None)], schema=schema)
         assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "Unknown"
@@ -639,11 +678,10 @@ class TestGetGeoFieldsUDF:
 
     def test_udf_returns_struct_with_6_fields(self, spark):
         """The UDF returns a struct with all 6 GeoIP fields."""
-        import pyspark.sql.types as T
-        from pyspark.sql.functions import col
+        from pyspark.sql.types import StructType
 
         return_type = get_geo_fields.returnType
-        assert isinstance(return_type, T.StructType)
+        assert isinstance(return_type, StructType)
         field_names = {f.name for f in return_type.fields}
         expected = {"country", "region", "city", "latitude", "longitude", "postcode"}
         assert field_names == expected
@@ -664,6 +702,7 @@ class TestGetGeoFieldsUDF:
         monkeypatch.setattr(_silver_mod, "_geo_lookup", lambda ip: mock_result if ip == "8.8.8.8" else None)
 
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(client_ip="8.8.8.8")])
         result = df.select(get_geo_fields(col("client_ip")).alias("geo")).collect()[0]["geo"]
         assert result["country"] == "United States"
@@ -676,6 +715,7 @@ class TestGetGeoFieldsUDF:
         monkeypatch.setattr(_silver_mod, "_geo_lookup", lambda ip: None)
 
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(client_ip="10.0.0.1")])
         result = df.select(get_geo_fields(col("client_ip")).alias("geo")).collect()[0]["geo"]
         assert result is None
@@ -689,6 +729,7 @@ class TestGetISPUDF:
         monkeypatch.setattr(_silver_mod, "_asn_lookup", lambda ip: "Google" if ip == "8.8.8.8" else None)
 
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(client_ip="8.8.8.8")])
         result = df.select(get_isp(col("client_ip")).alias("isp")).collect()[0]["isp"]
         assert result == "Google"
@@ -698,6 +739,7 @@ class TestGetISPUDF:
         monkeypatch.setattr(_silver_mod, "_asn_lookup", lambda ip: None)
 
         from pyspark.sql.functions import col
+
         df = spark.createDataFrame([Row(client_ip="10.0.0.1")])
         result = df.select(get_isp(col("client_ip")).alias("isp")).collect()[0]["isp"]
         assert result == "Unknown"
@@ -714,9 +756,14 @@ class TestLeftAntiDedup:
     @staticmethod
     def _bronze_schema():
         from pyspark.sql.types import (
-            DateType, IntegerType, LongType, StringType,
-            StructField, StructType,
+            DateType,
+            IntegerType,
+            LongType,
+            StringType,
+            StructField,
+            StructType,
         )
+
         return StructType([
             StructField("source_file", StringType(), True),
             StructField("log_date", DateType(), True),
@@ -731,14 +778,44 @@ class TestLeftAntiDedup:
 
     def test_left_anti_removes_existing_source_files(self, spark):
         """Rows from already-processed source_file are excluded."""
-        bronze = spark.createDataFrame([
-            Row(source_file="f1.log", log_date=None, client_ip="1.1.1.1", method="GET",
-                uri_stem="/", status=200, user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(source_file="f2.log", log_date=None, client_ip="2.2.2.2", method="GET",
-                uri_stem="/", status=200, user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(source_file="f3.log", log_date=None, client_ip="3.3.3.3", method="GET",
-                uri_stem="/", status=200, user_agent="UA", bytes_sent=100, bytes_recv=0),
-        ], schema=self._bronze_schema())
+        bronze = spark.createDataFrame(
+            [
+                Row(
+                    source_file="f1.log",
+                    log_date=None,
+                    client_ip="1.1.1.1",
+                    method="GET",
+                    uri_stem="/",
+                    status=200,
+                    user_agent="UA",
+                    bytes_sent=100,
+                    bytes_recv=0,
+                ),
+                Row(
+                    source_file="f2.log",
+                    log_date=None,
+                    client_ip="2.2.2.2",
+                    method="GET",
+                    uri_stem="/",
+                    status=200,
+                    user_agent="UA",
+                    bytes_sent=100,
+                    bytes_recv=0,
+                ),
+                Row(
+                    source_file="f3.log",
+                    log_date=None,
+                    client_ip="3.3.3.3",
+                    method="GET",
+                    uri_stem="/",
+                    status=200,
+                    user_agent="UA",
+                    bytes_sent=100,
+                    bytes_recv=0,
+                ),
+            ],
+            schema=self._bronze_schema(),
+        )
         existing = spark.createDataFrame([
             Row(source_file="f1.log"),
             Row(source_file="f2.log"),
@@ -752,26 +829,61 @@ class TestLeftAntiDedup:
         """When Silver is empty, all Bronze rows pass through."""
         from pyspark.sql.types import StringType, StructField, StructType
 
-        bronze = spark.createDataFrame([
-            Row(source_file="f1.log", log_date=None, client_ip="1.1.1.1", method="GET",
-                uri_stem="/", status=200, user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(source_file="f2.log", log_date=None, client_ip="2.2.2.2", method="GET",
-                uri_stem="/", status=200, user_agent="UA", bytes_sent=100, bytes_recv=0),
-        ], schema=self._bronze_schema())
+        bronze = spark.createDataFrame(
+            [
+                Row(
+                    source_file="f1.log",
+                    log_date=None,
+                    client_ip="1.1.1.1",
+                    method="GET",
+                    uri_stem="/",
+                    status=200,
+                    user_agent="UA",
+                    bytes_sent=100,
+                    bytes_recv=0,
+                ),
+                Row(
+                    source_file="f2.log",
+                    log_date=None,
+                    client_ip="2.2.2.2",
+                    method="GET",
+                    uri_stem="/",
+                    status=200,
+                    user_agent="UA",
+                    bytes_sent=100,
+                    bytes_recv=0,
+                ),
+            ],
+            schema=self._bronze_schema(),
+        )
         # Simulate empty existing Silver with empty DataFrame
-        existing = spark.createDataFrame(
-            [], schema=StructType([StructField("source_file", StringType(), True)])
-        ).select("source_file").distinct()
+        existing = (
+            spark.createDataFrame([], schema=StructType([StructField("source_file", StringType(), True)]))
+            .select("source_file")
+            .distinct()
+        )
 
         deduped = bronze.join(existing, on="source_file", how="left_anti")
         assert deduped.count() == 2
 
     def test_all_excluded_when_all_processed(self, spark):
         """When every source_file is already in Silver, no rows pass through."""
-        bronze = spark.createDataFrame([
-            Row(source_file="f1.log", log_date=None, client_ip="1.1.1.1", method="GET",
-                uri_stem="/", status=200, user_agent="UA", bytes_sent=100, bytes_recv=0),
-        ], schema=self._bronze_schema())
+        bronze = spark.createDataFrame(
+            [
+                Row(
+                    source_file="f1.log",
+                    log_date=None,
+                    client_ip="1.1.1.1",
+                    method="GET",
+                    uri_stem="/",
+                    status=200,
+                    user_agent="UA",
+                    bytes_sent=100,
+                    bytes_recv=0,
+                ),
+            ],
+            schema=self._bronze_schema(),
+        )
         existing = spark.createDataFrame([
             Row(source_file="f1.log"),
         ])
@@ -800,12 +912,13 @@ class TestSilverExpectations:
             StructField("log_date", StringType(), True),
             StructField("client_ip", StringType(), True),
         ])
-        df = spark.createDataFrame([
-            Row(country="US", traffic_type="Direct", page_category="Content",
-                log_date=None, client_ip="1.1.1.1"),
-            Row(country=None, traffic_type="Direct", page_category="Content",
-                log_date=None, client_ip="2.2.2.2"),
-        ], schema=schema)
+        df = spark.createDataFrame(
+            [
+                Row(country="US", traffic_type="Direct", page_category="Content", log_date=None, client_ip="1.1.1.1"),
+                Row(country=None, traffic_type="Direct", page_category="Content", log_date=None, client_ip="2.2.2.2"),
+            ],
+            schema=schema,
+        )
         filtered = df.filter(col("country").isNotNull())
         assert filtered.count() == 1
 
@@ -819,10 +932,10 @@ class TestSilverExpectations:
             Row(traffic_type=None, country="US", page_category="Content"),
         ])
         filtered = df.filter(
-            (col("traffic_type") == "Direct") |
-            (col("traffic_type") == "Search") |
-            (col("traffic_type") == "Social") |
-            (col("traffic_type") == "Referral")
+            (col("traffic_type") == "Direct")
+            | (col("traffic_type") == "Search")
+            | (col("traffic_type") == "Social")
+            | (col("traffic_type") == "Referral")
         )
         assert filtered.count() == 1
 
@@ -849,6 +962,7 @@ class TestSilverTableProperties:
     def test_cdc_enabled(self):
         """Silver must have ChangeDataFeed enabled."""
         import inspect
+
         source = inspect.getsource(silver_enriched_logs)
         assert "delta.enableChangeDataFeed" in source
         assert "true" in source
@@ -856,6 +970,7 @@ class TestSilverTableProperties:
     def test_auto_optimize_write_enabled(self):
         """Silver must have autoOptimize.optimizeWrite enabled."""
         import inspect
+
         source = inspect.getsource(silver_enriched_logs)
         assert "delta.autoOptimize.optimizeWrite" in source
         assert "true" in source
@@ -863,6 +978,7 @@ class TestSilverTableProperties:
     def test_dlt_expectation_decorators_present(self):
         """All three expected DLT expect_or_drop decorators are applied."""
         import inspect
+
         source = inspect.getsource(silver_enriched_logs)
         assert "valid_country" in source
         assert "valid_traffic_type" in source
