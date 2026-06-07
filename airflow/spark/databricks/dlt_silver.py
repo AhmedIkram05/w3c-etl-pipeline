@@ -43,8 +43,7 @@ def _ensure_geo_reader():
         try:
             _geo_reader = geoip2.database.Reader(_GEO_CITY_DB_PATH)
         except Exception as e:
-            print(f"WARNING: GeoLite2-City database could not be loaded: {e}. "
-                  f"Geo fields will default to Unknown.")
+            print(f"WARNING: GeoLite2-City database could not be loaded: {e}. Geo fields will default to Unknown.")
             _geo_reader = None
 
 
@@ -56,8 +55,7 @@ def _ensure_asn_reader():
         try:
             _asn_reader = geoip2.database.Reader(_GEO_ASN_DB_PATH)
         except Exception as e:
-            print(f"WARNING: GeoLite2-ASN database could not be loaded: {e}. "
-                  f"ISP field will default to Unknown.")
+            print(f"WARNING: GeoLite2-ASN database could not be loaded: {e}. ISP field will default to Unknown.")
             _asn_reader = None
 
 
@@ -67,6 +65,7 @@ def _is_usable_ip(ip: str) -> bool:
         return False
     try:
         from ipaddress import ip_address
+
         addr = ip_address(ip.strip())
         if addr.is_private or addr.is_link_local or addr.is_loopback:
             return False
@@ -151,12 +150,14 @@ def get_isp(ip: str) -> str:
 
 # ─── Plain Python Function (NOT a UDF) ───
 
+
 def _extract_domain(url):
     """Extract domain from URL (plain Python, not UDF)."""
     if not url or url == "-":
         return "Direct"
     try:
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
         domain = parsed.netloc
         if domain.startswith("www."):
@@ -167,6 +168,7 @@ def _extract_domain(url):
 
 
 # ─── Computed Field UDFs ───
+
 
 @udf(StringType())
 def get_page_category(uri_stem):
@@ -233,12 +235,10 @@ def get_size_band(bytes_sent):
 
 # ─── Silver DLT Pipeline ───
 
+
 @dlt.table(
     name="silver_enriched_logs",
-    table_properties={
-        "delta.enableChangeDataFeed": "true",
-        "delta.autoOptimize.optimizeWrite": "true"
-    }
+    table_properties={"delta.enableChangeDataFeed": "true", "delta.autoOptimize.optimizeWrite": "true"},
 )
 @dlt.expect_or_drop("valid_country", "country IS NOT NULL")
 @dlt.expect_or_drop("valid_traffic_type", "traffic_type IN ('Direct', 'Search', 'Social', 'Referral')")
@@ -281,12 +281,13 @@ def silver_enriched_logs():
     silver_df = silver_df.withColumn("isp", get_isp(col("client_ip")))
 
     # ── Computed fields ──
-    silver_df = silver_df \
-        .withColumn("page_category", get_page_category(col("uri_stem"))) \
-        .withColumn("referrer_domain", get_referrer_domain(col("referrer"))) \
-        .withColumn("traffic_type", get_traffic_type(col("referrer_domain"))) \
-        .withColumn("is_crawler", get_is_crawler(col("user_agent"))) \
+    silver_df = (
+        silver_df.withColumn("page_category", get_page_category(col("uri_stem")))
+        .withColumn("referrer_domain", get_referrer_domain(col("referrer")))
+        .withColumn("traffic_type", get_traffic_type(col("referrer_domain")))
+        .withColumn("is_crawler", get_is_crawler(col("user_agent")))
         .withColumn("size_band", get_size_band(col("bytes_sent")))
+    )
 
     # Note: UA columns (agent_type, browser_name, browser_version, os, device_type)
     # are intentionally excluded from Silver. They are parsed at the dimension
@@ -295,13 +296,37 @@ def silver_enriched_logs():
 
     # Select final Silver columns (25 core + 6 geo = 31 total)
     silver_df = silver_df.select(
-        "log_date", "log_time", "server_ip", "method", "uri_stem",
-        "uri_query", "client_ip", "user_agent", "cookie", "referrer",
-        "status", "sub_status", "win32_status", "bytes_sent", "bytes_recv",
-        "server_port", "username", "time_taken", "source_file",
-        "postcode", "page_category", "referrer_domain", "traffic_type",
-        "is_crawler", "size_band",
-        "country", "region", "city", "latitude", "longitude", "isp",
+        "log_date",
+        "log_time",
+        "server_ip",
+        "method",
+        "uri_stem",
+        "uri_query",
+        "client_ip",
+        "user_agent",
+        "cookie",
+        "referrer",
+        "status",
+        "sub_status",
+        "win32_status",
+        "bytes_sent",
+        "bytes_recv",
+        "server_port",
+        "username",
+        "time_taken",
+        "source_file",
+        "postcode",
+        "page_category",
+        "referrer_domain",
+        "traffic_type",
+        "is_crawler",
+        "size_band",
+        "country",
+        "region",
+        "city",
+        "latitude",
+        "longitude",
+        "isp",
     )
 
     return silver_df

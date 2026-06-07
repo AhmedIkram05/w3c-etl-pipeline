@@ -26,10 +26,8 @@ from datetime import date
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
-import pytest
 from pyspark.sql import Row
-from pyspark.sql.functions import col, explode
-from pyspark.sql.types import StringType, StructField, StructType
+from pyspark.sql.functions import col
 
 # ── Mock the ``dlt`` module (not available outside Databricks) ────────
 # The module under test has ``import dlt`` at the top level, which fails
@@ -482,19 +480,34 @@ class TestParseFileUDF:
 
     def test_udf_return_type_is_array_of_parsed_row_structs(self):
         """The UDF's declared return type is ArrayType with 19 fields."""
-        import pyspark.sql.types as T
+        from pyspark.sql.types import ArrayType, StructType
 
         return_type = parse_file_udf.returnType
-        assert isinstance(return_type, T.ArrayType)
+        assert isinstance(return_type, ArrayType)
         element_type = return_type.elementType
-        assert isinstance(element_type, T.StructType)
+        assert isinstance(element_type, StructType)
 
         field_names = {f.name for f in element_type.fields}
         expected = {
-            "log_date", "log_time", "server_ip", "method", "uri_stem",
-            "uri_query", "server_port", "username", "client_ip", "user_agent",
-            "cookie", "referrer", "status", "sub_status", "win32_status",
-            "bytes_sent", "bytes_recv", "time_taken", "source_file",
+            "log_date",
+            "log_time",
+            "server_ip",
+            "method",
+            "uri_stem",
+            "uri_query",
+            "server_port",
+            "username",
+            "client_ip",
+            "user_agent",
+            "cookie",
+            "referrer",
+            "status",
+            "sub_status",
+            "win32_status",
+            "bytes_sent",
+            "bytes_recv",
+            "time_taken",
+            "source_file",
         }
         assert field_names == expected, f"Missing fields: {expected - field_names}"
 
@@ -513,12 +526,12 @@ class TestParseFileUDF:
 
     def test_udf_date_field_is_date_type(self):
         """The ``log_date`` field in the UDF return type is DateType."""
-        import pyspark.sql.types as T
+        from pyspark.sql.types import DateType
 
         return_type = parse_file_udf.returnType
         element_type = return_type.elementType
         log_date_field = [f for f in element_type.fields if f.name == "log_date"][0]
-        assert isinstance(log_date_field.dataType, T.DateType)
+        assert isinstance(log_date_field.dataType, DateType)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -531,21 +544,43 @@ class TestStreamingDeduplication:
 
     def test_exact_duplicate_removed(self, spark):
         """Two rows with identical dedup keys → only one survives."""
-        from pyspark.sql.functions import col, concat_ws, row_number
+        from pyspark.sql.functions import concat_ws, row_number
         from pyspark.sql.window import Window
 
         data = [
-            Row(source_file="f1", log_date=date(2009, 1, 1), log_time="00:00:00",
-                client_ip="1.2.3.4", method="GET", uri_stem="/", status=200),
-            Row(source_file="f1", log_date=date(2009, 1, 1), log_time="00:00:00",
-                client_ip="1.2.3.4", method="GET", uri_stem="/", status=200),
+            Row(
+                source_file="f1",
+                log_date=date(2009, 1, 1),
+                log_time="00:00:00",
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                status=200,
+            ),
+            Row(
+                source_file="f1",
+                log_date=date(2009, 1, 1),
+                log_time="00:00:00",
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                status=200,
+            ),
         ]
         df = spark.createDataFrame(data)
 
         df = df.withColumn(
             "dedup_key",
-            concat_ws("|", col("source_file"), col("log_date"), col("log_time"),
-                      col("client_ip"), col("method"), col("uri_stem"), col("status"))
+            concat_ws(
+                "|",
+                col("source_file"),
+                col("log_date"),
+                col("log_time"),
+                col("client_ip"),
+                col("method"),
+                col("uri_stem"),
+                col("status"),
+            ),
         )
         window_spec = Window.partitionBy("dedup_key").orderBy("source_file")
         df = df.withColumn("row_num", row_number().over(window_spec))
@@ -555,21 +590,43 @@ class TestStreamingDeduplication:
 
     def test_different_rows_preserved(self, spark):
         """Rows with different dedup keys are all preserved."""
-        from pyspark.sql.functions import col, concat_ws, row_number
+        from pyspark.sql.functions import concat_ws, row_number
         from pyspark.sql.window import Window
 
         data = [
-            Row(source_file="f1", log_date=date(2009, 1, 1), log_time="00:00:00",
-                client_ip="1.2.3.4", method="GET", uri_stem="/a", status=200),
-            Row(source_file="f1", log_date=date(2009, 1, 1), log_time="00:00:01",
-                client_ip="1.2.3.4", method="GET", uri_stem="/b", status=200),
+            Row(
+                source_file="f1",
+                log_date=date(2009, 1, 1),
+                log_time="00:00:00",
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/a",
+                status=200,
+            ),
+            Row(
+                source_file="f1",
+                log_date=date(2009, 1, 1),
+                log_time="00:00:01",
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/b",
+                status=200,
+            ),
         ]
         df = spark.createDataFrame(data)
 
         df = df.withColumn(
             "dedup_key",
-            concat_ws("|", col("source_file"), col("log_date"), col("log_time"),
-                      col("client_ip"), col("method"), col("uri_stem"), col("status"))
+            concat_ws(
+                "|",
+                col("source_file"),
+                col("log_date"),
+                col("log_time"),
+                col("client_ip"),
+                col("method"),
+                col("uri_stem"),
+                col("status"),
+            ),
         )
         window_spec = Window.partitionBy("dedup_key").orderBy("source_file")
         df = df.withColumn("row_num", row_number().over(window_spec))
@@ -579,22 +636,44 @@ class TestStreamingDeduplication:
 
     def test_same_event_different_source_files(self, spark):
         """Same event from different source files → both kept (different dedup_key)."""
-        from pyspark.sql.functions import col, concat_ws, row_number
+        from pyspark.sql.functions import concat_ws, row_number
         from pyspark.sql.window import Window
 
         log_date = date(2009, 1, 1)
         data = [
-            Row(source_file="f1", log_date=log_date, log_time="00:00:00",
-                client_ip="1.2.3.4", method="GET", uri_stem="/", status=200),
-            Row(source_file="f2", log_date=log_date, log_time="00:00:00",
-                client_ip="1.2.3.4", method="GET", uri_stem="/", status=200),
+            Row(
+                source_file="f1",
+                log_date=log_date,
+                log_time="00:00:00",
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                status=200,
+            ),
+            Row(
+                source_file="f2",
+                log_date=log_date,
+                log_time="00:00:00",
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                status=200,
+            ),
         ]
         df = spark.createDataFrame(data)
 
         df = df.withColumn(
             "dedup_key",
-            concat_ws("|", col("source_file"), col("log_date"), col("log_time"),
-                      col("client_ip"), col("method"), col("uri_stem"), col("status"))
+            concat_ws(
+                "|",
+                col("source_file"),
+                col("log_date"),
+                col("log_time"),
+                col("client_ip"),
+                col("method"),
+                col("uri_stem"),
+                col("status"),
+            ),
         )
         window_spec = Window.partitionBy("dedup_key").orderBy("source_file")
         df = df.withColumn("row_num", row_number().over(window_spec))
@@ -605,18 +684,32 @@ class TestStreamingDeduplication:
 
     def test_dedup_key_concatenation(self, spark):
         """Verify the composite dedup_key is built from all 7 fields."""
-        from pyspark.sql.functions import col, concat_ws
-        from pyspark.sql.types import DateType
+        from pyspark.sql.functions import concat_ws
 
         df = spark.createDataFrame([
-            Row(source_file="f1", log_date=date(2009, 1, 1), log_time="00:00:00",
-                client_ip="1.2.3.4", method="GET", uri_stem="/", status=200)
+            Row(
+                source_file="f1",
+                log_date=date(2009, 1, 1),
+                log_time="00:00:00",
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                status=200,
+            )
         ])
 
         df = df.withColumn(
             "dedup_key",
-            concat_ws("|", col("source_file"), col("log_date"), col("log_time"),
-                      col("client_ip"), col("method"), col("uri_stem"), col("status"))
+            concat_ws(
+                "|",
+                col("source_file"),
+                col("log_date"),
+                col("log_time"),
+                col("client_ip"),
+                col("method"),
+                col("uri_stem"),
+                col("status"),
+            ),
         )
         key = df.select("dedup_key").collect()[0][0]
         assert key == "f1|2009-01-01|00:00:00|1.2.3.4|GET|/|200"
@@ -636,120 +729,290 @@ class TestBronzeExpectations:
 
     def test_expect_valid_log_date(self, spark):
         """Rows with null log_date are dropped (valid_log_date)."""
-        from pyspark.sql.functions import col
 
         df = spark.createDataFrame([
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(log_date=None, status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=None,
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
         ])
         filtered = df.filter(col("log_date").isNotNull())
         assert filtered.count() == 1
 
     def test_expect_valid_status(self, spark):
         """Rows with status outside 100-599 are dropped (valid_status)."""
-        from pyspark.sql.functions import col
 
         df = spark.createDataFrame([
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(log_date=date(2009, 1, 1), status=99, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(log_date=date(2009, 1, 1), status=600, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(log_date=date(2009, 1, 1), status=None, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=99,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=600,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=None,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
         ])
         filtered = df.filter(col("status").between(100, 599))
         assert filtered.count() == 1
 
     def test_expect_valid_client_ip(self, spark):
         """Rows with null or '-' client_ip are dropped (valid_client_ip)."""
-        from pyspark.sql.functions import col
 
         df = spark.createDataFrame([
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="-",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(log_date=date(2009, 1, 1), status=200, client_ip=None,
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="-",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip=None,
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
         ])
         filtered = df.filter(col("client_ip").isNotNull() & (col("client_ip") != "-"))
         assert filtered.count() == 1
 
     def test_expect_valid_method(self, spark):
         """Rows with methods outside the allowed set are dropped (valid_method)."""
-        from pyspark.sql.functions import col, lit
+        from pyspark.sql.functions import lit
 
         df = spark.createDataFrame([
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="CONNECT", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="PATCH", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method=None, uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="CONNECT",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="PATCH",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method=None,
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
         ])
         filtered = df.filter(
-            (col("method") == lit("GET")) |
-            (col("method") == lit("POST")) |
-            (col("method") == lit("HEAD")) |
-            (col("method") == lit("PUT")) |
-            (col("method") == lit("DELETE")) |
-            (col("method") == lit("OPTIONS")) |
-            (col("method") == lit("TRACE"))
+            (col("method") == lit("GET"))
+            | (col("method") == lit("POST"))
+            | (col("method") == lit("HEAD"))
+            | (col("method") == lit("PUT"))
+            | (col("method") == lit("DELETE"))
+            | (col("method") == lit("OPTIONS"))
+            | (col("method") == lit("TRACE"))
         )
         assert filtered.count() == 1
 
     def test_expect_valid_uri_stem(self, spark):
         """Rows with null uri_stem are dropped (valid_uri_stem)."""
-        from pyspark.sql.functions import col
 
         df = spark.createDataFrame([
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=0),
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem=None, user_agent="UA", bytes_sent=100, bytes_recv=0),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem=None,
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
         ])
         filtered = df.filter(col("uri_stem").isNotNull())
         assert filtered.count() == 1
 
     def test_expect_valid_user_agent(self, spark):
         """Rows with null or '-' user_agent are dropped (valid_user_agent)."""
-        from pyspark.sql.functions import col
 
         df = spark.createDataFrame([
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="Mozilla/5.0", bytes_sent=100, bytes_recv=0),
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="-", bytes_sent=100, bytes_recv=0),
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent=None, bytes_sent=100, bytes_recv=0),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="Mozilla/5.0",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="-",
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent=None,
+                bytes_sent=100,
+                bytes_recv=0,
+            ),
         ])
         filtered = df.filter(col("user_agent").isNotNull() & (col("user_agent") != "-"))
         assert filtered.count() == 1
 
     def test_expect_valid_bytes(self, spark):
         """Rows with negative bytes_sent or bytes_recv are dropped (valid_bytes)."""
-        from pyspark.sql.functions import col
 
         df = spark.createDataFrame([
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=50),
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=-1, bytes_recv=50),
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=100, bytes_recv=-5),
-            Row(log_date=date(2009, 1, 1), status=200, client_ip="1.2.3.4",
-                method="GET", uri_stem="/", user_agent="UA", bytes_sent=None, bytes_recv=50),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=50,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=-1,
+                bytes_recv=50,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=100,
+                bytes_recv=-5,
+            ),
+            Row(
+                log_date=date(2009, 1, 1),
+                status=200,
+                client_ip="1.2.3.4",
+                method="GET",
+                uri_stem="/",
+                user_agent="UA",
+                bytes_sent=None,
+                bytes_recv=50,
+            ),
         ])
         # Expectation: (bytes_sent IS NULL OR bytes_sent >= 0) AND (bytes_recv IS NULL OR bytes_recv >= 0)
         filtered = df.filter(
-            (col("bytes_sent").isNull() | (col("bytes_sent") >= 0)) &
-            (col("bytes_recv").isNull() | (col("bytes_recv") >= 0))
+            (col("bytes_sent").isNull() | (col("bytes_sent") >= 0))
+            & (col("bytes_recv").isNull() | (col("bytes_recv") >= 0))
         )
         assert filtered.count() == 2  # rows 1 and 4 pass
 
@@ -764,13 +1027,14 @@ class TestBronzeTableProperties:
 
     def test_partition_column_is_log_date(self):
         """The Bronze table must be partitioned by log_date."""
-        from airflow.spark.databricks.dlt_bronze import bronze_raw_logs
-
         # Verify the DLT decorator includes partition_cols=["log_date"]
         # by inspecting the function's dlt metadata (available via __wrapped__)
         # Since dlt decorators add attributes at runtime, we verify the source
         # directly by checking the streaming_table decorator setup.
         import inspect
+
+        from airflow.spark.databricks.dlt_bronze import bronze_raw_logs
+
         source = inspect.getsource(bronze_raw_logs)
         assert "partition_cols" in source
         assert "log_date" in source
@@ -778,6 +1042,7 @@ class TestBronzeTableProperties:
     def test_cdc_enabled(self):
         """Bronze must have ChangeDataFeed enabled for downstream Silver."""
         import inspect
+
         from airflow.spark.databricks.dlt_bronze import bronze_raw_logs
 
         source = inspect.getsource(bronze_raw_logs)
@@ -787,6 +1052,7 @@ class TestBronzeTableProperties:
     def test_deletion_vectors_enabled(self):
         """Deletion vectors must be enabled for MERGE support."""
         import inspect
+
         from airflow.spark.databricks.dlt_bronze import bronze_raw_logs
 
         source = inspect.getsource(bronze_raw_logs)
