@@ -10,7 +10,7 @@ from pyspark.sql.types import BooleanType, FloatType, StringType, StructField, S
 # PicklingError (CRIT-04) and 7x redundant lookups (CRIT-05).
 #
 # HOW IT WORKS
-#   geoip2.database.Reader is NOT serializable.  If a UDF closures
+#   geoip2.database.Reader is NOT serialisable.  If a UDF closures
 #   over a Reader instance, PySpark raises PicklingError when shipping
 #   the UDF to executors.
 #
@@ -136,7 +136,7 @@ _GEO_STRUCT_SCHEMA = StructType([
 def get_geo_fields(ip: str) -> dict | None:
     """Consolidated GeoIP UDF: one MaxMind call returns 6 fields.
 
-    Fixes CRIT-05 (7 separate GeoIP lookups per row) by replacing
+    Fixes 7 separate GeoIP lookups per row issue by replacing
     7 scalar UDFs with a single struct-returning UDF.
     """
     return _geo_lookup(ip)
@@ -291,8 +291,7 @@ def silver_enriched_logs():
     # Note: UA columns (agent_type, browser_name, browser_version, os, device_type)
     # are intentionally excluded from Silver. They are parsed at the dimension
     # level by export_dimensions_azure (which reads user_agent string from
-    # dbo.raw_enriched). See IMP-08 investigation: downstream dbt models join
-    # dim_useragent, not Silver directly — no correctness impact.
+    # dbo.raw_enriched).
 
     # Select final Silver columns (25 core + 6 geo = 31 total)
     silver_df = silver_df.select(
