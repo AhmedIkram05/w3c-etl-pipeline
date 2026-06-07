@@ -282,7 +282,8 @@ def silver_enriched_logs():
 
     # ── Computed fields ──
     silver_df = (
-        silver_df.withColumn("page_category", get_page_category(col("uri_stem")))
+        silver_df
+        .withColumn("page_category", get_page_category(col("uri_stem")))
         .withColumn("referrer_domain", get_referrer_domain(col("referrer")))
         .withColumn("traffic_type", get_traffic_type(col("referrer_domain")))
         .withColumn("is_crawler", get_is_crawler(col("user_agent")))
