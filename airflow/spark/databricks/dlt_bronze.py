@@ -247,7 +247,6 @@ def bronze_raw_logs():
     # Parse entire file content per file: detect format from #Fields: header,
     # parse all lines, return array of structs — then explode to rows.
     # The UDF is self-contained and detects format per-file, fixing both
-    # CRIT-01 (always-return-18) and CRIT-02 (closure over module variable).
     parsed_df = df.withColumn("parsed_rows", parse_file_udf(col("content"), col("path")))
 
     # Explode array of structs into individual rows
