@@ -1,7 +1,7 @@
 from datetime import datetime
 
 import dlt
-from pyspark.sql.functions import col, concat_ws, explode, row_number, to_date, udf
+from pyspark.sql.functions import col, explode, to_date, udf
 from pyspark.sql.types import (
     ArrayType,
     DateType,
@@ -11,7 +11,6 @@ from pyspark.sql.types import (
     StructField,
     StructType,
 )
-from pyspark.sql.window import Window
 
 # ─── W3C Parser (from authoritative w3c_parser.py) ───
 
@@ -202,7 +201,7 @@ parse_file_udf = udf(
 # ─── Bronze DLT Pipeline ───
 
 
-@dlt.streaming_table(
+@dlt.table(
     name="bronze_raw_logs",
     table_properties={
         "delta.enableChangeDataFeed": "true",
@@ -243,7 +242,7 @@ def bronze_raw_logs():
         .option("cloudFiles.format", "binaryFile")
         .option("cloudFiles.includeExistingFiles", "true")
         .option("cloudFiles.schemaLocation", "dbfs:/Volumes/w3c_etl_databricks/bronze/w3c_data/_schemas/bronze")
-        .option("cloudFiles.schemaEvolutionMode", "addNewColumns")
+        .option("cloudFiles.schemaEvolutionMode", "none")
         .option("cloudFiles.rescuedDataColumn", "_rescued_data")
         .option("maxFilesPerTrigger", "10")
         .option("maxFileSize", 209715200)
@@ -287,24 +286,5 @@ def bronze_raw_logs():
     # Cast log_date to Date for partitioning (Silver integration)
     # safe_date already returns a date, but ensure Spark type
     parsed_df = parsed_df.withColumn("log_date", to_date(col("log_date")))
-
-    # Deduplication using ROW_NUMBER (for full_refresh idempotency)
-    # Composite key uniquely identifies a log event
-    parsed_df = parsed_df.withColumn(
-        "dedup_key",
-        concat_ws(
-            "|",
-            col("source_file"),
-            col("log_date"),
-            col("log_time"),
-            col("client_ip"),
-            col("method"),
-            col("uri_stem"),
-            col("status"),
-        ),
-    )
-    window_spec = Window.partitionBy("dedup_key").orderBy("source_file")
-    parsed_df = parsed_df.withColumn("row_num", row_number().over(window_spec))
-    parsed_df = parsed_df.filter(col("row_num") == 1).drop("row_num", "dedup_key")
 
     return parsed_df
