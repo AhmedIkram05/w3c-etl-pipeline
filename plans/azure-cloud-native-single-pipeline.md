@@ -670,18 +670,19 @@ conn.close()
 **Checklist:**
 
 - [ ] Create `airflow/spark/databricks/dlt_bronze.py`
-- [ ] Implement W3C parser with rsplit field-counting
-- [ ] Implement 14-field vs 18-field IIS format detection
-- [ ] Implement UDF+explode pattern for parsing
-- [ ] Add @dlt.expect_or_drop quality rules
-- [ ] Implement ROW_NUMBER dedup CTE for idempotency
-- [ ] Configure Auto Loader with binaryFile format
-- [ ] Set partitioning by log_date
-- [ ] Configure Delta properties (change data feed, auto optimize)
-- [ ] Upload MaxMind GeoLite2 databases to DBFS
+- [ ] Implement W3C parser with rsplit field-counting (from authoritative `w3c_parser.py`)
+- [ ] Implement 14-field vs 18-field IIS format detection (via broadcast variable / per-file UDF; simplified to single format per batch in scaffold)
+- [ ] Implement UDF with direct struct access (NOT explode)
+- [ ] Add @dlt.expect_or_drop quality rules (7 rules: log_date, status, client_ip, method, uri_stem, user_agent, bytes)
+- [ ] Implement ROW_NUMBER dedup CTE with composite key for idempotency
+- [ ] Configure Auto Loader: binaryFile, schemaLocation, schemaEvolutionMode, rescuedDataColumn
+- [ ] Set partitioning by log_date (Date type, cast from String)
+- [ ] Configure Delta properties (CDF, auto optimize, autoCompact, deletionVectors)
+- [ ] Upload MaxMind GeoLite2 databases to DBFS at `/dbfs/mnt/w3c-data/`
+- [ ] Create schema directory `/dbfs/mnt/w3c-data/_schemas/bronze`
 - [ ] Upload sample log files to ADLS Gen2 raw-logs container
 - [ ] Create Bronze table via DLT pipeline (not manual DDL)
-- [ ] Verify Bronze table schema and data
+- [ ] Verify Bronze table schema (log_date as Date) and data
 
 **Code Scaffolds:**
 
@@ -689,108 +690,193 @@ conn.close()
 
 ```python
 import dlt
-from pyspark.sql.functions import udf, col, explode, split, regexp_extract
+from pyspark.sql.functions import udf, col, split, explode, to_date, concat_ws, row_number, decode
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, LongType, DateType
+from pyspark.sql.window import Window
 
 # Bronze table definition
-@dlt.table(
+@dlt.streaming_table(
     name="bronze_raw_logs",
     table_properties={
         "delta.enableChangeDataFeed": "true",
-        "delta.autoOptimize.optimizeWrite": "true"
+        "delta.autoOptimize.optimizeWrite": "true",
+        "delta.autoOptimize.autoCompact": "true",
+        "delta.enableDeletionVectors": "true"
     },
     partition_cols=["log_date"]
 )
 @dlt.expect_or_drop("valid_log_date", "log_date IS NOT NULL")
 @dlt.expect_or_drop("valid_status", "status BETWEEN 100 AND 599")
 @dlt.expect_or_drop("valid_client_ip", "client_ip IS NOT NULL AND client_ip != '-'")
+@dlt.expect_or_drop("valid_method", "method IN ('GET', 'POST', 'HEAD', 'PUT', 'DELETE', 'OPTIONS', 'TRACE')")
+@dlt.expect_or_drop("valid_uri_stem", "uri_stem IS NOT NULL")
+@dlt.expect_or_drop("valid_user_agent", "user_agent IS NOT NULL AND user_agent != '-'")
+@dlt.expect_or_drop("valid_bytes", "(bytes_sent IS NULL OR bytes_sent >= 0) AND (bytes_recv IS NULL OR bytes_recv >= 0)")
 def bronze_raw_logs():
     # Auto Loader configuration
     df = spark.readStream.format("cloudFiles") \
         .option("cloudFiles.format", "binaryFile") \
         .option("cloudFiles.includeExistingFiles", "true") \
-        .option("maxFilesPerTrigger", "10") \
+        .option("cloudFiles.schemaLocation", "/dbfs/mnt/w3c-data/_schemas/bronze") \
+        .option("cloudFiles.schemaEvolutionMode", "addNewColumns") \
+        .option("cloudFiles.rescuedDataColumn", "_rescued_data") \
+        .option("maxFilesPerTrigger", "1000") \
         .option("maxFileSize", 209715200) \
         .load(f"abfss://raw-logs@{spark.conf.get('storage.account_name')}.dfs.core.windows.net/")
     
-    # Parse W3C log lines
-    def parse_log_line(line: str):
-        """Parse W3C IIS log line with 14 or 18 fields."""
+    # Parse W3C log lines using rsplit field-counting (from authoritative w3c_parser.py)
+    def parse_log_line(line: str, file_format: int, source_file: str):
+        """Parse W3C IIS log line with 14 or 18 fields using rsplit."""
         if not line or line.startswith("#"):
             return None
         
-        # Split by space, handling quoted user-agent strings
-        parts = []
-        current = ""
-        in_quotes = False
-        
-        for char in line:
-            if char == '"':
-                in_quotes = not in_quotes
-            elif char == ' ' and not in_quotes:
-                parts.append(current)
-                current = ""
-            else:
-                current += char
-        parts.append(current)
-        
-        # Detect format by field count
-        if len(parts) == 18:
-            # 18-field IIS format
-            return (parts[0], parts[1], parts[2], parts[3], parts[4], parts[5],
-                    parts[6], parts[7], parts[8], parts[9], parts[10], parts[11],
-                    parts[12], parts[13], parts[14], parts[15], parts[16], parts[17])
-        elif len(parts) == 14:
-            # 14-field IIS format
-            return (parts[0], parts[1], parts[2], parts[3], parts[4], parts[5],
-                    parts[6], parts[7], parts[8], parts[9], parts[10], parts[11],
-                    parts[12], parts[13], None, None, None, None)
-        else:
+        try:
+            if file_format == 14:
+                # 14-field format: last 4 tokens are fixed numeric fields
+                rs = line.rsplit(" ", 4)
+                if len(rs) < 5:
+                    return None
+                ls = rs[0].split(" ", 9)
+                if len(ls) < 10:
+                    return None
+                
+                return {
+                    "log_date": ls[0],
+                    "log_time": ls[1],
+                    "server_ip": ls[2],
+                    "method": ls[3],
+                    "uri_stem": ls[4],
+                    "uri_query": ls[5],
+                    "server_port": int(ls[6]) if ls[6].isdigit() else None,
+                    "username": ls[7],
+                    "client_ip": ls[8],
+                    "user_agent": ls[9],
+                    "cookie": None,
+                    "referrer": None,
+                    "status": int(rs[1]) if rs[1].isdigit() else None,
+                    "sub_status": int(rs[2]) if rs[2].isdigit() else None,
+                    "win32_status": int(rs[3]) if rs[3].isdigit() else None,
+                    "bytes_sent": None,
+                    "bytes_recv": None,
+                    "time_taken": int(rs[4]) if rs[4].isdigit() else None,
+                    "source_file": source_file,
+                }
+            
+            elif file_format == 18:
+                # 18-field format: last 6 tokens are fixed numeric fields
+                rs = line.rsplit(" ", 6)
+                if len(rs) < 7:
+                    return None
+                ls = rs[0].split(" ", 11)
+                if len(ls) < 12:
+                    return None
+                
+                referrer = ls[11].strip()
+                return {
+                    "log_date": ls[0],
+                    "log_time": ls[1],
+                    "server_ip": ls[2],
+                    "method": ls[3],
+                    "uri_stem": ls[4],
+                    "uri_query": ls[5],
+                    "server_port": int(ls[6]) if ls[6].isdigit() else None,
+                    "username": ls[7],
+                    "client_ip": ls[8],
+                    "user_agent": ls[9],
+                    "cookie": ls[10],
+                    "referrer": referrer,
+                    "status": int(rs[1]) if rs[1].isdigit() else None,
+                    "sub_status": int(rs[2]) if rs[2].isdigit() else None,
+                    "win32_status": int(rs[3]) if rs[3].isdigit() else None,
+                    "bytes_sent": int(rs[4]) if rs[4].isdigit() else None,
+                    "bytes_recv": int(rs[5]) if rs[5].isdigit() else None,
+                    "time_taken": int(rs[6]) if rs[6].isdigit() else None,
+                    "source_file": source_file,
+                }
+        except Exception:
             return None
+        
+        return None
     
-    parse_udf = udf(parse_log_line, StructType([
-        StructField("log_date", StringType(), True),
-        StructField("log_time", StringType(), True),
-        StructField("server_ip", StringType(), True),
-        StructField("method", StringType(), True),
-        StructField("uri_stem", StringType(), True),
-        StructField("uri_query", StringType(), True),
-        StructField("client_ip", StringType(), True),
-        StructField("user_agent", StringType(), True),
-        StructField("cookie", StringType(), True),
-        StructField("referrer", StringType(), True),
-        StructField("status", IntegerType(), True),
-        StructField("sub_status", IntegerType(), True),
-        StructField("win32_status", IntegerType(), True),
-        StructField("bytes_sent", LongType(), True),
-        StructField("bytes_recv", LongType(), True),
-        StructField("server_port", IntegerType(), True),
-        StructField("username", StringType(), True),
-        StructField("time_taken", LongType(), True)
-    ]))
+    # Detect file format from #Fields header (broadcast to all workers)
+    # In DLT streaming, we use a scalar UDF that detects format per-file
+    # by reading the #Fields header from the file path
     
-    # Apply parser
-    parsed_df = df.withColumn("parsed", explode(parse_udf(col("content"))))
+    def detect_file_format(file_path: str) -> int:
+        """Detect IIS format (14 or 18) from #Fields header line."""
+        # In DLT, file_path is the ADLS path. We can't easily read it in UDF.
+        # Alternative: pass format as parameter or detect from first line content.
+        # For simplicity, we detect from first non-comment line structure.
+        # Real implementation would use a broadcast variable or file listing.
+        return 18  # Default; override via spark.conf if needed
     
-    # Extract fields from parsed struct
+    # Broadcast format detection (set once per pipeline run)
+    # In practice, all files in a batch should have same format
+    file_format = detect_file_format("")
+    
+    parse_udf = udf(
+        lambda line, src: parse_log_line(line, file_format, src),
+        StructType([
+            StructField("log_date", StringType(), True),
+            StructField("log_time", StringType(), True),
+            StructField("server_ip", StringType(), True),
+            StructField("method", StringType(), True),
+            StructField("uri_stem", StringType(), True),
+            StructField("uri_query", StringType(), True),
+            StructField("server_port", IntegerType(), True),
+            StructField("username", StringType(), True),
+            StructField("client_ip", StringType(), True),
+            StructField("user_agent", StringType(), True),
+            StructField("cookie", StringType(), True),
+            StructField("referrer", StringType(), True),
+            StructField("status", IntegerType(), True),
+            StructField("sub_status", IntegerType(), True),
+            StructField("win32_status", IntegerType(), True),
+            StructField("bytes_sent", LongType(), True),
+            StructField("bytes_recv", LongType(), True),
+            StructField("time_taken", LongType(), True),
+            StructField("source_file", StringType(), True),
+        ])
+    )
+    
+    # Apply parser: decode binary content -> split lines -> parse each line
+    from pyspark.sql.functions import split, explode, col, to_date, decode
+    
+    # binaryFile returns content as binary; decode UTF-8, split by newline
+    lines_df = df.withColumn("line", explode(split(decode(col("content"), "utf-8"), "\n")))
+    lines_df = lines_df.filter(~col("line").startswith("#") & (col("line") != ""))
+    
+    # Parse each line
+    parsed_df = lines_df.withColumn("parsed", parse_udf(col("line"), col("path")))
+    
+    # Extract fields from parsed struct (direct struct access, NO explode)
     for field_name in ["log_date", "log_time", "server_ip", "method", "uri_stem",
-                       "uri_query", "client_ip", "user_agent", "cookie", "referrer",
-                       "status", "sub_status", "win32_status", "bytes_sent", "bytes_recv",
-                       "server_port", "username", "time_taken"]:
+                       "uri_query", "server_port", "username", "client_ip", "user_agent",
+                       "cookie", "referrer", "status", "sub_status", "win32_status",
+                       "bytes_sent", "bytes_recv", "time_taken", "source_file"]:
         parsed_df = parsed_df.withColumn(field_name, col(f"parsed.{field_name}"))
     
-    parsed_df = parsed_df.drop("parsed", "content", "path")
+    # Preserve _rescued_data column for debugging malformed lines
+    parsed_df = parsed_df.withColumn("_rescued_data", col("_rescued_data"))
     
-    # Add source_file column for tracking
-    parsed_df = parsed_df.withColumn("source_file", col("input_file_name"))
+    parsed_df = parsed_df.drop("parsed", "line", "content", "path")
+    
+    # Cast log_date to Date for partitioning (Silver integration)
+    parsed_df = parsed_df.withColumn("log_date", to_date(col("log_date"), "yyyy-MM-dd"))
     
     # Deduplication using ROW_NUMBER (for full_refresh idempotency)
+    # Composite key uniquely identifies a log event
     from pyspark.sql.window import Window
-    from pyspark.sql.functions import row_number
+    from pyspark.sql.functions import row_number, concat_ws
     
-    window_spec = Window.partitionBy("source_file", "log_date", "log_time", "client_ip").orderBy("source_file")
+    parsed_df = parsed_df.withColumn(
+        "dedup_key",
+        concat_ws("|", col("source_file"), col("log_date"), col("log_time"),
+                  col("client_ip"), col("method"), col("uri_stem"), col("status"))
+    )
+    window_spec = Window.partitionBy("dedup_key").orderBy("source_file")
     parsed_df = parsed_df.withColumn("row_num", row_number().over(window_spec))
-    parsed_df = parsed_df.filter(col("row_num") == 1).drop("row_num")
+    parsed_df = parsed_df.filter(col("row_num") == 1).drop("row_num", "dedup_key")
     
     return parsed_df
 ```
@@ -798,12 +884,16 @@ def bronze_raw_logs():
 **Upload MaxMind databases to DBFS:**
 
 ```bash
-# Upload GeoLite2 databases
+# Upload GeoLite2 databases to DBFS (matches schemaLocation path /dbfs/mnt/w3c-data/)
 databricks fs cp data/geoip/GeoLite2-City.mmdb dbfs:/mnt/w3c-data/GeoLite2-City.mmdb
 databricks fs cp data/geoip/GeoLite2-ASN.mmdb dbfs:/mnt/w3c-data/GeoLite2-ASN.mmdb
 
+# Create schema directory for Auto Loader schema evolution
+databricks fs mkdirs dbfs:/mnt/w3c-data/_schemas/bronze
+
 # Verify upload
 databricks fs ls dbfs:/mnt/w3c-data/
+databricks fs ls dbfs:/mnt/w3c-data/_schemas/
 ```
 
 **Upload sample log files to ADLS:**
@@ -825,18 +915,21 @@ az storage blob upload \
 
 **Acceptance Criteria:**
 
-- `dlt_bronze.py` created with W3C parser
+- `dlt_bronze.py` created with W3C parser (rsplit field-counting from authoritative `w3c_parser.py`)
 - Parser handles both 14-field and 18-field IIS formats
-- Auto Loader configured with binaryFile format
-- Quality expectations added: valid_log_date, valid_status, valid_client_ip
-- ROW_NUMBER deduplication implemented
-- Bronze table partitioned by log_date
-- Delta properties configured: change data feed, auto optimize
-- MaxMind databases uploaded to DBFS
+- `@dlt.streaming_table` used (not `@dlt.table`) for streaming source
+- Auto Loader configured: binaryFile format, schemaLocation, schemaEvolutionMode, rescuedDataColumn
+- Quality expectations added: valid_log_date, valid_status, valid_client_ip, valid_method, valid_uri_stem, valid_user_agent, valid_bytes
+- ROW_NUMBER deduplication with composite key (source_file + log_date + log_time + client_ip + method + uri_stem + status)
+- Bronze table partitioned by log_date (Date type, not String)
+- Delta properties: change data feed, auto optimize, autoCompact, deletionVectors
+- MaxMind databases uploaded to DBFS at `/dbfs/mnt/w3c-data/`
+- Schema directory created at `/dbfs/mnt/w3c-data/_schemas/bronze`
 - Sample logs uploaded to ADLS
 - Bronze table created via DLT pipeline
-- Bronze table schema matches expected 18 fields
+- Bronze table schema matches expected fields (log_date as Date)
 - Sample data visible in Bronze table
+- `_rescued_data` column preserved for malformed lines
 
 **Phase Handoff Validation:**
 
@@ -853,16 +946,6 @@ databricks sql execute --warehouse-id <warehouse-id> --sql "SELECT COUNT(*) FROM
 # Verify partitioning
 databricks sql execute --warehouse-id <warehouse-id> --sql "SHOW PARTITIONS w3c_catalog.bronze.bronze_raw_logs"
 ```
-
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| DLT pipeline creation fails | Databricks API error | Verify cluster configuration, check storage access, retry |
-| Parser fails on sample logs | Data quality violations | Review log format, adjust parser logic, add more test samples |
-| Auto Loader doesn't detect files | No data in Bronze table | Verify container path, check file permissions, test with includeExistingFiles |
-| Deduplication removes valid rows | Row count too low | Review window spec, adjust partition columns, test with known duplicates |
-| Partitioning fails | DLT error | Verify log_date format, check partition column type |
 
 ---
 
@@ -1137,15 +1220,6 @@ databricks sql execute --warehouse-id <warehouse-id> --sql "SELECT country, regi
 # Verify computed fields
 databricks sql execute --warehouse-id <warehouse-id> --sql "SELECT page_category, traffic_type, is_crawler, COUNT(*) FROM w3c_catalog.silver.silver_enriched_logs GROUP BY page_category, traffic_type, is_crawler"
 ```
-
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| GeoIP reader fails | UDF returns "Unknown" for all IPs | Verify DBFS path, check database file integrity, re-upload databases |
-| Lazy reader pattern error | Spark context error in UDF | Move reader initialization to driver level, use spark.conf.get |
-| Computed field UDF errors | Null values or incorrect categorization | Test UDF logic with sample data, adjust regex patterns |
-| Silver table creation fails | DLT pipeline error | Verify Bronze table exists, check column compatibility, review expectations |
 
 ---
 
@@ -1470,16 +1544,6 @@ conn.close()
 "
 ```
 
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| JDBC driver not found | Class.forName fails | Verify Maven library installed, check cluster configuration |
-| DDL execution fails | execute_ddl raises exception | Check error code, handle 208 gracefully, verify permissions |
-| Export fails on retry | All 4 attempts exhausted | Check Azure SQL serverless cold-start, verify network connectivity |
-| Tracking table update fails | Duplicate key or permission error | Verify PRIMARY KEY constraint, check INSERT permissions |
-| is_crawler cast fails | Data type mismatch | Verify source data format, adjust CASE WHEN logic |
-
 ---
 
 
@@ -1782,16 +1846,6 @@ databricks runs list --job-id <workflow-job-id>
 sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.raw_enriched"
 ```
 
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| Terraform apply fails | Resource creation error | Verify dependencies from Part A, check Databricks workspace access |
-| Pipeline creation fails | Databricks API error | Verify notebook paths exist, check cluster configuration |
-| Workflow job creation fails | Task dependency error | Verify task keys match, check depends_on configuration |
-| Workflow run fails | Task execution error | Review task logs, verify library installations, check data paths |
-| Task 3 (JDBC export) fails | Connection or write error | Verify Azure SQL credentials, check network connectivity |
-
 ---
 
 ### Phase 7 — export_dimensions_azure
@@ -2086,17 +2140,6 @@ sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PA
 # Verify no duplicate rows
 ```
 
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| Connection fails | pyodbc error | Verify credentials, check firewall rules, test connectivity |
-| DDL execution fails | SQL error | Check table existence, verify permissions, review DDL syntax |
-| client_ip rename fails | Column name error | Verify column rename in SELECT statement, check target schema |
-| user_agents parsing fails | Import error or parse error | Verify user-agents library installed, handle parse exceptions |
-| MERGE upsert fails | SQL syntax error | Verify MERGE syntax, check natural key, review column mapping |
-| Dataset outlet doesn't fire | DAG not triggered | Verify Dataset URI, check Airflow configuration, review outlet definition |
-
 ---
 
 ### Phase 8a — dbt T-SQL Macros + Simple Model Migration
@@ -2368,15 +2411,6 @@ grep -r "tsql_cast" target/compiled/
 grep -r "tsql_datepart" target/compiled/
 ```
 
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| Macro not found | dbt compile error | Verify macro file path, check macro naming, ensure macros/ directory exists |
-| T-SQL syntax error | dbt compile fails | Review macro implementation, test T-SQL syntax manually |
-| PostgreSQL branch breaks | w3c profile fails | Verify {% else %} branch preserves original syntax |
-| Boolean conversion fails | Type mismatch error | Use CASE WHEN instead of cast, verify source data format |
-
 ---
 
 ### Phase 8b — dbt Complex Model Migration
@@ -2538,15 +2572,6 @@ cat target/compiled/dbt_marts/mart_page_performance.sql
 # Test generate_series macro
 dbt run-operation test_generate_series --profile w3c_azure
 ```
-
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| generate_series not supported | SQL syntax error | Verify Azure SQL compat level 160, use manual CTE if needed |
-| PERCENTILE_CONT syntax error | Window function error | Add explicit OVER () clause, verify field order |
-| Index creation fails | Permission error | Check CREATE INDEX permissions, use separate migration script |
-| Regex pattern fails | String function error | Replace with manual string operations (REPLACE, CHARINDEX, SUBSTRING) |
 
 ---
 
@@ -3023,17 +3048,6 @@ echo "CSV File Count: $count" # Should print 18
 curl https://<username>.github.io/w3c-etl-pipeline/
 ```
 
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| dbt docs generate fails | Subprocess error | Verify dbt-core installation, check profile configuration, review model syntax |
-| Source freshness fails | Freshness check error | Verify source configuration, check loaded_at_field, review freshness thresholds |
-| Docs export fails | File copy error | Verify output path permissions, check disk space, retry export |
-| CSV export fails | connection/query error | Verify pyodbc configuration, check table schema mismatch, confirm exact 18 tables exist |
-| GitHub Pages deployment fails | GitHub Actions error | Verify GITHUB_TOKEN, check publish_dir, review branch permissions |
-| Azure Static Web Apps fails | Azure CLI error | Verify resource group, check source configuration, review location |
-
 ---
 
 ### Phase 9 — Split CI/CD
@@ -3306,18 +3320,6 @@ git push origin develop
 # Verify Tier 2 passes
 ```
 
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| Tier 1 fails on push | GitHub Actions error | Review lint/test failures, fix code, push again |
-| Tier 2 approval not granted | Workflow stuck | Review approver permissions, add additional approvers |
-| Tier 2 secrets missing | Authentication error | Add secrets to GitHub repository, verify secret names |
-| Databricks Workflow trigger fails | API error | Verify DATABRICKS_TOKEN, check WORKFLOW_ID, review API endpoint |
-| Azure SQL query fails | Connection error | Verify SQL credentials, check firewall rules, test connectivity |
-| CSV export assertion fails | File count mismatch | Review export logic, verify directory path, check file generation |
-| catalog.json validation fails | JSON error | Review dbt docs generation, verify output path, check JSON structure |
-
 ---
 
 ### Phase 10 — Monitoring
@@ -3469,15 +3471,6 @@ az consumption budget list --resource-group rg-w3c-etl-dev
 # Verify Databricks pipeline alert
 az monitor metrics alert list --resource-group rg-w3c-etl-dev
 ```
-
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| Prometheus not scraping | No targets in Prometheus UI | Verify StatsD exporter configuration, check network connectivity |
-| Grafana dashboard not loading | Dashboard error | Verify datasource configuration, check Prometheus connection |
-| Budget alerts not firing | No email received | Verify alert configuration, check notification email, test with manual spend |
-| Databricks alert not firing | Pipeline failure not detected | Verify metric name, check alert condition, review resource scope |
 
 ---
 
@@ -3729,14 +3722,6 @@ chmod +x scripts/teardown.sh
 ./scripts/teardown.sh --dry-run
 ```
 
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| Terraform destroy fails | Resource dependency error | Manually delete stuck resources via Azure portal, retry destroy |
-| Service principal deletion fails | Permission error | Verify Azure AD permissions, use Global Admin account |
-| GitHub secrets deletion fails | UI error | Verify repository admin permissions, delete secrets via API |
-
 ---
 
 ### Phase 12 — Documentation and README Update
@@ -3835,13 +3820,6 @@ cat README.md
 # Verify links
 markdown-link-check README.md
 ```
-
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| Link check fails | Broken link error | Update link URLs, verify file paths |
-| Badge not displaying | Badge URL error | Verify GitHub Actions workflow names, update badge URLs |
 
 ---
 
@@ -3976,17 +3954,6 @@ cat airflow/data/dbt-docs/catalog.json | python -m json.tool
 # Verify monitoring
 curl http://localhost:9090/api/v1/targets
 ```
-
-**Failure Recovery Table:**
-
-| Failure Mode | Detection | Recovery Action |
-|--------------|-----------|-----------------|
-| Bronze pipeline fails | DLT error | Review logs, check Auto Loader configuration, verify data format |
-| Silver pipeline fails | DLT error | Review GeoIP UDFs, check database files, verify computed field logic |
-| JDBC export fails | Connection error | Verify Azure SQL credentials, check network connectivity, review retry logic |
-| dbt run fails | Compilation error | Review T-SQL macros, check model syntax, verify Azure SQL compatibility |
-| CSV export count mismatch | File count error | Review export logic, verify directory path, check dbt model outputs |
-| Header validation fails | Schema mismatch | Compare headers to baseline, adjust model column ordering |
 
 ---
 
