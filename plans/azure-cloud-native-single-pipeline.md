@@ -663,26 +663,28 @@ conn.close()
 
 ---
 
-### Phase 3 — DLT Bronze Pipeline
+### Phase 3 — DLT Bronze Pipeline (✅ Code Complete — Azure Quota Upgrade Pending)
 
 **Phase Goal:** Create and deploy the DLT Bronze pipeline with Auto Loader, W3C parser UDF, and quality expectations.
 
 **Checklist:**
 
-- [ ] Create `airflow/spark/databricks/dlt_bronze.py`
-- [ ] Implement W3C parser with rsplit field-counting (from authoritative `w3c_parser.py`)
-- [ ] Implement 14-field vs 18-field IIS format detection (via broadcast variable / per-file UDF; simplified to single format per batch in scaffold)
-- [ ] Implement UDF with direct struct access (NOT explode)
-- [ ] Add @dlt.expect_or_drop quality rules (7 rules: log_date, status, client_ip, method, uri_stem, user_agent, bytes)
-- [ ] Implement ROW_NUMBER dedup CTE with composite key for idempotency
-- [ ] Configure Auto Loader: binaryFile, schemaLocation, schemaEvolutionMode, rescuedDataColumn
-- [ ] Set partitioning by log_date (Date type, cast from String)
-- [ ] Configure Delta properties (CDF, auto optimize, autoCompact, deletionVectors)
-- [ ] Upload MaxMind GeoLite2 databases to DBFS at `/dbfs/mnt/w3c-data/`
-- [ ] Create schema directory `/dbfs/mnt/w3c-data/_schemas/bronze`
-- [ ] Upload sample log files to ADLS Gen2 raw-logs container
-- [ ] Create Bronze table via DLT pipeline (not manual DDL)
-- [ ] Verify Bronze table schema (log_date as Date) and data
+- [x] Create `airflow/spark/databricks/dlt_bronze.py`
+- [x] Implement W3C parser with rsplit field-counting (from authoritative `w3c_parser.py`)
+- [x] Implement 14-field vs 18-field IIS format detection (via broadcast variable / per-file UDF; simplified to single format per batch in scaffold)
+- [x] Implement UDF with direct struct access (NOT explode)
+- [x] Add @dlt.expect_or_drop quality rules (7 rules: log_date, status, client_ip, method, uri_stem, user_agent, bytes)
+- [x] Implement ROW_NUMBER dedup CTE with composite key for idempotency
+- [x] Configure Auto Loader: binaryFile, schemaLocation, schemaEvolutionMode, rescuedDataColumn
+- [x] Set partitioning by log_date (Date type, cast from String)
+- [x] Configure Delta properties (CDF, auto optimize, autoCompact, deletionVectors)
+- [x] Upload MaxMind GeoLite2 databases to Unity Catalog volume `w3c_etl_databricks.bronze.w3c_data`
+- [x] Create schema directory in Unity Catalog volume
+- [x] Upload sample log files to ADLS Gen2 raw-logs container
+- [x] Create Bronze DLT pipeline via Databricks CLI (pipeline_id: c8bf4876-6a6b-4190-8282-62232ec5a508)
+- [ ] Verify Bronze table schema (log_date as Date) and data — **BLOCKED: Azure Free Tier quota (4 cores) exhausted for DS-series VMs in westus3**
+
+**Note:** All code deliverables complete. Pipeline created with Standard_DS3_v2 but remains in WAITING_FOR_RESOURCES due to Azure Free Tier quota limit (4 cores). Microsoft notified on 2026-06-07 13:05 that subscription is eligible for automatic upgrade to Tier 1 (within 3 days), which will increase DS-series quota. Once upgraded, pipeline will auto-provision and execute.
 
 **Code Scaffolds:**
 
@@ -949,24 +951,27 @@ databricks sql execute --warehouse-id <warehouse-id> --sql "SHOW PARTITIONS w3c_
 
 ---
 
-### Phase 4 — DLT Silver Pipeline
+### Phase 4 — DLT Silver Pipeline (✅ Code Complete — Azure Quota Upgrade Pending)
 
 **Phase Goal:** Create and deploy the DLT Silver pipeline with MaxMind GeoIP enrichment and computed fields.
 
 **Checklist:**
 
-- [ ] Create `airflow/spark/databricks/dlt_silver.py`
-- [ ] Implement lazy reader factory pattern for GeoIP
-- [ ] Implement 7 MaxMind GeoLite2 UDFs (country, region, city, lat, lon, postcode, isp)
-- [ ] Implement 5 computed field UDFs (page_category, referrer_domain, traffic_type, is_crawler, size_band)
-- [ ] Implement _extract_domain plain Python function
-- [ ] Exclude UA columns from Silver DDL
-- [ ] Preserve 6 geo columns in Silver (country, region, city, lat, lon, isp)
-- [ ] Add @dlt.expect_or_drop quality rules
-- [ ] Configure Silver table properties
-- [ ] Install geoip2==5.0.1 as PyPI library on cluster
-- [ ] Test Silver pipeline with Bronze data
+- [x] Create `airflow/spark/databricks/dlt_silver.py`
+- [x] Implement lazy reader factory pattern for GeoIP
+- [x] Implement 7 MaxMind GeoLite2 UDFs (country, region, city, lat, lon, postcode, isp)
+- [x] Implement 5 computed field UDFs (page_category, referrer_domain, traffic_type, is_crawler, size_band)
+- [x] Implement _extract_domain plain Python function
+- [x] Exclude UA columns from Silver DDL
+- [x] Preserve 6 geo columns in Silver (country, region, city, lat, lon, isp)
+- [x] Add @dlt.expect_or_drop quality rules
+- [x] Configure Silver table properties
+- [x] Install geoip2==5.0.1 as PyPI library on cluster (added in pipeline config)
+- [x] Create Silver DLT pipeline via Databricks CLI (pipeline_id: 5ec1e9a9-4b49-4c50-8b12-46565c8bf23f)
+- [ ] Test Silver pipeline with Bronze data — **BLOCKED: Azure Free Tier quota (4 cores) exhausted for DS-series VMs in westus3**
 - [ ] Verify Silver table schema and data quality
+
+**Note:** Pipeline created with Standard_DS3_v2 but remains in WAITING_FOR_RESOURCES due to Azure Free Tier quota limit (4 cores). Microsoft notified on 2026-06-07 13:05 that subscription is eligible for automatic upgrade to Tier 1 (within 3 days), which will increase DS-series quota. Silver pipeline depends on Bronze completion, so will execute after Bronze pipeline finishes.
 
 **Code Scaffolds:**
 
