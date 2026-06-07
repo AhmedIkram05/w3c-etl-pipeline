@@ -16,6 +16,8 @@ All tests that exercise PySpark UDFs or DataFrames use the session-scoped
 helper functions do not require a SparkSession.
 """
 
+import os
+import sys
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -25,6 +27,27 @@ from pyspark.sql.functions import col, explode
 from pyspark.sql.types import StringType, StructField, StructType
 
 # ── Module under test ──────────────────────────────────────────────────
+# Ensure the ``databricks`` package directory is on sys.path so the
+# DLT module imports resolve (both on host and inside Docker container).
+_TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.join(_TEST_DIR, "..")  # parent of tests/ = repo root
+
+# Inside Docker: /opt/airflow/tests/  →  /opt/airflow/spark/databricks/
+# On host:      repo/tests/           →  repo/airflow/spark/databricks/
+_NESTED_DATABRICKS = os.path.join(_PROJECT_ROOT, "airflow", "spark", "databricks")
+_FLAT_DATABRICKS = os.path.join(_PROJECT_ROOT, "spark", "databricks")
+
+for _db_path in (_NESTED_DATABRICKS, _FLAT_DATABRICKS):
+    if os.path.isdir(_db_path) and _db_path not in sys.path:
+        sys.path.insert(0, _db_path)
+
+_NESTED_SPARK = os.path.join(_PROJECT_ROOT, "airflow", "spark")
+_FLAT_SPARK = os.path.join(_PROJECT_ROOT, "spark")
+
+for _sp_path in (_NESTED_SPARK, _FLAT_SPARK):
+    if os.path.isdir(_sp_path) and _sp_path not in sys.path:
+        sys.path.insert(0, _sp_path)
+
 # dlt_bronze.py contains inline copies of safe_int / safe_date and the
 # full _parse_log_line / _detect_format_from_content / _parse_file_content
 # functions.  We import them directly to test in isolation.
@@ -59,14 +82,24 @@ else:
                 safe_int,
             )
         except ImportError:
-            from dlt_bronze import (
-                _detect_format_from_content,
-                _parse_file_content,
-                _parse_log_line,
-                parse_file_udf,
-                safe_date,
-                safe_int,
-            )
+            try:
+                from dlt_bronze import (
+                    _detect_format_from_content,
+                    _parse_file_content,
+                    _parse_log_line,
+                    parse_file_udf,
+                    safe_date,
+                    safe_int,
+                )
+            except ImportError:
+                from spark.databricks.dlt_bronze import (
+                    _detect_format_from_content,
+                    _parse_file_content,
+                    _parse_log_line,
+                    parse_file_udf,
+                    safe_date,
+                    safe_int,
+                )
 
 
 # ══════════════════════════════════════════════════════════════════════
