@@ -20,7 +20,7 @@ w3c_azure:
     dev:
       type: sqlserver
       driver: "ODBC Driver 18 for SQL Server"
-      server: "{{ env_var('AZURE_SQL_SERVER') }}.database.windows.net"
+      server: "{{ env_var('AZURE_SQL_SERVER') }}"
       port: 1433
       database: "{{ env_var('AZURE_SQL_DB') }}"
       schema: dbo
@@ -34,7 +34,7 @@ w3c_azure:
     azure_sql_ci:
       type: sqlserver
       driver: "ODBC Driver 18 for SQL Server"
-      server: "{{ env_var('AZURE_SQL_SERVER') }}.database.windows.net"
+      server: "{{ env_var('AZURE_SQL_SERVER') }}"
       port: 1433
       database: "{{ env_var('AZURE_SQL_DB') }}"
       schema: dbo
