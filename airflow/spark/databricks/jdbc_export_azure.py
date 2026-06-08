@@ -31,6 +31,7 @@ Requirements
 """
 
 import time
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, lit, when
 
@@ -139,7 +140,7 @@ def execute_ddl(conn, ddl_statement):
     with conn.cursor() as cursor:
         cursor.execute(ddl_statement)
     conn.commit()
-    print(f"DDL executed successfully")
+    print("DDL executed successfully")
 
 
 def ensure_tables_exist(conn):
@@ -163,18 +164,26 @@ def get_loaded_source_files(conn):
 
 
 def insert_batch(conn, rows, table):
-    """Insert a batch of rows using executemany."""
+    """Insert a batch of rows using executemany.
+
+    Accepts both Spark ``Row`` objects (from ``DataFrame.collect()``) and
+    plain ``dict`` rows (for small tracking-table inserts).  Detects the
+    input type by checking for ``__fields__`` (Row) vs ``keys()`` (dict).
+    """
     if not rows:
         return 0
 
-    columns = list(rows[0].keys())
+    # Support Row objects (Spark collect) and dicts (tracking table)
+    if hasattr(rows[0], "__fields__"):
+        columns = list(rows[0].__fields__)
+        params = [tuple(row) for row in rows]          # no asDict() overhead
+    else:
+        columns = list(rows[0].keys())
+        params = [tuple(row[c] for c in columns) for row in rows]
+
     col_names = ", ".join(f"[{c}]" for c in columns)
     placeholders = ", ".join(["%s"] * len(columns))
     sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})"
-
-    params = []
-    for row in rows:
-        params.append(tuple(row[c] for c in columns))
 
     with conn.cursor() as cursor:
         cursor.executemany(sql, params)
@@ -205,26 +214,33 @@ def export_to_azure_sql(spark, server, database, username, password):
             when(col("is_crawler") == "true", lit(1)).otherwise(lit(0)),
         )
 
-        total_rows = export_df.count()
-        print(f"Silver table contains {total_rows} rows to consider for export")
-
         # ── Load already-exported files ───────────────────────────────
         loaded_files = get_loaded_source_files(conn)
 
-        # ── Collect into Python dicts (pymssql-compatible) ────────────
-        all_rows = [row.asDict() for row in export_df.collect()]
-        print(f"Collected {len(all_rows)} rows from Silver into memory")
+        # ── Filter in Spark before collecting to driver ──────────────
+        if loaded_files:
+            new_data_df = export_df.filter(
+                ~col("source_file").isin(list(loaded_files))
+            )
+        else:
+            new_data_df = export_df
 
-        # ── Filter to new (unloaded) source files ─────────────────────
-        new_rows = [r for r in all_rows if r["source_file"] not in loaded_files]
+        # Collect all rows (avoids cache() — unsupported on serverless)
+        new_rows = new_data_df.collect()
+        new_row_count = len(new_rows)
 
-        if not new_rows:
+        if new_row_count == 0:
             print("No new source files to export — Silver is up-to-date")
             return
 
-        new_source_files = set(r["source_file"] for r in new_rows)
         print(
-            f"Exporting {len(new_rows)} rows from "
+            f"Exporting {new_row_count} rows "
+            f"({len(loaded_files)} files already loaded)"
+        )
+        new_source_files = set(row.source_file for row in new_rows)
+
+        print(
+            f"Collected {len(new_rows)} rows from "
             f"{len(new_source_files)} new source file(s)"
         )
 
@@ -235,7 +251,7 @@ def export_to_azure_sql(spark, server, database, username, password):
             count = insert_batch(conn, batch, "dbo.raw_enriched")
             inserted += count
             if (i // BATCH_SIZE) % 5 == 0 or i + BATCH_SIZE >= len(new_rows):
-                print(f"  Inserted {inserted}/{len(new_rows)} rows...")
+                print(f"  Inserted {inserted}/{new_row_count} rows...")
 
         print(f"Successfully exported {inserted} rows to dbo.raw_enriched")
 
