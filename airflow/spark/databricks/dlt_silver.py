@@ -9,6 +9,7 @@ from pyspark.sql.types import BooleanType, FloatType, StringType, StructField, S
 _HAS_MAXMINDDB = False
 try:
     import maxminddb  # noqa: F401
+
     _HAS_MAXMINDDB = True
 except ImportError:
     print("WARNING: maxminddb not available. Geo fields will be NULL.")
@@ -55,6 +56,7 @@ def _ensure_geo_reader():
             return
         try:
             import maxminddb
+
             _geo_reader = maxminddb.open_database(_GEO_CITY_DB_PATH)
         except Exception as e:
             print(f"WARNING: GeoLite2-City database could not be loaded: {e}")
@@ -71,6 +73,7 @@ def _ensure_asn_reader():
             return
         try:
             import maxminddb
+
             _asn_reader = maxminddb.open_database(_GEO_ASN_DB_PATH)
         except Exception as e:
             print(f"WARNING: GeoLite2-ASN database could not be loaded: {e}")
