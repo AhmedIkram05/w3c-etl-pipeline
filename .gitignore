@@ -52,6 +52,4 @@ airflow/spark/delta/*
 # Pre-commit
 .pre-commit-cache/
 
-# uv local cache
-.uv-cache/
 utils.zip
