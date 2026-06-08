@@ -26,6 +26,8 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
+
+pytest.importorskip("pyspark")
 from pyspark.sql import Row
 
 # ── Mock the ``dlt`` module (not available outside Databricks) ────────
