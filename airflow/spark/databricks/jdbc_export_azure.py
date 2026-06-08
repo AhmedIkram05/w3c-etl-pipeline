@@ -37,13 +37,37 @@ from pyspark.sql.functions import col, lit, when
 
 # ── Exact column list from specification ─────────────────────────────────
 EXPORT_COLUMNS = [
-    "log_date", "log_time", "server_ip", "method", "uri_stem",
-    "uri_query", "client_ip", "user_agent", "cookie", "referrer",
-    "status", "sub_status", "win32_status", "bytes_sent", "bytes_recv",
-    "server_port", "username", "time_taken", "source_file",
-    "postcode", "page_category", "referrer_domain", "traffic_type",
-    "is_crawler", "size_band",
-    "country", "region", "city", "latitude", "longitude", "isp",
+    "log_date",
+    "log_time",
+    "server_ip",
+    "method",
+    "uri_stem",
+    "uri_query",
+    "client_ip",
+    "user_agent",
+    "cookie",
+    "referrer",
+    "status",
+    "sub_status",
+    "win32_status",
+    "bytes_sent",
+    "bytes_recv",
+    "server_port",
+    "username",
+    "time_taken",
+    "source_file",
+    "postcode",
+    "page_category",
+    "referrer_domain",
+    "traffic_type",
+    "is_crawler",
+    "size_band",
+    "country",
+    "region",
+    "city",
+    "latitude",
+    "longitude",
+    "isp",
 ]
 
 RAW_ENRICHED_DDL = """
@@ -114,10 +138,7 @@ def _connect(server, database, username, password, timeout=30):
         except pymssql.OperationalError as e:
             last_error = e
             err_str = str(e)
-            if (
-                "not currently available" in err_str
-                or "timeout" in err_str.lower()
-            ) and attempt < RETRY_ATTEMPTS - 1:
+            if ("not currently available" in err_str or "timeout" in err_str.lower()) and attempt < RETRY_ATTEMPTS - 1:
                 backoff = 15 * (2**attempt)
                 print(
                     f"Connection not available (attempt {attempt + 1}), "
@@ -130,9 +151,7 @@ def _connect(server, database, username, password, timeout=30):
             last_error = e
             break
 
-    raise RuntimeError(
-        f"Cannot connect to Azure SQL after {RETRY_ATTEMPTS} attempts: {last_error}"
-    ) from last_error
+    raise RuntimeError(f"Cannot connect to Azure SQL after {RETRY_ATTEMPTS} attempts: {last_error}") from last_error
 
 
 def execute_ddl(conn, ddl_statement):
@@ -176,7 +195,7 @@ def insert_batch(conn, rows, table):
     # Support Row objects (Spark collect) and dicts (tracking table)
     if hasattr(rows[0], "__fields__"):
         columns = list(rows[0].__fields__)
-        params = [tuple(row) for row in rows]          # no asDict() overhead
+        params = [tuple(row) for row in rows]  # no asDict() overhead
     else:
         columns = list(rows[0].keys())
         params = [tuple(row[c] for c in columns) for row in rows]
@@ -201,9 +220,7 @@ def export_to_azure_sql(spark, server, database, username, password):
         ensure_tables_exist(conn)
 
         # ── Read from Silver via Unity Catalog ────────────────────────
-        silver_df = spark.table(
-            "w3c_etl_databricks.silver.silver_enriched_logs"
-        )
+        silver_df = spark.table("w3c_etl_databricks.silver.silver_enriched_logs")
 
         # Select and prepare export columns
         export_df = silver_df.select(EXPORT_COLUMNS)
@@ -219,9 +236,7 @@ def export_to_azure_sql(spark, server, database, username, password):
 
         # ── Filter in Spark before collecting to driver ──────────────
         if loaded_files:
-            new_data_df = export_df.filter(
-                ~col("source_file").isin(list(loaded_files))
-            )
+            new_data_df = export_df.filter(~col("source_file").isin(list(loaded_files)))
         else:
             new_data_df = export_df
 
@@ -233,16 +248,10 @@ def export_to_azure_sql(spark, server, database, username, password):
             print("No new source files to export — Silver is up-to-date")
             return
 
-        print(
-            f"Exporting {new_row_count} rows "
-            f"({len(loaded_files)} files already loaded)"
-        )
+        print(f"Exporting {new_row_count} rows ({len(loaded_files)} files already loaded)")
         new_source_files = set(row.source_file for row in new_rows)
 
-        print(
-            f"Collected {len(new_rows)} rows from "
-            f"{len(new_source_files)} new source file(s)"
-        )
+        print(f"Collected {len(new_rows)} rows from {len(new_source_files)} new source file(s)")
 
         # ── Batch INSERT into dbo.raw_enriched ───────────────────────
         inserted = 0
@@ -256,15 +265,9 @@ def export_to_azure_sql(spark, server, database, username, password):
         print(f"Successfully exported {inserted} rows to dbo.raw_enriched")
 
         # ── Update tracking table ────────────────────────────────────
-        tracking_rows = [
-            {"source_file": sf} for sf in sorted(new_source_files)
-        ]
-        inserted_tracking = insert_batch(
-            conn, tracking_rows, "dbo.raw_enriched_loaded"
-        )
-        print(
-            f"Updated tracking table with {inserted_tracking} new source file(s)"
-        )
+        tracking_rows = [{"source_file": sf} for sf in sorted(new_source_files)]
+        inserted_tracking = insert_batch(conn, tracking_rows, "dbo.raw_enriched_loaded")
+        print(f"Updated tracking table with {inserted_tracking} new source file(s)")
 
     finally:
         conn.close()
@@ -273,9 +276,7 @@ def export_to_azure_sql(spark, server, database, username, password):
 
 def main():
     """Main entry point for Databricks serverless notebook."""
-    spark = SparkSession.builder \
-        .appName("JDBC Export to Azure SQL") \
-        .getOrCreate()
+    spark = SparkSession.builder.appName("JDBC Export to Azure SQL").getOrCreate()
 
     try:
         # Retrieve credentials from Databricks secrets
@@ -284,18 +285,10 @@ def main():
         dbutils = DBUtils(spark)
         secrets_scope = "w3c-etl-pipeline"
 
-        server = dbutils.secrets.get(
-            scope=secrets_scope, key="azure.sql.server"
-        )
-        database = dbutils.secrets.get(
-            scope=secrets_scope, key="azure.sql.database"
-        )
-        username = dbutils.secrets.get(
-            scope=secrets_scope, key="azure.sql.username"
-        )
-        password = dbutils.secrets.get(
-            scope=secrets_scope, key="azure.sql.password"
-        )
+        server = dbutils.secrets.get(scope=secrets_scope, key="azure.sql.server")
+        database = dbutils.secrets.get(scope=secrets_scope, key="azure.sql.database")
+        username = dbutils.secrets.get(scope=secrets_scope, key="azure.sql.username")
+        password = dbutils.secrets.get(scope=secrets_scope, key="azure.sql.password")
 
         print(f"Server: {server}")
         print(f"Database: {database}")
