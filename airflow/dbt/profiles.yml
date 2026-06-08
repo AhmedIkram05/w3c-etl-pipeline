@@ -41,7 +41,7 @@ w3c_azure:
       user: "{{ env_var('AZURE_SQL_USER') }}"
       password: "{{ env_var('AZURE_SQL_PASSWORD') }}"
       encrypt: true
-      trust_cert: false
+      trust_cert: true
       authentication: sql
       threads: 4
       retries: 3
