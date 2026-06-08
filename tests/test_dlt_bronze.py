@@ -26,6 +26,9 @@ from datetime import date
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
+import pytest
+
+pytest.importorskip("pyspark")
 from pyspark.sql import Row
 from pyspark.sql.functions import col
 

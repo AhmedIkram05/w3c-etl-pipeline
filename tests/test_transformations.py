@@ -6,6 +6,9 @@ testing capabilities where needed, and direct function invocation
 for pure-logic helpers.
 """
 
+import pytest
+
+pytest.importorskip("pyspark")
 from pyspark.sql import Row
 
 # ══════════════════════════════════════════════════════════════════════

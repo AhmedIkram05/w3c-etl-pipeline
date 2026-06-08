@@ -39,6 +39,7 @@ if _DAGS_DIR not in sys.path:
 
 @pytest.fixture(scope="session")
 def spark():
+    pytest.importorskip("pyspark")
     from pyspark.sql import SparkSession
 
     """Create a shared local SparkSession for the test session.
