@@ -1,7 +1,7 @@
 # Azure Cloud-Native Single-Pipeline ETL Platform Implementation Plan
 
 **Version:** v2.5
-**Status:** Phase 5 Complete --> Begin Phase 6
+**Status:** Phase 6 In Progress
 **Budget:** $149 Azure credit cap
 **CV Impact:** High - demonstrates cloud-native DE, Databricks DLT, Unity Catalog, dbt, Azure SQL, and end-to-end data platform ownership
 **Target Roles:** Data Engineer, Cloud Data Engineer, Data Platform Engineer
@@ -1007,7 +1007,7 @@ databricks jobs submit --json '{
 
 
 
-### Phase 6 — Databricks Workflows + Terraform Part B
+### Phase 6 — Databricks Workflows + Terraform Part B - In Progress
 
 **Phase Goal:** Deploy Databricks Workflows orchestration with Bronze, Silver, and JDBC export tasks using Terraform Part B.
 
