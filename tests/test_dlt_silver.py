@@ -282,7 +282,7 @@ class TestGeoLookup:
     """Verify the consolidated ``_geo_lookup`` returns 6 fields in 1 call."""
 
     def _setup_mock(self, monkeypatch, mock_response=None):
-        """Patch geoip2.database.Reader and reset globals."""
+        """Patch maxminddb reader and reset globals."""
 
         monkeypatch.setattr(_silver_mod, "_geo_reader", None)
         monkeypatch.setattr(_silver_mod, "_geo_init_attempted", False)
@@ -290,7 +290,7 @@ class TestGeoLookup:
         if mock_response is None:
             mock_response = _MockCityResponse()
 
-        mock_reader = type("MockReader", (), {"city": lambda self, ip: mock_response})()
+        mock_reader = type("MockReader", (), {"get": lambda self, ip: mock_response})()
         monkeypatch.setattr(_silver_mod, "_geo_reader", mock_reader)
         return mock_reader
 
@@ -325,14 +325,12 @@ class TestGeoLookup:
 
     def test_address_not_found_returns_none(self, monkeypatch):
         """AddressNotFoundError is caught and returns None."""
-        import geoip2.errors
-
         self._setup_mock(monkeypatch)
-        # Replace reader with one that raises AddressNotFoundError
+        # Replace reader with one that raises an exception on lookup
         error_reader = type(
             "MockReader",
             (),
-            {"city": lambda self, ip: (_ for _ in ()).throw(geoip2.errors.AddressNotFoundError("not found"))},
+            {"get": lambda self, ip: (_ for _ in ()).throw(ValueError("address not found"))},
         )()
         monkeypatch.setattr(_silver_mod, "_geo_reader", error_reader)
         result = _geo_lookup("1.2.3.4")
@@ -347,8 +345,8 @@ class TestAsnLookup:
         monkeypatch.setattr(_silver_mod, "_asn_reader", None)
         monkeypatch.setattr(_silver_mod, "_asn_init_attempted", False)
 
-        mock_response = type("MockASNResponse", (), {"autonomous_system_organization": asn_org})()
-        mock_reader = type("MockASNReader", (), {"asn": lambda self, ip: mock_response})()
+        mock_response = {"autonomous_system_organization": asn_org}
+        mock_reader = type("MockASNReader", (), {"get": lambda self, ip: mock_response})()
         monkeypatch.setattr(_silver_mod, "_asn_reader", mock_reader)
 
     def test_public_ip_returns_org(self, monkeypatch):
@@ -365,13 +363,11 @@ class TestAsnLookup:
         assert _asn_lookup("8.8.8.8") is None
 
     def test_address_not_found_returns_none(self, monkeypatch):
-        import geoip2.errors
-
         self._setup_mock(monkeypatch)
         error_reader = type(
             "MockASNReader",
             (),
-            {"asn": lambda self, ip: (_ for _ in ()).throw(geoip2.errors.AddressNotFoundError("not found"))},
+            {"get": lambda self, ip: (_ for _ in ()).throw(ValueError("address not found"))},
         )()
         monkeypatch.setattr(_silver_mod, "_asn_reader", error_reader)
         assert _asn_lookup("1.2.3.4") is None
@@ -991,44 +987,14 @@ class TestSilverTableProperties:
 # ══════════════════════════════════════════════════════════════════════
 
 
-class _MockCityResponse:
-    """Simulates a ``geoip2.models.City`` response for testing."""
-
-    class _Location:
-        latitude = 37.386
-        longitude = -122.084
-
-    class _Country:
-        class _Names:
-            def __init__(self):
-                self.name = "United States"
-
-        def __init__(self):
-            self.names = self._names = self._Names()
-            self.name = "United States"
-
-    class _Subdivisions:
-        class _MostSpecific:
-            name = "California"
-
-        def __init__(self):
-            self.most_specific = self._MostSpecific()
-
-    class _City:
-        class _Names:
-            def __init__(self):
-                self.name = "Mountain View"
-
-        def __init__(self):
-            self.name = "Mountain View"
-            self.names = self._Names()
-
-    class _Postal:
-        code = "94043"
+class _MockCityResponse(dict):
+    """Simulates a ``maxminddb`` city DB response (raw dict) for testing."""
 
     def __init__(self):
-        self.location = self._Location()
-        self.country = self._Country()
-        self.subdivisions = self._Subdivisions()
-        self.city = self._City()
-        self.postal = self._Postal()
+        super().__init__({
+            "country": {"names": {"en": "United States"}},
+            "subdivisions": [{"names": {"en": "California"}}],
+            "city": {"names": {"en": "Mountain View"}},
+            "location": {"latitude": 37.386, "longitude": -122.084},
+            "postal": {"code": "94043"},
+        })
