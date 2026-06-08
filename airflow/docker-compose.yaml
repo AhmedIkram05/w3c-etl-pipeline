@@ -79,6 +79,15 @@ x-airflow-common:
     # The URL is sourced from SPARK_MASTER_URL in the .env file.
     AIRFLOW_CONN_SPARK_DEFAULT: '{"conn_type": "spark", "host": "${SPARK_MASTER_URL}"}'
 
+    # ── Azure SQL connection (for dimension export in spark_ingestion_azure) ──
+    AZURE_SQL_SERVER: ${AZURE_SQL_SERVER}
+    AZURE_SQL_DATABASE: ${AZURE_SQL_DATABASE}
+    AZURE_SQL_USER: ${AZURE_SQL_USER}
+    AZURE_SQL_PASS: ${AZURE_SQL_PASS}
+
+    # ── Databricks Workflow job ID ──
+    DATABRICKS_JOB_ID: ${DATABRICKS_JOB_ID}
+
     # ── W3C Warehouse connection (defaults target local Docker PostgreSQL) ──
     # To use AWS RDS, uncomment and fill in the W3C_* variables in the .env file.
     # DO NOT hardcode AWS credentials here in the YAML file.
