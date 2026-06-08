@@ -63,16 +63,25 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "dbtCI_P@ssword123!"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'dbtCI_P@ssword123!' -C -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 30s
     env:
       W3C_DB_HOST: localhost
       W3C_DB_PORT: "5432"
       W3C_DB_NAME: w3c_warehouse
       W3C_DB_USER: airflow
       W3C_DB_PASS: airflow
-      AZURE_SQL_SERVER: sql-w3c-etl
-      AZURE_SQL_DB: w3c-etl-db
-      AZURE_SQL_USER: sqladmin
-      AZURE_SQL_PASSWORD: ${{ secrets.AZURE_SQL_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -101,6 +110,19 @@ jobs:
           # Remove pre-existing Microsoft repo config to avoid Signed-By conflicts
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
           sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 mssql-tools18
+      - name: Create database in local SQL Server
+        run: |
+          /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost \
+            -U sa \
+            -P 'dbtCI_P@ssword123!' \
+            -C \
+            -Q 'CREATE DATABASE [w3c-etl-db]'
       - name: dbt compile (Azure SQL/T-SQL validation)
+        env:
+          AZURE_SQL_SERVER: localhost
+          AZURE_SQL_DB: w3c-etl-db
+          AZURE_SQL_USER: sa
+          AZURE_SQL_PASSWORD: "dbtCI_P@ssword123!"
         run: dbt compile --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3c_azure --target azure_sql_ci
