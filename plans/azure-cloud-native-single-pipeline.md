@@ -988,7 +988,7 @@ def get_error_code(exception):
     except:
         return None
 
-def export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password):
+def export_to_azure_sql(spark, silver_df, jdbc_url, username, password):
     """Export Silver data to Azure SQL with idempotency tracking."""
 
     # Pre-check: load JDBC driver
@@ -1019,10 +1019,7 @@ def export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password):
                     print(f"DDL failed after {max_attempts} attempts: {str(e)}")
                     raise
 
-    # Read from Silver table
-    silver_df = spark.read.format("delta").load(silver_table_path)
-
-    # Select export columns
+    # Select export columns from Silver DataFrame
     export_df = silver_df.select(EXPORT_COLUMNS)
 
     # Cast is_crawler from string to BIT (Azure SQL expects 0/1)
@@ -1115,22 +1112,35 @@ def export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password):
 
     print(f"Successfully updated tracking table with {len(new_file_list)} files")
 
-# Main execution
-if __name__ == "__main__":
+def main():
+    """Main entry point for Databricks spark_python_task."""
+    from pyspark.sql import SparkSession
+
     spark = SparkSession.builder.appName("JDBC Export to Azure SQL").getOrCreate()
 
-    # Configuration from Databricks secrets
-    jdbc_url = f"jdbc:sqlserver://{spark.conf.get('azure.sql.server')}:1433;database={spark.conf.get('azure.sql.database')};encrypt=true;trustServerCertificate=false"
-    username = spark.conf.get("azure.sql.username")
-    password = spark.conf.get("azure.sql.password")
+    try:
+        # Use dbutils.secrets.get() via DBUtils(spark) for spark_python_task
+        # spark.conf.get() cannot resolve {{secrets/...}} placeholders in spark_python_task
+        from pyspark.dbutils import DBUtils
+        dbutils = DBUtils(spark)
 
-    # Silver table path
-    silver_table_path = spark.conf.get("silver.table.path", "dbfs:/mnt/w3c-data/silver")
+        jdbc_url = f"jdbc:sqlserver://{dbutils.secrets.get(scope='w3c-etl-pipeline', key='azure.sql.server')}:1433;database={dbutils.secrets.get(scope='w3c-etl-pipeline', key='azure.sql.database')};encrypt=true;trustServerCertificate=false"
+        username = dbutils.secrets.get(scope='w3c-etl-pipeline', key='azure.sql.username')
+        password = dbutils.secrets.get(scope='w3c-etl-pipeline', key='azure.sql.password')
 
-    # Execute export
-    export_to_azure_sql(spark, silver_table_path, jdbc_url, username, password)
+        # Read from Silver via Unity Catalog (NOT a DBFS path)
+        # Unity Catalog managed tables don't have a file path - use spark.table()
+        silver_df = spark.table("w3c_etl_databricks.silver.silver_enriched_logs")
 
-    spark.stop()
+        # Execute export
+        export_to_azure_sql(spark, silver_df, jdbc_url, username, password)
+
+    finally:
+        spark.stop()
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 **Maven library configuration (to be added in Terraform Part B):**
@@ -1160,6 +1170,8 @@ maven_libraries = [
 - Data exported successfully to Azure SQL
 - Tracking table updated with source files
 - Idempotency verified (re-run doesn't duplicate data)
+- Uses `dbutils.secrets.get()` via `DBUtils(spark)` for secrets (NOT `spark.conf.get()`)
+- Reads Silver via Unity Catalog: `spark.table("w3c_etl_databricks.silver.silver_enriched_logs")` (NOT DBFS path)
 
 **Phase Handoff Validation:**
 
@@ -1209,10 +1221,10 @@ conn.close()
 - [ ] Create Databricks job resource with 3 tasks
 - [ ] Configure Task 1: DLT Bronze pipeline
 - [ ] Configure Task 2: DLT Silver pipeline
-- [ ] Configure Task 3: JDBC export Python task
+- [ ] Configure Task 3: JDBC export Python task (spark_python_task with dbutils.secrets.get())
 - [ ] Add cluster configuration (Standard_DS3_v2, 1-2 workers)
-- [ ] Add PyPI library: geoip2==5.0.1
-- [ ] Add Maven library: mssql-jdbc
+- [ ] Add PyPI library: maxminddb==2.8.* (on Silver pipeline as environment dependency)
+- [ ] Add Maven library: mssql-jdbc (on job cluster for JDBC export)
 - [ ] Configure lifecycle ignore_changes for dev flexibility
 - [ ] Run terraform init in Part B directory
 - [ ] Run terraform providers lock
@@ -1282,14 +1294,14 @@ resource "databricks_pipeline" "silver" {
 
   libraries {
     pypi {
-      package = "geoip2==5.0.1"
+      package = "maxminddb==2.8.*"
     }
   }
 
   configuration = {
     "storage.account_name"           = var.storage_account_name
-    "geoip.city_db_path"             = "/dbfs/Volumes/w3c_etl_databricks/bronze/w3c_data/GeoLite2-City.mmdb"
-    "geoip.asn_db_path"              = "/dbfs/Volumes/w3c_etl_databricks/bronze/w3c_data/GeoLite2-ASN.mmdb"
+    "geoip.city_db_path"             = "/Volumes/w3c_etl_databricks/bronze/w3c_data/GeoLite2-City.mmdb"
+    "geoip.asn_db_path"              = "/Volumes/w3c_etl_databricks/bronze/w3c_data/GeoLite2-ASN.mmdb"
   }
 }
 
@@ -1325,13 +1337,10 @@ resource "databricks_job" "w3c_etl_workflow" {
   workflow_tasks {
     task_key {
       description = "JDBC Export to Azure SQL"
-      notebook_task {
-        notebook_path = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/jdbc_export_azure.py"
-        base_parameters = {
-          "azure.sql.server"   = var.azure_sql_server
-          "azure.sql.database" = var.azure_sql_database
-          "silver.table.path"  = "dbfs:/mnt/w3c-data/silver"
-        }
+      spark_python_task {
+        python_file = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/jdbc_export_azure.py"
+        # No base_parameters needed - secrets retrieved via dbutils.secrets.get() in the script
+        # Silver table read uses spark.table("w3c_etl_databricks.silver.silver_enriched_logs") directly
       }
     }
     depends_on {
@@ -1349,11 +1358,6 @@ resource "databricks_job" "w3c_etl_workflow" {
         max_workers = 2
       }
       data_security_mode = "SINGLE_USER"
-      custom_library {
-        pypi {
-          package = "geoip2==5.0.1"
-        }
-      }
       custom_library {
         maven {
           coordinates = "com.microsoft.sqlserver:mssql-jdbc:12.6.1.jre11"
@@ -1439,12 +1443,14 @@ azure_sql_database  = "w3c-etl-db"
 
 - Terraform Part B directory structure created
 - Bronze DLT pipeline resource configured (serverless: true, no cluster block)
-- Silver DLT pipeline resource configured (serverless: true, no cluster block, geoip2 PyPI library)
+- Silver DLT pipeline resource configured (serverless: true, no cluster block, maxminddb==2.8.* as pipeline environment dependency)
 - Databricks Workflow job resource configured with 3 tasks
 - Task dependencies: Bronze → Silver → JDBC Export
 - Job cluster: Standard_DS3_v2, 1-2 workers (for JDBC export Python task)
-- PyPI library: geoip2==5.0.1 (on Silver pipeline + job cluster)
+- PyPI library: maxminddb==2.8.* (on Silver pipeline as environment dependency; NOT on job cluster)
 - Maven library: mssql-jdbc (on job cluster for JDBC export)
+- JDBC export task uses spark_python_task (not notebook_task) with secrets via dbutils.secrets.get()
+- Silver table read uses Unity Catalog path: spark.table("w3c_etl_databricks.silver.silver_enriched_logs")
 - Terraform init, validate, plan, apply successful
 - Databricks Workflow visible in workspace
 - Workflow run tested with sample data
