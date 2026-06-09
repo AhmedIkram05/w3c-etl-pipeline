@@ -1,7 +1,7 @@
 # Azure Cloud-Native Single-Pipeline ETL Platform Implementation Plan
 
-**Version:** v2.5
-**Status:** Phase 5 Complete --> Begin Phase 6
+**Version:** v2.8
+**Status:** Phase 7 Complete — Phase 8 Not Started
 **Budget:** $149 Azure credit cap
 **CV Impact:** High - demonstrates cloud-native DE, Databricks DLT, Unity Catalog, dbt, Azure SQL, and end-to-end data platform ownership
 **Target Roles:** Data Engineer, Cloud Data Engineer, Data Platform Engineer
@@ -47,21 +47,21 @@ DLT Silver Pipeline (dlt_silver.py)
   - @dlt.expect_or_drop quality rules
       │
       ▼
-JDBC Export (jdbc_export_azure.py — Databricks Python task)
+JDBC Export (jdbc_export_azure.py — Databricks notebook_task on serverless)
   - Reads directly from Silver (no Gold table)
-  - Tracking table for idempotency (SQL Server error 208 handling via error-code extraction)
-  - Writes to Azure SQL dbo.raw_enriched
-  - mssql-jdbc Maven library on cluster
+  - Tracking table for idempotency (IF OBJECT_ID DDL guards)
+  - Writes to Azure SQL dbo.raw_enriched via pymssql (not JDBC driver — serverless limitation)
+  - Retry logic with exponential backoff for Azure SQL auto-resume
       │
       ▼
 Azure SQL Database (dbo.raw_enriched)
       │
       ▼
-Airflow export_dimensions_azure operator
+spark_ingestion_azure.py DAG — export_dimensions task (PythonOperator)
   - Reads from Azure SQL dbo.raw_enriched
-  - Builds dim_geolocation + dim_useragent
-  - Writes to Azure SQL dbo. (MERGE upsert on natural key)
-  - Fires Airflow Dataset outlet for dbt DAG trigger
+  - Builds dim_geolocation (MERGE upsert on geo_hash)
+  - Builds dim_useragent (MERGE upsert on ua_hash)
+  - Fires Dataset outlet (mssql://azure-sql/dbo/raw_enriched_loaded) for dbt DAG
       │
       ▼
 dbt (w3c_azure profile → Azure SQL target)
@@ -78,17 +78,26 @@ Power BI (18 CSV files under airflow/data/Star-Schema/)
 
 ```
 Airflow (Docker container)
-  └─ spark_ingestion_azure.py DAG
-       └─ DatabricksRunNowOperator → Databricks Workflows
-            ├─ Task 1: DLT Bronze pipeline
-            ├─ Task 2: DLT Silver pipeline
-            └─ Task 3: jdbc_export_azure.py (Python task)
-  └─ dbt_marts_azure.py DAG (Dataset-triggered after export_dimensions_azure fires)
-       ├─ export_dimensions_azure operator (PythonOperator)
-       └─ DatabricksSubmitRunOperator running dbt against Azure SQL
-            ├─ dbt run --profile w3c_azure
-            ├─ dbt test --profile w3c_azure
-            └─ dbt docs generate --profile w3c_azure
+
+  DAG 1: spark_ingestion_azure.py (Daily 2 AM UTC — schedule: "0 2 * * *")
+    │
+    ├─ Task 1: bronze_silver_jdbc_pipeline
+    │    └─ DatabricksRunNowOperator → Databricks Workflows (job_id: 847995192336508)
+    │         ├─ Task 1: DLT Bronze pipeline (pipeline_task → w3c_etl_databricks.bronze.bronze_raw_logs)
+    │         ├─ Task 2: DLT Silver pipeline (pipeline_task → w3c_etl_databricks.silver.silver_enriched_logs)
+    │         └─ Task 3: jdbc_export_azure.py (notebook_task → dbo.raw_enriched via pymssql)
+    │
+    └─ Task 2: export_dimensions (depends on Task 1)
+         └─ PythonOperator (inline _export_dimensions callable)
+              ├─ Builds dbo.dim_geolocation (MERGE upsert on geo_hash)
+              ├─ Builds dbo.dim_useragent (MERGE upsert on ua_hash)
+              └─ Fires Dataset: mssql://azure-sql/dbo/raw_enriched_loaded
+
+  DAG 2: dbt_marts_azure.py (Dataset-triggered by spark_ingestion_azure's outlet)
+    └─ DatabricksSubmitRunOperator running dbt against Azure SQL
+         ├─ dbt run --profile w3c_azure
+         ├─ dbt test --profile w3c_azure
+         └─ dbt docs generate --profile w3c_azure
 ```
 
 ### Docker Role (Development Only)
@@ -223,7 +232,7 @@ Docker is NOT a production data platform.
 ### Infrastructure Constraints
 
 - **Terraform Part A/Part B split:** Part A (core infra) must complete before Part B (DLT pipeline + Workflows) because Part B resources depend on DLT source code existing first.
-- **Provider versions pinned:** `azurerm ~> 4.75.0`, `databricks ~> 1.70`, Terraform `>= 1.10.5, < 2.0`
+- **Provider versions pinned:** `azurerm ~> 4.75.0`, `databricks ~> 1.115`, Terraform `>= 1.10.5, < 2.0`
 - **ADLS Gen2 containers:** `raw-logs`, `bronze`, `silver`, `gold` (fixed naming)
 - **Azure SQL Serverless:** `GP_S_Gen5`, 1 vCore, auto-pause 60 min (cost optimization)
 - **Databricks Premium tier:** Required for Unity Catalog
@@ -292,11 +301,14 @@ Docker is NOT a production data platform.
 
 ### Airflow DAG Constraints
 
-- **DAG 1:** `spark_ingestion_azure.py`: triggers Databricks Workflow via `DatabricksRunNowOperator`
-- **DAG 2:** `dbt_marts_azure.py`: Dataset-triggered; runs dbt against Azure SQL target
+- **DAG 1:** `spark_ingestion_azure.py` (Daily 2 AM UTC): orchestrates entire ETL with 2 sequential tasks:
+  - Task 1: `bronze_silver_jdbc_pipeline` — `DatabricksRunNowOperator` triggers Databricks Workflow (job ID from `DATABRICKS_JOB_ID` env var)
+  - Task 2: `export_dimensions` — `PythonOperator` with inline `_export_dimensions` callable; builds `dim_geolocation` + `dim_useragent` from Azure SQL via pyodbc MERGE upsert; fires `Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")` outlet for downstream dbt DAG
+- **DAG 2:** `dbt_marts_azure.py`: Dataset-triggered; runs dbt against Azure SQL target (not yet implemented)
+- **No standalone operator file:** Dimension export logic is inlined in `spark_ingestion_azure.py` as `_export_dimensions()` — no separate `airflow/dags/operators/` directory needed. The existing `airflow/dags/w3c/` directory hosts all DAG files.
 - **Provider version:** `apache-airflow-providers-databricks==4.6.0` installed in Dockerfile (NOT in requirements.txt — avoid pip conflict)
 - **Databricks connection:** `databricks_default` in Airflow with workspace URL + PAT token
-- **Environment variables:** `DATABRICKS_WORKFLOW_ID`, `AZURE_SQL_SERVER`, `AZURE_SQL_DB`, `AZURE_SQL_USER`, `AZURE_SQL_PASSWORD`
+- **Environment variables:** `DATABRICKS_JOB_ID` (default: `847995192336508`), `AZURE_SQL_SERVER`, `AZURE_SQL_DATABASE`, `AZURE_SQL_USER`, `AZURE_SQL_PASS`
 
 ### dbt T-SQL Migration Constraints
 
@@ -452,61 +464,9 @@ CREATE TABLE dbo.raw_enriched_loaded (
 
 **Phase Goal:** Set up all required accounts, CLI tools, credentials, and bootstrap infrastructure before beginning Terraform deployment.
 
-**Summary:** All prerequisite setup completed. Azure service principal (`w3c-etl-pipeline-sp`) created with Contributor role. Terraform remote state backend bootstrapped (`rg-tfstate` resource group, storage account with `tfstate` container). MaxMind GeoLite2 databases downloaded to `data/geoip/`. Backend configuration files created for both Part A and Part B. Shared credential documentation created in `docs/credentials.md`.
+**Summary:** All prerequisite setup completed. Azure service principal (`w3c-etl-pipeline-sp`) created with Contributor role. Terraform remote state backend bootstrapped (`rg-tfstate` resource group, storage account with `tfstate` container). MaxMind GeoLite2 databases downloaded to `data/geoip/`. Backend configuration files created for both Part A and Part B. Shared credential documentation created in `docs/credentials.md`. Sample log files (14-field and 18-field variants) later superseded by 93 real log files from `airflow/data/LogFiles/` in Phase 3.
 
-**Checklist:**
-
-- [x] Azure account with active subscription and $100+ available credit
-- [x] Create Azure service principal for Terraform backend + Tier 2 CI access
-- [x] Install Azure CLI
-- [x] Install Terraform
-- [x] Install Databricks CLI v1+
-- [x] Sign up for MaxMind GeoLite2 account (free tier)
-- [x] Bootstrap Terraform remote state backend (manual, pre-Phase-1 step)
-- [x] Configure Terraform backend in `terraform/part_a/backend.tf`
-- [x] Configure Terraform backend in `terraform/part_b/backend.tf`
-- [x] Store Azure credentials as environment variables
-- [x] Document shared credential usage in `docs/credentials.md`
-
-**Acceptance Criteria:**
-
-| # | Criteria | Status |
-|---|----------|--------|
-| 1 | Azure CLI installed and authenticated (`az login` successful) | ✅ Done |
-| 2 | Terraform installed and version >= 1.10.5 | ✅ Done |
-| 3 | Databricks CLI v1+ installed | ✅ Done |
-| 4 | MaxMind GeoLite2 databases downloaded to `data/geoip/` | ✅ Done|
-| 5 | Terraform remote state storage account and container created | ✅ Done |
-| 6 | Backend configuration files created in Part A and Part B directories | ✅ Done |
-| 7 | Service principal created with Contributor role | ✅ Done |
-| 8 | `.env.azure` file created with ARM_* credentials | ✅ Done |
-| 9 | Credentials documentation created | ✅ Done |
-| 10 | `.gitignore` updated with env/tfstate/geoip patterns | ✅ Done |
-| 11 | Sample log files: 14-field and 18-field variants in `data/samples/` (later replaced by 93 real log files from `airflow/data/LogFiles/` — see Phase 3) | ✅ Done (superseded) |
-
-**Phase Handoff Validation:**
-
-```bash
-# Verify Azure CLI
-az account show --query name -o tsv
-
-# Verify Terraform
-terraform --version
-
-# Verify Databricks CLI
-databricks --version
-
-# Verify MaxMind files
-ls -la data/geoip/GeoLite2-*.mmdb
-
-# Verify backend files exist
-cat terraform/part_a/backend.tf
-cat terraform/part_b/backend.tf
-
-# Verify env vars
-source .env.azure
-echo $ARM_CLIENT_ID
-```
+**Verified State:** Azure CLI authenticated, Terraform >= 1.10.5 installed, Databricks CLI v1+ installed, GeoLite2 databases present, remote state backend created, `.env.azure` with ARM_* credentials, `.gitignore` updated with env/tfstate/geoip patterns.
 
 ---
 
@@ -514,49 +474,9 @@ echo $ARM_CLIENT_ID
 
 **Phase Goal:** Deploy core Azure infrastructure (resource groups, networking, storage, Databricks workspace, Azure SQL) using Terraform Part A.
 
-**Summary:** All core Azure infrastructure deployed in `westus3`. Resources include: resource group `rg-w3c-etl`, VNet with 2 subnets (Databricks-delegated + SQL), ADLS Gen2 storage account `stw3cetlwestus3` with 4 containers (`raw-logs`, `bronze`, `silver`, `gold`), Databricks Premium workspace `w3c-etl-databricks`, and Azure SQL serverless database `w3c-etl-db` (GP_S_Gen5_1, auto-pause 60 min). NSG-based subnet isolation implemented. Network rules on storage account with `Deny` default action.
+**Summary:** All core Azure infrastructure deployed in `westus3`. Resources include: resource group `rg-w3c-etl`, VNet with 2 subnets (Databricks-delegated `snet-databricks` 10.0.1.0/24 + SQL `snet-sql` 10.0.2.0/24), ADLS Gen2 storage account `stw3cetlwestus3` with 4 containers (`raw-logs`, `bronze`, `silver`, `gold`), Databricks Premium workspace `w3c-etl-databricks`, and Azure SQL serverless database `w3c-etl-db` (GP_S_Gen5_1, auto-pause 60 min). NSG-based subnet isolation implemented. Network rules on storage account with `Deny` default action.
 
-**Checklist:**
-
-- [x] Create `terraform/part_a/main.tf`, `variables.tf`, `outputs.tf` and module files
-- [x] Create `terraform/part_a/environments/dev/terraform.tfvars`
-- [x] Run `terraform init`, `providers lock`, `validate`, `plan`, `apply`
-- [x] Verify all resources in Azure portal
-
-**terraform/part_a/environments/dev/terraform.tfvars (Deployed):**
-
-```hcl
-subscription_id              = "2cfbc457-25bd-4007-8585-6bfa6765ec30"
-tenant_id                    = "b52c550c-05c2-4689-a595-c1e0e25d4a2e"
-client_id                    = "179ff733-3af5-41f8-8009-f71c177daf01"
-# client_secret: sourced from ARM_CLIENT_SECRET env var
-resource_group_name          = "rg-w3c-etl"
-location                     = "westus3"
-storage_account_name         = "stw3cetlwestus3"
-databricks_workspace_name    = "w3c-etl-databricks"
-sql_server_name              = "sql-w3c-etl"
-sql_administrator_login      = "sqladmin"
-# sql_administrator_password: sourced from TF_VAR_sql_administrator_password env var
-enable_private_endpoints     = false
-```
-
-**Acceptance Criteria — ALL PASSED ✅ (2026-06-05):**
-
-- [x] Terraform init completes successfully
-- [x] Terraform providers lock generates `.terraform.lock.hcl`
-- [x] Terraform validate passes
-- [x] Terraform plan shows expected resources
-- [x] Terraform apply completes without errors
-- [x] All resources visible in Azure portal/CLI:
-  - [x] Resource group: `rg-w3c-etl` (westus3)
-  - [x] VNet: `vnet-w3c-etl` with 2 subnets (`snet-databricks` 10.0.1.0/24, `snet-sql` 10.0.2.0/24)
-  - [x] Storage account: `stw3cetlwestus3` with 4 containers (`raw-logs`, `bronze`, `silver`, `gold`)
-  - [x] Databricks workspace: `w3c-etl-databricks` (Premium tier)
-  - [x] Azure SQL server: `sql-w3c-etl`
-  - [x] Azure SQL database: `w3c-etl-db` (serverless, GP_S_Gen5_1, auto-pause 60 min)
-- [x] Outputs captured: storage_account_name, databricks_workspace_url, server_fqdn, database_name
-
-**Deployed Outputs:**
+**Deployed Outputs (key for downstream phases):**
 ```bash
 storage_account_name      = "stw3cetlwestus3"
 databricks_workspace_url  = "https://adb-7405616994554630.10.azuredatabricks.net/"
@@ -570,28 +490,7 @@ sql_subnet_id             = "/subscriptions/2cfbc457-25bd-4007-8585-6bfa6765ec30
 vnet_id                   = "/subscriptions/2cfbc457-25bd-4007-8585-6bfa6765ec30/resourceGroups/rg-w3c-etl/providers/Microsoft.Network/virtualNetworks/vnet-w3c-etl"
 ```
 
-**Phase Handoff Validation:**
-
-```bash
-# Verify Terraform state
-cd terraform/part_a
-terraform show
-
-# Verify outputs
-terraform output storage_account_name
-terraform output databricks_workspace_url
-terraform output server_fqdn
-terraform output database_name
-
-# Verify Azure resources
-az resource list --resource-group rg-w3c-etl --query '[].{Name:name, Type:type, Location:location}' -o table
-
-# Verify storage containers
-az storage container list --account-name $(terraform output storage_account_name) --query '[].name' -o tsv
-
-# Verify VNet subnets
-az network vnet subnet list --vnet-name vnet-w3c-etl --resource-group rg-w3c-etl --query '[].{Name:name, Prefix:addressPrefix}' -o table
-```
+**Verified State:** Terraform init/validate/plan/apply all passed. All 8+ resources confirmed in Azure portal. `.terraform.lock.hcl` committed.
 
 ---
 
@@ -599,70 +498,7 @@ az network vnet subnet list --vnet-name vnet-w3c-etl --resource-group rg-w3c-etl
 
 **Phase Goal:** Verify all Azure resources from Phase 1 are operational, configure budget alerts, and set up local environment variables.
 
-**Summary:** All Azure infrastructure verified and configured. Databricks workspace authenticated with PAT token. Secret scope `w3c-etl-pipeline` created with 5 secrets (storage-access-key, azure.sql.server, azure.sql.database, azure.sql.username, azure.sql.password). Unity Catalog `w3c_etl_databricks` (existing managed catalog) with schemas bronze, silver, gold created and permissions granted. ADLS Gen2 containers (raw-logs, bronze, silver, gold) accessible. Azure SQL connectivity verified via pyodbc. `.env.azure` updated with all connection details. Budget alerts to be configured via Azure Portal due to CLI preview limitations.
-
-**Checklist:**
-
-- [x] Verify Databricks workspace is accessible
-- [x] Authenticate to Databricks workspace using CLI 1+
-- [x] Create Databricks secret scope `w3c-etl-pipeline`
-- [x] Add storage access key to Databricks secrets
-- [x] Add Azure SQL credentials to Databricks secrets (azure.sql.* keys)
-- [x] Verify Azure SQL database is accessible
-- [x] Create Unity Catalog `w3c_etl_databricks` (existing managed catalog)
-- [x] Create Unity Catalog schemas: `bronze`, `silver`, `gold`
-- [x] Configure Azure budget alerts ($50 warning, $100 hard cap) — configured via Azure Portal
-- [x] Update `.env.azure` with all connection details
-- [x] Test ADLS Gen2 container access
-- [x] Test Azure SQL connectivity
-
-**Acceptance Criteria:**
-
-| # | Criteria | Status |
-|---|----------|--------|
-| 1 | Databricks workspace accessible via browser and CLI | ✅ Done |
-| 2 | Databricks authentication successful (`databricks workspace list` works) | ✅ Done |
-| 3 | Secret scope `w3c-etl-pipeline` created | ✅ Done |
-| 4 | Secrets added: storage-access-key, azure.sql.server, azure.sql.database, azure.sql.username, azure.sql.password | ✅ Done |
-| 5 | Unity Catalog `w3c_etl_databricks` (managed catalog) available | ✅ Done |
-| 6 | Schemas created: bronze, silver, gold | ✅ Done |
-| 7 | Budget alerts configured: $50 warning, $100 hard cap | ✅ Done |
-| 8 | `.env.azure` updated with all connection details | ✅ Done |
-| 9 | ADLS Gen2 containers accessible via Azure CLI | ✅ Done |
-| 10 | Azure SQL connectivity verified via sqlcmd or Python | ✅ Done |
-
-**Phase Handoff Validation:**
-
-```bash
-# Source environment
-source .env.azure
-
-# Verify Databricks
-databricks secrets list --scope w3c-etl-pipeline
-
-# Verify secret keys match expected naming (azure.sql.*)
-databricks secrets list --scope w3c-etl-pipeline | grep -E "(storage-access-key|azure.sql)"
-
-# Verify Unity Catalog schemas
-databricks schemas list w3c_etl_databricks
-
-# Verify budget alerts (configure via Azure Portal)
-# Check: https://portal.azure.com -> Cost Management + Billing -> Budgets
-
-# Verify ADLS access
-az storage container list --account-name $STORAGE_ACCOUNT_NAME --account-key $STORAGE_ACCESS_KEY
-
-# Verify SQL connectivity
-python3 -c "
-import pyodbc
-conn_str = f'DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={os.getenv(\"AZURE_SQL_SERVER\")};DATABASE={os.getenv(\"AZURE_SQL_DB\")};UID={os.getenv(\"AZURE_SQL_USER\")};PWD={os.getenv(\"AZURE_SQL_PASSWORD\")};Encrypt=yes;TrustServerCertificate=no'
-conn = pyodbc.connect(conn_str)
-cursor = conn.cursor()
-cursor.execute('SELECT DB_NAME() AS current_db')
-print(cursor.fetchone())
-conn.close()
-"
-```
+**Summary:** All Azure infrastructure verified and operational. Databricks workspace authenticated with PAT token. Secret scope `w3c-etl-pipeline` created with 5 secrets: `storage-access-key`, `azure.sql.server`, `azure.sql.database`, `azure.sql.username`, `azure.sql.password`. Unity Catalog `w3c_etl_databricks` (existing managed catalog) with schemas `bronze`, `silver`, `gold` created. ADLS Gen2 containers accessible. Azure SQL connectivity verified via pyodbc. Budget alerts configured via Azure Portal ($50 warning, $100 hard cap).
 
 ---
 
@@ -670,92 +506,38 @@ conn.close()
 
 **Phase Goal:** Create and deploy the DLT Bronze pipeline with Auto Loader, W3C parser UDF, and quality expectations.
 
-**Summary:** Bronze pipeline `a6ea62d3-5f3a-4f53-ae8b-4bfb156703ad` is fully operational on **Serverless DLT**. It ingests W3C IIS log files from ADLS Gen2, parses them via a per-file UDF that detects the `#Fields:` header, applies 7 quality expectations, and writes to `w3c_etl_databricks.bronze.bronze_raw_logs` (Materialized View). Pipeline completed successfully with **153,380 rows** from **93 real IIS log files** (sourced from `airflow/data/LogFiles/`). All 7 expectations pass; **0 rows dropped**. The old synthetic `data/samples/` directory has been deleted — all data now uses real W3C IIS logs with public IPs, enabling full GeoIP enrichment downstream.
-
-**Checklist:**
-
-- [x] Create `airflow/spark/databricks/dlt_bronze.py`
-- [x] Implement W3C parser with rsplit field-counting (from authoritative `w3c_parser.py`)
-- [x] Implement 14-field vs 18-field IIS format detection (per-file UDF with `#Fields:` header parsing)
-- [x] Implement UDF with direct struct access (NOT explode)
-- [x] Add @dlt.expect_or_drop quality rules (7 rules: log_date, status, client_ip, method, uri_stem, user_agent, bytes)
-- [x] Configure Auto Loader: binaryFile, schemaLocation, schemaEvolutionMode, rescuedDataColumn
-- [x] Set partitioning by log_date (Date type, cast from String)
-- [x] Configure Delta properties (CDF, auto optimize, autoCompact, deletionVectors)
-- [x] Upload MaxMind GeoLite2 databases to Unity Catalog volume `w3c_etl_databricks.bronze.w3c_data`
-- [x] Create schema directory in Unity Catalog volume
-- [x] Upload **93 real W3C IIS log files** to ADLS Gen2 raw-logs container (`airflow/data/LogFiles/`)
-- [x] Create Bronze DLT pipeline via Databricks CLI (classic → deleted and recreated as serverless)
-- [x] Verify Bronze table schema and data — **153,380 rows confirmed**
+**Summary:** Bronze pipeline `a6ea62d3-5f3a-4f53-ae8b-4bfb156703ad` operational on **Serverless DLT**. Ingests W3C IIS log files from ADLS Gen2 via per-file UDF that detects the `#Fields:` header, applies 7 quality expectations, and writes to `w3c_etl_databricks.bronze.bronze_raw_logs` (Materialized View). **153,380 rows** from **93 real IIS log files** (sourced from `airflow/data/LogFiles/`). All 7 expectations pass; **0 rows dropped**. Old synthetic `data/samples/` directory deleted — all data now uses real logs with public IPs enabling full GeoIP enrichment.
 
 **Key Implementation Details:**
-
-- **Serverless DLT**: Bypasses westus3 VM capacity shortage. Pipeline created with `serverless: true`, no `cluster {}` block.
-- **`@dlt.table` not `@dlt.streaming_table`**: Serverless DLT does NOT support `streaming_table` decorator. Using regular `@dlt.table` with Auto Loader works correctly.
-- **Schema evolution mode**: Set to `"none"` instead of `"addNewColumns"` — the `addNewColumns` mode is incompatible with `binaryFile` format in DLT.
+- **Serverless DLT**: `serverless: true`, no `cluster {}` block — bypasses westus3 VM capacity shortage.
+- **`@dlt.table` not `@dlt.streaming_table`**: Serverless DLT does NOT support `streaming_table` decorator.
+- **Schema evolution mode**: `"none"` (not `"addNewColumns"`) — `addNewColumns` incompatible with `binaryFile` format in DLT.
 - **Storage auth**: ADLS storage account key stored in pipeline `configuration` as `fs.azure.account.key.stw3cetlwestus3.dfs.core.windows.net`.
-- **ROW_NUMBER dedup REMOVED**: Not supported on streaming DataFrames in DLT. Dedup handled upstream (source files are processed once) and in Silver layer (left_anti join).
-- **Bronze table type**: Materialized View (not streaming table, not regular table). Expected for serverless DLT.
-- **MaxFilesPerTrigger**: Set to `"10"` to avoid overwhelming downstream processing.
-- **Pipeline ID**: `a6ea62d3-5f3a-4f53-ae8b-4bfb156703ad` — exists and in `IDLE` state.
-
-**Acceptance Criteria:** ✅ All met.
+- **ROW_NUMBER dedup REMOVED**: Not supported on streaming DataFrames in DLT. Dedup handled upstream (files processed once) and in Silver (`left_anti` join).
+- **Bronze table type**: Materialized View (expected for serverless DLT).
+- **MaxFilesPerTrigger**: `"10"`. **Pipeline ID**: `a6ea62d3-5f3a-4f53-ae8b-4bfb156703ad` — IDLE state.
 
 **⚠️ Differences from Plan Scaffold:**
 
 | Plan Scaffold | Actual Implementation | Reason |
 |---------------|----------------------|--------|
 | Per-line UDF with hardcoded `detect_file_format()` returning 18 | Per-file `_parse_file_content()` UDF reads `#Fields:` header per file | Fixes CRIT-01 (hardcoded format) and CRIT-02 (UDF closure over stale variable) |
-| `maxFilesPerTrigger: "1000"` | `maxFilesPerTrigger: "10"` | Matches constraint in plan (DLT Bronze Constraints: maxFilesPerTrigger = 10) |
+| `maxFilesPerTrigger: "1000"` | `maxFilesPerTrigger: "10"` | Matches constraint in plan (DLT Bronze Constraints) |
 | `schemaLocation: "/dbfs/mnt/w3c-data/_schemas/bronze"` | `schemaLocation: "dbfs:/Volumes/w3c_etl_databricks/bronze/w3c_data/_schemas/bronze"` | Uses Unity Catalog volume path instead of DBFS mount |
-| `explode(split(decode(col("content"), "utf-8"), "\n"))` per-line pattern | Per-file UDF returns `ArrayType(Struct)` then `explode()` | More efficient; detects format once per file, not per line |
-| No storage.account_name validation | Validates `spark.conf.get("storage.account_name")` at runtime | Fail-fast if config missing (IMP-09 addressed) |
-| `@dlt.streaming_table` used | `@dlt.table` used instead | Serverless DLT does not support `streaming_table` |
+| `explode(split(decode(col("content"), "utf-8"), "\n"))` per-line pattern | Per-file UDF returns `ArrayType(Struct)` then `explode()` | Detects format once per file, not per line |
+| No storage.account_name validation | Validates `spark.conf.get("storage.account_name")` at runtime | Fail-fast if config missing |
+| `@dlt.streaming_table` used | `@dlt.table` used | Serverless DLT does not support `streaming_table` |
 | `schemaEvolutionMode: "addNewColumns"` | `schemaEvolutionMode: "none"` | `addNewColumns` incompatible with `binaryFile` format in DLT |
 | `ROW_NUMBER() OVER (PARTITION BY ...)` dedup | Dedup removed from Bronze (left_anti for Silver only) | ROW_NUMBER not supported on streaming DataFrames in DLT |
 
 **Verified State:**
 - Pipeline: `a6ea62d3-5f3a-4f53-ae8b-4bfb156703ad` — serverless, IDLE
-- Table: `w3c_etl_databricks.bronze.bronze_raw_logs` — **153,380 rows** (up from 21), schema confirmed
-- Quality: All 7 expectations pass, **0 rows dropped**
+- Table: **153,380 rows**, 7 expectations pass, **0 rows dropped**
 - Schema: 18 data columns + `source_file` + `_rescued_data` + partition cols
 - SQL Warehouse: `e150f7269187352b` (Serverless Starter Warehouse) for verification
 - Source: 93 real IIS log files in `raw-logs@stw3cetlwestus3.dfs.core.windows.net/`
-- Old synthetic files: `data/samples/` directory deleted — replaced with 93 real log files
 
-**Phase 3 → Phase 4 Handoff Summary:**
-
-**State at Handoff:** ✅ Ready for Silver layer.
-
-| Criterion | Status | Detail |
-|-----------|--------|--------|
-| Bronze pipeline operational | ✅ PASSED | **153,380 rows** from 93 files, all expectations pass |
-| Schema stable | ✅ PASSED | 18-column schema partitioned by `log_date` |
-| Data format detected | ✅ PASSED | Both 14-field and 18-field IIS formats detected from `#Fields:` header |
-| GeoIP databases in UC volume | ✅ PASSED | `GeoLite2-City.mmdb` + `GeoLite2-ASN.mmdb` at `w3c_etl_databricks.bronze.w3c_data` |
-| Public IPs available | ✅ PASSED | 93 real log files contain public IPs (no more synthetic private-IP samples) |
-| Configuration validated | ✅ PASSED | Storage account, schema location, CDF, and auto-optimize all set |
-| Idempotency pattern | ✅ PASSED | Silver handles dedup via `left_anti` join on `source_file` (ROW_NUMBER removed from Bronze per serverless DLT limit) |
-| No remaining blockers | ✅ PASSED | All Phase 3 acceptance criteria met |
-
-**Verification Commands (run after Phase 3 completion):**
-
-```bash
-# Verify row count
-databricks sql execute --warehouse-id e150f7269187352b \
-  --sql "SELECT COUNT(*) AS row_count FROM w3c_etl_databricks.bronze.bronze_raw_logs"
-
-# Verify file count (distinct source files)
-databricks sql execute --warehouse-id e150f7269187352b \
-  --sql "SELECT COUNT(DISTINCT source_file) AS file_count FROM w3c_etl_databricks.bronze.bronze_raw_logs"
-
-# Check quality expectations
-# In Databricks UI: Pipelines > w3c-bronze-pipeline > Quality tab
-
-# Verify both formats parsed
-databricks sql execute --warehouse-id e150f7269187352b \
-  --sql "SELECT bytes_sent, bytes_recv FROM w3c_etl_databricks.bronze.bronze_raw_logs LIMIT 5"
-```
+**Phase 3 → Phase 4 Handoff:** ✅ Ready for Silver layer. Bronze pipeline operational with 153,380 rows, GeoIP databases in UC volume, public IPs available in real log files.
 
 ---
 
@@ -763,825 +545,205 @@ databricks sql execute --warehouse-id e150f7269187352b \
 
 **Phase Goal:** Create and deploy the DLT Silver pipeline with MaxMind GeoIP enrichment and computed fields.
 
-**Summary:** Silver pipeline `98c7675f-5425-4a14-95b6-247af6da9626` is fully operational on **Serverless DLT** and **completes successfully** with full GeoIP enrichment. The pipeline reads from the Bronze table via `spark.table("w3c_etl_databricks.bronze.bronze_raw_logs")`, applies GeoIP enrichment via `maxminddb` (pure Python), computes 5 derived fields, filters via `valid_country` expectation, and writes to `w3c_etl_databricks.silver.silver_enriched_logs`. After switching from synthetic sample files (private IPs) to 93 real W3C IIS log files with public IPs, GeoIP enrichment resolves correctly producing **153,377 rows** with full geographic coverage across 30+ countries. All quality expectations pass; only **3 rows** dropped across all checks. The `valid_country` expect_or_drop is kept as **original** (not downgraded to warning) — GeoIP enrichment works correctly with real data.
-
-**Checklist:**
-
-- [x] Create `airflow/spark/databricks/dlt_silver.py`
-- [x] Implement lazy reader factory pattern for GeoIP
-- [x] Implement MaxMind GeoIP UDFs via `maxminddb` (country, region, city, lat, lon, postcode, isp)
-- [x] Implement 5 computed field UDFs (page_category, referrer_domain, traffic_type, is_crawler, size_band)
-- [x] Implement _extract_domain plain Python function
-- [x] Exclude UA columns from Silver DDL
-- [x] Preserve 6 geo columns in Silver (country, region, city, lat, lon, isp)
-- [x] Add @dlt.expect_or_drop quality rules (valid_country, valid_traffic_type, valid_page_category)
-- [x] Configure Silver table properties
-- [x] Add `maxminddb==2.8.*` as pipeline environment dependency (NOT `geoip2` — has compiled deps)
-- [x] Create Silver DLT pipeline via Databricks CLI (deleted and recreated as serverless)
-- [x] Fix UNSUPPORTED_LANGUAGE error — caused by re-importing `.py` file as `FILE` instead of `NOTEBOOK`
-- [x] Fix NO_TABLES_IN_PIPELINE error — caused by pipe/redirect truncation; use `--file` flag instead
-- [x] Pipeline completes successfully (31-column schema correct)
-- [x] Silver table populated with GeoIP-enriched data — **153,377 rows** with full geographic coverage
+**Summary:** Silver pipeline `98c7675f-5425-4a14-95b6-247af6da9626` operational on **Serverless DLT**, completes successfully with full GeoIP enrichment. Reads from Bronze via `spark.table("w3c_etl_databricks.bronze.bronze_raw_logs")`, applies GeoIP enrichment via `maxminddb==2.8.*` (pure Python), computes 5 derived fields, filters via `valid_country` expectation, writes to `w3c_etl_databricks.silver.silver_enriched_logs`. **153,377 rows** with full geographic coverage across **30+ countries**. All quality expectations pass; only **3 rows** dropped. The `valid_country` expect_or_drop kept as **original** (not downgraded to warning) — GeoIP enrichment works correctly with real public IP data.
 
 **Key Implementation Details:**
-
-- **GeoIP Library**: `maxminddb==2.8.*` (pure Python, no compiled dependencies). `geoip2` was rejected because it requires `libmaxminddb` C library which can't install on serverless DLT.
-- **Environment Dependencies**: Set via `environment.dependencies = ["maxminddb==2.8.*"]` in pipeline spec. Confirmed present in pipeline configuration.
+- **GeoIP Library**: `maxminddb==2.8.*` (pure Python, no compiled deps). `geoip2` rejected — requires `libmaxminddb` C library unavailable on serverless DLT.
+- **Environment Dependencies**: `environment.dependencies = ["maxminddb==2.8.*"]` in pipeline spec.
 - **Lazy Singleton Pattern**: `_ensure_geo_reader()` and `_ensure_asn_reader()` initialize singleton readers on first UDF invocation per executor — avoids PicklingError from serializing non-serializable `maxminddb.Reader` instances.
-- **Module-level flag**: `_HAS_MAXMINDDB = True/False` — gracefully degrades to NULLs if import fails. Prints warning to driver logs.
-- **Cross-catalog read**: Uses `spark.table("w3c_etl_databricks.bronze.bronze_raw_logs")` instead of `dlt.read()` — required when Bronze and Silver are in separate pipelines.
-- **Notebook import CRITICAL**: Use `databricks workspace import --format SOURCE --language PYTHON --file <local_path> <workspace_path>` to preserve NOTEBOOK type. Pipe (`|`) or redirect (`<`) truncates content. `--format AUTO` creates a `FILE` instead of `NOTEBOOK`.
-- **GeoIP DB path fix**: Serverless DLT executors access Unity Catalog volumes via `/Volumes/w3c_etl_databricks/bronze/w3c_data/...` (NOT `/dbfs/Volumes/...`). The `/dbfs` FUSE mount is not accessible from serverless driver/executor Python processes. This was the root cause of `FileNotFoundError` when using the original scaffold paths.
-- **Pipeline ID**: `98c7675f-5425-4a14-95b6-247af6da9626` — exists and in `IDLE` state.
-- **Silver table type**: Materialized View (same as Bronze — expected for serverless DLT).
-- **Dedup via left_anti join**: `silver_enriched_logs_df = bronze_df.alias("b").join(existing_df.alias("s"), col("b.source_file") == col("s.source_file"), "left_anti")` — wrapped in try/except for first run.
-- **valid_country kept original**: `@dlt.expect_or_drop("valid_country", "country IS NOT NULL")` was preserved (not downgraded to `@dlt.expect`). With real public IPs, GeoIP resolves correctly — only 3 rows dropped across all checks.
-
-**Acceptance Criteria:** ✅ All met. Pipeline operational with full GeoIP enrichment.
+- **Module-level flag**: `_HAS_MAXMINDDB = True/False` — gracefully degrades to NULLs if import fails.
+- **Cross-catalog read**: Uses `spark.table(...)` instead of `dlt.read()` — required when Bronze and Silver are in separate pipelines.
+- **Notebook import**: Use `--format SOURCE --language PYTHON --file <local_path> <workspace_path>` to preserve NOTEBOOK type. Pipe/redirect truncates content.
+- **GeoIP DB path**: Serverless DLT uses `/Volumes/...` (NOT `/dbfs/Volumes/...`) — FUSE mount not accessible on serverless executors.
+- **Dedup**: `left_anti` join on `source_file`, wrapped in try/except for first run.
+- **Pipeline completes in ~3 minutes** with no errors.
 
 **⚠️ Differences from Plan Scaffold:**
 
 | Plan Scaffold | Actual Implementation | Reason |
 |---------------|----------------------|--------|
-| 7 separate scalar GeoIP UDFs (`get_country`, `get_region`, ...) | Single `get_geo_fields` struct UDF (6 fields from 1 City DB call) + `get_isp` scalar UDF (1 field from ASN DB) | Fixes CRIT-05: 7x redundant MaxMind lookups per row → 2 total (3.5x performance gain) |
-| Module-level reader init at import time | Lazy singleton on first UDF invocation per executor | Fixes CRIT-04: avoids `PicklingError` from serializing non-serializable MaxMind reader |
-| No Silver deduplication logic | `left_anti` join on `source_file` wrapped in try/except for first run | Fixes CRIT-06: ensures idempotent re-runs |
+| 7 separate scalar GeoIP UDFs (`get_country`, `get_region`, ...) | Single `get_geo_fields` struct UDF (6 fields from 1 City DB call) + `get_isp` scalar UDF (1 field from ASN DB) | 3.5x performance gain — 7x redundant MaxMind lookups → 2 total |
+| Module-level reader init at import time | Lazy singleton on first UDF invocation per executor | Avoids PicklingError from non-serializable MaxMind reader |
+| No Silver deduplication logic | `left_anti` join on `source_file` in try/except | Ensures idempotent re-runs |
 | `geoip2==5.0.1` as cluster PyPI library | `maxminddb==2.8.*` as pipeline environment dependency | `geoip2` has compiled C deps, can't install on serverless DLT |
-| Silver reads with `dlt.read("bronze_raw_logs")` | Silver reads with `spark.table("w3c_etl_databricks.bronze.bronze_raw_logs")` | Cross-pipeline reads require direct table path |
-| `@dlt.table` decorator | `@dlt.table` decorator (consistent) | No change — correct for batch Silver |
-| GeoIP paths via DBFS mount (`/dbfs/Volumes/...`) | GeoIP paths via UC volume direct path (`/Volumes/...`) | `/dbfs` FUSE mount not accessible on serverless DLT executors for Python file I/O |
-| Serverless DLT supports `geoip2` as system library | Serverless DLT does NOT have `maxminddb` pre-installed — added via environment deps | Discovered through testing |
-| 8 GeoIP UDF columns (country, region, city, lat, lon, postcode, isp, asn) | 7 GeoIP columns: 6 from struct UDF + scalar `isp` (asn_number/as_organization combined into isp) | Simplified; single ASN org field is sufficient for analytics |
+| Silver reads with `dlt.read("bronze_raw_logs")` | `spark.table("w3c_etl_databricks.bronze.bronze_raw_logs")` | Cross-pipeline reads require direct table path |
+| GeoIP paths via DBFS mount (`/dbfs/Volumes/...`) | GeoIP paths via `/Volumes/...` | FUSE mount not accessible on serverless executors for Python file I/O |
+| Serverless DLT supports `geoip2` as system library | `maxminddb` not pre-installed — added via env deps | Discovered through testing |
+| 8 GeoIP UDF columns (incl. asn_number, as_organization) | 7 GeoIP columns: 6 from struct UDF + scalar `isp` | Single ASN org field sufficient for analytics |
 
 **Verified State:**
 - Pipeline: `98c7675f-5425-4a14-95b6-247af6da9626` — serverless, IDLE
-- Table: `w3c_etl_databricks.silver.silver_enriched_logs` — **153,377 rows** (31 columns: 25 core + 6 geo)
-- GeoIP coverage confirmed: United States (56,548), United Kingdom (31,818), Russia (11,387), China (6,737), Argentina (6,631), Canada (5,063), Germany (4,232), Brazil (2,948), France (2,756), India (2,507), Australia (2,057), Italy (1,846), Netherlands (1,600), Japan (1,342), Mexico (1,243), Poland (1,044), Spain (949), Sweden (810), Ukraine (784), Czech Republic (667), Switzerland (616), others (12,778)
-- Pipeline completes in ~3 minutes with no errors
-- maxminddb environment dependency confirmed in pipeline spec
-- GeoIP DB files present in UC volume: `GeoLite2-City.mmdb`, `GeoLite2-ASN.mmdb`
-- SQL Warehouse: `e150f7269187352b` for verification
-- Quality: `valid_country` dropped only 3 rows across all checks — original `expect_or_drop` severity preserved
-- Source data: 93 real IIS log files (replaced old `data/samples/` directory which was deleted)
+- Table: **153,377 rows** (31 columns: 25 core + 6 geo)
+- GeoIP coverage: US (56,548), UK (31,818), Russia (11,387), China (6,737), Argentina (6,631), Canada (5,063), Germany (4,232), Brazil (2,948), France (2,756), India (2,507), Australia (2,057), Italy (1,846), Netherlands (1,600), Japan (1,342), Mexico (1,243), Poland (1,044), Spain (949), Sweden (810), Ukraine (784), Czech Republic (667), Switzerland (616), others (12,778)
+- Quality: `valid_country` dropped only 3 rows — kept as `expect_or_drop` (original, not downgraded)
 
-**Critical Lessons Learned (avoid repeating for future phases):**
-1. **Notebook import MUST use `--format SOURCE --language PYTHON --file <path>`**. Pipe/redirect truncates content. `--format AUTO` produces `FILE` type instead of `NOTEBOOK`. Verified via `databricks workspace get-status` confirms `object_type: NOTEBOOK, language: PYTHON`.
-2. **`--format AUTO` for `.py` files without `# Databricks notebook source` header** → creates `FILE` type (not NOTEBOOK), causing UNSUPPORTED_LANGUAGE in DLT.
+**Critical Lessons Learned:**
+1. **Notebook import MUST use `--format SOURCE --language PYTHON --file <path>`**. Pipe/redirect truncates content. `--format AUTO` produces `FILE` type instead of `NOTEBOOK`, causing UNSUPPORTED_LANGUAGE in DLT. Verified via `databricks workspace get-status` confirms `object_type: NOTEBOOK, language: PYTHON`.
+2. **`--format AUTO` for `.py` files without `# Databricks notebook source` header** → creates `FILE` type (not NOTEBOOK).
 3. **`--format SOURCE` with pipe/redirect** → reads only first line. Always use `--file` flag for local file imports.
-4. **Sample data IPs must be public** for GeoIP enrichment to work. Private IPs (10.x.x.x, 192.168.x.x, 172.16.x.x) will never match GeoLite2. This is now resolved — all data uses real W3C logs with public IPs.
+4. **Sample data IPs must be public** for GeoIP enrichment to work. Private IPs (10.x.x.x, 192.168.x.x, 172.16.x.x) never match GeoLite2. Resolved — all data uses real W3C logs with public IPs.
 5. **Serverless DLT does NOT support**: `@dlt.streaming_table`, `ROW_NUMBER()` on streaming DataFrames, `schemaEvolutionMode: addNewColumns` with `binaryFile`, `geoip2` (has compiled deps).
-6. **`/Volumes/...` (not `/dbfs/Volumes/...`)** is the correct local file path for Unity Catalog volume access from serverless DLT Python processes. The FUSE mount (`/dbfs`) is not available on serverless executors for local file I/O.
-7. **`maxminddb` (pure Python) works as pipeline environment dependency** on serverless DLT. Do not attempt `geoip2` — it requires the `libmaxminddb` C shared library which cannot be installed on serverless.
+6. **`/Volumes/...` (not `/dbfs/Volumes/...`)** is the correct local file path for Unity Catalog volume access from serverless DLT Python processes. FUSE mount not available on serverless executors.
+7. **`maxminddb` (pure Python) works as pipeline environment dependency** on serverless DLT. Do not attempt `geoip2` — requires `libmaxminddb` C shared library.
+
+**Phase 4 → Phase 5 Handoff:** ✅ Ready for JDBC export. Silver pipeline operational with 153,377 rows, full GeoIP enrichment (30+ countries), 31-column schema matching EXPORT_COLUMNS spec, dedup via left_anti join confirmed.
 
 ---
 
-**Phase 4 → Phase 5 Handoff Summary:**
+### Phase 5 — JDBC Export from Silver to Azure SQL (✅ Complete — 45s optimized export verified on Databricks Serverless)
 
-**State at Handoff:** ✅ Ready for JDBC export to Azure SQL.
-
-| Criterion | Status | Detail |
-|-----------|--------|--------|
-| Silver pipeline operational | ✅ PASSED | **153,377 rows** from 93 files, full GeoIP enrichment |
-| GeoIP coverage | ✅ PASSED | 30+ countries resolved; top: US (56,548), UK (31,818), Russia (11,387) |
-| 31-column schema stable | ✅ PASSED | 25 core + 6 geo columns; matches EXPORT_COLUMNS spec |
-| Quality expectations pass | ✅ PASSED | `valid_country` expect_or_drop kept (only 3 rows dropped) |
-| Dedup idempotency | ✅ PASSED | `left_anti` join on `source_file` prevents re-run duplicates |
-| GeoIP DBs accessible | ✅ PASSED | `maxminddb.open_database()` via `/Volumes/...` path (not `/dbfs/Volumes/`) |
-| Notebook import working | ✅ PASSED | `--format SOURCE --language PYTHON --file` confirmed via `get-status` |
-| Data source stable | ✅ PASSED | 93 real IIS log files with public IPs in `raw-logs@stw3cetlwestus3.dfs.core.windows.net/` |
-| No remaining blockers | ✅ PASSED | All Phase 4 acceptance criteria met |
-
-**Verification Commands (run after Phase 4 completion):**
-
-```bash
-# Verify row count
-databricks sql execute --warehouse-id e150f7269187352b \
-  --sql "SELECT COUNT(*) AS row_count FROM w3c_etl_databricks.silver.silver_enriched_logs"
-
-# Verify GeoIP coverage
-databricks sql execute --warehouse-id e150f7269187352b \
-  --sql "SELECT country, COUNT(*) AS cnt FROM w3c_etl_databricks.silver.silver_enriched_logs WHERE country IS NOT NULL GROUP BY country ORDER BY cnt DESC LIMIT 10"
-
-# Check quality expectations
-# In Databricks UI: Pipelines > w3c-silver-pipeline > Quality tab
-
-# Verify schema matches EXPORT_COLUMNS
-databricks sql execute --warehouse-id e150f7269187352b \
-  --sql "DESCRIBE w3c_etl_databricks.silver.silver_enriched_logs"
-```
-
----
-
-### Phase 5 — JDBC Export from Silver to Azure SQL — (✅ Complete — 45s optimized export verified on Databricks Serverless)
 **Phase Goal:** Create and deploy the Azure SQL export task that reads from Silver and writes to Azure SQL with idempotency tracking.
 
-> **Architecture note:** Silver → Azure SQL export runs as a **Databricks notebook_task** on **serverless compute**.
-> The original plan assumed `df.write.jdbc()` + py4j for DDL, but Databricks serverless (Spark Connect) only supports
-> `sqlserver` data source for **reads**, not writes. We use **pymssql** (pure-Python) instead: collect rows from Spark,
-> batch-INSERT via `cursor.executemany()`. This also means MSSQL Maven libraries are not needed.
-> The separate `w3c-jdbc-export-test` job is a **dev/test artifact**; in Phase 6 it will become Task 3
-> of the unified `w3c-etl-workflow`.
+**Summary:** Export implemented as Databricks `notebook_task` on serverless compute using pymssql (pure Python) — NOT `df.write.jdbc()` because serverless (Spark Connect) only supports JDBC reads, not writes. `airflow/spark/databricks/jdbc_export_azure.py` (296 lines) deployed to Repos. Uses tracking table pattern (`dbo.raw_enriched_loaded`), retry logic (4 attempts, 15×2^attempt backoff for Azure SQL cold-start), exact 31-column `RAW_ENRICHED_DDL` schema, and `is_crawler` BIT cast. Export tested with **153,377 rows** — job SUCCESS. Final optimized run: **45s** (run 658447448322322) — **8-9× faster** than initial 413s via: removed `.cache()` (unsupported on serverless), Spark-side filter before `collect()`, `tuple(row)` instead of `row.asDict()` (eliminates 4.7M dict allocations), removed redundant `export_df.count()`.
 
-**Checklist (completed 2026-06-08):**
+**Key Implementation Details:**
+- **Source**: `spark.table("w3c_etl_databricks.silver.silver_enriched_logs")` — reads Silver via Unity Catalog.
+- **Library**: `pymssql>=2.2.11` as job environment dependency (pure-Python, no JVM library needed).
+- **No Maven libraries needed**: MSSQL JDBC driver not required.
+- **DDL**: `pymssql cursor.execute()` with `IF OBJECT_ID(...) IS NULL` guards — no py4j gateway on serverless.
+- **Batch INSERT**: `cursor.executemany()` with `BATCH_SIZE=5000` via `tuple(row)`.
+- **Spark-side filter**: Already-loaded files filtered via `~col("source_file").isin(loaded_files)` **before** `collect()` — only new rows reach driver. Critical for incremental run memory.
+- **Credentials**: `dbutils.secrets.get()` via `DBUtils(spark)` from `w3c-etl-pipeline` scope.
+- **`.cache()` NOT supported on serverless**: Restructured to `collect()` first, `len()` from collected rows.
 
-- [x] Create `airflow/spark/databricks/jdbc_export_azure.py` (312 lines, pymssql, deployed to Repos)
-- [x] Implement tracking table pattern (`dbo.raw_enriched_loaded`, `IF OBJECT_ID` DDL)
-- [x] Implement retry logic (4 attempts, exponential backoff: 15×2^attempt)
-- [x] Implement `is_crawler` BIT cast from string (`when(col(...) == "true", lit(1)).otherwise(lit(0))`)
-- [x] Use exact `EXPORT_COLUMNS` list (31 columns)
-- [x] Use exact `RAW_ENRICHED_DDL` schema
-- [x] Read from Silver via Unity Catalog: `spark.table("w3c_etl_databricks.silver.silver_enriched_logs")`
-- [x] Credentials via `dbutils.secrets.get()` using `DBUtils(spark)`
-- [x] Export tested with 153,377 rows from Silver — job w3c-jdbc-export-test (run ID 740542092085433) completed **SUCCESS**
-- [x] **Final optimized run:** run 658447448322322 completed **SUCCESS in 45s** (8-9× faster than initial 413s)
-- [x] ~~execute_ddl using py4j gateway~~ → Not needed; pymssql cursor.execute() used instead
-- [x] ~~SQL Server error 208 handling via error-code extraction~~ → Not needed; `IF OBJECT_ID(...) IS NULL` guards used instead
-- [x] ~~Configure JDBC options (batchsize, numPartitions, encrypt)~~ → pymssql `BATCH_SIZE=5000`, `cursor.executemany()`
-- [x] ~~Add MSSQL JDBC driver as Maven library~~ → Not needed; pymssql declared as job env dependency
-- [x] Verify Azure SQL table creation and data → job SUCCESS (run ID 579336591422448, initial 413s); **final optimized run 45s** (run 658447448322322)
-- [x] **Serverless discovery**: `.cache()` is NOT supported on Databricks Serverless (Spark Connect) — restructured to `collect()` first, `len()` from collected rows; eliminates both unsupported cache call AND redundant count scan
-- [x] **Performance optimization #1**: Filter in Spark before `collect()` using `~col("source_file").isin(loaded_files)` — prevents driver OOM on incremental runs
-- [x] **Performance optimization #2**: Removed wasteful `export_df.count()` that scanned the entire Silver table for a log message only
-- [x] **Performance optimization #3**: `insert_batch()` accepts Spark `Row` objects directly via `row.__fields__` + `tuple(row)` — eliminates 4.7M `asDict()` dict allocations
-
-**Implementation Details — Deviations from Plan Scaffold:**
-
-The original plan scaffold proposed a JDBC-based approach (`df.write.jdbc()` + py4j DDL + MSSQL Maven library). The actual deployed code (`airflow/spark/databricks/jdbc_export_azure.py`, 296 lines) diverged in several ways that downstream phases must account for:
-
-| Plan Scaffold | Actual Implementation | Reason | Phase 6+ Impact |
-|---------------|----------------------|--------|-----------------|
-| `df.write.jdbc()` for data export | `collect()` → pymssql `cursor.executemany()` batch INSERT | Serverless DLT (Spark Connect) only supports JDBC reads, not writes | Change task type from `spark_python_task` (cluster-required) to `notebook_task` on serverless |
-| py4j DDL via `spark._jvm.java.sql.DriverManager` | pymssql `cursor.execute()` with `IF OBJECT_ID(...) IS NULL` guards | No py4j gateway on serverless compute | No Maven libraries needed |
-| MSSQL JDBC Maven library (`com.microsoft.sqlserver:mssql-jdbc:12.6.1.jre11`) | pymssql as job environment dependency (`pymssql>=2.2.11`) | pymssql is pure-Python, no JVM dependency needed | Phase 6: declare `pymssql>=2.2.11` in job `environment.dependencies[]`, NOT in cluster `custom_library.maven[]` |
-| Error code 208 traversal via `getErrorCode()` | `IF OBJECT_ID(...) IS NULL` guard in DDL | Simpler, no exception traversal needed | No impact |
-| Row-by-row tracking table update (93 separate `write.jdbc` calls) | Single `insert_batch()` with `cursor.executemany()` | Batched tracking insert, one round-trip | No impact |
-| Retry backoff: `5 × 2^attempt` (5s/10s/20s) | Retry backoff: `15 × 2^attempt` (15s/30s/60s) | Azure SQL serverless cold-start needs longer waits | No impact |
-| `is_crawler` not imported (`when` missing) | `from pyspark.sql.functions import col, lit, when` | Complete import statement | No impact |
-| `spark_python_task` with `job_cluster` | `notebook_task` on serverless (no cluster needed) | Phase 6: the Terraform job resource must use `notebook_task` not `spark_python_task` | **Phase 6: remove `job_cluster` block entirely, use serverless `notebook_task`** |
-
-**Phase 5 Performance Optimizations:**
-
-The initial export job (run 579336591422448) completed in 413s for 153,377 rows. An audit identified 3 code-pattern bottlenecks plus a serverless incompatibility. All were fixed, resulting in **45s final run time** (run 658447448322322) — **8-9× faster**:
+**Phase 5 Performance Optimizations (initial 413s → final 45s):**
 
 | # | Issue | Before | After | Impact |
 |---|-------|--------|-------|--------|
-| 0 | **`.cache()` unsupported on serverless** | `new_data_df.cache()` called to avoid double scan, but failed with `[NOT_SUPPORTED_WITH_SERVERLESS] PERSIST TABLE` | Restructured: `collect()` first, then `len(rows)` for count — removes both `.cache()` call AND redundant `.count()` scan | **Fixed initial crash.** Net effect: eliminates unsupported API call AND saves one full scan |
-| 1 | **`collect()` before Spark-side filter** | All 153K rows collected to driver Python memory, then already-loaded files filtered in Python | Spark filters out already-loaded files (via `~col("source_file").isin(loaded_files)`) **before** `collect()` — only new rows reach the driver | On incremental runs: collects ~0 rows vs 153K. Prevents driver OOM as data grows. Initial run unchanged. |
-| 2 | **Wasteful `export_df.count()` for logging** | `total_rows = export_df.count()` scanned the entire Silver table purely for a log message | Removed. The real export count comes from `new_data_df.count()` which is needed anyway for progress printing | ~10s saved per run (one fewer full-scan Spark job) |
-| 3 | **`asDict()` serialization overhead** | Every Spark Row converted to a Python dict via `row.asDict()` — 31 keys × 153K rows = 4.7M dict key creations | `insert_batch()` now accepts Spark `Row` objects directly, using `row.__fields__` for column names and `tuple(row)` for values — no dict overhead | ~50s saved on initial run. Eliminates 4.7M dict allocations. |
+| 0 | `.cache()` unsupported on serverless | `new_data_df.cache()` failed with `[NOT_SUPPORTED_WITH_SERVERLESS] PERSIST TABLE` | `collect()` first, then `len(rows)` — removes both `.cache()` call AND redundant `.count()` scan | Fixed initial crash + saved one full scan |
+| 1 | `collect()` before Spark-side filter | All 153K rows collected to driver, then filtered in Python | Filter via `~col("source_file").isin(loaded_files)` **before** `collect()` | On incremental: ~0 rows vs 153K. Prevents OOM. |
+| 2 | Wasteful `export_df.count()` for logging | `total_rows = export_df.count()` scanned entire Silver table for a log message | Removed | ~10s saved per run |
+| 3 | `asDict()` serialization overhead | `row.asDict()` — 31 keys × 153K rows = 4.7M dict allocations | `tuple(row)` — no dict overhead | ~50s saved on initial run |
 
-**Code scaffold updated in `airflow/spark/databricks/jdbc_export_azure.py`** (312 lines):
-- `insert_batch()` updated to detect Spark `Row` vs `dict` input via `hasattr(rows[0], "__fields__")` — backward compatible with tracking table dict rows
-- `export_to_azure_sql()` reordered: loaded_files fetched → Spark-side filter → **collect** → `len()` → batch INSERT (no `.cache()` — unsupported on serverless)
-- `Row.__fields__` used for column names (avoids hardcoded column list in `insert_batch`)
+**⚠️ Differences from Plan Scaffold:**
 
-**Key architectural constants preserved (no change needed downstream):**
+| Plan Scaffold | Actual Implementation | Reason | Phase 6+ Impact |
+|---------------|----------------------|--------|-----------------|
+| `df.write.jdbc()` for data export | `collect()` → pymssql `cursor.executemany()` batch INSERT | Serverless DLT only supports JDBC reads, not writes | Task type: `notebook_task` on serverless (not `spark_python_task`) |
+| py4j DDL via `spark._jvm.java.sql.DriverManager` | pymssql `cursor.execute()` with `IF OBJECT_ID(...) IS NULL` guards | No py4j gateway on serverless compute | No Maven libraries needed |
+| MSSQL JDBC Maven library (`com.microsoft.sqlserver:mssql-jdbc`) | pymssql as job environment dependency (`pymssql>=2.2.11`) | pymssql is pure-Python, no JVM dependency | Phase 6: declare in job `environment.dependencies[]`, NOT cluster `custom_library.maven[]` |
+| Error code 208 traversal via `getErrorCode()` | `IF OBJECT_ID(...) IS NULL` guard in DDL | Simpler, no exception traversal | No impact |
+| Retry backoff: `5 × 2^attempt` (5s/10s/20s) | Retry backoff: `15 × 2^attempt` (15s/30s/60s) | Azure SQL serverless cold-start needs longer waits | No impact |
+| `spark_python_task` with `job_cluster` | `notebook_task` on serverless (no cluster) | See above — pymssql works on serverless | **Phase 6: remove `job_cluster` block, use serverless `notebook_task`** |
+
+**Architectural constants preserved (no change needed downstream):**
 - `EXPORT_COLUMNS` — exact 31-column list unchanged
-- `RAW_ENRICHED_DDL` — exact T-SQL schema unchanged (consumed by dbt sources.yml in Phase 8)
-- `TRACKING_DDL` — `dbo.raw_enriched_loaded` with `source_file VARCHAR(255) PRIMARY KEY` unchanged
-- Credentials via `dbutils.secrets.get(scope='w3c-etl-pipeline', key='azure.sql.*')` — secret scope and key naming unchanged
-- Silver source: `spark.table("w3c_etl_databricks.silver.silver_enriched_logs")` — Unity Catalog path unchanged
+- `RAW_ENRICHED_DDL` — exact T-SQL schema unchanged (consumed by dbt sources.yml)
+- `TRACKING_DDL` — `dbo.raw_enriched_loaded` with `source_file VARCHAR(255) PRIMARY KEY`
+- Credentials: `dbutils.secrets.get(scope='w3c-etl-pipeline', key='azure.sql.*')`
+- Silver source: `spark.table("w3c_etl_databricks.silver.silver_enriched_logs")`
 
-**Deployed file location:**
-`airflow/spark/databricks/jdbc_export_azure.py` — imported to Databricks Repos at `/Repos/w3c-etl-pipeline/airflow/spark/databricks/jdbc_export_azure.py` using `databricks workspace import --format SOURCE --language PYTHON --file <local> <remote>` (same notebook import pattern as Phase 3/4).
-
-**Acceptance Criteria:**
-
-- ✅ `jdbc_export_azure.py` created (296 lines, pymssql, deployed to Repos)
-- ✅ DDL via pymssql cursor.execute() with `IF OBJECT_ID(...) IS NULL` guards (not py4j — not available on serverless)
-- ✅ Tracking table `dbo.raw_enriched_loaded` with source_file PRIMARY KEY
-- ✅ Retry logic: 4 attempts, exponential backoff (15×2^attempt) for Azure SQL auto-resume
-- ✅ Batch INSERT via pymssql `cursor.executemany()` — `BATCH_SIZE=5000`
-- ✅ MSSQL JDBC Maven library NOT needed — pymssql replaces it
-- ✅ `is_crawler` cast from string to BIT: `when(col("is_crawler") == "true", lit(1)).otherwise(lit(0))`
-- ✅ Exact 31-column RAW_ENRICHED_DDL used
-- ✅ Exact TRACKING_DDL used
-- ✅ Export tested with 153,377 Silver rows — job SUCCESS (run 579336591422448, initial 413s)
-- ✅ **Optimized run: 45s execution** (run 658447448322322) — 8-9× faster via Spark-side filter, no cache(), no asDict(), no redundant count()
-- ✅ Azure SQL tables created: `dbo.raw_enriched`, `dbo.raw_enriched_loaded`
-- ✅ 153,377 rows exported to Azure SQL (job SUCCESS confirms all DDL + INSERT steps)
-- ✅ Tracking table updated with source files from the export
-- ✅ Idempotency via tracking table — only new source files exported
-- ✅ Uses `dbutils.secrets.get()` via `DBUtils(spark)` (NOT `spark.conf.get()`)
-- ✅ Reads Silver via Unity Catalog: `spark.table("w3c_etl_databricks.silver.silver_enriched_logs")`
-
-**Phase Handoff Validation:**
-
-> **Note:** Local `sqlcmd` and `pyodbc` are blocked by the Azure SQL firewall ("Allow Azure Services only").
-> All verification uses the Databricks SQL warehouse (which runs inside Azure and can reach the DB).
-
-```bash
-# 1. Verify Silver source data count
-databricks api post /api/2.0/sql/statements --json '{
-  "statement": "SELECT COUNT(*) AS row_count FROM w3c_etl_databricks.silver.silver_enriched_logs",
-  "warehouse_id": "e150f7269187352b"
-}'
-
-# 2. Verify job completed successfully (check latest run)
-databricks jobs list-runs --job-id 514306075636810 --output json
-
-# 3. Verify Azure SQL tables via Databricks job runtime
-#    Run a quick verification notebook on serverless:
-databricks jobs submit --json '{
-  "run_name": "verify-azure-sql",
-  "tasks": [{
-    "task_key": "verify",
-    "notebook_task": {
-      "notebook_path": "/Repos/w3c-etl-pipeline/airflow/spark/databricks/jdbc_export_azure.py"
-    },
-    "environment_key": "jdbc_env",
-    "existing_cluster_id": "SERVERLESS"
-  }],
-  "environments": [{
-    "environment_key": "jdbc_env",
-    "spec": {"client": "1", "dependencies": ["pymssql>=2.2.11"]}
-  }]
-}'
-
-# 4. (Optional) From an Azure VM or Cloud Shell with open access to Azure SQL:
-# sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD \
-#   -Q "SELECT COUNT(*) FROM dbo.raw_enriched; SELECT COUNT(*) FROM dbo.raw_enriched_loaded;"
-```
+**Verified State:**
+- `jdbc_export_azure.py` (296 lines) deployed to Databricks Repos
+- Azure SQL tables `dbo.raw_enriched`, `dbo.raw_enriched_loaded` created
+- **153,377 rows** exported to Azure SQL (initial run 413s)
+- **Final optimized run: 45s** (run 658447448322322) — 8-9× faster
+- Tracking table populated with source files; idempotency confirmed on re-run
+- Deployed via `databricks workspace import --format SOURCE --language PYTHON --file`
 
 ---
 
+### Phase 6 — Databricks Workflows + Terraform Part B + Airflow DAG (✅ Complete — Full Orchestration)
 
+**Phase Goal:** Deploy Databricks Workflows orchestration with Bronze, Silver, and JDBC export tasks using Terraform Part B, and create the Airflow DAG that triggers the entire pipeline.
 
-### Phase 6 — Databricks Workflows + Terraform Part B
+**Summary:** Phase 6 delivered three major components:
 
-**Phase Goal:** Deploy Databricks Workflows orchestration with Bronze, Silver, and JDBC export tasks using Terraform Part B.
+1. **Terraform Part B** (`terraform/part_b/` with main.tf, variables.tf, outputs.tf, dev tfvars): Manages 3 resources — existing Bronze pipeline `a6ea62d3`, existing Silver pipeline `98c7675f`, and new `w3c-etl-workflow` job (ID: `847995192336508`). All 3 tasks use **serverless compute** with daily schedule at 2 AM UTC. End-to-end test (Run `574928159107936`) confirmed all tasks complete: 93 files → GeoIP enrichment (30+ countries) → 153K+ rows to Azure SQL.
 
-> **Architecture note (2026-06-08):** The JDBC export task uses **pymssql** on **serverless compute** (not spark_python_task).
-> This means no job cluster is needed — all 3 tasks use serverless. The JDBC export task is a `notebook_task`
-> pointing at the Repos path. pymssql is declared as a job-level environment dependency (not Maven).
-> The Maven library `mssql-jdbc` and `spark_python_task` are no longer required.
+2. **Airflow DAG** (`airflow/dags/w3c/spark_ingestion_azure.py`, 263 lines): 2-task DAG — `bronze_silver_jdbc_pipeline` (DatabricksRunNowOperator → workflow) and `export_dimensions` (PythonOperator, inline `_export_dimensions()` callable, fires `Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")` outlet).
 
-**Checklist (updated 2026-06-08):**
+3. **Terraform fixes**: Provider version `~> 1.70` → `~> 1.115`; `storage_access_key` validation block added (fail-fast on missing env var); unused `databricks_token` variable removed.
 
-- [ ] Create `terraform/part_b/main.tf` with Databricks resources
-- [ ] Create `terraform/part_b/variables.tf` with input variables
-- [ ] Create `terraform/part_b/outputs.tf` with output values
-- [ ] Create Databricks pipeline resource for Bronze (serverless)
-- [ ] Create Databricks pipeline resource for Silver (serverless)
-- [ ] Create Databricks job resource with 3 tasks (all serverless)
-- [ ] Configure Task 1: DLT Bronze pipeline
-- [ ] Configure Task 2: DLT Silver pipeline
-- [ ] Configure Task 3: JDBC export notebook task (`notebook_task` on serverless, using Repos path)
-- [ ] Add environment dependency: `pymssql>=2.2.11` (on job, not cluster)
-- [ ] Add PyPI library: `maxminddb==2.8.*` (on Silver pipeline as environment dependency)
-- [ ] ~~Add cluster configuration (Standard_DS3_v2, 1-2 workers)~~ → Not needed; all serverless
-- [ ] ~~Add Maven library: mssql-jdbc~~ → Not needed; pymssql covers it
-- [ ] Configure lifecycle ignore_changes for dev flexibility
-- [ ] Run terraform init in Part B directory
-- [ ] Run terraform providers lock
-- [ ] Run terraform validate
-- [ ] Run terraform plan
-- [ ] Run terraform apply
-- [ ] Verify Databricks Workflow created
-- [ ] Test workflow run with sample data
+The storage account key remains in pipeline configurations (via `TF_VAR_storage_access_key` env var) because serverless DLT Auto Loader with ABFSS source cannot resolve flows without it — managed identity RBAC alone is insufficient. Dev artifact `w3c-jdbc-export-test` (job 514306075636810) deleted. `lifecycle { ignore_changes = [task] }` suppresses noisy plan diffs from provider task-set reordering. A 39-test suite (`tests/test_terraform_part_b.py`, `@pytest.mark.terraform`) validates configuration. **76 unit tests pass, 0 failures.**
 
-**Code Scaffolds:**
+**⚠️ Differences from Plan Scaffold:**
 
-**terraform/part_b/main.tf:**
+| Plan Scaffold | Actual Implementation | Reason |
+|---------------|----------------------|--------|
+| `edition = "core"` on pipeline resources | `edition` field omitted entirely | Serverless DLT requires Advanced; provider default (`ADVANCED`) is correct |
+| `spark_python_task` + `job_cluster` for JDBC export | `notebook_task` on serverless (no cluster block) | Phase 5 discovered pymssql works on serverless |
+| `workflow_tasks { ... }` block syntax | `task { ... }` block syntax (singular) | Terraform provider v1.70 uses `task {}` |
+| `job_cluster { ... }` with `custom_library.maven.mssql-jdbc` | No `job_cluster` block at all | All 3 tasks use serverless; pymssql as job env dependency |
+| `storage_access_key` stored in tfvars | `storage_access_key` variable with `default = ""` — key via `TF_VAR_` env var | Avoids committing storage key to version control |
+| Pipelines created from scratch in Terraform | Existing pipelines imported via `terraform import` | Preserves IDs, avoids recreation |
+| `development = true` in pipeline config | `development` not set in Terraform (removed during apply) | DLT UI-managed setting; removing prevents unnecessary diffs |
+| Storage key removed from pipeline config (managed identity only) | Storage key restored conditionally via `storage_access_key` ternary | Serverless DLT Auto Loader with ABFSS source fails without explicit storage key |
+| No `lifecycle` block on job resource | `lifecycle { ignore_changes = [task] }` added | Provider stores tasks as unordered TypeSet — every plan shuffles task blocks without this |
+| No Terraform validation tests planned | `tests/test_terraform_part_b.py` created (39 tests, `@pytest.mark.terraform`) | Catches config drift early in CI |
+| Dev/test job `w3c-jdbc-export-test` preserved | Deleted via API (job 514306075636810) | Redundant — workflow Task 3 runs the same notebook |
 
-```hcl
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 4.75.0"
-    }
-    databricks = {
-      source  = "databricks/databricks"
-      version = "~> 1.70"
-    }
-  }
+**Post-Completion Fixes Applied — `spark_ingestion_azure.py` Dimension Export:**
 
-  required_version = ">= 1.10.5, < 2.0"
-}
+| # | Issue | Fix |
+|---|-------|-----|
+| 1 | SQL Server `CONVERT` used as standalone expression in SELECT | Wrapped in `SELECT CONVERT(...)` for valid T-SQL |
+| 2 | PostgreSQL-style param markers (`%s`) in pyodbc | Replaced with SQL Server style (`?`) |
+| 3 | Hash computed via Azure SQL `HASHBYTES` for UA | Geo: SQL `HASHBYTES` (batch in MERGE subquery); UA: Python `hashlib.sha256()` (alongside local parsing) |
+| 4 | User-agent strings unparsed — dims built from existing columns only | Full UA parsing via `user-agents` library → agent_type, browser_name, browser_version, os, device_type |
+| 5 | `SELECT DISTINCT` in geo_hash subquery included `isp` → duplicate `geo_hash` IntegrityError | Changed to `GROUP BY country, region, city, latitude, longitude` + `MAX(isp)` |
+| 6 | Hash column DDL used shorthand SQL Server types | Replaced with explicit `VARBINARY(32)` |
+| 7 | `-1 sentinel row` INSERT failed due to identity column | Fixed `SET IDENTITY_INSERT ON/OFF` pattern |
 
-provider "databricks" {
-  host = var.databricks_host
-  token = var.databricks_token
-}
+**Final E2E Verification (Run `manual__2026-06-09_verify_final`):**
+- **Task 1** (`bronze_silver_jdbc_pipeline`): ✅ SUCCESS in 188s (Workflow: Bronze → Silver → JDBC to Azure SQL, 153K+ rows)
+- **Task 2** (`export_dimensions`): ✅ SUCCESS — Parsed 2,040 user-agent strings, Inserted 2,040 rows into `dim_useragent`
+- **Azure SQL dim tables**: `dim_geolocation` **1,585 rows**, `dim_useragent` **219 rows** — 0 duplicates, 0 integrity violations
+- **Dataset outlet** `mssql://azure-sql/dbo/raw_enriched_loaded` fired — ready for downstream dbt DAG
 
-# Bronze DLT Pipeline (Serverless)
-resource "databricks_pipeline" "bronze" {
-  name        = "w3c-bronze-pipeline"
-  description = "Bronze DLT pipeline for W3C log ingestion (serverless)"
-  catalog     = "w3c_etl_databricks"
-  target      = "bronze"
-  serverless  = true
+**Changes from Plan Scaffold (Post-Completion):**
 
-  libraries {
-    notebook {
-      path = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_bronze.py"
-    }
-  }
+| Plan Scaffold | Actual Implementation | Reason |
+|---------------|----------------------|--------|
+| No UA parsing library | `user-agents` library used for full UA parsing | Raw UA strings need parsing for clean dimension tables |
+| `HASHBYTES('SHA2_256', ...)` in SQL for both hashes | `HASHBYTES` in SQL for geo; `hashlib.sha256()` in Python for UA | UA hash computed alongside parsing avoids extra SQL round-trip |
+| `SELECT DISTINCT` for geo dedup | `GROUP BY` + `MAX(isp)` per unique geo key | `DISTINCT` included `isp` (not in hash) causing duplicate `geo_hash` |
+| No -1 sentinel rows | `SET IDENTITY_INSERT ON/OFF` with -1 unknown rows for both dims | Maintains FK integrity for orphaned fact rows |
+| `user_agent` as natural key in MERGE | `ua_hash` as MERGE match key | Consistent with geo_hash pattern; hash-based matching faster |
 
-  configuration = {
-    "storage.account_name" = var.storage_account_name
-  }
-}
+**Verified State:**
+- Workflow job: `847995192336508` — serverless, multi-task, schedule 0 0 2 * * ? UTC
+- Bronze pipeline: `a6ea62d3-5f3a-4f53-ae8b-4bfb156703ad` — serverless, ADVANCED, no development flag
+- Silver pipeline: `98c7675f-5425-4a14-95b6-247af6da9626` — serverless, ADVANCED, maxminddb env dep
+- Dev job `w3c-jdbc-export-test`: **deleted** (replaced by workflow Task 3)
+- Terraform state: 3 managed resources (bronze pipeline, silver pipeline, workflow job)
+- Terraform tests: `tests/test_terraform_part_b.py` — 39 tests, `@pytest.mark.terraform`
+- All 3 workflow tasks confirmed SUCCESS in end-to-end test
+- **76 unit tests pass, 0 failures**; terraform validate succeeds; DAG syntax verified
+- Storage key: injected via `TF_VAR_storage_access_key` (conditional — not in tfvars)
+- Managed identity RBAC insufficient for serverless DLT ABFSS flow resolution — storage key workaround remains
 
-# Silver DLT Pipeline (Serverless)
-resource "databricks_pipeline" "silver" {
-  name        = "w3c-silver-pipeline"
-  description = "Silver DLT pipeline for GeoIP enrichment and computed fields (serverless)"
-  catalog     = "w3c_etl_databricks"
-  target      = "silver"
-  serverless  = true
-
-  libraries {
-    notebook {
-      path = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_silver.py"
-    }
-  }
-
-  libraries {
-    pypi {
-      package = "maxminddb==2.8.*"
-    }
-  }
-
-  configuration = {
-    "storage.account_name"           = var.storage_account_name
-    "geoip.city_db_path"             = "/Volumes/w3c_etl_databricks/bronze/w3c_data/GeoLite2-City.mmdb"
-    "geoip.asn_db_path"              = "/Volumes/w3c_etl_databricks/bronze/w3c_data/GeoLite2-ASN.mmdb"
-  }
-}
-
-# Databricks Workflow Job
-resource "databricks_job" "w3c_etl_workflow" {
-  name = "w3c-etl-workflow"
-  description = "W3C ETL workflow: Bronze -> Silver -> JDBC Export"
-
-  workflow_tasks {
-    task_key {
-      description = "DLT Bronze Pipeline"
-      pipeline_task {
-        pipeline_id = databricks_pipeline.bronze.id
-      }
-    }
-    depends_on {
-      task_key = []
-    }
-  }
-
-  workflow_tasks {
-    task_key {
-      description = "DLT Silver Pipeline"
-      pipeline_task {
-        pipeline_id = databricks_pipeline.silver.id
-      }
-    }
-    depends_on {
-      task_key = ["bronze"]
-    }
-  }
-
-  workflow_tasks {
-    task_key {
-      description = "JDBC Export to Azure SQL"
-      spark_python_task {
-        python_file = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/jdbc_export_azure.py"
-        # No base_parameters needed - secrets retrieved via dbutils.secrets.get() in the script
-        # Silver table read uses spark.table("w3c_etl_databricks.silver.silver_enriched_logs") directly
-      }
-    }
-    depends_on {
-      task_key = ["silver"]
-    }
-  }
-
-  job_cluster {
-    job_cluster_key = "w3c_etl_cluster"
-    new_cluster {
-      spark_version = "15.4.x-scala2.12"
-      node_type_id  = var.job_cluster_node_type  # Region-dependent: verify availability
-      autoscale {
-        min_workers = 1
-        max_workers = 2
-      }
-      data_security_mode = "SINGLE_USER"
-      custom_library {
-        maven {
-          coordinates = "com.microsoft.sqlserver:mssql-jdbc:12.6.1.jre11"
-        }
-      }
-    }
-  }
-
-  schedule {
-    quartz_cron_expression = "0 2 * * *"  # Daily at 2 AM UTC
-    timezone_id            = "UTC"
-  }
-}
-```
-
-**terraform/part_b/variables.tf:**
-
-```hcl
-variable "databricks_host" {
-  description = "Databricks workspace URL"
-  type        = string
-  sensitive   = true
-}
-
-variable "databricks_token" {
-  description = "Databricks PAT token"
-  type        = string
-  sensitive   = true
-}
-
-variable "storage_account_name" {
-  description = "Storage account name"
-  type        = string
-}
-
-variable "azure_sql_server" {
-  description = "Azure SQL server FQDN"
-  type        = string
-}
-
-variable "azure_sql_database" {
-  description = "Azure SQL database name"
-  type        = string
-}
-
-variable "job_cluster_node_type" {
-  description = "Node type for workflow job cluster (region-dependent)"
-  type        = string
-  default     = "Standard_DS3_v2"
-}
-```
-
-**terraform/part_b/outputs.tf:**
-
-```hcl
-output "bronze_pipeline_id" {
-  description = "Bronze DLT pipeline ID"
-  value       = databricks_pipeline.bronze.id
-}
-
-output "silver_pipeline_id" {
-  description = "Silver DLT pipeline ID"
-  value       = databricks_pipeline.silver.id
-}
-
-output "workflow_job_id" {
-  description = "Databricks Workflow job ID"
-  value       = databricks_job.w3c_etl_workflow.id
-}
-```
-
-**terraform/part_b/environments/dev/terraform.tfvars:**
-
-```hcl
-databricks_host     = "https://<workspace-url>.azuredatabricks.net"
-databricks_token    = "<personal-access-token>"
-storage_account_name = "<storage-account-name-from-part-a>"
-azure_sql_server    = "<server-fqdn-from-part-a>"
-azure_sql_database  = "w3c-etl-db"
-```
-
-**Acceptance Criteria (updated 2026-06-08):**
-
-- Terraform Part B directory structure created
-- Bronze DLT pipeline resource configured (serverless: true, no cluster block)
-- Silver DLT pipeline resource configured (serverless: true, no cluster block, maxminddb==2.8.* as pipeline environment dependency)
-- Databricks Workflow job resource configured with 3 tasks
-- Task dependencies: Bronze → Silver → JDBC Export
-- All 3 tasks use serverless compute (no job cluster needed)
-- ~~Job cluster: Standard_DS3_v2, 1-2 workers~~ → Not needed (all serverless)
-- PyPI library: maxminddb==2.8.* (on Silver pipeline as environment dependency)
-- Environment dependency: pymssql>=2.2.11 (on job for JDBC export task)
-- ~~Maven library: mssql-jdbc~~ → Not needed (pymssql covers DB driver)
-- JDBC export task uses `notebook_task` on serverless (not `spark_python_task` with cluster)
-- Silver table read uses Unity Catalog path: `spark.table("w3c_etl_databricks.silver.silver_enriched_logs")`
-- Terraform init, validate, plan, apply successful
-- Databricks Workflow visible in workspace
-- Workflow run tested with sample data
-- All 3 tasks execute successfully
-- Data flows end-to-end: Bronze → Silver → Azure SQL
-
-**Phase Handoff Validation:**
-
-```bash
-# Verify pipelines
-databricks pipelines list
-
-# Capture workflow job ID to root .env.azure for Airflow DAGs and Tier 2 CI usage
-WORKFLOW_ID=$(terraform output -raw workflow_job_id)
-echo "DATABRICKS_WORKFLOW_ID=$WORKFLOW_ID" >> ../../.env.azure
-source ../../.env.azure
-
-# Verify workflow job
-databricks jobs list
-
-# Trigger workflow run
-databricks jobs run-now --job-id <workflow-job-id>
-
-# Monitor run status
-databricks runs list --job-id <workflow-job-id>
-
-# Verify Azure SQL data after run
-sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.raw_enriched"
-```
+**Phase 6 → Phase 7 Handoff:** ✅ Complete — Phase 7 already integrated into Phase 6 (dimension export inlined in DAG). All orchestration operational, Airflow DAG triggers Workflow, inline dimension export verified with 1,585 geo rows + 219 UA rows.
 
 ---
 
-### Phase 7 — export_dimensions_azure
+### Phase 7 — Dimension Export (✅ Complete — E2E Verified 2026-06-09)
 
-**Phase Goal:** Create Airflow operator to build dimensional tables (dim_geolocation, dim_useragent) from Azure SQL and trigger dbt DAG via Dataset outlet.
+**Phase Goal:** Build dimensional tables (`dim_geolocation`, `dim_useragent`) from Azure SQL `dbo.raw_enriched` using MERGE upsert, with full user-agent string parsing, and fire the Dataset outlet for the downstream dbt DAG.
 
-**Checklist:**
+**Summary:** Dimension export inline in `spark_ingestion_azure.py` as `_export_dimensions()` PythonOperator (wired as Task 2 in the DAG, runs after Workflow completes). Reads `dbo.raw_enriched` via `pyodbc`, computes geo composite hashes via Azure SQL `HASHBYTES('SHA2_256', ...)` inside the MERGE subquery (efficient batch computation where source data lives), parses raw UA strings via `user-agents` library with `hashlib.sha256()` hashing (alongside parsing to avoid extra SQL round-trips). Upserts into `dbo.dim_geolocation` (MERGE on `geo_hash` — SHA-256 of country/region/city/lat/lon) and `dbo.dim_useragent` (MERGE on `ua_hash` — SHA-256 of parsed UA fields). Both dims seed `-1` sentinel unknown rows for FK integrity via `SET IDENTITY_INSERT ON/OFF`. Dataset outlet `mssql://azure-sql/dbo/raw_enriched_loaded` fired. **All runs succeed** — 1,585 unique geo rows and 219 unique UA rows with zero duplicates and zero integrity violations.
 
-- [ ] Create `airflow/dags/operators/export_dimensions_azure.py`
-- [ ] Implement _build_dim_geolocation function
-- [ ] Implement client_ip → ip column rename
-- [ ] Implement _build_dim_useragent function
-- [ ] Implement user_agents library integration
-- [ ] Implement _write_dim_to_azure function
-- [ ] Implement MERGE upsert on natural key
-- [ ] Implement IF NOT EXISTS DDL pattern
-- [ ] Implement SET IDENTITY_INSERT for -1 unknown rows
-- [ ] Create Airflow Dataset outlet for dbt trigger
-- [ ] Test dim table creation with sample data
-- [ ] Verify MERGE upsert idempotency
-- [ ] Verify Dataset outlet fires correctly
+**⚠️ Differences from Plan Scaffold:**
 
-**Code Scaffolds:**
+| Plan Scaffold | Actual Implementation (Phase 6/7 Fixes) | Reason |
+|---------------|--------------------------------|--------|
+| Separate `operators/export_dimensions_azure.py` file | Inline `_export_dimensions()` callable in `spark_ingestion_azure.py` | Simpler project structure; dimension build tightly coupled to DAG lifecycle |
+| SQLAlchemy for Azure SQL connection | Raw `pyodbc` with DRIVER+conn_str | Fewer dependencies; pyodbc already available in Airflow container |
+| No UA parsing library needed | `user-agents` library used for full UA parsing | Raw UA strings need parsing; produces clean component columns |
+| `HASHBYTES('SHA2_256', ...)` in SQL MERGE for both hashes | `HASHBYTES` in SQL for geo (batch-computed inside MERGE subquery); `hashlib.sha256()` in Python for UA (computed alongside parsing) | Geo stays in SQL where source data is already batched; UA hash computed locally avoids extra SQL round-trip |
+| `SELECT DISTINCT` for geo dedup subquery | `GROUP BY country, region, city, latitude, longitude` + `MAX(isp)` | `DISTINCT` included `isp` (not part of hash) → duplicate `geo_hash` rows → IntegrityError on unique constraint |
+| No -1 sentinel rows | `SET IDENTITY_INSERT ON/OFF` with `WHERE NOT EXISTS` for -1 rows | Maintains FK integrity for orphaned fact rows; analytics tools expect -1 sentinel |
+| Dataset: `azure://w3c-etl/dimensions_ready` | Dataset: `mssql://azure-sql/dbo/raw_enriched_loaded` | More descriptive — signals which database was loaded |
+| `dim_geolocation` with `ip` as MERGE key | `dim_geolocation` with `geo_hash` as MERGE match key (SHA-256 of geo fields) | More robust — handles IP changes across regions; hash match faster than string compare |
+| `dim_useragent` with `user_agent` as MERGE key | `dim_useragent` with `ua_hash` as MERGE match key (SHA-256 of UA fields) | Consistent with geo_hash pattern |
 
-**airflow/dags/operators/export_dimensions_azure.py:**
-
-```python
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.datasets import Dataset
-from datetime import datetime, timedelta
-import pyodbc
-import sqlalchemy
-from sqlalchemy import text
-from user_agents import parse as ua_parse
-
-# Dataset for triggering dbt DAG
-DIMENSIONS_DATASET = Dataset("azure://w3c-etl/dimensions_ready")
-
-EXPORT_COLUMNS = [
-    "log_date", "log_time", "server_ip", "method", "uri_stem",
-    "uri_query", "client_ip", "user_agent", "cookie", "referrer",
-    "status", "sub_status", "win32_status", "bytes_sent", "bytes_recv",
-    "server_port", "username", "time_taken", "source_file",
-    "postcode", "page_category", "referrer_domain", "traffic_type",
-    "is_crawler", "size_band",
-    "country", "region", "city", "latitude", "longitude", "isp",
-]
-
-DIM_GEOLOCATION_DDL = """
-IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'dim_geolocation' AND schema_id = SCHEMA_ID('dbo'))
-BEGIN
-    CREATE TABLE dbo.dim_geolocation (
-        geolocation_sk INT IDENTITY(1,1) PRIMARY KEY,
-        ip VARCHAR(45) NOT NULL,
-        country VARCHAR(100),
-        region VARCHAR(100),
-        city VARCHAR(100),
-        latitude FLOAT,
-        longitude FLOAT,
-        postcode VARCHAR(20),
-        isp VARCHAR(200),
-        created_at DATETIME DEFAULT GETDATE(),
-        updated_at DATETIME DEFAULT GETDATE()
-    );
-
-    CREATE INDEX idx_dim_geolocation_ip ON dbo.dim_geolocation(ip);
-END
-"""
-
-DIM_USERAGENT_DDL = """
-IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'dim_useragent' AND schema_id = SCHEMA_ID('dbo'))
-BEGIN
-    CREATE TABLE dbo.dim_useragent (
-        user_agent_sk INT IDENTITY(1,1) PRIMARY KEY,
-        user_agent NVARCHAR(MAX) NOT NULL,
-        browser_name VARCHAR(100),
-        browser_version VARCHAR(50),
-        operating_system VARCHAR(100),
-        device_type VARCHAR(50),
-        is_bot BIT DEFAULT 0,
-        created_at DATETIME DEFAULT GETDATE(),
-        updated_at DATETIME DEFAULT GETDATE()
-    );
-
-    CREATE INDEX idx_dim_useragent_user_agent ON dbo.dim_useragent(user_agent);
-END
-"""
-
-def _build_dim_geolocation(engine):
-    """Build dim_geolocation from dbo.raw_enriched."""
-    with engine.connect() as conn:
-        # Create table if not exists
-        conn.execute(text(DIM_GEOLOCATION_DDL))
-        conn.commit()
-
-        # Insert -1 unknown row
-        conn.execute(text("""
-            IF NOT EXISTS (SELECT 1 FROM dbo.dim_geolocation WHERE geolocation_sk = -1)
-            BEGIN
-                SET IDENTITY_INSERT dbo.dim_geolocation ON;
-                INSERT INTO dbo.dim_geolocation (geolocation_sk, ip, country, region, city, latitude, longitude, postcode, isp)
-                VALUES (-1, '0.0.0.0', 'Unknown', 'Unknown', 'Unknown', NULL, NULL, NULL, 'Unknown');
-                SET IDENTITY_INSERT dbo.dim_geolocation OFF;
-            END
-        """))
-        conn.commit()
-
-        # Extract unique geolocation data from raw_enriched
-        # CRITICAL: Rename client_ip → ip (PK column is ip not client_ip)
-        conn.execute(text("""
-            INSERT INTO dbo.dim_geolocation (ip, country, region, city, latitude, longitude, postcode, isp)
-            SELECT DISTINCT
-                client_ip AS ip,
-                country,
-                region,
-                city,
-                latitude,
-                longitude,
-                postcode,
-                isp
-            FROM dbo.raw_enriched
-            WHERE client_ip IS NOT NULL AND client_ip != '-'
-        """))
-        conn.commit()
-
-        print(f"Inserted geolocation data")
-
-def _build_dim_useragent(engine):
-    """Build dim_useragent from dbo.raw_enriched."""
-    with engine.connect() as conn:
-        # Create table if not exists
-        conn.execute(text(DIM_USERAGENT_DDL))
-        conn.commit()
-
-        # Insert -1 unknown row
-        conn.execute(text("""
-            IF NOT EXISTS (SELECT 1 FROM dbo.dim_useragent WHERE user_agent_sk = -1)
-            BEGIN
-                SET IDENTITY_INSERT dbo.dim_useragent ON;
-                INSERT INTO dbo.dim_useragent (user_agent_sk, user_agent, browser_name, browser_version, operating_system, device_type, is_bot)
-                VALUES (-1, 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 0);
-                SET IDENTITY_INSERT dbo.dim_useragent OFF;
-            END
-        """))
-        conn.commit()
-
-        # Extract unique user agents from raw_enriched
-        result = conn.execute(text("""
-            SELECT DISTINCT user_agent
-            FROM dbo.raw_enriched
-            WHERE user_agent IS NOT NULL AND user_agent != '-'
-        """))
-
-        for row in result:
-            user_agent = row[0]
-            parsed_ua = ua_parse(user_agent)
-
-            browser_name = parsed_ua.browser.family if parsed_ua.browser else 'Unknown'
-            browser_version = parsed_ua.browser.version_string if parsed_ua.browser else 'Unknown'
-            operating_system = parsed_ua.os.family if parsed_ua.os else 'Unknown'
-            device_type = parsed_ua.device.family if parsed_ua.device else 'Unknown'
-            is_bot = 1 if parsed_ua.is_bot else 0
-
-            conn.execute(text("""
-                INSERT INTO dbo.dim_useragent (user_agent, browser_name, browser_version, operating_system, device_type, is_bot)
-                VALUES (:user_agent, :browser_name, :browser_version, :operating_system, :device_type, :is_bot)
-            """), {
-                "user_agent": user_agent,
-                "browser_name": browser_name,
-                "browser_version": browser_version,
-                "operating_system": operating_system,
-                "device_type": device_type,
-                "is_bot": is_bot
-            })
-
-        conn.commit()
-        print(f"Inserted user agent data")
-
-def _write_dim_to_azure(engine, table_name, natural_key, data_dict):
-    """MERGE upsert on natural key."""
-    with engine.connect() as conn:
-        # Build MERGE statement dynamically
-        columns = list(data_dict.keys())
-        values = list(data_dict.values())
-
-        set_clause = ", ".join([f"target.{col} = source.{col}" for col in columns if col != natural_key])
-
-        merge_sql = f"""
-            MERGE INTO dbo.{table_name} AS target
-            USING (SELECT :{', :'.join(columns)}) AS source ({', '.join(columns)})
-            ON target.{natural_key} = source.{natural_key}
-            WHEN MATCHED THEN
-                UPDATE SET {set_clause}, updated_at = GETDATE()
-            WHEN NOT MATCHED THEN
-                INSERT ({', '.join(columns)}) VALUES ({', '.join([f':{col}' for col in columns])});
-        """
-
-        conn.execute(text(merge_sql), data_dict)
-        conn.commit()
-
-def export_dimensions_azure(**context):
-    """Export dimensions from Azure SQL to dim tables."""
-    # Build connection string
-    server = context["azure_sql_server"]
-    database = context["azure_sql_database"]
-    username = context["azure_sql_user"]
-    password = context["azure_sql_password"]
-
-    conn_str = f"mssql+pyodbc://{username}:{password}@{server}/{database}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no"
-
-    engine = sqlalchemy.create_engine(conn_str)
-
-    try:
-        # Build dim_geolocation
-        _build_dim_geolocation(engine)
-
-        # Build dim_useragent
-        _build_dim_useragent(engine)
-
-        print("Dimensions export completed successfully")
-
-    finally:
-        engine.dispose()
-
-# DAG definition
-default_args = {
-    "owner": "airflow",
-    "depends_on_past": False,
-    "start_date": datetime(2024, 1, 1),
-    "retries": 1,
-    "retry_delay": timedelta(minutes=5),
-}
-
-with DAG(
-    dag_id="export_dimensions_azure",
-    default_args=default_args,
-    schedule_interval=None,
-    catchup=False,
-    description="Export dimensions from Azure SQL to dim tables"
-) as dag:
-
-    export_dimensions_task = PythonOperator(
-        task_id="export_dimensions",
-        python_callable=export_dimensions_azure,
-        op_kwargs={
-            "azure_sql_server": "{{ var.value.AZURE_SQL_SERVER }}",
-            "azure_sql_database": "{{ var.value.AZURE_SQL_DB }}",
-            "azure_sql_user": "{{ var.value.AZURE_SQL_USER }}",
-            "azure_sql_password": "{{ var.value.AZURE_SQL_PASSWORD }}",
-        },
-        outlets=[DIMENSIONS_DATASET]
-    )
-```
-
-**Acceptance Criteria:**
-
-- `export_dimensions_azure.py` created with operator
-- _build_dim_geolocation implements client_ip → ip rename
-- _build_dim_useragent implements user_agents parsing
-- _write_dim_to_azure implements MERGE upsert
-- IF NOT EXISTS DDL pattern implemented
-- SET IDENTITY_INSERT for -1 unknown rows implemented
-- Airflow Dataset outlet configured
-- dim_geolocation table created with correct schema
-- dim_useragent table created with correct schema
-- -1 unknown rows inserted in both tables
-- MERGE upsert tested for idempotency
-- Dataset outlet fires and is visible in Airflow UI
-
-**Phase Handoff Validation:**
-
-```bash
-# Verify dim tables exist
-sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME LIKE 'dim_%'"
-
-# Verify dim_geolocation schema
-sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "EXEC sp_help 'dbo.dim_geolocation'"
-
-# Verify dim_useragent schema
-sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "EXEC sp_help 'dbo.dim_useragent'"
-
-# Verify -1 unknown rows
-sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT * FROM dbo.dim_geolocation WHERE geolocation_sk = -1"
-sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT * FROM dbo.dim_useragent WHERE user_agent_sk = -1"
-
-# Verify data in dim tables
-sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.dim_geolocation"
-sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.dim_useragent"
-
-# Test idempotency (re-run operator)
-# Verify no duplicate rows
-```
+**Verified State:**
+- `dim_geolocation`: **1,585 rows**, 0 duplicate `geo_hash`, clean geolocation from 30+ countries
+- `dim_useragent`: **219 rows** (unique parsed UAs), 0 duplicate `ua_hash`, correctly parsed into `agent_type`/`browser_name`/`browser_version`/`os`/`device_type`
+- Both tables have correct schema (`VARBINARY(32)` hash columns), -1 sentinel rows seeded, zero integrity violations
+- MERGE upsert idempotent (no duplicates on re-run)
+- Dataset outlet `mssql://azure-sql/dbo/raw_enriched_loaded` fired — ready for downstream dbt DAG
+- Graceful degradation: logs warning if pyodbc/Azure SQL creds missing; core pipeline unaffected
 
 ---
 
@@ -3431,12 +2593,13 @@ curl http://localhost:9090/api/v1/targets
 ### Infrastructure
 
 - [x] Terraform Part A deployed successfully (resource groups, networking, storage, Databricks workspace, Azure SQL)
-- [ ] Terraform Part B deployed successfully (DLT pipelines, Databricks Workflows)
+- [x] Terraform Part B deployed successfully (DLT pipelines, Databricks Workflows — 3 serverless tasks)
 - [x] Terraform remote state backend configured (Azure Blob Storage)
 - [x] Unity Catalog created with bronze/silver/gold schemas
-- [ ] Databricks secret scope `w3c-etl-pipeline` configured
+- [x] Databricks secret scope `w3c-etl-pipeline` configured
 - [x] Budget alerts configured ($50 warning, $100 hard cap)
-- [ ] All resources visible and accessible in Azure portal
+- [x] `spark_ingestion_azure.py` DAG created — orchestrates entire pipeline (2-task DAG)
+- [x] All resources visible and accessible in Azure portal
 
 ### DLT Pipelines
 
@@ -3460,12 +2623,12 @@ curl http://localhost:9090/api/v1/targets
 - [x] Retry logic (4 attempts, exponential backoff: 15×2^attempt for DB auto-resume)
 - [x] is_crawler BIT cast from string (`when(col(...) == "true", lit(1)).otherwise(lit(0))`)
 - [x] Exact RAW_ENRICHED_DDL schema (31 columns)
-- [ ] export_dimensions_azure operator functional (Phase 7)
-- [ ] dim_geolocation table created with client_ip → ip rename
-- [ ] dim_useragent table created with UA parsing
-- [ ] MERGE upsert on natural key
-- [ ] -1 unknown rows in both dim tables
-- [ ] Airflow Dataset outlet firing correctly
+- [x] **`spark_ingestion_azure.py` DAG created** — triggers Workflow + inline `_export_dimensions` task
+- [x] **Inline dimension export** — `_export_dimensions()` PythonOperator with MERGE upsert on geo_hash/ua_hash
+- [x] **dim_geolocation DDL** — `IF OBJECT_ID` guard, MERGE on geo_hash (SHA2_256 composite)
+- [x] **dim_useragent DDL** — `IF OBJECT_ID` guard, MERGE on ua_hash (SHA2_256 composite)
+- [x] **Dataset outlet** — `Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")` fires for dbt DAG
+- [x] **Graceful degradation** — logs warning if pyodbc/Azure SQL creds missing; core pipeline unaffected
 
 ### dbt Migration
 
@@ -3535,10 +2698,11 @@ Phase 0  → Phase 1  → Phase 2  → Phase 3  → Phase 4  → Phase 5 ✅
     ↓         ↓         ↓         ↓         ↓         ↓
     └─────────┴─────────┴─────────┴─────────┴─────────┘
                           ↓
-Phase 6  → Phase 7  → Phase 8a → Phase 8b → Phase 8c
-(Workflows) (Dims)   (Macros) (Complex) (Docs)
-    ↓         ↓         ↓         ↓         ↓
-    └─────────┴─────────┴─────────┴─────────┘
+Phase 6 ✅ → Phase 7 ✅ → Phase 8a  → Phase 8b  → Phase 8c
+(Wf+TF+DAG) (Dims inline) (Macros)  (Complex) (Docs)
+                          (pending)
+    ↓              ↓         ↓         ↓         ↓
+    └──────────────┴─────────┴─────────┴─────────┘
                           ↓
 Phase 9  → Phase 10 → Phase 11 → Phase 12 → Phase 13
 (CI/CD)  (Monitor) (Cost)    (Docs)    (E2E)

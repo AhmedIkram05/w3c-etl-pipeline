@@ -39,6 +39,7 @@ python_files = ["test_*.py"]
 markers = [
     "integration: marks tests that need Docker stack running (deselect with '-m \"not integration\"')",
     "dag_integrity: marks tests that need Airflow environment (deselect with '-m \"not dag_integrity\"')",
+    "terraform: marks tests that need terraform binary on PATH (deselect with '-m \"not terraform\"')",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:airflow.*",

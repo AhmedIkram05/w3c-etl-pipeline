@@ -24,9 +24,11 @@ Usage:
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
-import pandas as pd
 import pytest
-from plugins.operators.export_dimensions import (
+
+pandas = pytest.importorskip("pandas")
+import pandas as pd  # noqa: E402
+from plugins.operators.export_dimensions import (  # noqa: E402
     DEFAULT_SILVER_PATH,
     _build_dim_geolocation,
     _build_dim_useragent,

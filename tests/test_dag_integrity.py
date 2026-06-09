@@ -347,7 +347,7 @@ class TestSparkIngestionAzureDAG:
         assert downstream_map["export_dimensions"] == set()
 
     def test_azure_dag_has_dataset_outlet(self):
-        """Verify the spark_ingestion_azure DAG emits Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")."""
+        """Verify the spark_ingestion_azure DAG emits Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")."""
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
@@ -366,9 +366,9 @@ class TestSparkIngestionAzureDAG:
 
         from airflow.datasets import Dataset
 
-        target = Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")
+        target = Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")
         assert target in outlets, (
-            f"Expected Dataset('postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded') in outlets, got {outlets}"
+            f"Expected Dataset('mssql://azure-sql/dbo/raw_enriched_loaded') in outlets, got {outlets}"
         )
 
     def test_azure_dag_has_no_import_errors(self):
