@@ -29,6 +29,16 @@ from unittest.mock import MagicMock, PropertyMock, call, patch
 
 import pytest
 
+# ── Mock PySpark (not available in base Python — only in Docker/PySpark env) ─
+# The source module does ``from pyspark.sql import SparkSession`` at the top
+# level.  We inject a stub into ``sys.modules`` so all function-test classes
+# can import the module.  DDL tests already use AST extraction (no import).
+_pyspark = MagicMock()
+sys.modules["pyspark"] = _pyspark
+sys.modules["pyspark.sql"] = MagicMock()
+sys.modules["pyspark.sql.functions"] = MagicMock()
+sys.modules["pyspark.sql.types"] = MagicMock()
+
 # Paths for AST extraction and module import.
 # The source lives at ``airflow/spark/databricks/jdbc_export_azure.py``.
 _TEST_DIR = os.path.dirname(os.path.abspath(__file__))
