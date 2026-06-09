@@ -563,98 +563,114 @@ class TestInsertBatch:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def _build_test_data(spark):
+    """Build a one-row test DataFrame matching RAW_ENRICHED_DDL columns.
+
+    This is used by all E2E tests to create realistic input data.
+    """
+    from pyspark.sql import Row
+
+    return spark.createDataFrame([
+        Row(
+            log_date="2026-01-01",
+            log_time="12:00:00",
+            server_ip="1.2.3.4",
+            method="GET",
+            uri_stem="/index.html",
+            uri_query="",
+            client_ip="5.6.7.8",
+            user_agent="test-agent",
+            cookie="",
+            referrer="-",
+            status=200,
+            sub_status=0,
+            win32_status=0,
+            bytes_sent=1000,
+            bytes_recv=500,
+            server_port=80,
+            username="",
+            time_taken=100,
+            source_file="w3c-2026-01-01.log",
+            postcode="12345",
+            page_category="Home",
+            referrer_domain="",
+            traffic_type="Direct",
+            is_crawler="false",
+            size_band="1KB-10KB",
+            country="US",
+            region="CA",
+            city="San Jose",
+            latitude=37.33,
+            longitude=-121.89,
+            isp="Test ISP",
+        ),
+    ])
+
+
 class TestExportToAzureSql:
     """Full export pipeline with mocked connections.
 
     These tests require a real PySpark installation (not the mock) because
     they build an actual ``SparkSession`` and ``DataFrame``.
+
+    The module reads from ``w3c_etl_databricks.silver.silver_enriched_logs``
+    (a Unity Catalog 3-part table name).  Since OSS Spark does not support
+    UC, we patch ``spark.table`` to return our test DataFrame regardless
+    of the table name passed.
     """
+
+    _UC_TABLE = "w3c_etl_databricks.silver.silver_enriched_logs"
 
     def _import_export(self):
         return _import_from_module("export_to_azure_sql")
 
-    @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
-    def test_full_flow_with_new_data(self, caplog):
-        """Full export flow: connect → ensure tables → filter → batch insert → track."""
-        from pyspark.sql import Row, SparkSession
+    def _spark_and_patches(self):
+        """Create a SparkSession, DataFrame, and context managers for E2E tests."""
+        from pyspark.sql import SparkSession
 
-        # ── Mock pymssql side ─────────────────────────────────────────
         mock_pymssql = MagicMock()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_pymssql.connect.return_value = mock_conn
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_cursor.fetchall.return_value = []  # empty tracking table
 
-        # ── Real PySpark DataFrame ────────────────────────────────────
         spark = (
             SparkSession.builder.master("local[1]").appName("test").config("spark.ui.enabled", "false").getOrCreate()
         )
 
-        try:
-            data = [
-                Row(
-                    log_date="2026-01-01",
-                    log_time="12:00:00",
-                    server_ip="1.2.3.4",
-                    method="GET",
-                    uri_stem="/index.html",
-                    uri_query="",
-                    client_ip="5.6.7.8",
-                    user_agent="test-agent",
-                    cookie="",
-                    referrer="-",
-                    status=200,
-                    sub_status=0,
-                    win32_status=0,
-                    bytes_sent=1000,
-                    bytes_recv=500,
-                    server_port=80,
-                    username="",
-                    time_taken=100,
-                    source_file="w3c-2026-01-01.log",
-                    postcode="12345",
-                    page_category="Home",
-                    referrer_domain="",
-                    traffic_type="Direct",
-                    is_crawler="false",
-                    size_band="1KB-10KB",
-                    country="US",
-                    region="CA",
-                    city="San Jose",
-                    latitude=37.33,
-                    longitude=-121.89,
-                    isp="Test ISP",
-                ),
-            ]
-            _ = spark.createDataFrame(data)
+        df = _build_test_data(spark)
 
-            with patch.dict("sys.modules", {"pymssql": mock_pymssql}):
+        # Patch spark.table so the UC table name resolves to our test DF
+        table_patch = patch.object(spark, "table", return_value=df)
+        pymssql_patch = patch.dict("sys.modules", {"pymssql": mock_pymssql})
+
+        return spark, mock_conn, mock_cursor, mock_pymssql, table_patch, pymssql_patch
+
+    @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
+    def test_full_flow_with_new_data(self, caplog):
+        """Full export flow: connect → ensure tables → filter → batch insert → track."""
+        spark, mock_conn, mock_cursor, mock_pymssql, table_patch, pymssql_patch = self._spark_and_patches()
+        mock_cursor.fetchall.return_value = []  # empty tracking table → all rows are "new"
+
+        try:
+            with table_patch, pymssql_patch:
                 export_to_azure_sql = self._import_export()
                 export_to_azure_sql(spark, "server", "db", "user", "pass")
 
-            # ── Assertions ────────────────────────────────────────────
             # Connection established
             mock_pymssql.connect.assert_called_once()
-
-            # Tables ensured (2 DDL execute calls)
+            # DDL executed
             assert mock_cursor.execute.call_count >= 2
-
-            # Data inserted into dbo.raw_enriched
-            # (once via executemany for the batch insert)
+            # Data inserted
             assert mock_cursor.executemany.call_count >= 1
-
             # Tracking table updated
             any_tracking = any("raw_enriched_loaded" in str(args) for args in mock_cursor.executemany.call_args_list)
-            # Either through executemany or direct execute
-            any_tracking_execute = any(
+            any_tracking_exec = any(
                 "raw_enriched_loaded" in str(args[0][0]) for args in mock_cursor.execute.call_args_list if args[0]
             )
-            assert any_tracking or any_tracking_execute, "No tracking table update found"
-
+            assert any_tracking or any_tracking_exec, "No tracking table update found"
             # Connection closed
             mock_conn.close.assert_called_once()
-
             assert any("Exporting" in msg for msg in caplog.messages)
 
         finally:
@@ -663,63 +679,14 @@ class TestExportToAzureSql:
     @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
     def test_no_new_files_skips_export(self, caplog):
         """No new source files → early return, no insert."""
-        from pyspark.sql import Row, SparkSession
-
-        mock_pymssql = MagicMock()
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_pymssql.connect.return_value = mock_conn
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        # All files already loaded
-        mock_cursor.fetchall.return_value = [("w3c-2026-01-01.log",)]
-
-        spark = (
-            SparkSession.builder.master("local[1]").appName("test").config("spark.ui.enabled", "false").getOrCreate()
-        )
+        spark, mock_conn, mock_cursor, _, table_patch, pymssql_patch = self._spark_and_patches()
+        mock_cursor.fetchall.return_value = [("w3c-2026-01-01.log",)]  # all already loaded
 
         try:
-            data = [
-                Row(
-                    log_date="2026-01-01",
-                    log_time="12:00:00",
-                    server_ip="1.2.3.4",
-                    method="GET",
-                    uri_stem="/index.html",
-                    uri_query="",
-                    client_ip="5.6.7.8",
-                    user_agent="test-agent",
-                    cookie="",
-                    referrer="-",
-                    status=200,
-                    sub_status=0,
-                    win32_status=0,
-                    bytes_sent=1000,
-                    bytes_recv=500,
-                    server_port=80,
-                    username="",
-                    time_taken=100,
-                    source_file="w3c-2026-01-01.log",
-                    postcode="12345",
-                    page_category="Home",
-                    referrer_domain="",
-                    traffic_type="Direct",
-                    is_crawler="false",
-                    size_band="1KB-10KB",
-                    country="US",
-                    region="CA",
-                    city="San Jose",
-                    latitude=37.33,
-                    longitude=-121.89,
-                    isp="Test ISP",
-                ),
-            ]
-            _ = spark.createDataFrame(data)
-
-            with patch.dict("sys.modules", {"pymssql": mock_pymssql}):
+            with table_patch, pymssql_patch:
                 export_to_azure_sql = self._import_export()
                 export_to_azure_sql(spark, "server", "db", "user", "pass")
 
-            # The tracking table still gets updated
             assert any("No new source files" in msg for msg in caplog.messages)
 
         finally:
@@ -728,68 +695,19 @@ class TestExportToAzureSql:
     @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
     def test_is_crawler_cast_from_string_to_bit(self):
         """is_crawler string ("true"/"false") is cast to BIT (0/1) for Azure SQL."""
-        from pyspark.sql import Row, SparkSession
-
-        mock_pymssql = MagicMock()
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_pymssql.connect.return_value = mock_conn
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        spark, mock_conn, mock_cursor, _, table_patch, pymssql_patch = self._spark_and_patches()
         mock_cursor.fetchall.return_value = []
 
-        spark = (
-            SparkSession.builder.master("local[1]").appName("test").config("spark.ui.enabled", "false").getOrCreate()
-        )
-
         try:
-            data = [
-                Row(**{
-                    "log_date": "2026-01-01",
-                    "log_time": "12:00:00",
-                    "server_ip": "1.2.3.4",
-                    "method": "GET",
-                    "uri_stem": "/index.html",
-                    "uri_query": "",
-                    "client_ip": "5.6.7.8",
-                    "user_agent": "test-agent",
-                    "cookie": "",
-                    "referrer": "-",
-                    "status": 200,
-                    "sub_status": 0,
-                    "win32_status": 0,
-                    "bytes_sent": 1000,
-                    "bytes_recv": 500,
-                    "server_port": 80,
-                    "username": "",
-                    "time_taken": 100,
-                    "source_file": "test.log",
-                    "postcode": "",
-                    "page_category": "Home",
-                    "referrer_domain": "",
-                    "traffic_type": "Direct",
-                    "is_crawler": "true",
-                    "size_band": "1KB-10KB",
-                    "country": "US",
-                    "region": "CA",
-                    "city": "San Jose",
-                    "latitude": 37.33,
-                    "longitude": -121.89,
-                    "isp": "Test ISP",
-                }),
-            ]
-            _ = spark.createDataFrame(data)
-
-            with patch.dict("sys.modules", {"pymssql": mock_pymssql}):
+            with table_patch, pymssql_patch:
                 export_to_azure_sql = self._import_export()
                 export_to_azure_sql(spark, "server", "db", "user", "pass")
 
-            # Verify is_crawler was cast to 1 (integer)
-            # The params passed to executemany should have 1 for is_crawler
+            # Verify is_crawler values in executemany params are 0 or 1 (not "true"/"false")
             for args in mock_cursor.executemany.call_args_list:
                 params = args[0][1] if len(args[0]) > 1 else []
                 for row_params in params:
                     if hasattr(row_params, "__iter__"):
-                        # Find is_crawler position in the params
                         for p in row_params:
                             if p == 1 or p == 0:
                                 assert p in (0, 1), f"is_crawler should be 0 or 1, got {p}"
@@ -800,60 +718,16 @@ class TestExportToAzureSql:
     @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
     def test_connection_closed_in_finally(self):
         """Connection is always closed, even on error."""
-        from pyspark.sql import Row, SparkSession
-
-        mock_pymssql = MagicMock()
-        mock_conn = MagicMock()
-        mock_pymssql.connect.return_value = mock_conn
-
-        spark = (
-            SparkSession.builder.master("local[1]").appName("test").config("spark.ui.enabled", "false").getOrCreate()
-        )
+        spark, mock_conn, _, _, table_patch, pymssql_patch = self._spark_and_patches()
+        # Don't mock the cursor — export_to_azure_sql will fail when trying to
+        # call ensure_tables_exist → cursor.execute(), but finally should still close
 
         try:
-            data = [
-                Row(
-                    log_date="2026-01-01",
-                    log_time="12:00:00",
-                    server_ip="1.2.3.4",
-                    method="GET",
-                    uri_stem="/index.html",
-                    uri_query="",
-                    client_ip="5.6.7.8",
-                    user_agent="test-agent",
-                    cookie="",
-                    referrer="-",
-                    status=200,
-                    sub_status=0,
-                    win32_status=0,
-                    bytes_sent=1000,
-                    bytes_recv=500,
-                    server_port=80,
-                    username="",
-                    time_taken=100,
-                    source_file="test.log",
-                    postcode="",
-                    page_category="Home",
-                    referrer_domain="",
-                    traffic_type="Direct",
-                    is_crawler="false",
-                    size_band="1KB-10KB",
-                    country="US",
-                    region="CA",
-                    city="San Jose",
-                    latitude=37.33,
-                    longitude=-121.89,
-                    isp="Test ISP",
-                ),
-            ]
-            _ = spark.createDataFrame(data)
-
-            with patch.dict("sys.modules", {"pymssql": mock_pymssql}):
+            with table_patch, pymssql_patch:
                 export_to_azure_sql = self._import_export()
-                # The cursor.execute will fail because we didn't mock it
-                # properly — this exercises the finally close
                 export_to_azure_sql(spark, "server", "db", "user", "pass")
 
+            # Connection closed even though export failed
             mock_conn.close.assert_called_once()
 
         finally:
