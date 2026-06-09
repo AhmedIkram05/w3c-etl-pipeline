@@ -37,16 +37,11 @@ if _DAGS_DIR not in sys.path:
     sys.path.insert(0, _DAGS_DIR)
 
 
-@pytest.fixture(scope="session")
-def spark():
+def _create_spark_session():
+    """Build a fresh local SparkSession for unit tests."""
     from pyspark.sql import SparkSession
 
-    """Create a shared local SparkSession for the test session.
-
-    Uses a single core and local mode — sufficient for unit-testing
-    UDFs and small DataFrame operations.
-    """
-    session = (
+    return (
         SparkSession.builder
         .master("local[1]")
         .appName("W3C_ETL_Test")
@@ -56,5 +51,43 @@ def spark():
         .config("spark.ui.enabled", "false")  # no UI overhead
         .getOrCreate()
     )
+
+
+def _spark_session_is_alive(session) -> bool:
+    """Return True when the SparkSession JVM context is still active."""
+    try:
+        return session.sparkContext._jsc is not None
+    except Exception:
+        return False
+
+
+@pytest.fixture
+def spark():
+    """Create a local SparkSession for each test that needs one.
+
+    Recreates the JVM context when a prior test stopped the shared singleton
+    (e.g. jdbc export E2E tests that call ``spark.stop()``).
+    """
+    pytest.importorskip("pyspark")
+    from pyspark.sql import SparkSession
+
+    active = SparkSession.getActiveSession()
+    if active is not None and not _spark_session_is_alive(active):
+        SparkSession._instantiatedSession = None
+        SparkSession._activeSession = None
+
+    session = _create_spark_session()
+    if not _spark_session_is_alive(session):
+        try:
+            session.stop()
+        except Exception:
+            pass
+        SparkSession._instantiatedSession = None
+        SparkSession._activeSession = None
+        session = _create_spark_session()
+
     yield session
-    session.stop()
+
+    if not _spark_session_is_alive(session):
+        SparkSession._instantiatedSession = None
+        SparkSession._activeSession = None

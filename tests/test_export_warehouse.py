@@ -233,10 +233,9 @@ class TestApplyTypeCasts:
 
     def test_is_crawler_string_to_boolean_true(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import StringType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
 
         schema = StructType([StructField("is_crawler", StringType(), True)])
         df = spark.createDataFrame([Row(is_crawler="true")], schema=schema)
@@ -246,10 +245,9 @@ class TestApplyTypeCasts:
 
     def test_is_crawler_string_to_boolean_false(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import StringType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
 
         schema = StructType([StructField("is_crawler", StringType(), True)])
         df = spark.createDataFrame([Row(is_crawler="false")], schema=schema)
@@ -259,10 +257,9 @@ class TestApplyTypeCasts:
 
     def test_is_crawler_whitespace_insensitive(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import StringType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
 
         schema = StructType([StructField("is_crawler", StringType(), True)])
         df = spark.createDataFrame([Row(is_crawler="  TRUE  ")], schema=schema)
@@ -272,10 +269,9 @@ class TestApplyTypeCasts:
 
     def test_is_crawler_non_true_is_false(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import StringType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
 
         schema = StructType([StructField("is_crawler", StringType(), True)])
         df = spark.createDataFrame([Row(is_crawler="unknown")], schema=schema)
@@ -285,10 +281,9 @@ class TestApplyTypeCasts:
 
     def test_bytes_sent_cast_to_bigint(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import LongType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
 
         schema = StructType([StructField("bytes_sent", LongType(), True)])
         df = spark.createDataFrame([Row(bytes_sent=65535)], schema=schema)
@@ -299,10 +294,9 @@ class TestApplyTypeCasts:
 
     def test_bytes_recv_cast_to_bigint(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import LongType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
 
         schema = StructType([StructField("bytes_recv", LongType(), True)])
         df = spark.createDataFrame([Row(bytes_recv=1024)], schema=schema)
@@ -313,10 +307,9 @@ class TestApplyTypeCasts:
 
     def test_time_taken_cast_to_bigint(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import LongType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
 
         schema = StructType([StructField("time_taken", LongType(), True)])
         df = spark.createDataFrame([Row(time_taken=5000)], schema=schema)
@@ -328,10 +321,9 @@ class TestApplyTypeCasts:
     def test_apply_type_casts_all_transforms_together(self, spark):
         """Verify all casts work together on a row with all relevant columns."""
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import LongType, StringType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
 
         schema = StructType([
             StructField("is_crawler", StringType(), True),
@@ -359,10 +351,9 @@ class TestApplyTypeCasts:
     def test_other_columns_preserved(self, spark):
         """Verify columns not in the cast list pass through unchanged."""
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import IntegerType, StringType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
 
         schema = StructType([
             StructField("status", IntegerType(), True),
@@ -376,10 +367,9 @@ class TestApplyTypeCasts:
     def test_none_is_crawler_becomes_false(self, spark):
         """Null/is_crawler should become False (when not 'true')."""
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import StringType, StructField, StructType
-
-        from airflow.spark.jobs.export_warehouse import apply_type_casts
 
         schema = StructType([StructField("is_crawler", StringType(), True)])
         df = spark.createDataFrame([Row(is_crawler=None)], schema=schema)
@@ -399,9 +389,8 @@ class TestGetLoadedSourceFiles:
     def test_returns_set_of_source_files(self, spark):
         """When the tracking table exists and has rows, return a set of values."""
         _requires_pyspark()
+        from export_warehouse import get_loaded_source_files
         from pyspark.sql import Row
-
-        from airflow.spark.jobs.export_warehouse import get_loaded_source_files
 
         mock_reader = MagicMock()
         mock_reader.format.return_value = mock_reader
@@ -423,7 +412,7 @@ class TestGetLoadedSourceFiles:
     def test_returns_empty_set_when_table_missing(self, spark):
         """When the tracking table does not exist, return an empty set."""
         _requires_pyspark()
-        from airflow.spark.jobs.export_warehouse import get_loaded_source_files
+        from export_warehouse import get_loaded_source_files
 
         mock_reader = MagicMock()
         mock_reader.format.return_value = mock_reader
@@ -439,7 +428,7 @@ class TestGetLoadedSourceFiles:
     def test_correct_jdbc_options_passed(self, spark):
         """Verify the function calls JDBC reader with correct dbtable and props."""
         _requires_pyspark()
-        from airflow.spark.jobs.export_warehouse import TRACKING_TABLE, get_loaded_source_files
+        from export_warehouse import TRACKING_TABLE, get_loaded_source_files
 
         mock_reader = MagicMock()
         mock_reader.format.return_value = mock_reader
@@ -473,7 +462,7 @@ class TestInsertTrackingRecords:
     def test_inserts_new_source_files(self, spark):
         """When new source files are provided, a DataFrame is created and appended."""
         _requires_pyspark()
-        from airflow.spark.jobs.export_warehouse import TRACKING_TABLE, insert_tracking_records
+        from export_warehouse import TRACKING_TABLE, insert_tracking_records
 
         new_files = {"u_ex091024.log", "u_ex100718.log", "u_ex110101.log"}
         mock_writer = MagicMock()
@@ -497,7 +486,7 @@ class TestInsertTrackingRecords:
     def test_noop_when_empty_set(self, spark):
         """When new_source_files is empty, nothing is written."""
         _requires_pyspark()
-        from airflow.spark.jobs.export_warehouse import insert_tracking_records
+        from export_warehouse import insert_tracking_records
 
         with patch.object(spark, "createDataFrame") as mock_create_df:
             insert_tracking_records(spark, "jdbc:postgresql://pg:5432/w3c", {"user": "u", "password": "p"}, set())
@@ -516,9 +505,8 @@ class TestErrorHandling:
         """Helper to set up mocks for the ``run()`` function."""
         _requires_pyspark()
         # We patch at the module level to avoid importing until pyspark is confirmed
+        from export_warehouse import run
         from pyspark.sql import Row
-
-        from airflow.spark.jobs.export_warehouse import run
 
         silver_df = spark.createDataFrame([
             Row(source_file="u_ex091024.log", is_crawler="true"),
@@ -532,17 +520,17 @@ class TestErrorHandling:
         mock_reader.load.return_value = silver_df
         mock_read_prop.return_value = mock_reader
 
-        patcher_get = patch("airflow.spark.jobs.export_warehouse.get_loaded_source_files")
+        patcher_get = patch("export_warehouse.get_loaded_source_files")
         mock_get = patcher_get.start()
         mock_get.return_value = set()
 
-        patcher_cast = patch("airflow.spark.jobs.export_warehouse.apply_type_casts")
+        patcher_cast = patch("export_warehouse.apply_type_casts")
         mock_cast = patcher_cast.start()
 
-        patcher_ddl = patch("airflow.spark.jobs.export_warehouse.execute_ddl")
+        patcher_ddl = patch("export_warehouse.execute_ddl")
         _mock_ddl = patcher_ddl.start()
 
-        patcher_insert = patch("airflow.spark.jobs.export_warehouse.insert_tracking_records")
+        patcher_insert = patch("export_warehouse.insert_tracking_records")
         mock_insert = patcher_insert.start()
 
         class Writer:
@@ -587,7 +575,7 @@ class TestErrorHandling:
         _requires_pyspark()
         run, mock_insert, cleanup = self._mock_run_deps(spark, fail_on_write=True)
 
-        with patch("airflow.spark.jobs.export_warehouse.log") as mock_log:
+        with patch("export_warehouse.log") as mock_log:
             with pytest.raises(RuntimeError, match="Connection refused"):
                 run(
                     spark,
@@ -637,7 +625,7 @@ class TestRunEdgeCases:
     def test_empty_delta_table_returns_early(self, spark):
         """When the silver table has zero rows, run() should return without writing."""
         _requires_pyspark()
-        from airflow.spark.jobs.export_warehouse import run
+        from export_warehouse import run
 
         empty_df = spark.createDataFrame([], schema="source_file string")
 
@@ -646,7 +634,7 @@ class TestRunEdgeCases:
         mock_reader.load.return_value = empty_df
 
         with patch.object(type(spark), "read", new_callable=PropertyMock, return_value=mock_reader):
-            with patch("airflow.spark.jobs.export_warehouse.log") as mock_log:
+            with patch("export_warehouse.log") as mock_log:
                 result = run(
                     spark,
                     delta_dir="/fake/delta",
@@ -662,9 +650,8 @@ class TestRunEdgeCases:
     def test_all_files_already_tracked(self, spark):
         """When all source files are already in the tracking table, skip export."""
         _requires_pyspark()
+        from export_warehouse import run
         from pyspark.sql import Row
-
-        from airflow.spark.jobs.export_warehouse import run
 
         df = spark.createDataFrame([
             Row(source_file="u_ex091024.log"),
@@ -676,10 +663,10 @@ class TestRunEdgeCases:
 
         with patch.object(type(spark), "read", new_callable=PropertyMock, return_value=mock_reader):
             with patch(
-                "airflow.spark.jobs.export_warehouse.get_loaded_source_files",
+                "export_warehouse.get_loaded_source_files",
                 return_value={"u_ex091024.log"},
             ):
-                with patch("airflow.spark.jobs.export_warehouse.log") as mock_log:
+                with patch("export_warehouse.log") as mock_log:
                     run(
                         spark,
                         delta_dir="/fake/delta",
@@ -694,14 +681,14 @@ class TestRunEdgeCases:
     def test_cannot_read_delta_table(self, spark):
         """When Delta table cannot be read, the error is logged and function returns."""
         _requires_pyspark()
-        from airflow.spark.jobs.export_warehouse import run
+        from export_warehouse import run
 
         mock_reader = MagicMock()
         mock_reader.format.return_value = mock_reader
         mock_reader.load.side_effect = Exception("Delta log not found")
 
         with patch.object(type(spark), "read", new_callable=PropertyMock, return_value=mock_reader):
-            with patch("airflow.spark.jobs.export_warehouse.log") as mock_log:
+            with patch("export_warehouse.log") as mock_log:
                 result = run(
                     spark,
                     delta_dir="/fake/delta",
@@ -727,7 +714,7 @@ class TestExecuteDDL:
     def test_execute_ddl_uses_jdbc_connection(self, spark):
         """Verify execute_ddl obtains a psycopg2 connection and executes the statement."""
         _requires_pyspark()
-        from airflow.spark.jobs.export_warehouse import execute_ddl
+        from export_warehouse import execute_ddl
 
         mock_conn = MagicMock()
         mock_cur = MagicMock()
@@ -751,10 +738,10 @@ class TestExecuteDDL:
     def test_execute_ddl_logs_and_raises_on_failure(self, spark):
         """When the psycopg2 connection fails, the error is logged and re-raised."""
         _requires_pyspark()
-        from airflow.spark.jobs.export_warehouse import execute_ddl
+        from export_warehouse import execute_ddl
 
         with patch("psycopg2.connect", side_effect=RuntimeError("No database")):
-            with patch("airflow.spark.jobs.export_warehouse.log") as mock_log:
+            with patch("export_warehouse.log") as mock_log:
                 with pytest.raises(RuntimeError):
                     execute_ddl(
                         spark,
