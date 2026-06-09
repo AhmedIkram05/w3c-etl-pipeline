@@ -233,10 +233,9 @@ class TestApplyTypeCasts:
 
     def test_is_crawler_string_to_boolean_true(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import StringType, StructField, StructType
-
-        from export_warehouse import apply_type_casts
 
         schema = StructType([StructField("is_crawler", StringType(), True)])
         df = spark.createDataFrame([Row(is_crawler="true")], schema=schema)
@@ -246,10 +245,9 @@ class TestApplyTypeCasts:
 
     def test_is_crawler_string_to_boolean_false(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import StringType, StructField, StructType
-
-        from export_warehouse import apply_type_casts
 
         schema = StructType([StructField("is_crawler", StringType(), True)])
         df = spark.createDataFrame([Row(is_crawler="false")], schema=schema)
@@ -259,10 +257,9 @@ class TestApplyTypeCasts:
 
     def test_is_crawler_whitespace_insensitive(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import StringType, StructField, StructType
-
-        from export_warehouse import apply_type_casts
 
         schema = StructType([StructField("is_crawler", StringType(), True)])
         df = spark.createDataFrame([Row(is_crawler="  TRUE  ")], schema=schema)
@@ -272,10 +269,9 @@ class TestApplyTypeCasts:
 
     def test_is_crawler_non_true_is_false(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import StringType, StructField, StructType
-
-        from export_warehouse import apply_type_casts
 
         schema = StructType([StructField("is_crawler", StringType(), True)])
         df = spark.createDataFrame([Row(is_crawler="unknown")], schema=schema)
@@ -285,10 +281,9 @@ class TestApplyTypeCasts:
 
     def test_bytes_sent_cast_to_bigint(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import LongType, StructField, StructType
-
-        from export_warehouse import apply_type_casts
 
         schema = StructType([StructField("bytes_sent", LongType(), True)])
         df = spark.createDataFrame([Row(bytes_sent=65535)], schema=schema)
@@ -299,10 +294,9 @@ class TestApplyTypeCasts:
 
     def test_bytes_recv_cast_to_bigint(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import LongType, StructField, StructType
-
-        from export_warehouse import apply_type_casts
 
         schema = StructType([StructField("bytes_recv", LongType(), True)])
         df = spark.createDataFrame([Row(bytes_recv=1024)], schema=schema)
@@ -313,10 +307,9 @@ class TestApplyTypeCasts:
 
     def test_time_taken_cast_to_bigint(self, spark):
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import LongType, StructField, StructType
-
-        from export_warehouse import apply_type_casts
 
         schema = StructType([StructField("time_taken", LongType(), True)])
         df = spark.createDataFrame([Row(time_taken=5000)], schema=schema)
@@ -328,10 +321,9 @@ class TestApplyTypeCasts:
     def test_apply_type_casts_all_transforms_together(self, spark):
         """Verify all casts work together on a row with all relevant columns."""
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import LongType, StringType, StructField, StructType
-
-        from export_warehouse import apply_type_casts
 
         schema = StructType([
             StructField("is_crawler", StringType(), True),
@@ -359,10 +351,9 @@ class TestApplyTypeCasts:
     def test_other_columns_preserved(self, spark):
         """Verify columns not in the cast list pass through unchanged."""
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import IntegerType, StringType, StructField, StructType
-
-        from export_warehouse import apply_type_casts
 
         schema = StructType([
             StructField("status", IntegerType(), True),
@@ -376,10 +367,9 @@ class TestApplyTypeCasts:
     def test_none_is_crawler_becomes_false(self, spark):
         """Null/is_crawler should become False (when not 'true')."""
         _requires_pyspark()
+        from export_warehouse import apply_type_casts
         from pyspark.sql import Row
         from pyspark.sql.types import StringType, StructField, StructType
-
-        from export_warehouse import apply_type_casts
 
         schema = StructType([StructField("is_crawler", StringType(), True)])
         df = spark.createDataFrame([Row(is_crawler=None)], schema=schema)
@@ -399,9 +389,8 @@ class TestGetLoadedSourceFiles:
     def test_returns_set_of_source_files(self, spark):
         """When the tracking table exists and has rows, return a set of values."""
         _requires_pyspark()
-        from pyspark.sql import Row
-
         from export_warehouse import get_loaded_source_files
+        from pyspark.sql import Row
 
         mock_reader = MagicMock()
         mock_reader.format.return_value = mock_reader
@@ -516,9 +505,8 @@ class TestErrorHandling:
         """Helper to set up mocks for the ``run()`` function."""
         _requires_pyspark()
         # We patch at the module level to avoid importing until pyspark is confirmed
-        from pyspark.sql import Row
-
         from export_warehouse import run
+        from pyspark.sql import Row
 
         silver_df = spark.createDataFrame([
             Row(source_file="u_ex091024.log", is_crawler="true"),
@@ -662,9 +650,8 @@ class TestRunEdgeCases:
     def test_all_files_already_tracked(self, spark):
         """When all source files are already in the tracking table, skip export."""
         _requires_pyspark()
-        from pyspark.sql import Row
-
         from export_warehouse import run
+        from pyspark.sql import Row
 
         df = spark.createDataFrame([
             Row(source_file="u_ex091024.log"),
