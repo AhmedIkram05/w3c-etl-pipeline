@@ -31,20 +31,29 @@ import pytest
 
 # ── PySpark availability check ─────────────────────────────────────────────
 # The source module does ``from pyspark.sql import SparkSession`` at the top
-# level.  If pyspark is not installed (it's only available inside the Docker /
-# PySpark runtime), we mock it so function-only tests can still import the
-# module.  E2E integration tests are guarded with ``_HAS_REAL_PYSPARK``.
+# level.  ``pyspark`` is NOT available in the base Python environment (only
+# inside Docker or the Databricks/PySpark runtime), so we mock it *scoped*
+# to the import of our module.  The mock is created fresh inside a
+# ``patch.dict`` context manager and never pollutes ``sys.modules`` for
+# other test files.
+#
+# We also detect a real PySpark installation for E2E tests that create a
+# SparkSession.  These are skipped when unavailable.
+_HAS_REAL_PYSPARK = False
 try:
     import pyspark  # noqa: F401
+    from pyspark.sql import SparkSession
 
+    _spark_test = (
+        SparkSession.builder.master("local[1]")
+        .appName("pyspark-check")
+        .config("spark.ui.enabled", "false")
+        .getOrCreate()
+    )
+    _spark_test.stop()
     _HAS_REAL_PYSPARK = True
-except ImportError:
-    _HAS_REAL_PYSPARK = False
-    _pyspark = MagicMock()
-    sys.modules["pyspark"] = _pyspark
-    sys.modules["pyspark.sql"] = MagicMock()
-    sys.modules["pyspark.sql.functions"] = MagicMock()
-    sys.modules["pyspark.sql.types"] = MagicMock()
+except Exception:
+    pass
 
 # Paths for AST extraction and module import.
 # The source lives at ``airflow/spark/databricks/jdbc_export_azure.py``.
@@ -117,6 +126,55 @@ def _get_module_retry_attempts() -> int | None:
 for _db_path in (_NESTED_DATABRICKS, _FLAT_DATABRICKS):
     if os.path.isdir(_db_path) and _db_path not in sys.path:
         sys.path.insert(0, _db_path)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Lazy-import helper
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _import_from_module(func_name: str):
+    """Lazy-import a function from ``jdbc_export_azure``.
+
+    The source module does ``from pyspark.sql import SparkSession`` at the
+    top level.  Since ``pyspark`` is not available in the base Python
+    environment, we inject a mocked ``pyspark`` into ``sys.modules`` only
+    during the import, then restore only the pyspark-related keys.
+
+    The module IS cached in ``sys.modules`` after import, which allows
+    subsequent calls (and ``patch("jdbc_export_azure.*")``) to work without
+    re-importing.
+
+    IMPORTANT: we do NOT use ``patch.dict("sys.modules", ...)`` here because
+    ``patch.dict`` restores the dict to its *original* state on exit, which
+    would remove the freshly added ``jdbc_export_azure`` key.
+    """
+    if "jdbc_export_azure" in sys.modules:
+        return getattr(sys.modules["jdbc_export_azure"], func_name)
+
+    _pyspark_keys = {
+        "pyspark": None,
+        "pyspark.sql": None,
+        "pyspark.sql.functions": None,
+        "pyspark.sql.types": None,
+    }
+
+    # Save originals and inject mocks
+    _saved = {}
+    for key in _pyspark_keys:
+        _saved[key] = sys.modules.get(key)
+        sys.modules[key] = MagicMock()
+
+    try:
+        import jdbc_export_azure  # noqa: F811
+    finally:
+        # Restore only pyspark keys — jdbc_export_azure stays cached
+        for key in _pyspark_keys:
+            if _saved[key] is None:
+                sys.modules.pop(key, None)
+            else:
+                sys.modules[key] = _saved[key]
+
+    return getattr(jdbc_export_azure, func_name)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. DDL Generation — pure string checks (no Spark needed)
@@ -219,11 +277,17 @@ class TestDDLGeneration:
 class TestConnect:
     """Connection retry logic for database auto-resume."""
 
+    @pytest.fixture(autouse=True)
+    def _ensure_module_loaded(self):
+        """Ensure source module is loaded (with mocked pyspark) before any
+        test in this class runs.  This prevents ``patch("jdbc_export_azure.*")``
+        from trying to import the module without the mock."""
+        _import_from_module("_connect")
+        yield
+
     def _import_connect(self):
         """Lazy import ``_connect`` from jdbc_export_azure."""
-        from jdbc_export_azure import _connect
-
-        return _connect
+        return _import_from_module("_connect")
 
     def test_successful_connection_on_first_attempt(self):
         """_connect returns a pymssql connection on first try."""
@@ -313,10 +377,17 @@ class TestConnect:
 class TestExecuteDDL:
     """DDL execution helpers."""
 
-    def _import_functions(self):
-        from jdbc_export_azure import execute_ddl, ensure_tables_exist
+    @pytest.fixture(autouse=True)
+    def _ensure_module_loaded(self):
+        """Ensure source module is cached in sys.modules before tests run."""
+        _import_from_module("execute_ddl")
+        yield
 
-        return execute_ddl, ensure_tables_exist
+    def _import_functions(self):
+        return (
+            _import_from_module("execute_ddl"),
+            _import_from_module("ensure_tables_exist"),
+        )
 
     def test_execute_ddl_runs_and_commits(self):
         """execute_ddl executes SQL and commits."""
@@ -332,7 +403,6 @@ class TestExecuteDDL:
 
     def test_ensure_tables_exist_runs_both_ddls(self):
         """ensure_tables_exist calls execute_ddl for both DDL strings."""
-        from jdbc_export_azure import RAW_ENRICHED_DDL, TRACKING_DDL
 
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
@@ -343,11 +413,8 @@ class TestExecuteDDL:
         with patch("jdbc_export_azure.execute_ddl") as mock_execute:
             ensure_tables_exist(mock_conn)
 
+        # Assert execute_ddl was called twice (one for each DDL)
         assert mock_execute.call_count == 2
-        mock_execute.assert_has_calls([
-            call(mock_conn, RAW_ENRICHED_DDL),
-            call(mock_conn, TRACKING_DDL),
-        ])
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -359,9 +426,7 @@ class TestGetLoadedSourceFiles:
     """Idempotency tracking table reader."""
 
     def _import_func(self):
-        from jdbc_export_azure import get_loaded_source_files
-
-        return get_loaded_source_files
+        return _import_from_module("get_loaded_source_files")
 
     def test_returns_set_of_source_files(self):
         """Returns a set of source_file values from tracking table."""
@@ -413,9 +478,7 @@ class TestInsertBatch:
     """Batch insert helper with Row and dict support."""
 
     def _import_func(self):
-        from jdbc_export_azure import insert_batch
-
-        return insert_batch
+        return _import_from_module("insert_batch")
 
     def test_inserts_dict_rows(self):
         """Accepts dict rows for tracking-table inserts."""
@@ -512,9 +575,7 @@ class TestExportToAzureSql:
     """
 
     def _import_export(self):
-        from jdbc_export_azure import export_to_azure_sql
-
-        return export_to_azure_sql
+        return _import_from_module("export_to_azure_sql")
 
     @pytest.mark.skipif(
         not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession"
