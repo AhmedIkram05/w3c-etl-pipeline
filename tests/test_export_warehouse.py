@@ -532,17 +532,17 @@ class TestErrorHandling:
         mock_reader.load.return_value = silver_df
         mock_read_prop.return_value = mock_reader
 
-        patcher_get = patch("airflow.spark.jobs.export_warehouse.get_loaded_source_files")
+        patcher_get = patch("export_warehouse.get_loaded_source_files")
         mock_get = patcher_get.start()
         mock_get.return_value = set()
 
-        patcher_cast = patch("airflow.spark.jobs.export_warehouse.apply_type_casts")
+        patcher_cast = patch("export_warehouse.apply_type_casts")
         mock_cast = patcher_cast.start()
 
-        patcher_ddl = patch("airflow.spark.jobs.export_warehouse.execute_ddl")
+        patcher_ddl = patch("export_warehouse.execute_ddl")
         _mock_ddl = patcher_ddl.start()
 
-        patcher_insert = patch("airflow.spark.jobs.export_warehouse.insert_tracking_records")
+        patcher_insert = patch("export_warehouse.insert_tracking_records")
         mock_insert = patcher_insert.start()
 
         class Writer:
@@ -587,7 +587,7 @@ class TestErrorHandling:
         _requires_pyspark()
         run, mock_insert, cleanup = self._mock_run_deps(spark, fail_on_write=True)
 
-        with patch("airflow.spark.jobs.export_warehouse.log") as mock_log:
+        with patch("export_warehouse.log") as mock_log:
             with pytest.raises(RuntimeError, match="Connection refused"):
                 run(
                     spark,
@@ -646,7 +646,7 @@ class TestRunEdgeCases:
         mock_reader.load.return_value = empty_df
 
         with patch.object(type(spark), "read", new_callable=PropertyMock, return_value=mock_reader):
-            with patch("airflow.spark.jobs.export_warehouse.log") as mock_log:
+            with patch("export_warehouse.log") as mock_log:
                 result = run(
                     spark,
                     delta_dir="/fake/delta",
@@ -676,10 +676,10 @@ class TestRunEdgeCases:
 
         with patch.object(type(spark), "read", new_callable=PropertyMock, return_value=mock_reader):
             with patch(
-                "airflow.spark.jobs.export_warehouse.get_loaded_source_files",
+                "export_warehouse.get_loaded_source_files",
                 return_value={"u_ex091024.log"},
             ):
-                with patch("airflow.spark.jobs.export_warehouse.log") as mock_log:
+                with patch("export_warehouse.log") as mock_log:
                     run(
                         spark,
                         delta_dir="/fake/delta",
@@ -701,7 +701,7 @@ class TestRunEdgeCases:
         mock_reader.load.side_effect = Exception("Delta log not found")
 
         with patch.object(type(spark), "read", new_callable=PropertyMock, return_value=mock_reader):
-            with patch("airflow.spark.jobs.export_warehouse.log") as mock_log:
+            with patch("export_warehouse.log") as mock_log:
                 result = run(
                     spark,
                     delta_dir="/fake/delta",
@@ -754,7 +754,7 @@ class TestExecuteDDL:
         from export_warehouse import execute_ddl
 
         with patch("psycopg2.connect", side_effect=RuntimeError("No database")):
-            with patch("airflow.spark.jobs.export_warehouse.log") as mock_log:
+            with patch("export_warehouse.log") as mock_log:
                 with pytest.raises(RuntimeError):
                     execute_ddl(
                         spark,

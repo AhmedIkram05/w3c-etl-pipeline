@@ -61,19 +61,22 @@ def _spark_session_is_alive(session) -> bool:
         return False
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def spark():
-    """Create a shared local SparkSession for the test session.
+    """Create a local SparkSession for each test that needs one.
 
-    Uses a single core and local mode — sufficient for unit-testing
-    UDFs and small DataFrame operations.
+    Recreates the JVM context when a prior test stopped the shared singleton
+    (e.g. jdbc export E2E tests that call ``spark.stop()``).
     """
     pytest.importorskip("pyspark")
     from pyspark.sql import SparkSession
 
+    active = SparkSession.getActiveSession()
+    if active is not None and not _spark_session_is_alive(active):
+        SparkSession._instantiatedSession = None  # type: ignore[attr-defined]
+        SparkSession._activeSession = None  # type: ignore[attr-defined]
+
     session = _create_spark_session()
-    # Another test module may stop the singleton session during import
-    # (e.g. test_jdbc_export_azure.py). Recreate when JVM context is gone.
     if not _spark_session_is_alive(session):
         try:
             session.stop()
@@ -84,4 +87,7 @@ def spark():
         session = _create_spark_session()
 
     yield session
-    session.stop()
+
+    if not _spark_session_is_alive(session):
+        SparkSession._instantiatedSession = None  # type: ignore[attr-defined]
+        SparkSession._activeSession = None  # type: ignore[attr-defined]
