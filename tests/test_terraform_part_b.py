@@ -84,6 +84,7 @@ class TestTerraformPartBDirectory:
         path = os.path.join(_PART_B_DIR, filename)
         assert os.path.isfile(path), f"Expected file {filename} not found at {path}"
 
+    @pytest.mark.terraform
     def test_has_terraform_init(self):
         """terraform init has been run (.terraform directory present)."""
         assert _terraform_inited(_PART_B_DIR), (
