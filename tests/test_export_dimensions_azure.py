@@ -389,6 +389,15 @@ class TestUserAgentsImportError:
 
     def test_user_agents_not_installed_skips_ua_build(self, caplog):
         """user-agents ImportError → logged warning, skips UA build."""
+        import builtins
+
+        real_import = builtins.__import__
+
+        def _block_user_agents(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "user_agents" or name.startswith("user_agents."):
+                raise ImportError("No module named 'user_agents'")
+            return real_import(name, globals, locals, fromlist, level)
+
         with patch.dict(
             os.environ,
             {
@@ -401,13 +410,9 @@ class TestUserAgentsImportError:
             fetchall_return = [("Mozilla/5.0",)]
             with _mock_pyodbc(ua_rows=fetchall_return) as (_, _, mock_cursor):
                 mock_cursor.fetchall.return_value = fetchall_return
-                # Remove user_agents from sys.modules so import fails
-                saved_ua = sys.modules.pop("user_agents", None)
-                try:
-                    _export_dimensions()
-                finally:
-                    if saved_ua:
-                        sys.modules["user_agents"] = saved_ua
+                with patch("builtins.__import__", side_effect=_block_user_agents):
+                    with caplog.at_level(logging.WARNING, logger="dags.w3c.spark_ingestion_azure"):
+                        _export_dimensions()
 
         assert any("user-agents library not installed" in msg for msg in caplog.messages)
 

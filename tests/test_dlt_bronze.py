@@ -1036,7 +1036,7 @@ class TestBronzeTableProperties:
         # directly by checking the streaming_table decorator setup.
         import inspect
 
-        from airflow.spark.databricks.dlt_bronze import bronze_raw_logs
+        from dlt_bronze import bronze_raw_logs
 
         source = inspect.getsource(bronze_raw_logs)
         assert "partition_cols" in source
@@ -1046,7 +1046,7 @@ class TestBronzeTableProperties:
         """Bronze must have ChangeDataFeed enabled for downstream Silver."""
         import inspect
 
-        from airflow.spark.databricks.dlt_bronze import bronze_raw_logs
+        from dlt_bronze import bronze_raw_logs
 
         source = inspect.getsource(bronze_raw_logs)
         assert "delta.enableChangeDataFeed" in source
@@ -1056,7 +1056,7 @@ class TestBronzeTableProperties:
         """Deletion vectors must be enabled for MERGE support."""
         import inspect
 
-        from airflow.spark.databricks.dlt_bronze import bronze_raw_logs
+        from dlt_bronze import bronze_raw_logs
 
         source = inspect.getsource(bronze_raw_logs)
         assert "delta.enableDeletionVectors" in source

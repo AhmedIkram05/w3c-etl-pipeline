@@ -50,8 +50,7 @@ try:
         .config("spark.ui.enabled", "false")
         .getOrCreate()
     )
-    _spark_test.stop()
-    _HAS_REAL_PYSPARK = True
+    _HAS_REAL_PYSPARK = _spark_test.sparkContext._jsc is not None  # type: ignore[attr-defined]
 except Exception:
     pass
 
@@ -171,6 +170,19 @@ def _import_from_module(func_name: str):
                 sys.modules[key] = _saved[key]  # type: ignore[assignment]
 
     return getattr(jdbc_export_azure, func_name)
+
+
+def _import_export_e2e():
+    """Re-import ``export_to_azure_sql`` with real PySpark for E2E tests.
+
+    Earlier tests import ``jdbc_export_azure`` while ``pyspark`` is mocked in
+    ``sys.modules``, which binds MagicMock stand-ins for ``col``/``when``/``lit``.
+    E2E tests need the real functions because they operate on live DataFrames.
+    """
+    sys.modules.pop("jdbc_export_azure", None)
+    import jdbc_export_azure  # noqa: WPS433 — intentional fresh import
+
+    return jdbc_export_azure.export_to_azure_sql
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -622,7 +634,7 @@ class TestExportToAzureSql:
     _UC_TABLE = "w3c_etl_databricks.silver.silver_enriched_logs"
 
     def _import_export(self):
-        return _import_from_module("export_to_azure_sql")
+        return _import_export_e2e()
 
     def _spark_and_patches(self):
         """Create a SparkSession, DataFrame, and context managers for E2E tests."""
