@@ -29,15 +29,22 @@ from unittest.mock import MagicMock, PropertyMock, call, patch
 
 import pytest
 
-# ── Mock PySpark (not available in base Python — only in Docker/PySpark env) ─
+# ── PySpark availability check ─────────────────────────────────────────────
 # The source module does ``from pyspark.sql import SparkSession`` at the top
-# level.  We inject a stub into ``sys.modules`` so all function-test classes
-# can import the module.  DDL tests already use AST extraction (no import).
-_pyspark = MagicMock()
-sys.modules["pyspark"] = _pyspark
-sys.modules["pyspark.sql"] = MagicMock()
-sys.modules["pyspark.sql.functions"] = MagicMock()
-sys.modules["pyspark.sql.types"] = MagicMock()
+# level.  If pyspark is not installed (it's only available inside the Docker /
+# PySpark runtime), we mock it so function-only tests can still import the
+# module.  E2E integration tests are guarded with ``_HAS_REAL_PYSPARK``.
+try:
+    import pyspark  # noqa: F401
+
+    _HAS_REAL_PYSPARK = True
+except ImportError:
+    _HAS_REAL_PYSPARK = False
+    _pyspark = MagicMock()
+    sys.modules["pyspark"] = _pyspark
+    sys.modules["pyspark.sql"] = MagicMock()
+    sys.modules["pyspark.sql.functions"] = MagicMock()
+    sys.modules["pyspark.sql.types"] = MagicMock()
 
 # Paths for AST extraction and module import.
 # The source lives at ``airflow/spark/databricks/jdbc_export_azure.py``.
@@ -207,17 +214,6 @@ class TestDDLGeneration:
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. _connect — retry with exponential backoff
 # ═══════════════════════════════════════════════════════════════════════════
-
-
-@pytest.fixture(autouse=True)
-def _clean_pymssql_mod():
-    """Ensure pymssql is not in sys.modules before each test.
-
-    ``_connect`` does ``import pymssql`` inside the function body, so we
-    control whether it succeeds by injecting a mock into ``sys.modules``
-    per test.
-    """
-    yield
 
 
 class TestConnect:
@@ -509,16 +505,22 @@ class TestInsertBatch:
 
 
 class TestExportToAzureSql:
-    """Full export pipeline with mocked connections."""
+    """Full export pipeline with mocked connections.
+
+    These tests require a real PySpark installation (not the mock) because
+    they build an actual ``SparkSession`` and ``DataFrame``.
+    """
 
     def _import_export(self):
         from jdbc_export_azure import export_to_azure_sql
 
         return export_to_azure_sql
 
+    @pytest.mark.skipif(
+        not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession"
+    )
     def test_full_flow_with_new_data(self, caplog):
         """Full export flow: connect → ensure tables → filter → batch insert → track."""
-        pytest.importorskip("pyspark")
         from pyspark.sql import SparkSession, Row
 
         # ── Mock pymssql side ─────────────────────────────────────────
@@ -613,9 +615,11 @@ class TestExportToAzureSql:
         finally:
             spark.stop()
 
+    @pytest.mark.skipif(
+        not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession"
+    )
     def test_no_new_files_skips_export(self, caplog):
         """No new source files → early return, no insert."""
-        pytest.importorskip("pyspark")
         from pyspark.sql import SparkSession, Row
 
         mock_pymssql = MagicMock()
@@ -686,9 +690,11 @@ class TestExportToAzureSql:
         finally:
             spark.stop()
 
+    @pytest.mark.skipif(
+        not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession"
+    )
     def test_is_crawler_cast_from_string_to_bit(self):
         """is_crawler string ("true"/"false") is cast to BIT (0/1) for Azure SQL."""
-        pytest.importorskip("pyspark")
         from pyspark.sql import SparkSession, Row
 
         mock_pymssql = MagicMock()
@@ -763,9 +769,11 @@ class TestExportToAzureSql:
         finally:
             spark.stop()
 
+    @pytest.mark.skipif(
+        not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession"
+    )
     def test_connection_closed_in_finally(self):
         """Connection is always closed, even on error."""
-        pytest.importorskip("pyspark")
         from pyspark.sql import SparkSession, Row
 
         mock_pymssql = MagicMock()
