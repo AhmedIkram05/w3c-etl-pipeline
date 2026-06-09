@@ -168,7 +168,7 @@ def _import_from_module(func_name: str):
             if _saved[key] is None:
                 sys.modules.pop(key, None)
             else:
-                sys.modules[key] = _saved[key]
+                sys.modules[key] = _saved[key]  # type: ignore[assignment]
 
     return getattr(jdbc_export_azure, func_name)
 
@@ -311,7 +311,6 @@ class TestConnect:
         mock_pymssql = MagicMock()
         mock_conn = MagicMock()
 
-        op_error = Exception("database is not currently available")
         mock_pymssql.OperationalError = type("OpError", (Exception,), {})
         mock_pymssql.connect.side_effect = [
             mock_pymssql.OperationalError("database is not currently available"),
@@ -340,7 +339,7 @@ class TestConnect:
         mock_pymssql.connect.side_effect = [op_err] * 4  # All attempts fail
 
         with patch.dict("sys.modules", {"pymssql": mock_pymssql}):
-            with patch("jdbc_export_azure.time.sleep") as mock_sleep:
+            with patch("jdbc_export_azure.time.sleep") as _:
                 _connect = self._import_connect()
                 with pytest.raises(RuntimeError, match="Cannot connect to Azure SQL"):
                     _connect("server", "db", "user", "pass")
@@ -628,7 +627,7 @@ class TestExportToAzureSql:
                     isp="Test ISP",
                 ),
             ]
-            df = spark.createDataFrame(data)
+            _ = spark.createDataFrame(data)
 
             with patch.dict("sys.modules", {"pymssql": mock_pymssql}):
                 export_to_azure_sql = self._import_export()
@@ -714,15 +713,12 @@ class TestExportToAzureSql:
                     isp="Test ISP",
                 ),
             ]
-            df = spark.createDataFrame(data)
+            _ = spark.createDataFrame(data)
 
             with patch.dict("sys.modules", {"pymssql": mock_pymssql}):
                 export_to_azure_sql = self._import_export()
                 export_to_azure_sql(spark, "server", "db", "user", "pass")
 
-            # No batch insert calls
-            calls = mock_cursor.executemany.call_args_list
-            raw_enriched_calls = [c for c in calls if "raw_enriched" in str(c) and "tracking" not in str(c).lower()]
             # The tracking table still gets updated
             assert any("No new source files" in msg for msg in caplog.messages)
 
@@ -781,7 +777,7 @@ class TestExportToAzureSql:
                     "isp": "Test ISP",
                 }),
             ]
-            df = spark.createDataFrame(data)
+            _ = spark.createDataFrame(data)
 
             with patch.dict("sys.modules", {"pymssql": mock_pymssql}):
                 export_to_azure_sql = self._import_export()
@@ -850,7 +846,7 @@ class TestExportToAzureSql:
                     isp="Test ISP",
                 ),
             ]
-            df = spark.createDataFrame(data)
+            _ = spark.createDataFrame(data)
 
             with patch.dict("sys.modules", {"pymssql": mock_pymssql}):
                 export_to_azure_sql = self._import_export()
