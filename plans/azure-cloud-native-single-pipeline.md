@@ -1586,7 +1586,7 @@ if __name__ == "__main__":
     spark.stop()
 ```
 
-**Hosting options (document both, implement simpler one):**
+**Hosting options:**
 
 **Option 1: GitHub Pages (simpler)**
 
@@ -1600,7 +1600,7 @@ if __name__ == "__main__":
     publish_branch: gh-pages
 ```
 
-**Option 2: Azure Static Web Apps (more complex)**
+**Option 2: Azure Static Web Apps (more complex but uses Azure Credits)**
 
 ```bash
 # Create Azure Static Web App
@@ -2082,7 +2082,143 @@ az monitor metrics alert list --resource-group rg-w3c-etl-dev
 
 ---
 
-### Phase 11 — Cost Management and Teardown Documentation
+### Phase 11 — Final Verification
+
+**Phase Goal:** Perform end-to-end verification of the complete pipeline, validate Power BI compatibility, and confirm all 18 CSV exports are produced correctly.
+
+**Checklist:**
+
+- [ ] Run complete end-to-end pipeline test
+- [ ] Upload sample logs to ADLS Gen2
+- [ ] Trigger Databricks Workflow
+- [ ] Verify Bronze pipeline execution
+- [ ] Verify Silver pipeline execution
+- [ ] Verify JDBC export to Azure SQL
+
+- [ ] Verify export_dimensions_azure execution
+- [ ] Verify dbt run execution
+- [ ] Verify dbt test execution
+- [ ] Verify dbt docs generation
+- [ ] Verify 18 CSV exports produced
+- [ ] Validate CSV headers against baseline
+- [ ] Validate DAX measure field dependencies
+- [ ] Verify Power BI semantic contract
+- [ ] Run Tier 2 CI integration test
+- [ ] Verify all monitoring alerts
+- [ ] Document any issues and resolutions
+
+**Code Scaffolds:**
+
+**End-to-end test script (scripts/e2e_test.sh):**
+
+```bash
+#!/bin/bash
+set -e
+
+echo "Starting end-to-end verification..."
+
+# Upload sample logs
+echo "Uploading sample logs to ADLS..."
+for f in airflow/data/LogFiles/*.log; do
+  az storage blob upload \
+    --container-name raw-logs \
+    --file "$f" \
+    --name "e2e-test/$(basename "$f")" \
+    --account-name $STORAGE_ACCOUNT_NAME
+done
+
+# Trigger Databricks Workflow
+echo "Triggering Databricks Workflow..."
+databricks jobs run-now --job-id $DATABRICKS_WORKFLOW_ID
+
+# Poll for completion
+echo "Polling for workflow completion..."
+# Add polling logic here
+
+# Verify Bronze table
+echo "Verifying Bronze table..."
+bronze_count=$(databricks sql execute --warehouse-id $WAREHOUSE_ID --sql "SELECT COUNT(*) FROM w3c_catalog.bronze.bronze_raw_logs" --output json | jq -r '.[0][0]')
+echo "Bronze row count: $bronze_count"
+
+# Verify Silver table
+echo "Verifying Silver table..."
+silver_count=$(databricks sql execute --warehouse-id $WAREHOUSE_ID --sql "SELECT COUNT(*) FROM w3c_catalog.silver.silver_enriched_logs" --output json | jq -r '.[0][0]')
+echo "Silver row count: $silver_count"
+
+# Verify Azure SQL
+echo "Verifying Azure SQL..."
+sql_count=$(sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.raw_enriched" -h -1)
+echo "Azure SQL row count: $sql_count"
+
+# Verify dim tables
+echo "Verifying dim tables..."
+geo_count=$(sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.dim_geolocation" -h -1)
+ua_count=$(sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.dim_useragent" -h -1)
+echo "dim_geolocation count: $geo_count"
+echo "dim_useragent count: $ua_count"
+
+# Verify CSV exports
+echo "Verifying CSV exports..."
+csv_count=$(ls airflow/data/Star-Schema/*.csv | wc -l)
+if [ $csv_count -ne 18 ]; then
+    echo "ERROR: Expected 18 CSV files, found $csv_count"
+    exit 1
+fi
+echo "CSV export count: $csv_count"
+
+# Validate CSV headers
+echo "Validating CSV headers..."
+# Add header validation logic here
+
+# Verify dbt docs
+echo "Verifying dbt docs..."
+if [ ! -f airflow/data/dbt-docs/catalog.json ]; then
+    echo "ERROR: catalog.json not found"
+    exit 1
+fi
+echo "dbt docs verified"
+
+echo "End-to-end verification completed successfully!"
+```
+
+**Acceptance Criteria:**
+
+- End-to-end pipeline test completed successfully
+- Bronze pipeline executed without errors
+- Silver pipeline executed without errors
+- JDBC export completed successfully
+
+- export_dimensions_azure completed successfully
+- dbt run completed successfully
+- dbt tests passed
+- dbt docs generated successfully
+- Exactly 18 CSV exports produced
+- CSV headers match baseline
+- DAX measure field dependencies validated
+- Power BI semantic contract verified
+- Tier 2 CI integration test passed
+- All monitoring alerts functional
+- Issues and resolutions documented
+
+**Phase Handoff Validation:**
+
+```bash
+# Run end-to-end test
+./scripts/e2e_test.sh
+
+# Verify CSV exports
+ls -la airflow/data/Star-Schema/
+
+# Verify dbt docs
+cat airflow/data/dbt-docs/catalog.json | python -m json.tool
+
+# Verify monitoring
+curl http://localhost:9090/api/v1/targets
+```
+
+---
+
+### Phase 12 — Cost Management and Teardown Documentation - Will be reworked before beginning
 
 **Phase Goal:** Document cost management procedures and provide clear teardown instructions to prevent unexpected charges.
 
@@ -2331,241 +2467,6 @@ chmod +x scripts/teardown.sh
 
 ---
 
-### Phase 12 — Documentation and README Update
-
-**Phase Goal:** Update project README with architecture diagram, deployment instructions, badges, and links to documentation.
-
-**Checklist:**
-
-- [ ] Update README.md with single-pipeline architecture diagram
-- [ ] Add deployment section with Phase 0-14 summary
-- [ ] Add badges (CI status, docs, license)
-- [ ] Add technology stack section
-- [ ] Add cost management section link
-- [ ] Add teardown section link
-- [ ] Update architecture diagram (remove dual-path reference)
-- [ ] Add troubleshooting section
-- [ ] Add contributing guidelines
-- [ ] Verify all links are valid
-
-**Code Scaffolds:**
-
-**README.md updates (key sections):**
-
-```markdown
-# W3C ETL Pipeline
-
-[![CI Tier 1](https://github.com/username/w3c-etl-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/username/w3c-etl-pipeline/actions/workflows/ci.yml)
-[![CI Tier 2](https://github.com/username/w3c-etl-pipeline/actions/workflows/ci-integration.yml/badge.svg)](https://github.com/username/w3c-etl-pipeline/actions/workflows/ci-integration.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-## Architecture
-
-This project implements a cloud-native ETL pipeline for processing W3C web logs using Databricks Delta Live Tables, Unity Catalog, Azure SQL, and dbt.
-
-\`\`\`
-W3C Log Files → ADLS Gen2 → DLT Bronze → DLT Silver → Azure SQL → dbt → Power BI
-\`\`\`
-
-See [plans/azure-cloud-native-single-pipeline.md](plans/azure-cloud-native-single-pipeline.md) for detailed architecture.
-
-## Technology Stack
-
-- **Azure Data Lake Storage Gen2** - Raw log storage and Delta tables
-- **Databricks** - ETL execution engine with Delta Live Tables
-- **Unity Catalog** - Governance layer
-- **Azure SQL Database (Serverless)** - Analytics warehouse
-- **Apache Airflow** - Pipeline orchestration
-- **dbt** - Transformation layer
-- **MaxMind GeoLite2** - IP geolocation
-
-- **Grafana + Prometheus** - Monitoring
-
-## Deployment
-
-See [Deployment Guide](docs/deployment.md) for step-by-step instructions.
-
-Quick start:
-1. Complete [Phase 0 Prerequisites](plans/azure-cloud-native-single-pipeline.md#phase-0--prerequisites)
-2. Deploy infrastructure with [Phase 1-2](plans/azure-cloud-native-single-pipeline.md#phase-1--terraform-part-a-core-infrastructure)
-3. Deploy DLT pipelines with [Phase 3-4](plans/azure-cloud-native-single-pipeline.md#phase-3--dlt-bronze-pipeline)
-4. Configure JDBC export with [Phase 5](plans/azure-cloud-native-single-pipeline.md#phase-5--jdbc-export-from-silver-to-azure-sql)
-5. Complete remaining phases 6-14
-
-## Cost Management
-
-See [Cost Management Guide](docs/cost-management.md) for cost optimization strategies and budget alert configuration.
-
-## Teardown
-
-See [Teardown Guide](docs/teardown.md) for complete resource cleanup instructions.
-
-## Troubleshooting
-
-See [Troubleshooting Guide](docs/troubleshooting.md) for common issues and solutions.
-```
-
-**Acceptance Criteria:**
-
-- README.md updated with single-pipeline architecture
-- Deployment section added with Phase 0-14 summary
-- Badges added (CI status, docs, license)
-- Technology stack section added
-- Cost management section link added
-- Teardown section link added
-- Architecture diagram updated (no dual-path reference)
-- Troubleshooting section added
-- Contributing guidelines added
-- All links verified as valid
-
-**Phase Handoff Validation:**
-
-```bash
-# Verify README updates
-cat README.md
-
-# Verify links
-markdown-link-check README.md
-```
-
----
-
-### Phase 13 — Final Verification
-
-**Phase Goal:** Perform end-to-end verification of the complete pipeline, validate Power BI compatibility, and confirm all 18 CSV exports are produced correctly.
-
-**Checklist:**
-
-- [ ] Run complete end-to-end pipeline test
-- [ ] Upload sample logs to ADLS Gen2
-- [ ] Trigger Databricks Workflow
-- [ ] Verify Bronze pipeline execution
-- [ ] Verify Silver pipeline execution
-- [ ] Verify JDBC export to Azure SQL
-
-- [ ] Verify export_dimensions_azure execution
-- [ ] Verify dbt run execution
-- [ ] Verify dbt test execution
-- [ ] Verify dbt docs generation
-- [ ] Verify 18 CSV exports produced
-- [ ] Validate CSV headers against baseline
-- [ ] Validate DAX measure field dependencies
-- [ ] Verify Power BI semantic contract
-- [ ] Run Tier 2 CI integration test
-- [ ] Verify all monitoring alerts
-- [ ] Document any issues and resolutions
-
-**Code Scaffolds:**
-
-**End-to-end test script (scripts/e2e_test.sh):**
-
-```bash
-#!/bin/bash
-set -e
-
-echo "Starting end-to-end verification..."
-
-# Upload sample logs
-echo "Uploading sample logs to ADLS..."
-for f in airflow/data/LogFiles/*.log; do
-  az storage blob upload \
-    --container-name raw-logs \
-    --file "$f" \
-    --name "e2e-test/$(basename "$f")" \
-    --account-name $STORAGE_ACCOUNT_NAME
-done
-
-# Trigger Databricks Workflow
-echo "Triggering Databricks Workflow..."
-databricks jobs run-now --job-id $DATABRICKS_WORKFLOW_ID
-
-# Poll for completion
-echo "Polling for workflow completion..."
-# Add polling logic here
-
-# Verify Bronze table
-echo "Verifying Bronze table..."
-bronze_count=$(databricks sql execute --warehouse-id $WAREHOUSE_ID --sql "SELECT COUNT(*) FROM w3c_catalog.bronze.bronze_raw_logs" --output json | jq -r '.[0][0]')
-echo "Bronze row count: $bronze_count"
-
-# Verify Silver table
-echo "Verifying Silver table..."
-silver_count=$(databricks sql execute --warehouse-id $WAREHOUSE_ID --sql "SELECT COUNT(*) FROM w3c_catalog.silver.silver_enriched_logs" --output json | jq -r '.[0][0]')
-echo "Silver row count: $silver_count"
-
-# Verify Azure SQL
-echo "Verifying Azure SQL..."
-sql_count=$(sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.raw_enriched" -h -1)
-echo "Azure SQL row count: $sql_count"
-
-# Verify dim tables
-echo "Verifying dim tables..."
-geo_count=$(sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.dim_geolocation" -h -1)
-ua_count=$(sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.dim_useragent" -h -1)
-echo "dim_geolocation count: $geo_count"
-echo "dim_useragent count: $ua_count"
-
-# Verify CSV exports
-echo "Verifying CSV exports..."
-csv_count=$(ls airflow/data/Star-Schema/*.csv | wc -l)
-if [ $csv_count -ne 18 ]; then
-    echo "ERROR: Expected 18 CSV files, found $csv_count"
-    exit 1
-fi
-echo "CSV export count: $csv_count"
-
-# Validate CSV headers
-echo "Validating CSV headers..."
-# Add header validation logic here
-
-# Verify dbt docs
-echo "Verifying dbt docs..."
-if [ ! -f airflow/data/dbt-docs/catalog.json ]; then
-    echo "ERROR: catalog.json not found"
-    exit 1
-fi
-echo "dbt docs verified"
-
-echo "End-to-end verification completed successfully!"
-```
-
-**Acceptance Criteria:**
-
-- End-to-end pipeline test completed successfully
-- Bronze pipeline executed without errors
-- Silver pipeline executed without errors
-- JDBC export completed successfully
-
-- export_dimensions_azure completed successfully
-- dbt run completed successfully
-- dbt tests passed
-- dbt docs generated successfully
-- Exactly 18 CSV exports produced
-- CSV headers match baseline
-- DAX measure field dependencies validated
-- Power BI semantic contract verified
-- Tier 2 CI integration test passed
-- All monitoring alerts functional
-- Issues and resolutions documented
-
-**Phase Handoff Validation:**
-
-```bash
-# Run end-to-end test
-./scripts/e2e_test.sh
-
-# Verify CSV exports
-ls -la airflow/data/Star-Schema/
-
-# Verify dbt docs
-cat airflow/data/dbt-docs/catalog.json | python -m json.tool
-
-# Verify monitoring
-curl http://localhost:9090/api/v1/targets
-```
-
----
-
 ## Risk Register
 
 | Risk | Impact | Probability | Mitigation Strategy |
@@ -2704,22 +2605,6 @@ Phase 6 ✅ → Phase 7 ✅ → Phase 8a  → Phase 8b  → Phase 8c
     ↓              ↓         ↓         ↓         ↓
     └──────────────┴─────────┴─────────┴─────────┘
                           ↓
-Phase 9  → Phase 10 → Phase 11 → Phase 12 → Phase 13
-(CI/CD)  (Monitor) (Cost)    (Docs)    (E2E)
+Phase 9  → Phase 10 → Phase 11
+(CI/CD)  (Monitor)    (E2E)
 ```
-
----
-
-## Resume Lines
-
-### Primary Data Engineer Variant
-
-"Designed and implemented a cloud-native W3C log ETL platform on Azure using Databricks Delta Live Tables, Unity Catalog, and Azure SQL. Built Bronze/Silver DLT pipelines with custom W3C parsing, MaxMind GeoIP enrichment, and data quality checks. Orchestrated via Airflow with Databricks Workflows integration, deployed dimensional models with dbt (T-SQL migration), and automated CI/CD with split-tier GitHub Actions. Delivered 18 Power BI-ready CSV exports with end-to-end monitoring and $100 cost controls."
-
-### IaC/DevOps Angle Variant
-
-"Architected Azure infrastructure for a W3C log ETL platform using Terraform with remote state backend (Azure Blob Storage). Deployed Databricks Premium workspace with Unity Catalog, Azure SQL serverless database, and ADLS Gen2 storage. Implemented Databricks Workflows orchestration with Bronze/Silver DLT pipelines and JDBC export. Built dbt transformation layer with T-SQL macros for Azure SQL compatibility. Configured split-tier CI/CD with GitHub Actions (Tier 1: every push, Tier 2: nightly integration with manual approval). Implemented cost controls with $100 budget cap and automated teardown procedures."
-
-### Full-Stack Data Platform Engineer Variant
-
-"End-to-end data platform ownership: from raw W3C log ingestion to Power BI analytics. Built cloud-native ETL on Azure (Databricks DLT, Unity Catalog, Azure SQL) with custom W3C parsing, MaxMind GeoIP enrichment, and data quality checks. Implemented dimensional modeling with dbt (T-SQL migration for Azure SQL), Airflow orchestration with Dataset triggers, and Grafana/Prometheus monitoring. Delivered 18 Power BI-ready CSV exports with semantic contract validation. Automated CI/CD with split-tier GitHub Actions and implemented cost management with $100 budget controls and automated teardown procedures."
