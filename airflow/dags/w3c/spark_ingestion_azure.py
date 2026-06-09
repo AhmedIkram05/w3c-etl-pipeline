@@ -42,10 +42,11 @@ import logging
 import os
 from urllib.parse import unquote_plus
 
-from airflow import DAG
 from airflow.datasets import Dataset
 from airflow.operators.python import PythonOperator
 from airflow.providers.databricks.operators.databricks import DatabricksRunNowOperator
+
+from airflow import DAG
 
 logger = logging.getLogger(__name__)
 

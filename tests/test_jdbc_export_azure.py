@@ -44,7 +44,8 @@ try:
     from pyspark.sql import SparkSession
 
     _spark_test = (
-        SparkSession.builder.master("local[1]")
+        SparkSession.builder
+        .master("local[1]")
         .appName("pyspark-check")
         .config("spark.ui.enabled", "false")
         .getOrCreate()
