@@ -18,14 +18,12 @@ These tests require the ``terraform`` binary on ``PATH`` and a successful
 """
 
 import os
-import subprocess
 import re
+import subprocess
 
 import pytest
 
-_PART_B_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "terraform", "part_b"
-)
+_PART_B_DIR = os.path.join(os.path.dirname(__file__), "..", "terraform", "part_b")
 
 _EXPECTED_FILES = [
     "main.tf",
@@ -50,6 +48,7 @@ def _terraform_binary():
     """Return path to terraform binary, or None."""
     try:
         import shutil
+
         return shutil.which("terraform")
     except Exception:
         return None
@@ -77,9 +76,7 @@ class TestTerraformPartBDirectory:
 
     def test_part_b_dir_exists(self):
         """terraform/part_b/ directory exists."""
-        assert os.path.isdir(_PART_B_DIR), (
-            f"Expected directory {_PART_B_DIR} not found"
-        )
+        assert os.path.isdir(_PART_B_DIR), f"Expected directory {_PART_B_DIR} not found"
 
     @pytest.mark.parametrize("filename", _EXPECTED_FILES)
     def test_expected_file_exists(self, filename):
@@ -90,8 +87,7 @@ class TestTerraformPartBDirectory:
     def test_has_terraform_init(self):
         """terraform init has been run (.terraform directory present)."""
         assert _terraform_inited(_PART_B_DIR), (
-            f"No .terraform directory in {_PART_B_DIR}. "
-            "Run 'terraform init' in terraform/part_b/ first."
+            f"No .terraform directory in {_PART_B_DIR}. Run 'terraform init' in terraform/part_b/ first."
         )
 
 
@@ -114,48 +110,34 @@ class TestTerraformPartBResources:
     def test_resource_defined(self, resource_name, pattern):
         """Expected resource {resource_name} is defined in main.tf."""
         content = self._main_tf_content()
-        assert re.search(pattern, content), (
-            f"Resource '{resource_name}' not found in main.tf"
-        )
+        assert re.search(pattern, content), f"Resource '{resource_name}' not found in main.tf"
 
     def test_three_resources_total(self):
         """main.tf defines exactly 3 resource blocks (2 pipelines + 1 job)."""
         content = self._main_tf_content()
         matches = re.findall(r'resource\s+"(\w+)"\s+"(\w+)"', content)
-        assert len(matches) == 3, (
-            f"Expected 3 resources, found {len(matches)}: {matches}"
-        )
+        assert len(matches) == 3, f"Expected 3 resources, found {len(matches)}: {matches}"
 
     def test_both_pipelines_are_serverless(self):
         """Both pipeline resources have serverless = true."""
         content = self._main_tf_content()
         # Count serverless = true occurrences in pipeline blocks
         serverless_count = len(re.findall(r"serverless\s*=\s*true", content))
-        assert serverless_count >= 2, (
-            f"Expected at least 2 'serverless = true', found {serverless_count}"
-        )
+        assert serverless_count >= 2, f"Expected at least 2 'serverless = true', found {serverless_count}"
 
     def test_workflow_has_three_tasks(self):
         """The job resource defines exactly 3 task blocks."""
         content = self._main_tf_content()
         tasks = re.findall(r'task_key\s*=\s*"([^"]+)"', content)
         for key in _TASK_KEYS:
-            assert key in tasks, (
-                f"Expected task_key '{key}' not found in job. Found: {tasks}"
-            )
+            assert key in tasks, f"Expected task_key '{key}' not found in job. Found: {tasks}"
 
     def test_workflow_has_depends_on(self):
         """Expected task dependencies exist (Silver→Bronze, JDBC→Silver)."""
         content = self._main_tf_content()
-        assert re.search(r'depends_on\s*\{', content), (
-            "No depends_on blocks found in job"
-        )
-        assert re.search(r'task_key\s*=\s*"run_bronze"', content), (
-            "Dependency on run_bronze not found"
-        )
-        assert re.search(r'task_key\s*=\s*"run_silver"', content), (
-            "Dependency on run_silver not found"
-        )
+        assert re.search(r"depends_on\s*\{", content), "No depends_on blocks found in job"
+        assert re.search(r'task_key\s*=\s*"run_bronze"', content), "Dependency on run_bronze not found"
+        assert re.search(r'task_key\s*=\s*"run_silver"', content), "Dependency on run_silver not found"
 
     def test_workflow_has_daily_schedule(self):
         """Job has a daily 2AM UTC schedule."""
@@ -168,9 +150,7 @@ class TestTerraformPartBResources:
     def test_workflow_has_notebook_task(self):
         """Job has a notebook_task for JDBC export."""
         content = self._main_tf_content()
-        assert "notebook_task" in content, (
-            "No notebook_task found in job (expected for JDBC export)"
-        )
+        assert "notebook_task" in content, "No notebook_task found in job (expected for JDBC export)"
 
     def test_workflow_has_environment(self):
         """Job has an environment block with pymssql."""
@@ -181,9 +161,7 @@ class TestTerraformPartBResources:
     def test_no_job_cluster_block(self):
         """No job_cluster block exists (all 3 tasks use serverless)."""
         content = self._main_tf_content()
-        assert "job_cluster" not in content, (
-            "job_cluster block found — all tasks should use serverless"
-        )
+        assert "job_cluster" not in content, "job_cluster block found — all tasks should use serverless"
 
 
 # ── Pipeline Configuration ───────────────────────────────────────────
@@ -220,12 +198,8 @@ class TestTerraformPartBConfig:
         # Count catalog/target occurrences
         catalog_count = content.count("catalog")
         target_count = content.count("target")
-        assert catalog_count >= 2, (
-            f"Expected catalog in at least 2 places, found {catalog_count}"
-        )
-        assert target_count >= 2, (
-            f"Expected target in at least 2 places, found {target_count}"
-        )
+        assert catalog_count >= 2, f"Expected catalog in at least 2 places, found {catalog_count}"
+        assert target_count >= 2, f"Expected target in at least 2 places, found {target_count}"
 
     def test_conditional_storage_key(self):
         """Storage key uses ternary for conditional injection."""
@@ -265,9 +239,7 @@ class TestTerraformPartBVariables:
         """Expected variable {var_name} is defined in variables.tf."""
         content = _read_file(os.path.join(_PART_B_DIR, "variables.tf"))
         assert content is not None
-        assert f'variable "{var_name}"' in content, (
-            f"Variable '{var_name}' not found in variables.tf"
-        )
+        assert f'variable "{var_name}"' in content, f"Variable '{var_name}' not found in variables.tf"
 
 
 # ── Outputs ──────────────────────────────────────────────────────────
@@ -293,9 +265,7 @@ class TestTerraformPartBOutputs:
         """Expected output {output_name} is defined in outputs.tf."""
         content = _read_file(os.path.join(_PART_B_DIR, "outputs.tf"))
         assert content is not None
-        assert f'output "{output_name}"' in content, (
-            f"Output '{output_name}' not found in outputs.tf"
-        )
+        assert f'output "{output_name}"' in content, f"Output '{output_name}' not found in outputs.tf"
 
 
 # ── Terraform Validate (requires binary + init) ──────────────────────
@@ -312,10 +282,7 @@ class TestTerraformValidate:
         if tf_bin is None:
             pytest.skip("terraform binary not found on PATH")
         if not _terraform_inited(_PART_B_DIR):
-            pytest.skip(
-                "terraform init not run yet. "
-                "Run 'terraform init' in terraform/part_b/ first."
-            )
+            pytest.skip("terraform init not run yet. Run 'terraform init' in terraform/part_b/ first.")
         return tf_bin
 
     def test_terraform_validate_success(self, terraform_path):
@@ -327,11 +294,5 @@ class TestTerraformValidate:
             text=True,
             timeout=30,
         )
-        assert result.returncode == 0, (
-            f"terraform validate failed:\n"
-            f"stdout: {result.stdout}\n"
-            f"stderr: {result.stderr}"
-        )
-        assert "Success" in result.stdout, (
-            f"terraform validate did not report success:\n{result.stdout}"
-        )
+        assert result.returncode == 0, f"terraform validate failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        assert "Success" in result.stdout, f"terraform validate did not report success:\n{result.stdout}"

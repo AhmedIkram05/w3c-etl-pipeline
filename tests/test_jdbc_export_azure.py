@@ -24,8 +24,7 @@ Usage:
 import ast
 import os
 import sys
-import time
-from unittest.mock import MagicMock, PropertyMock, call, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -98,11 +97,7 @@ def _get_module_list(name: str) -> list | None:
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id == name:
                     if isinstance(node.value, ast.List):
-                        return [
-                            elt.value
-                            for elt in node.value.elts
-                            if isinstance(elt, ast.Constant)
-                        ]
+                        return [elt.value for elt in node.value.elts if isinstance(elt, ast.Constant)]
     return None
 
 
@@ -175,6 +170,7 @@ def _import_from_module(func_name: str):
                 sys.modules[key] = _saved[key]
 
     return getattr(jdbc_export_azure, func_name)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. DDL Generation — pure string checks (no Spark needed)
@@ -577,12 +573,10 @@ class TestExportToAzureSql:
     def _import_export(self):
         return _import_from_module("export_to_azure_sql")
 
-    @pytest.mark.skipif(
-        not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession"
-    )
+    @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
     def test_full_flow_with_new_data(self, caplog):
         """Full export flow: connect → ensure tables → filter → batch insert → track."""
-        from pyspark.sql import SparkSession, Row
+        from pyspark.sql import Row, SparkSession
 
         # ── Mock pymssql side ─────────────────────────────────────────
         mock_pymssql = MagicMock()
@@ -594,10 +588,7 @@ class TestExportToAzureSql:
 
         # ── Real PySpark DataFrame ────────────────────────────────────
         spark = (
-            SparkSession.builder.master("local[1]")
-            .appName("test")
-            .config("spark.ui.enabled", "false")
-            .getOrCreate()
+            SparkSession.builder.master("local[1]").appName("test").config("spark.ui.enabled", "false").getOrCreate()
         )
 
         try:
@@ -654,19 +645,12 @@ class TestExportToAzureSql:
             assert mock_cursor.executemany.call_count >= 1
 
             # Tracking table updated
-            any_tracking = any(
-                "raw_enriched_loaded" in str(args)
-                for args in mock_cursor.executemany.call_args_list
-            )
+            any_tracking = any("raw_enriched_loaded" in str(args) for args in mock_cursor.executemany.call_args_list)
             # Either through executemany or direct execute
             any_tracking_execute = any(
-                "raw_enriched_loaded" in str(args[0][0])
-                for args in mock_cursor.execute.call_args_list
-                if args[0]
+                "raw_enriched_loaded" in str(args[0][0]) for args in mock_cursor.execute.call_args_list if args[0]
             )
-            assert any_tracking or any_tracking_execute, (
-                "No tracking table update found"
-            )
+            assert any_tracking or any_tracking_execute, "No tracking table update found"
 
             # Connection closed
             mock_conn.close.assert_called_once()
@@ -676,12 +660,10 @@ class TestExportToAzureSql:
         finally:
             spark.stop()
 
-    @pytest.mark.skipif(
-        not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession"
-    )
+    @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
     def test_no_new_files_skips_export(self, caplog):
         """No new source files → early return, no insert."""
-        from pyspark.sql import SparkSession, Row
+        from pyspark.sql import Row, SparkSession
 
         mock_pymssql = MagicMock()
         mock_conn = MagicMock()
@@ -692,10 +674,7 @@ class TestExportToAzureSql:
         mock_cursor.fetchall.return_value = [("w3c-2026-01-01.log",)]
 
         spark = (
-            SparkSession.builder.master("local[1]")
-            .appName("test")
-            .config("spark.ui.enabled", "false")
-            .getOrCreate()
+            SparkSession.builder.master("local[1]").appName("test").config("spark.ui.enabled", "false").getOrCreate()
         )
 
         try:
@@ -742,21 +721,17 @@ class TestExportToAzureSql:
 
             # No batch insert calls
             calls = mock_cursor.executemany.call_args_list
-            raw_enriched_calls = [
-                c for c in calls if "raw_enriched" in str(c) and "tracking" not in str(c).lower()
-            ]
+            raw_enriched_calls = [c for c in calls if "raw_enriched" in str(c) and "tracking" not in str(c).lower()]
             # The tracking table still gets updated
             assert any("No new source files" in msg for msg in caplog.messages)
 
         finally:
             spark.stop()
 
-    @pytest.mark.skipif(
-        not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession"
-    )
+    @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
     def test_is_crawler_cast_from_string_to_bit(self):
         """is_crawler string ("true"/"false") is cast to BIT (0/1) for Azure SQL."""
-        from pyspark.sql import SparkSession, Row
+        from pyspark.sql import Row, SparkSession
 
         mock_pymssql = MagicMock()
         mock_conn = MagicMock()
@@ -766,49 +741,44 @@ class TestExportToAzureSql:
         mock_cursor.fetchall.return_value = []
 
         spark = (
-            SparkSession.builder.master("local[1]")
-            .appName("test")
-            .config("spark.ui.enabled", "false")
-            .getOrCreate()
+            SparkSession.builder.master("local[1]").appName("test").config("spark.ui.enabled", "false").getOrCreate()
         )
 
         try:
             data = [
-                Row(
-                    **{
-                        "log_date": "2026-01-01",
-                        "log_time": "12:00:00",
-                        "server_ip": "1.2.3.4",
-                        "method": "GET",
-                        "uri_stem": "/index.html",
-                        "uri_query": "",
-                        "client_ip": "5.6.7.8",
-                        "user_agent": "test-agent",
-                        "cookie": "",
-                        "referrer": "-",
-                        "status": 200,
-                        "sub_status": 0,
-                        "win32_status": 0,
-                        "bytes_sent": 1000,
-                        "bytes_recv": 500,
-                        "server_port": 80,
-                        "username": "",
-                        "time_taken": 100,
-                        "source_file": "test.log",
-                        "postcode": "",
-                        "page_category": "Home",
-                        "referrer_domain": "",
-                        "traffic_type": "Direct",
-                        "is_crawler": "true",
-                        "size_band": "1KB-10KB",
-                        "country": "US",
-                        "region": "CA",
-                        "city": "San Jose",
-                        "latitude": 37.33,
-                        "longitude": -121.89,
-                        "isp": "Test ISP",
-                    }
-                ),
+                Row(**{
+                    "log_date": "2026-01-01",
+                    "log_time": "12:00:00",
+                    "server_ip": "1.2.3.4",
+                    "method": "GET",
+                    "uri_stem": "/index.html",
+                    "uri_query": "",
+                    "client_ip": "5.6.7.8",
+                    "user_agent": "test-agent",
+                    "cookie": "",
+                    "referrer": "-",
+                    "status": 200,
+                    "sub_status": 0,
+                    "win32_status": 0,
+                    "bytes_sent": 1000,
+                    "bytes_recv": 500,
+                    "server_port": 80,
+                    "username": "",
+                    "time_taken": 100,
+                    "source_file": "test.log",
+                    "postcode": "",
+                    "page_category": "Home",
+                    "referrer_domain": "",
+                    "traffic_type": "Direct",
+                    "is_crawler": "true",
+                    "size_band": "1KB-10KB",
+                    "country": "US",
+                    "region": "CA",
+                    "city": "San Jose",
+                    "latitude": 37.33,
+                    "longitude": -121.89,
+                    "isp": "Test ISP",
+                }),
             ]
             df = spark.createDataFrame(data)
 
@@ -830,22 +800,17 @@ class TestExportToAzureSql:
         finally:
             spark.stop()
 
-    @pytest.mark.skipif(
-        not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession"
-    )
+    @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
     def test_connection_closed_in_finally(self):
         """Connection is always closed, even on error."""
-        from pyspark.sql import SparkSession, Row
+        from pyspark.sql import Row, SparkSession
 
         mock_pymssql = MagicMock()
         mock_conn = MagicMock()
         mock_pymssql.connect.return_value = mock_conn
 
         spark = (
-            SparkSession.builder.master("local[1]")
-            .appName("test")
-            .config("spark.ui.enabled", "false")
-            .getOrCreate()
+            SparkSession.builder.master("local[1]").appName("test").config("spark.ui.enabled", "false").getOrCreate()
         )
 
         try:

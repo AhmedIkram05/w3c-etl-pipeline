@@ -237,8 +237,7 @@ def bronze_raw_logs():
 
     # Auto Loader configuration (binaryFile -> per-file rows)
     df = (
-        spark.readStream  # noqa: F821
-        .format("cloudFiles")
+        spark.readStream.format("cloudFiles")  # noqa: F821
         .option("cloudFiles.format", "binaryFile")
         .option("cloudFiles.includeExistingFiles", "true")
         .option("cloudFiles.schemaLocation", "dbfs:/Volumes/w3c_etl_databricks/bronze/w3c_data/_schemas/bronze")

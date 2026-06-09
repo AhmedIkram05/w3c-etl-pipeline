@@ -856,8 +856,7 @@ class TestLeftAntiDedup:
         )
         # Simulate empty existing Silver with empty DataFrame
         existing = (
-            spark
-            .createDataFrame([], schema=StructType([StructField("source_file", StringType(), True)]))
+            spark.createDataFrame([], schema=StructType([StructField("source_file", StringType(), True)]))
             .select("source_file")
             .distinct()
         )

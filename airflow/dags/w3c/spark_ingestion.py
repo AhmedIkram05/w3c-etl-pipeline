@@ -48,12 +48,12 @@ import datetime as dt
 import os
 import zipfile
 
-from airflow.datasets import Dataset
-from airflow.operators.python import PythonOperator
-from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from operators.export_dimensions import export_dimensions as _export_dimensions
 
 from airflow import DAG
+from airflow.datasets import Dataset
+from airflow.operators.python import PythonOperator
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 
 # ── Dataset outlet — signals downstream dbt DAG ────────────────────────────
 WAREHOUSE_LOADED = Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")

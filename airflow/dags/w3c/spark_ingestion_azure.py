@@ -42,11 +42,10 @@ import logging
 import os
 from urllib.parse import unquote_plus
 
+from airflow import DAG
 from airflow.datasets import Dataset
 from airflow.operators.python import PythonOperator
 from airflow.providers.databricks.operators.databricks import DatabricksRunNowOperator
-
-from airflow import DAG
 
 logger = logging.getLogger(__name__)
 
@@ -200,14 +199,17 @@ def _export_dimensions(**context) -> None:
             """)
 
             # Read distinct user_agent strings from dbo.raw_enriched
-            cursor.execute("SELECT DISTINCT user_agent FROM dbo.raw_enriched WHERE user_agent IS NOT NULL AND user_agent != '-'")
+            cursor.execute(
+                "SELECT DISTINCT user_agent FROM dbo.raw_enriched WHERE user_agent IS NOT NULL AND user_agent != '-'"
+            )
             ua_rows = cursor.fetchall()
 
             if ua_rows:
                 # Parse user-agent strings using user-agents library
                 try:
-                    from user_agents import parse as ua_parse
                     import hashlib
+
+                    from user_agents import parse as ua_parse
                 except ImportError:
                     logger.warning("user-agents library not installed; skipping dim_useragent build")
                     ua_rows = []
@@ -237,7 +239,7 @@ def _export_dimensions(**context) -> None:
 
                         # Compute hash in Python (much faster than SQL round-trips)
                         hash_input = f"{agent_type or ''}|{browser_name or ''}|{browser_version or ''}|{os_name or ''}|{device or ''}"
-                        ua_hash = hashlib.sha256(hash_input.encode('utf-8')).hexdigest()
+                        ua_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
 
                         # Dedup after URL-unescaping: two differently-escaped raw strings may
                         # unquote_plus to the same UA, producing the same hash
@@ -256,10 +258,11 @@ def _export_dimensions(**context) -> None:
                         logger.info(f"Inserting {len(insert_data)} rows into dim_useragent...")
                         batch_size = 300  # Stay under SQL Server's 2100-param limit (6 params/row)
                         for batch_start in range(0, len(insert_data), batch_size):
-                            batch = insert_data[batch_start:batch_start + batch_size]
+                            batch = insert_data[batch_start : batch_start + batch_size]
                             placeholders = ",".join(["(?,?,?,?,?,?)"] * len(batch))
                             params = tuple(v for row in batch for v in row)
-                            cursor.execute(f"""
+                            cursor.execute(
+                                f"""
                                 MERGE dbo.dim_useragent AS target
                                 USING (VALUES {placeholders}) AS source (ua_hash, agent_type, browser_name, browser_version, os, device_type)
                                 ON target.ua_hash = source.ua_hash
@@ -267,16 +270,16 @@ def _export_dimensions(**context) -> None:
                                     INSERT (ua_hash, agent_type, browser_name, browser_version, os, device_type)
                                     VALUES (source.ua_hash, source.agent_type, source.browser_name,
                                             source.browser_version, source.os, source.device_type);
-                            """, params)
+                            """,
+                                params,
+                            )
                         logger.info(f"Inserted {len(insert_data)} rows into dim_useragent")
             else:
                 logger.info("No user-agent strings found in dbo.raw_enriched; skipping dim_useragent build")
 
             conn.commit()
 
-        logger.info(
-            "Dimension tables dim_geolocation and dim_useragent built successfully from Azure SQL."
-        )
+        logger.info("Dimension tables dim_geolocation and dim_useragent built successfully from Azure SQL.")
 
     except ImportError:
         logger.warning(
