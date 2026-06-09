@@ -40,6 +40,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import os
+from urllib.parse import unquote_plus
 
 from airflow.datasets import Dataset
 from airflow.operators.python import PythonOperator
@@ -127,7 +128,7 @@ def _export_dimensions(**context) -> None:
                 IF OBJECT_ID('dbo.dim_geolocation') IS NULL
                 BEGIN
                     CREATE TABLE dbo.dim_geolocation (
-                        geo_id          INT IDENTITY(1,1) PRIMARY KEY,
+                        geolocation_sk  INT IDENTITY(1,1) PRIMARY KEY,
                         geo_hash        NVARCHAR(64)   NOT NULL,
                         country         NVARCHAR(100)  NULL,
                         region          NVARCHAR(100)  NULL,
@@ -138,6 +139,12 @@ def _export_dimensions(**context) -> None:
                         CONSTRAINT uq_dim_geolocation__geo_hash
                             UNIQUE (geo_hash)
                     );
+
+                    -- Seed -1 sentinel unknown row for FK integrity
+                    SET IDENTITY_INSERT dbo.dim_geolocation ON;
+                    INSERT INTO dbo.dim_geolocation (geolocation_sk, geo_hash, country, region, city, isp)
+                    VALUES (-1, '0000000000000000000000000000000000000000000000000000000000000000', 'Unknown', 'Unknown', 'Unknown', '-');
+                    SET IDENTITY_INSERT dbo.dim_geolocation OFF;
                 END;
             """)
 
@@ -164,6 +171,7 @@ def _export_dimensions(**context) -> None:
                     VALUES (source.geo_hash, source.country, source.region,
                             source.city, source.latitude, source.longitude, source.isp);
             """)
+            conn.commit()
 
             # ── dim_useragent (MERGE upsert on ua_hash) ─────────────
             # Parse raw user-agent strings from dbo.raw_enriched using user-agents library
@@ -172,7 +180,7 @@ def _export_dimensions(**context) -> None:
                 IF OBJECT_ID('dbo.dim_useragent') IS NULL
                 BEGIN
                     CREATE TABLE dbo.dim_useragent (
-                        ua_id           INT IDENTITY(1,1) PRIMARY KEY,
+                        user_agent_sk   INT IDENTITY(1,1) PRIMARY KEY,
                         ua_hash         NVARCHAR(64)   NOT NULL,
                         agent_type      NVARCHAR(50)   NULL,
                         browser_name    NVARCHAR(100)  NULL,
@@ -182,6 +190,12 @@ def _export_dimensions(**context) -> None:
                         CONSTRAINT uq_dim_useragent__ua_hash
                             UNIQUE (ua_hash)
                     );
+
+                    -- Seed -1 sentinel unknown row for FK integrity
+                    SET IDENTITY_INSERT dbo.dim_useragent ON;
+                    INSERT INTO dbo.dim_useragent (user_agent_sk, ua_hash, agent_type, browser_name, browser_version, os, device_type)
+                    VALUES (-1, '0000000000000000000000000000000000000000000000000000000000000000', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown');
+                    SET IDENTITY_INSERT dbo.dim_useragent OFF;
                 END;
             """)
 
@@ -200,8 +214,9 @@ def _export_dimensions(**context) -> None:
                 else:
                     logger.info(f"Parsing {len(ua_rows)} distinct user-agent strings...")
                     insert_data = []
+                    seen_hashes = set()
                     for idx, (ua_raw,) in enumerate(ua_rows):
-                        ua_str = ua_raw[:1000] if ua_raw else ""
+                        ua_str = unquote_plus(ua_raw[:1000] if ua_raw else "")
                         parsed = ua_parse(ua_str)
 
                         agent_type = "Crawler" if getattr(parsed, "is_bot", False) else "Browser"
@@ -221,8 +236,14 @@ def _export_dimensions(**context) -> None:
                             device = "Other"
 
                         # Compute hash in Python (much faster than SQL round-trips)
-                        hash_input = f"{agent_type or ''}|{browser_name or ''}|{browser_version or ''}"
+                        hash_input = f"{agent_type or ''}|{browser_name or ''}|{browser_version or ''}|{os_name or ''}|{device or ''}"
                         ua_hash = hashlib.sha256(hash_input.encode('utf-8')).hexdigest()
+
+                        # Dedup after URL-unescaping: two differently-escaped raw strings may
+                        # unquote_plus to the same UA, producing the same hash
+                        if ua_hash in seen_hashes:
+                            continue
+                        seen_hashes.add(ua_hash)
 
                         insert_data.append((ua_hash, agent_type, browser_name, browser_version, os_name, device))
 
@@ -230,21 +251,23 @@ def _export_dimensions(**context) -> None:
                         if (idx + 1) % 500 == 0:
                             logger.info(f"Parsed {idx + 1}/{len(ua_rows)} user-agents...")
 
-                    # Batch insert with MERGE for idempotency
+                    # Batch insert with MERGE for idempotency (batched VALUES for performance)
                     if insert_data:
                         logger.info(f"Inserting {len(insert_data)} rows into dim_useragent...")
-                        cursor.executemany(
-                            """
-                            MERGE dbo.dim_useragent AS target
-                            USING (VALUES (?, ?, ?, ?, ?, ?)) AS source (ua_hash, agent_type, browser_name, browser_version, os, device_type)
-                            ON target.ua_hash = source.ua_hash
-                            WHEN NOT MATCHED THEN
-                                INSERT (ua_hash, agent_type, browser_name, browser_version, os, device_type)
-                                VALUES (source.ua_hash, source.agent_type, source.browser_name,
-                                        source.browser_version, source.os, source.device_type);
-                            """,
-                            insert_data,
-                        )
+                        batch_size = 300  # Stay under SQL Server's 2100-param limit (6 params/row)
+                        for batch_start in range(0, len(insert_data), batch_size):
+                            batch = insert_data[batch_start:batch_start + batch_size]
+                            placeholders = ",".join(["(?,?,?,?,?,?)"] * len(batch))
+                            params = tuple(v for row in batch for v in row)
+                            cursor.execute(f"""
+                                MERGE dbo.dim_useragent AS target
+                                USING (VALUES {placeholders}) AS source (ua_hash, agent_type, browser_name, browser_version, os, device_type)
+                                ON target.ua_hash = source.ua_hash
+                                WHEN NOT MATCHED THEN
+                                    INSERT (ua_hash, agent_type, browser_name, browser_version, os, device_type)
+                                    VALUES (source.ua_hash, source.agent_type, source.browser_name,
+                                            source.browser_version, source.os, source.device_type);
+                            """, params)
                         logger.info(f"Inserted {len(insert_data)} rows into dim_useragent")
             else:
                 logger.info("No user-agent strings found in dbo.raw_enriched; skipping dim_useragent build")
@@ -260,11 +283,12 @@ def _export_dimensions(**context) -> None:
             "pyodbc not installed — cannot build dimension tables from "
             "Azure SQL. Install pyodbc or run inside the Airflow container."
         )
-    except Exception:
+    except pyodbc.Error:
         logger.exception(
-            "Failed to build dimension tables from Azure SQL. "
+            "Azure SQL error while building dimension tables. "
             "The core pipeline data is still available in dbo.raw_enriched."
         )
+        raise
 
 
 # ── DAG definition ─────────────────────────────────────────────────────────
