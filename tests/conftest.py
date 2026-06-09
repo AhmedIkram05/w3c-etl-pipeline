@@ -56,7 +56,7 @@ def _create_spark_session():
 def _spark_session_is_alive(session) -> bool:
     """Return True when the SparkSession JVM context is still active."""
     try:
-        return session.sparkContext._jsc is not None  # type: ignore[attr-defined]
+        return session.sparkContext._jsc is not None
     except Exception:
         return False
 
@@ -73,8 +73,8 @@ def spark():
 
     active = SparkSession.getActiveSession()
     if active is not None and not _spark_session_is_alive(active):
-        SparkSession._instantiatedSession = None  # type: ignore[attr-defined]
-        SparkSession._activeSession = None  # type: ignore[attr-defined]
+        SparkSession._instantiatedSession = None
+        SparkSession._activeSession = None
 
     session = _create_spark_session()
     if not _spark_session_is_alive(session):
@@ -82,12 +82,12 @@ def spark():
             session.stop()
         except Exception:
             pass
-        SparkSession._instantiatedSession = None  # type: ignore[attr-defined]
-        SparkSession._activeSession = None  # type: ignore[attr-defined]
+        SparkSession._instantiatedSession = None
+        SparkSession._activeSession = None
         session = _create_spark_session()
 
     yield session
 
     if not _spark_session_is_alive(session):
-        SparkSession._instantiatedSession = None  # type: ignore[attr-defined]
-        SparkSession._activeSession = None  # type: ignore[attr-defined]
+        SparkSession._instantiatedSession = None
+        SparkSession._activeSession = None
