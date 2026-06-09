@@ -659,7 +659,7 @@ class TestExportToAzureSql:
         return spark, mock_conn, mock_cursor, mock_pymssql, table_patch, pymssql_patch
 
     @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
-    def test_full_flow_with_new_data(self, caplog):
+    def test_full_flow_with_new_data(self, capsys):
         """Full export flow: connect → ensure tables → filter → batch insert → track."""
         spark, mock_conn, mock_cursor, mock_pymssql, table_patch, pymssql_patch = self._spark_and_patches()
         mock_cursor.fetchall.return_value = []  # empty tracking table → all rows are "new"
@@ -683,13 +683,14 @@ class TestExportToAzureSql:
             assert any_tracking or any_tracking_exec, "No tracking table update found"
             # Connection closed
             mock_conn.close.assert_called_once()
-            assert any("Exporting" in msg for msg in caplog.messages)
+            assert "Exporting" in capsys.readouterr().out
 
         finally:
-            spark.stop()
+            if spark.sparkContext._jsc is not None:  # type: ignore[attr-defined]
+                spark.stop()
 
     @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
-    def test_no_new_files_skips_export(self, caplog):
+    def test_no_new_files_skips_export(self, capsys):
         """No new source files → early return, no insert."""
         spark, mock_conn, mock_cursor, _, table_patch, pymssql_patch = self._spark_and_patches()
         mock_cursor.fetchall.return_value = [("w3c-2026-01-01.log",)]  # all already loaded
@@ -699,10 +700,11 @@ class TestExportToAzureSql:
                 export_to_azure_sql = self._import_export()
                 export_to_azure_sql(spark, "server", "db", "user", "pass")
 
-            assert any("No new source files" in msg for msg in caplog.messages)
+            assert "No new source files" in capsys.readouterr().out
 
         finally:
-            spark.stop()
+            if spark.sparkContext._jsc is not None:  # type: ignore[attr-defined]
+                spark.stop()
 
     @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
     def test_is_crawler_cast_from_string_to_bit(self):
@@ -725,7 +727,8 @@ class TestExportToAzureSql:
                                 assert p in (0, 1), f"is_crawler should be 0 or 1, got {p}"
 
         finally:
-            spark.stop()
+            if spark.sparkContext._jsc is not None:  # type: ignore[attr-defined]
+                spark.stop()
 
     @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
     def test_connection_closed_in_finally(self):
@@ -743,4 +746,5 @@ class TestExportToAzureSql:
             mock_conn.close.assert_called_once()
 
         finally:
-            spark.stop()
+            if spark.sparkContext._jsc is not None:  # type: ignore[attr-defined]
+                spark.stop()
