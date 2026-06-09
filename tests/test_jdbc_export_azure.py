@@ -50,7 +50,7 @@ try:
         .config("spark.ui.enabled", "false")
         .getOrCreate()
     )
-    _HAS_REAL_PYSPARK = _spark_test.sparkContext._jsc is not None  # type: ignore[attr-defined]
+    _HAS_REAL_PYSPARK = _spark_test.sparkContext._jsc is not None
 except Exception:
     pass
 
@@ -686,7 +686,7 @@ class TestExportToAzureSql:
             assert "Exporting" in capsys.readouterr().out
 
         finally:
-            if spark.sparkContext._jsc is not None:  # type: ignore[attr-defined]
+            if spark.sparkContext._jsc is not None:
                 spark.stop()
 
     @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
@@ -703,7 +703,7 @@ class TestExportToAzureSql:
             assert "No new source files" in capsys.readouterr().out
 
         finally:
-            if spark.sparkContext._jsc is not None:  # type: ignore[attr-defined]
+            if spark.sparkContext._jsc is not None:
                 spark.stop()
 
     @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
@@ -727,7 +727,7 @@ class TestExportToAzureSql:
                                 assert p in (0, 1), f"is_crawler should be 0 or 1, got {p}"
 
         finally:
-            if spark.sparkContext._jsc is not None:  # type: ignore[attr-defined]
+            if spark.sparkContext._jsc is not None:
                 spark.stop()
 
     @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
@@ -746,5 +746,5 @@ class TestExportToAzureSql:
             mock_conn.close.assert_called_once()
 
         finally:
-            if spark.sparkContext._jsc is not None:  # type: ignore[attr-defined]
+            if spark.sparkContext._jsc is not None:
                 spark.stop()
