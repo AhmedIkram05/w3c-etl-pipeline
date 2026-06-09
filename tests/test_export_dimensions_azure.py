@@ -80,11 +80,11 @@ sys.modules["airflow.operators"] = MagicMock()
 sys.modules["airflow.operators.python"] = _airflow_python
 sys.modules["airflow.providers"] = MagicMock()
 sys.modules["airflow.providers.databricks"] = MagicMock()
-sys.modules["airflow.providers.databricks.operators"] = MagicMock
+sys.modules["airflow.providers.databricks.operators"] = MagicMock()
 sys.modules["airflow.providers.databricks.operators.databricks"] = _airflow_databricks
 
 # ── Module under test ─────────────────────────────────────────────────────
-from dags.w3c.spark_ingestion_azure import _export_dimensions
+from dags.w3c.spark_ingestion_azure import _export_dimensions  # noqa: E402 — sys.modules mock comes first
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Test helpers
