@@ -17,12 +17,42 @@ Usage:
     pytest tests/test_export_dimensions_azure.py -v --tb=short
 """
 
+import logging
 import os
 import sys
 from contextlib import contextmanager
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+
+# ── UA stub builder — must be defined before user_agents mock ────────
+def _make_ua_stub(**kwargs):
+    """Build a stub parsed user-agent object matching ``user_agents.parse()``.
+
+    Defaults produce a Desktop Chrome on Windows.
+    """
+    class _Browser:
+        family = kwargs.get("browser_family", "Chrome")
+        version_string = kwargs.get("browser_version", "91.0.4472")
+
+    class _OS:
+        family = kwargs.get("os_family", "Windows")
+
+    ua = MagicMock()
+    ua.browser = _Browser()
+    ua.os = _OS()
+    ua.is_bot = kwargs.get("is_bot", False)
+    ua.is_mobile = kwargs.get("is_mobile", False)
+    ua.is_tablet = kwargs.get("is_tablet", False)
+    ua.is_pc = kwargs.get("is_pc", True)
+    return ua
+
+
+# ── Mock ``user_agents`` (not always installed in base Python) ──────────
+# The function does ``import user_agents`` inside a try/except at runtime.
+_ua_mod = MagicMock(name="user_agents")
+_ua_mod.parse.return_value = _make_ua_stub()
+sys.modules["user_agents"] = _ua_mod
 
 # ── Mock Airflow (not available outside Docker container) ──────────────
 # The DAG module constructs DAG objects at the module level, which requires
@@ -101,35 +131,6 @@ def _mock_pyodbc(ua_rows=None, fail_on_execute=False):
 
     with patch.dict("sys.modules", {"pyodbc": mock_pyodbc}, clear=False):
         yield mock_pyodbc, mock_conn, mock_cursor
-
-
-def _make_ua_stub(**kwargs):
-    """Build a stub parsed user-agent object matching ``user_agents.parse()``.
-
-    Defaults produce a Desktop Chrome on Windows.
-
-    Parameters
-    ----------
-    browser_family : str
-    browser_version : str
-    os_family : str
-    is_bot, is_mobile, is_tablet, is_pc : bool
-    """
-    class _Browser:
-        family = kwargs.get("browser_family", "Chrome")
-        version_string = kwargs.get("browser_version", "91.0.4472")
-
-    class _OS:
-        family = kwargs.get("os_family", "Windows")
-
-    ua = MagicMock()
-    ua.browser = _Browser()
-    ua.os = _OS()
-    ua.is_bot = kwargs.get("is_bot", False)
-    ua.is_mobile = kwargs.get("is_mobile", False)
-    ua.is_tablet = kwargs.get("is_tablet", False)
-    ua.is_pc = kwargs.get("is_pc", True)
-    return ua
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -290,10 +291,8 @@ class TestDDLCreation:
 
     def test_commit_after_geolocation_ddl(self):
         """conn.commit() is called after the geo dimension build."""
-        _, mock_conn = self._run_with_env()
-        commit_calls = [c for c in mock_conn.commit.call_args_list]
-        # At least one commit must happen (geo build commits)
-        assert len(commit_calls) >= 1
+        mock_conn, _ = self._run_with_env()
+        assert mock_conn.commit.called
 
     # ── helpers ──
 
@@ -370,8 +369,8 @@ class TestGeoDimension:
 
     def test_conn_commit_after_geo_merge(self):
         """conn.commit() is called after the geo MERGE."""
-        _, mock_conn = self._run_with_env()
-        # At least one commit (the DDL phase also triggers explicit commit)
+        mock_conn, _ = self._run_with_env()
+        # At least one commit (after geo build + after UA batch)
         assert mock_conn.commit.called
 
     @staticmethod
@@ -426,7 +425,34 @@ class TestUserAgentDimension:
 
     @contextmanager
     def _patch_env_and_pyodbc(self, ua_rows):
-        """Set env vars + mock pyodbc + mock user_agents.parse."""
+        """Set env vars + mock pyodbc + context-aware user_agents.parse.
+
+        Each call to the mock parser produces a unique ``browser_version`` so
+        that different input strings are NOT deduplicated by ``seen_hashes``
+        (unless they are truly identical after URL-unescaping).
+        """
+        parse_call_count = 0  # mutable via closure list to avoid nonlocal
+
+        def _mock_parse(ua_str):
+            """Return a UA stub — OS depends on input, version increments per call."""
+            nonlocal parse_call_count
+            parse_call_count += 1
+            ua_str_lower = ua_str.lower()
+            if "macintosh" in ua_str_lower or "mac os" in ua_str_lower:
+                os_family = "Mac OS X"
+            elif "linux" in ua_str_lower:
+                os_family = "Linux"
+            elif "iphone" in ua_str_lower:
+                os_family = "iOS"
+            elif "android" in ua_str_lower:
+                os_family = "Android"
+            else:
+                os_family = "Windows"
+            return _make_ua_stub(
+                os_family=os_family,
+                browser_version=f"91.0.{parse_call_count}",
+            )
+
         with patch.dict(
             os.environ,
             {
@@ -437,12 +463,14 @@ class TestUserAgentDimension:
             clear=True,
         ):
             with _mock_pyodbc(ua_rows=ua_rows) as (mock_pyodbc, mock_conn, mock_cursor):
-                yield mock_pyodbc, mock_conn, mock_cursor
+                with patch("user_agents.parse", side_effect=_mock_parse):
+                    yield mock_pyodbc, mock_conn, mock_cursor
 
     # ── 6a. Normal parsing flow ─────────────────────────────────────
 
     def test_parses_user_agents_from_raw_enriched(self, caplog):
         """UAs are read from dbo.raw_enriched and parsed."""
+        caplog.set_level(logging.INFO)
         ua_rows = [("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",)]
         with self._patch_env_and_pyodbc(ua_rows) as (_, _, mock_cursor):
             mock_cursor.fetchall.return_value = ua_rows
@@ -451,6 +479,7 @@ class TestUserAgentDimension:
 
     def test_no_uas_skips_build(self, caplog):
         """No user-agent rows found → skips build."""
+        caplog.set_level(logging.INFO)
         with self._patch_env_and_pyodbc([]) as (_, _, mock_cursor):
             mock_cursor.fetchall.return_value = []
             _export_dimensions()
@@ -486,9 +515,22 @@ class TestUserAgentDimension:
             "Chrome/91.0.4472.124 Safari/537.36"
         )
         ua_rows = [(encoded,), (decoded,)]
-        with self._patch_env_and_pyodbc(ua_rows) as (_, _, mock_cursor):
-            mock_cursor.fetchall.return_value = ua_rows
-            _export_dimensions()
+        # Override parse to return the EXACT same stub for both calls
+        # (the default _patch_env_and_pyodbc uses a counter that would
+        # give unique version numbers, defeating dedup)
+        with patch.dict(
+            os.environ,
+            {
+                "AZURE_SQL_SERVER": "s",
+                "AZURE_SQL_USER": "u",
+                "AZURE_SQL_PASS": "p",
+            },
+            clear=True,
+        ):
+            with _mock_pyodbc(ua_rows=ua_rows) as (_, _, mock_cursor):
+                mock_cursor.fetchall.return_value = ua_rows
+                with patch("user_agents.parse", return_value=_make_ua_stub()):
+                    _export_dimensions()
 
         # Only one execute call for the UA MERGE (batched) => 1 row
         merge_sql = self._find_sql(mock_cursor, "MERGE dbo.dim_useragent")
@@ -598,6 +640,7 @@ class TestUserAgentDimension:
 
     def test_logs_progress_every_500_uas(self, caplog):
         """Progress logged every 500 UAs during parsing."""
+        caplog.set_level(logging.INFO)
         ua_rows = [
             (f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.{i}.4472 Safari/537.36",)
             for i in range(1050)
