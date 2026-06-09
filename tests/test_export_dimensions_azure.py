@@ -21,9 +21,10 @@ import logging
 import os
 import sys
 from contextlib import contextmanager
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+
 
 # ── UA stub builder — must be defined before user_agents mock ────────
 def _make_ua_stub(**kwargs):
@@ -31,6 +32,7 @@ def _make_ua_stub(**kwargs):
 
     Defaults produce a Desktop Chrome on Windows.
     """
+
     class _Browser:
         family = kwargs.get("browser_family", "Chrome")
         version_string = kwargs.get("browser_version", "91.0.4472")
@@ -83,7 +85,6 @@ sys.modules["airflow.providers.databricks.operators.databricks"] = _airflow_data
 
 # ── Module under test ─────────────────────────────────────────────────────
 from dags.w3c.spark_ingestion_azure import _export_dimensions
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Test helpers
@@ -298,11 +299,7 @@ class TestDDLCreation:
 
     @staticmethod
     def _get_all_sql(mock_cursor):
-        return [
-            call_args[0][0]
-            for call_args in mock_cursor.execute.call_args_list
-            if call_args[0]
-        ]
+        return [call_args[0][0] for call_args in mock_cursor.execute.call_args_list if call_args[0]]
 
     @staticmethod
     def _find_sql(mock_cursor, keyword):
@@ -488,7 +485,9 @@ class TestUserAgentDimension:
     def test_inserts_parsed_uas_into_dim_useragent(self):
         """Parsed UAs are inserted via MERGE into dim_useragent."""
         ua_rows = [
-            ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            ),
         ]
         with self._patch_env_and_pyodbc(ua_rows) as (_, _, mock_cursor):
             mock_cursor.fetchall.return_value = ua_rows
@@ -539,8 +538,7 @@ class TestUserAgentDimension:
         if merge_sql:
             count_placeholders = merge_sql.count("?,?,?,?,?,?")
             assert count_placeholders == 1, (
-                f"Expected 1 row (deduped), got {count_placeholders} "
-                f"placeholder groups in MERGE"
+                f"Expected 1 row (deduped), got {count_placeholders} placeholder groups in MERGE"
             )
 
     # ── 6c. Hash includes all fields ────────────────────────────────
@@ -550,8 +548,12 @@ class TestUserAgentDimension:
         # We can verify this indirectly: different OS → different hash
         # A Windows Chrome and a Mac Chrome should produce different hashes
         ua_rows = [
-            ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",),
-            ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            ),
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            ),
         ]
         with self._patch_env_and_pyodbc(ua_rows) as (_, _, mock_cursor):
             mock_cursor.fetchall.return_value = ua_rows
@@ -562,9 +564,7 @@ class TestUserAgentDimension:
         # Two different OS → 2 distinct hashes → 2 rows
         if merge_sql:
             count_placeholders = merge_sql.count("?,?,?,?,?,?")
-            assert count_placeholders == 2, (
-                f"Expected 2 rows (different OS), got {count_placeholders}"
-            )
+            assert count_placeholders == 2, f"Expected 2 rows (different OS), got {count_placeholders}"
 
     # ── 6d. Batched MERGE ───────────────────────────────────────────
 
@@ -572,7 +572,9 @@ class TestUserAgentDimension:
         """User-agent insert is batched at 300 rows per batch."""
         # 350 rows → 2 batches (300 + 50)
         ua_rows = [
-            (f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.{i}.4472 Safari/537.36",)
+            (
+                f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.{i}.4472 Safari/537.36",
+            )
             for i in range(350)
         ]
         with self._patch_env_and_pyodbc(ua_rows) as (_, _, mock_cursor):
@@ -585,21 +587,19 @@ class TestUserAgentDimension:
             for call_args in mock_cursor.execute.call_args_list
             if "MERGE dbo.dim_useragent" in str(call_args[0][0])
         ]
-        assert len(merge_calls) == 2, (
-            f"Expected 2 batch calls for 350 rows, got {len(merge_calls)}"
-        )
+        assert len(merge_calls) == 2, f"Expected 2 batch calls for 350 rows, got {len(merge_calls)}"
 
         # First batch: 300 rows → 300 placeholder groups
         first_sql = merge_calls[0][0][0]
         first_count = first_sql.count("?,?,?,?,?,?")
-        assert first_count == 300, (
-            f"Expected 300 placeholder groups in first batch, got {first_count}"
-        )
+        assert first_count == 300, f"Expected 300 placeholder groups in first batch, got {first_count}"
 
     def test_exact_batch_boundary_300_rows(self):
         """Exactly 300 rows → 1 batch (no partial batch)."""
         ua_rows = [
-            (f"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.{i}.4472 Safari/537.36",)
+            (
+                f"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.{i}.4472 Safari/537.36",
+            )
             for i in range(300)
         ]
         with self._patch_env_and_pyodbc(ua_rows) as (_, _, mock_cursor):
@@ -616,7 +616,9 @@ class TestUserAgentDimension:
     def test_batch_under_2100_param_limit(self):
         """Each batch stays within SQL Server's 2100-parameter limit."""
         ua_rows = [
-            (f"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.{i}.4472 Safari/537.36",)
+            (
+                f"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.{i}.4472 Safari/537.36",
+            )
             for i in range(301)
         ]
         with self._patch_env_and_pyodbc(ua_rows) as (_, _, mock_cursor):
@@ -632,9 +634,7 @@ class TestUserAgentDimension:
             # params is the second positional arg to execute()
             if len(call_args := merge_calls[0]) > 1:
                 param_count = len(call_args[0][1]) if isinstance(call_args[0][1], tuple) else 0
-                assert param_count <= 2100, (
-                    f"Parameters ({param_count}) exceed SQL Server limit of 2100"
-                )
+                assert param_count <= 2100, f"Parameters ({param_count}) exceed SQL Server limit of 2100"
 
     # ── 6e. Logging progress ────────────────────────────────────────
 
@@ -642,16 +642,16 @@ class TestUserAgentDimension:
         """Progress logged every 500 UAs during parsing."""
         caplog.set_level(logging.INFO)
         ua_rows = [
-            (f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.{i}.4472 Safari/537.36",)
+            (
+                f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.{i}.4472 Safari/537.36",
+            )
             for i in range(1050)
         ]
         with self._patch_env_and_pyodbc(ua_rows) as (_, _, mock_cursor):
             mock_cursor.fetchall.return_value = ua_rows
             _export_dimensions()
 
-        progress_messages = [
-            m for m in caplog.messages if "Parsed " in m and "user-agents..." in m
-        ]
+        progress_messages = [m for m in caplog.messages if "Parsed " in m and "user-agents..." in m]
         # 500 and 1000
         assert len(progress_messages) >= 2
 
