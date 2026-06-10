@@ -44,4 +44,4 @@ SELECT
     visit_bucket_order,
     COUNT(client_ip) AS user_count
 FROM ip_buckets
-GROUP BY visit_bucket_sk, visit_bucket, visit_bucket_order
+GROUP BY visit_bucket_order, visit_bucket
