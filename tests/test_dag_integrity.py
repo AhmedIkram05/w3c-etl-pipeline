@@ -378,3 +378,153 @@ class TestSparkIngestionAzureDAG:
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
         _ = dag_bag.dags
         assert len(dag_bag.import_errors) == 0, f"DAG import errors found: {dag_bag.import_errors}"
+
+
+@pytest.mark.dag_integrity
+class TestDBTMartsAzureDAG:
+    """Verify the ``w3c_dbt_marts_azure`` DAG (dataset-triggered dbt pipeline on Azure SQL)."""
+
+    def test_azure_dbt_marts_imports(self):
+        """Verify w3c_dbt_marts_azure DAG imports and parses with 6 tasks."""
+        from airflow.models import DagBag
+
+        dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
+        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts_azure")
+        assert dag is not None, (
+            "w3c_dbt_marts_azure DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
+        )
+        # Expected: dbt_source_freshness, dbt_run, dbt_test, dbt_docs, export_dbt_docs, export_csv
+        assert len(dag.tasks) == 6, (
+            f"Expected 6 tasks (dbt_source_freshness, dbt_run, dbt_test, "
+            f"dbt_docs, export_dbt_docs, export_csv), "
+            f"got {len(dag.tasks)}: {[t.task_id for t in dag.tasks]}"
+        )
+
+    def test_azure_dbt_marts_task_ids(self):
+        """Verify the w3c_dbt_marts_azure DAG has the expected task IDs."""
+        from airflow.models import DagBag
+
+        dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
+        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts_azure")
+        assert dag is not None
+
+        task_ids = {t.task_id for t in dag.tasks}
+        expected = {
+            "dbt_source_freshness",
+            "dbt_run",
+            "dbt_test",
+            "dbt_docs",
+            "export_dbt_docs",
+            "export_csv",
+        }
+        missing = expected - task_ids
+        extra = task_ids - expected
+        assert not missing, f"Missing task(s): {missing}"
+        assert not extra, f"Unexpected task(s): {extra}"
+
+    def test_azure_dbt_marts_dependency_chain(self):
+        """Verify dependency fork: freshness >> run >> test; test >> docs >> export_dbt_docs; test >> csv."""
+        from airflow.models import DagBag
+
+        dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
+        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts_azure")
+        assert dag is not None
+
+        downstream_map = {}
+        for task in dag.tasks:
+            downstream_map[task.task_id] = {t.task_id for t in task.downstream_list}
+
+        # Linear chain: freshness >> run >> test
+        assert downstream_map["dbt_source_freshness"] == {"dbt_run"}, (
+            f"dbt_source_freshness downstream: {downstream_map['dbt_source_freshness']}"
+        )
+        assert downstream_map["dbt_run"] == {"dbt_test"}, (
+            f"dbt_run downstream: {downstream_map['dbt_run']}"
+        )
+
+        # Fork at dbt_test → dbt_docs and export_csv
+        assert "dbt_docs" in downstream_map["dbt_test"], (
+            f"dbt_test missing dbt_docs downstream: {downstream_map['dbt_test']}"
+        )
+        assert "export_csv" in downstream_map["dbt_test"], (
+            f"dbt_test missing export_csv downstream: {downstream_map['dbt_test']}"
+        )
+        assert len(downstream_map["dbt_test"]) == 2, (
+            f"dbt_test should have exactly 2 downstream tasks, got {downstream_map['dbt_test']}"
+        )
+
+        # dbt_docs >> export_dbt_docs
+        assert downstream_map["dbt_docs"] == {"export_dbt_docs"}, (
+            f"dbt_docs downstream: {downstream_map['dbt_docs']}"
+        )
+        assert downstream_map["export_dbt_docs"] == set(), (
+            f"export_dbt_docs should be terminal: {downstream_map['export_dbt_docs']}"
+        )
+        assert downstream_map["export_csv"] == set(), (
+            f"export_csv should be terminal: {downstream_map['export_csv']}"
+        )
+
+    def test_azure_dbt_marts_is_dataset_triggered(self):
+        """Verify w3c_dbt_marts_azure is triggered by Dataset('mssql://azure-sql/dbo/raw_enriched_loaded')."""
+        from airflow.datasets import Dataset
+        from airflow.models import DagBag
+
+        dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
+        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts_azure")
+        assert dag is not None
+
+        timetable = dag.timetable
+        cond = getattr(timetable, "dataset_condition", None)
+        dbt_inlet_datasets = set()
+        if cond is not None:
+            if hasattr(cond, "objects"):
+                for obj in cond.objects:
+                    if isinstance(obj, Dataset):
+                        dbt_inlet_datasets.add(obj)
+            elif isinstance(cond, Dataset):
+                dbt_inlet_datasets.add(cond)
+
+        target = Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")
+        assert target in dbt_inlet_datasets, (
+            f"Expected Dataset('mssql://azure-sql/dbo/raw_enriched_loaded') in schedule, "
+            f"got {dbt_inlet_datasets}"
+        )
+
+    def test_azure_dbt_marts_has_dataset_outlets(self):
+        """Verify w3c_dbt_marts_azure emits Dataset outlets for downstream consumers."""
+        from airflow.datasets import Dataset
+        from airflow.models import DagBag
+
+        dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
+        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts_azure")
+        assert dag is not None
+
+        # Check export_dbt_docs outlet
+        export_docs_task = None
+        export_csv_task = None
+        for task in dag.tasks:
+            if task.task_id == "export_dbt_docs":
+                export_docs_task = task
+            elif task.task_id == "export_csv":
+                export_csv_task = task
+
+        assert export_docs_task is not None, "export_dbt_docs task not found"
+        assert export_csv_task is not None, "export_csv task not found"
+
+        docs_outlets = getattr(export_docs_task, "outlets", [])
+        csv_outlets = getattr(export_csv_task, "outlets", [])
+
+        assert Dataset("azure://w3c-etl/dbt_docs_ready") in docs_outlets, (
+            f"export_dbt_docs missing dbt_docs_ready outlet: {docs_outlets}"
+        )
+        assert Dataset("azure://w3c-etl/csv_exports_ready") in csv_outlets, (
+            f"export_csv missing csv_exports_ready outlet: {csv_outlets}"
+        )
+
+    def test_azure_dbt_marts_has_no_import_errors(self):
+        """Verify the DAG file has zero import errors in DagBag."""
+        from airflow.models import DagBag
+
+        dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
+        _ = dag_bag.dags
+        assert len(dag_bag.import_errors) == 0, f"DAG import errors found: {dag_bag.import_errors}"
