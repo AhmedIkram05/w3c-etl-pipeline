@@ -573,9 +573,9 @@ class TestUserAgentDimension:
 
     # ── 6d. Batched MERGE ───────────────────────────────────────────
 
-    def test_batched_merge_300_rows_per_batch(self):
-        """User-agent insert is batched at 300 rows per batch."""
-        # 350 rows → 2 batches (300 + 50)
+    def test_batched_merge_250_rows_per_batch(self):
+        """User-agent insert is batched at 250 rows per batch (7 columns × 250 = 1750 params, within 2100 limit)."""
+        # 350 rows → 2 batches (250 + 100)
         ua_rows = [
             (
                 f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.{i}.4472 Safari/537.36",
@@ -594,18 +594,18 @@ class TestUserAgentDimension:
         ]
         assert len(merge_calls) == 2, f"Expected 2 batch calls for 350 rows, got {len(merge_calls)}"
 
-        # First batch: 300 rows → 300 placeholder groups
+        # First batch: 250 rows → 250 placeholder groups (7 columns: ?,?,?,?,?,?,?)
         first_sql = merge_calls[0][0][0]
-        first_count = first_sql.count("?,?,?,?,?,?")
-        assert first_count == 300, f"Expected 300 placeholder groups in first batch, got {first_count}"
+        first_count = first_sql.count("?,?,?,?,?,?,?")
+        assert first_count == 250, f"Expected 250 placeholder groups in first batch, got {first_count}"
 
-    def test_exact_batch_boundary_300_rows(self):
-        """Exactly 300 rows → 1 batch (no partial batch)."""
+    def test_exact_batch_boundary_250_rows(self):
+        """Exactly 250 rows → 1 batch (no partial batch)."""
         ua_rows = [
             (
                 f"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.{i}.4472 Safari/537.36",
             )
-            for i in range(300)
+            for i in range(250)
         ]
         with self._patch_env_and_pyodbc(ua_rows) as (_, _, mock_cursor):
             mock_cursor.fetchall.return_value = ua_rows
