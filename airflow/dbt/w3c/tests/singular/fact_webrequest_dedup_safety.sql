@@ -34,8 +34,7 @@ WITH key_inputs AS (
 hashed AS (
     SELECT
         *,
-        MD5(CONCAT(source_file, '|', log_time, '|', client_ip, '|', user_agent, '|', referrer,
-                   '|', uri_stem, '|', uri_query, '|', method, '|', status, '|', sub_status, '|', win32_status, '|', time_taken)) AS raw_log_id
+        {{ tsql_hash_md5("CONCAT(source_file, '|', log_time, '|', client_ip, '|', user_agent, '|', referrer, '|', uri_stem, '|', uri_query, '|', method, '|', status, '|', sub_status, '|', win32_status, '|', time_taken)") }} AS raw_log_id
     FROM key_inputs
 )
 
