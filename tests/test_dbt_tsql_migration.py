@@ -11,9 +11,7 @@ execute in the CI ``dbt-compile`` job after the compile step.
 
 from __future__ import annotations
 
-import os
 import re
-import sys
 import warnings
 from pathlib import Path
 
