@@ -20,7 +20,7 @@ browser_stats AS (
         CASE WHEN ua.device_type = 'Mobile' THEN 1 ELSE 0 END AS is_mobile,
         COUNT(*) AS total_requests,
         COUNT(DISTINCT fw.geolocation_sk) AS unique_hosts,
-        AVG(fw.response_time_ms)::NUMERIC(10,2) AS avg_response_time_ms,
+        {{ tsql_cast('AVG(fw.response_time_ms)', 'NUMERIC(10,2)') }} AS avg_response_time_ms,
         SUM(fw.bytes_sent) AS total_bytes_sent
     FROM {{ ref('fact_webrequest') }} fw
     JOIN {{ ref('dim_date') }} dd ON dd.date_sk = fw.date_sk
