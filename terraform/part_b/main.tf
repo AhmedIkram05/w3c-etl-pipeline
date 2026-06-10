@@ -151,3 +151,73 @@ resource "databricks_job" "w3c_etl_workflow" {
     timeout_seconds = 0
   }
 }
+
+# --------------------------------------------------------------------------
+# DLT Pipeline Notebooks
+# These notebooks are used by the Bronze and Silver DLT pipelines
+# --------------------------------------------------------------------------
+resource "databricks_notebook" "dlt_bronze" {
+  path     = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_bronze.py"
+  language = "PYTHON"
+  format   = "SOURCE"
+  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dlt_bronze.py"))
+}
+
+resource "databricks_notebook" "dlt_silver" {
+  path     = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_silver.py"
+  language = "PYTHON"
+  format   = "SOURCE"
+  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dlt_silver.py"))
+}
+
+# --------------------------------------------------------------------------
+# JDBC Export Notebook
+# Used by the Databricks workflow to export Silver data to Azure SQL
+# --------------------------------------------------------------------------
+resource "databricks_notebook" "jdbc_export_azure" {
+  path     = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/jdbc_export_azure.py"
+  language = "PYTHON"
+  format   = "SOURCE"
+  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/jdbc_export_azure.py"))
+}
+
+# --------------------------------------------------------------------------
+# dbt Notebooks for Azure SQL transformation
+# These notebooks are referenced by the Airflow DAG w3c_dbt_marts_azure
+# --------------------------------------------------------------------------
+resource "databricks_notebook" "dbt_freshness" {
+  path     = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_freshness.py"
+  language = "PYTHON"
+  format   = "SOURCE"
+  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dbt_freshness.py"))
+}
+
+resource "databricks_notebook" "dbt_run" {
+  path     = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_run.py"
+  language = "PYTHON"
+  format   = "SOURCE"
+  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dbt_run.py"))
+}
+
+resource "databricks_notebook" "dbt_test" {
+  path     = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_test.py"
+  language = "PYTHON"
+  format   = "SOURCE"
+  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dbt_test.py"))
+}
+
+resource "databricks_notebook" "dbt_docs" {
+  path     = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_docs.py"
+  language = "PYTHON"
+  format   = "SOURCE"
+  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dbt_docs.py"))
+}
+
+# --------------------------------------------------------------------------
+# dbt Project ZIP File
+# The dbt notebooks download this from /dbt_project/w3c via workspace export API
+# --------------------------------------------------------------------------
+resource "databricks_workspace_file" "dbt_project" {
+  path           = "/dbt_project/w3c"
+  content_base64 = filebase64("${path.module}/../../airflow/dbt/w3c.zip")
+}
