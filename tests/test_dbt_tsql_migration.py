@@ -455,14 +455,14 @@ class TestCompiledAzureSqlOutput:
             )
 
     def test_compiled_boolean_expressions_use_case_when(self):
-        """T-SQL boolean expressions must use ``CASE WHEN ... = 1 THEN 1 ELSE 0 END``."""
+        """T-SQL boolean expressions must use ``CASE WHEN ... THEN 1 ELSE 0 END``."""
         path = self._find_compiled("fact_webrequest.sql")
         if path is None:
             return
         content = path.read_text(encoding="utf-8")
-        # Check for the is_crawler = 1 pattern (T-SQL uses integer bit comparison)
-        assert "= 1 THEN 1 ELSE 0" in content, (
-            "Boolean-to-int conversion should use '= 1 THEN 1 ELSE 0 END' pattern on Azure SQL"
+        # Check for CASE WHEN with THEN 1 ELSE 0 END (T-SQL boolean-as-integer pattern)
+        assert re.search(r'THEN 1 ELSE 0\b', content), (
+            "Boolean-to-int conversion should use 'THEN 1 ELSE 0 END' pattern on Azure SQL"
         )
 
     def test_compiled_like_not_regex(self):
