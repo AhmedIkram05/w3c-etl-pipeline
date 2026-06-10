@@ -4,9 +4,9 @@
     on_schema_change='append_new_columns',
     tags=['fact', 'dbt'],
     post_hook=[
-        "CREATE INDEX IF NOT EXISTS idx_fact_raw_log_id ON {{ this }}(raw_log_id)",
-        "CREATE INDEX IF NOT EXISTS idx_fact_date_sk ON {{ this }}(date_sk)",
-        "CREATE INDEX IF NOT EXISTS idx_fact_page_sk ON {{ this }}(page_sk)"
+        "{{ tsql_create_index_if_not_exists(this.identifier, 'idx_fact_raw_log_id', 'raw_log_id') }}",
+        "{{ tsql_create_index_if_not_exists(this.identifier, 'idx_fact_date_sk', 'date_sk') }}",
+        "{{ tsql_create_index_if_not_exists(this.identifier, 'idx_fact_page_sk', 'page_sk') }}"
     ]
 ) }}
 
@@ -17,10 +17,14 @@ WITH enriched_input AS (
         -- Includes enough dimensions to disambiguate concurrent identical-looking requests:
         -- source_file, log_time, client_ip, user_agent, referrer, uri_stem, uri_query,
         -- method, status, sub_status, win32_status, time_taken
-        MD5(CONCAT(source_file, '|', log_time, '|', client_ip, '|', user_agent, '|', referrer,
-                   '|', uri_stem, '|', uri_query, '|', method, '|', status, '|', sub_status, '|', win32_status, '|', time_taken)) AS raw_log_id,
-        CASE WHEN status = 404 THEN TRUE ELSE FALSE END AS is_404,
-        CASE WHEN referrer = '-' OR referrer IS NULL THEN TRUE ELSE FALSE END AS is_direct_traffic,
+        {{ tsql_hash_md5("CONCAT(source_file, '|', log_time, '|', client_ip, '|', user_agent, '|', referrer, '|', uri_stem, '|', uri_query, '|', method, '|', status, '|', sub_status, '|', win32_status, '|', time_taken)") }} AS raw_log_id,
+        {% if target.type == 'sqlserver' %}
+            CASE WHEN status = 404 THEN 1 ELSE 0 END AS is_404,
+            CASE WHEN referrer = '-' OR referrer IS NULL THEN 1 ELSE 0 END AS is_direct_traffic,
+        {% else %}
+            CASE WHEN status = 404 THEN TRUE ELSE FALSE END AS is_404,
+            CASE WHEN referrer = '-' OR referrer IS NULL THEN TRUE ELSE FALSE END AS is_direct_traffic,
+        {% endif %}
         1 AS request_count
     FROM {{ source('w3c', 'raw_enriched') }}
     {% if is_incremental() %}
@@ -75,7 +79,7 @@ computed AS (
     SELECT
         ei.raw_log_id,
         ei.source_file,
-        ei.log_date::DATE AS log_date,
+        {{ tsql_cast('ei.log_date', 'DATE') }} AS log_date,
         ei.log_time,
         ei.client_ip,
         COALESCE(NULLIF(TRIM(ei.uri_stem), ''), 'Unknown') AS uri_stem,
@@ -86,15 +90,19 @@ computed AS (
         COALESCE(ei.status, -1) AS status_code,
         COALESCE(ei.sub_status, -1) AS sub_status,
         COALESCE(ei.win32_status, -1) AS win32_status,
-        COALESCE(ei.bytes_sent, 0)::BIGINT AS bytes_sent,
-        COALESCE(ei.bytes_recv, 0)::BIGINT AS bytes_received,
-        COALESCE(ei.time_taken, 0)::INTEGER AS response_time_ms,
+        {{ tsql_cast('COALESCE(ei.bytes_sent, 0)', 'BIGINT') }} AS bytes_sent,
+        {{ tsql_cast('COALESCE(ei.bytes_recv, 0)', 'BIGINT') }} AS bytes_received,
+        {{ tsql_cast('COALESCE(ei.time_taken, 0)', 'INT') }} AS response_time_ms,
         ei.request_count,
         ei.is_404,
-        -- is_crawler is now pre-computed in raw_enriched by the Spark pipeline
-        COALESCE(ei.is_crawler, FALSE) AS is_crawler,
+        -- is_crawler is pre-computed in raw_enriched by the Spark pipeline
+        {% if target.type == 'sqlserver' %}
+            COALESCE(ei.is_crawler, 0) AS is_crawler,
+        {% else %}
+            COALESCE(ei.is_crawler, FALSE) AS is_crawler,
+        {% endif %}
         ei.is_direct_traffic,
-        -- size_band is now pre-computed in raw_enriched by the Spark pipeline
+        -- size_band is pre-computed in raw_enriched by the Spark pipeline
         COALESCE(ei.size_band, 'Zero') AS size_band,
 
         -- Computed enrichment (denormalized from raw_enriched)
@@ -102,7 +110,11 @@ computed AS (
         ei.referrer_domain,
         ei.traffic_type,
         -- Visitor lookup key from is_crawler flag
-        CASE WHEN COALESCE(ei.is_crawler, FALSE) THEN 1 ELSE 2 END AS visitor_key
+        {% if target.type == 'sqlserver' %}
+            CASE WHEN COALESCE(ei.is_crawler, 0) = 1 THEN 1 ELSE 2 END AS visitor_key
+        {% else %}
+            CASE WHEN COALESCE(ei.is_crawler, FALSE) THEN 1 ELSE 2 END AS visitor_key
+        {% endif %}
     FROM enriched_input ei
 )
 
@@ -140,8 +152,8 @@ FROM (
 ) c
 INNER JOIN {{ ref('dim_date') }} d ON d.date = c.log_date
 INNER JOIN {{ ref('dim_time') }} t
-    ON t.hour = EXTRACT(HOUR FROM c.log_time::TIME)::INTEGER
-    AND t.minute = EXTRACT(MINUTE FROM c.log_time::TIME)::INTEGER
+    ON t.hour = {{ tsql_cast(tsql_datepart('HOUR', tsql_cast('c.log_time', 'TIME')), 'INT') }}
+    AND t.minute = {{ tsql_cast(tsql_datepart('MINUTE', tsql_cast('c.log_time', 'TIME')), 'INT') }}
 INNER JOIN page_map p
     ON p.page_path = c.uri_stem
     AND p.query_string = c.uri_query
