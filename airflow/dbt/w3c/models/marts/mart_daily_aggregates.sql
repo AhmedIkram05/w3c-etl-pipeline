@@ -23,7 +23,8 @@ WITH daily_stats AS (
         SUM({{ tsql_boolean_to_int('fw.is_404') }}) AS total_404,
         {{ tsql_cast('AVG(fw.response_time_ms)', 'NUMERIC(10,2)') }} AS avg_response_time_ms,
         {% if target.type == 'sqlserver' %}
-            CAST(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms) OVER () AS NUMERIC(10,2)) AS p95_response_time_ms,
+            -- PERCENTILE_CONT not supported in GROUP BY context on SQL Server
+            NULL AS p95_response_time_ms,
         {% else %}
             PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2) AS p95_response_time_ms,
         {% endif %}

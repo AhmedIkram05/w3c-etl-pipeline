@@ -11,7 +11,8 @@ WITH page_stats AS (
         SUM(fw.bytes_sent) AS total_bytes_sent,
         {{ tsql_cast('AVG(fw.response_time_ms)', 'NUMERIC(10,2)') }} AS avg_response_time_ms,
         {% if target.type == 'sqlserver' %}
-            CAST(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms) OVER () AS NUMERIC(10,2)) AS p95_response_time_ms,
+            -- PERCENTILE_CONT not supported in GROUP BY context on SQL Server
+            NULL AS p95_response_time_ms,
         {% else %}
             PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2) AS p95_response_time_ms,
         {% endif %}
