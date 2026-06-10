@@ -107,7 +107,7 @@ ALL_MODELS = STAGING_MODEL_FILES | MART_MODEL_FILES
 
 def _parse_macro_names(sql_text: str) -> set[str]:
     """Extract macro names from a ``{% macro name(...) %}`` definition block."""
-    pattern = r'\{%\s*macro\s+(\w+)\s*\('
+    pattern = r"\{%\s*macro\s+(\w+)\s*\("
     return set(re.findall(pattern, sql_text))
 
 
@@ -180,7 +180,7 @@ class TestMacroDefinitions:
             block = self.macro_source[block_start:block_end]
 
             has_sqlserver = "target.type == 'sqlserver'" in block
-            has_else = re.search(r'\{%-\s*else\s*-%\}|\{%\s*else\s*%\}', block) is not None
+            has_else = re.search(r"\{%-\s*else\s*-%\}|\{%\s*else\s*%\}", block) is not None
 
             if not has_sqlserver:
                 pytest.fail(f"Macro '{name}' is missing a '{{% if target.type == 'sqlserver' %}}' branch")
@@ -195,7 +195,7 @@ class TestMacroDefinitions:
 
     def test_no_raw_jinja_comments_left_in_macro_defs(self):
         """Flag any leftover TODO or FIXME markers in macro source."""
-        todos = re.findall(r'(?i)\b(TODO|FIXME|HACK|XXX)\b', self.macro_source)
+        todos = re.findall(r"(?i)\b(TODO|FIXME|HACK|XXX)\b", self.macro_source)
         if todos:
             warnings.warn(UserWarning(f"Found markers in macro source: {todos}"))
 
@@ -263,12 +263,14 @@ class TestModelStructure:
             # If it has inline conditionals, it should use at least one tsql_ macro call
             if "target.type == 'sqlserver'" in content:
                 # Check that it also references at least one tsql_ macro
-                has_macro_ref = bool(re.search(r'tsql_\w+', content))
+                has_macro_ref = bool(re.search(r"tsql_\w+", content))
                 if not has_macro_ref:
-                    warnings.warn(UserWarning(
-                        f"{model_name} has 'target.type == sqlserver' but no tsql_ macro calls "
-                        f"— may be using raw T-SQL instead of macros"
-                    ))
+                    warnings.warn(
+                        UserWarning(
+                            f"{model_name} has 'target.type == sqlserver' but no tsql_ macro calls "
+                            f"— may be using raw T-SQL instead of macros"
+                        )
+                    )
 
     def test_no_model_missing_from_classification(self):
         """All model files must be classified (must-have-conditionals OR pure-ANSI)."""
@@ -378,8 +380,7 @@ class TestCompiledAzureSqlOutput:
     def test_compiled_dir_exists(self):
         """``target/compiled/w3c/models`` must exist after ``dbt compile``."""
         assert self.compiled_dir.exists(), (
-            f"Compiled output directory not found: {self.compiled_dir}. "
-            f"Run 'dbt compile --profile w3c_azure' first."
+            f"Compiled output directory not found: {self.compiled_dir}. Run 'dbt compile --profile w3c_azure' first."
         )
 
     def test_all_staging_models_compiled(self):
@@ -407,9 +408,7 @@ class TestCompiledAzureSqlOutput:
         for path in self._all_compiled_sql():
             content = path.read_text(encoding="utf-8")
             if "EXTRACT(" in content:
-                pytest.fail(
-                    f"EXTRACT() found in Azure SQL compiled output: {path.relative_to(_PROJECT_ROOT)}"
-                )
+                pytest.fail(f"EXTRACT() found in Azure SQL compiled output: {path.relative_to(_PROJECT_ROOT)}")
 
     def test_compiled_md5_uses_hashbytes(self):
         """T-SQL compiled output must use ``HASHBYTES('MD5', ...)`` for MD5."""
@@ -420,12 +419,9 @@ class TestCompiledAzureSqlOutput:
                 continue
             content = path.read_text(encoding="utf-8")
             assert "HASHBYTES" in content, (
-                f"MD5 hash in {name} should use HASHBYTES('MD5', ...) on Azure SQL. "
-                f"Found: {content[:300]}"
+                f"MD5 hash in {name} should use HASHBYTES('MD5', ...) on Azure SQL. Found: {content[:300]}"
             )
-            assert "MD5(" not in content, (
-                f"PostgreSQL-style MD5() found in Azure SQL compiled output: {name}"
-            )
+            assert "MD5(" not in content, f"PostgreSQL-style MD5() found in Azure SQL compiled output: {name}"
 
     def test_compiled_generate_series_uses_tsql_syntax(self):
         """T-SQL compiled output must use ``GENERATE_SERIES`` for series generation."""
@@ -433,9 +429,7 @@ class TestCompiledAzureSqlOutput:
         if path is None:
             return
         content = path.read_text(encoding="utf-8")
-        assert "GENERATE_SERIES" in content, (
-            "dim_time.sql should use GENERATE_SERIES on Azure SQL"
-        )
+        assert "GENERATE_SERIES" in content, "dim_time.sql should use GENERATE_SERIES on Azure SQL"
 
     def test_compiled_percentile_uses_within_group(self):
         """T-SQL compiled output must use ``PERCENTILE_CONT(...) WITHIN GROUP (ORDER BY ...) OVER ()``."""
@@ -444,15 +438,9 @@ class TestCompiledAzureSqlOutput:
             if path is None:
                 continue
             content = path.read_text(encoding="utf-8")
-            assert "PERCENTILE_CONT" in content, (
-                f"{name} should use PERCENTILE_CONT on Azure SQL"
-            )
-            assert "WITHIN GROUP" in content, (
-                f"{name} PERCENTILE_CONT must use WITHIN GROUP on Azure SQL"
-            )
-            assert "OVER ()" in content, (
-                f"{name} PERCENTILE_CONT must use explicit OVER () on Azure SQL"
-            )
+            assert "PERCENTILE_CONT" in content, f"{name} should use PERCENTILE_CONT on Azure SQL"
+            assert "WITHIN GROUP" in content, f"{name} PERCENTILE_CONT must use WITHIN GROUP on Azure SQL"
+            assert "OVER ()" in content, f"{name} PERCENTILE_CONT must use explicit OVER () on Azure SQL"
 
     def test_compiled_boolean_expressions_use_case_when(self):
         """T-SQL boolean expressions must use ``CASE WHEN ... THEN 1 ELSE 0 END``."""
@@ -461,7 +449,7 @@ class TestCompiledAzureSqlOutput:
             return
         content = path.read_text(encoding="utf-8")
         # Check for CASE WHEN with THEN 1 ELSE 0 END (T-SQL boolean-as-integer pattern)
-        assert re.search(r'THEN 1 ELSE 0\b', content), (
+        assert re.search(r"THEN 1 ELSE 0\b", content), (
             "Boolean-to-int conversion should use 'THEN 1 ELSE 0 END' pattern on Azure SQL"
         )
 
