@@ -21,8 +21,14 @@ WITH time_entries AS (
             WHEN h.hour < 18 THEN 3
             ELSE 4
         END AS shift_id
-    FROM generate_series(0, 23) AS h(hour)
-    CROSS JOIN generate_series(0, 59) AS m(minute)
+    FROM
+        {% if target.type == 'sqlserver' %}
+            (SELECT value AS hour FROM GENERATE_SERIES(0, 23)) AS h
+            CROSS JOIN (SELECT value AS minute FROM GENERATE_SERIES(0, 59)) AS m
+        {% else %}
+            generate_series(0, 23) AS h(hour)
+            CROSS JOIN generate_series(0, 59) AS m(minute)
+        {% endif %}
 )
 
 SELECT * FROM time_entries
