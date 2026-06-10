@@ -6,26 +6,38 @@ sources:
     schema: "{% if target.type == 'sqlserver' %}dbo{% else %}public{% endif %}"
     tables:
       - name: raw_enriched
-        description: "Denormalized enriched log table populated by Spark pipeline via GeoLite2 + PySpark UDFs. Contains all raw log fields plus geo, user-agent, and computed enrichment columns."
+        description: "Denormalized enriched log table populated by Databricks DLT pipeline via MaxMind GeoLite2 enrichment. Contains all raw log fields plus geo and computed enrichment columns."
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: "log_date"
+        columns:
+          - name: log_date
+            tests:
+              - not_null
+          - name: client_ip
+            tests:
+              - not_null
 
       - name: dim_geolocation
-        description: "Authoritative geolocation dimension. Populated by Airflow export_dimensions task by reading the silver Delta table (written by Spark enrichment using GeoLite2-City.mmdb + GeoLite2-ASN.mmdb). Used as the single source of truth for client-IP country/region/city/postcode/lat/lon/isp across the warehouse. Surrogate key -1 = Unknown."
+        description: "Authoritative geolocation dimension. Populated by Airflow export_dimensions task by reading dbo.raw_enriched from Azure SQL. Surrogate key -1 = Unknown."
         columns:
           - name: geolocation_sk
             description: "Surrogate key"
             tests:
               - unique
               - not_null
-          - name: ip
-            description: "Client IP address"
+          - name: geo_hash
+            description: "SHA-256 hash of country|region|city|latitude|longitude"
+            tests:
+              - unique
+              - not_null
           - name: country
             description: "Country name"
           - name: region
             description: "Region/state name"
           - name: city
             description: "City name"
-          - name: postcode
-            description: "Postal code ('-' if unknown)"
           - name: latitude
             description: "Latitude coordinate"
           - name: longitude
@@ -41,11 +53,22 @@ sources:
             tests:
               - unique
               - not_null
+          - name: ua_hash
+            description: "SHA-256 hash of ua_str|agent_type|browser_name|browser_version|os|device_type — includes raw UA for unique dim rows"
+            tests:
+              - unique
+              - not_null
           - name: user_agent
-            description: "Raw User-Agent string"
+            description: "Raw User-Agent string (URL-unescaped). Now includes raw UA in hash — each unique raw string maps to its own dim row for LEFT JOIN."
+            tests:
+              - not_null
+          - name: agent_type
+            description: "Agent classification (Browser/Crawler)"
           - name: browser_name
             description: "Browser family (e.g. Chrome, Firefox)"
-          - name: operating_system
+          - name: browser_version
+            description: "Browser version string"
+          - name: os
             description: "Operating system family (e.g. Windows, Mac OS X)"
           - name: device_type
             description: "Device type (e.g. Desktop, Mobile, Tablet)"
