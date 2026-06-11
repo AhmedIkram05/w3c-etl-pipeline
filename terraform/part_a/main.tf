@@ -48,4 +48,5 @@ module "warehouse" {
   azuread_admin_object_id = var.azuread_admin_object_id
   vnet_id                 = module.networking.vnet_id
   sql_subnet_id           = module.networking.sql_subnet_id
+  allowed_ips             = var.sql_allowed_ips
 }

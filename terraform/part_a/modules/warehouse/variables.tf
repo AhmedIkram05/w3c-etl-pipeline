@@ -46,3 +46,9 @@ variable "sql_subnet_id" {
   description = "SQL subnet ID"
   type        = string
 }
+
+variable "allowed_ips" {
+  description = "List of IP addresses/ranges allowed to access Azure SQL server (e.g., Airflow worker IPs)"
+  type        = list(string)
+  default     = []
+}
