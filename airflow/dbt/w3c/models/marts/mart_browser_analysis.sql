@@ -15,7 +15,7 @@ browser_stats AS (
         fw.date_sk,
         dd.date,
         ua.browser_name,
-        ua.os AS operating_system,
+        ua.operating_system,
         ua.device_type,
         CASE WHEN ua.device_type = 'Mobile' THEN 1 ELSE 0 END AS is_mobile,
         COUNT(*) AS total_requests,
@@ -25,8 +25,8 @@ browser_stats AS (
     FROM {{ ref('fact_webrequest') }} fw
     JOIN {{ ref('dim_date') }} dd ON dd.date_sk = fw.date_sk
     LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua ON ua.user_agent_sk = fw.user_agent_sk
-    WHERE fw.user_agent_sk > 0  -- exclude unknown user agents
-    GROUP BY fw.date_sk, dd.date, ua.browser_name, ua.os, ua.device_type
+    WHERE fw.user_agent_sk > -1  -- exclude the -1 Unknown sentinel; NULL user_agents have no dim row
+    GROUP BY fw.date_sk, dd.date, ua.browser_name, ua.operating_system, ua.device_type
 )
 
 SELECT

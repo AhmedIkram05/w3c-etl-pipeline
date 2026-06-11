@@ -129,7 +129,7 @@ ua_lookup AS (
         c.user_agent,
         ua.user_agent_sk
     FROM computed c
-    LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua ON REPLACE(ua.user_agent, ' ', '+') = c.user_agent
+    LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua ON ua.user_agent = c.user_agent
     WHERE c.user_agent IS NOT NULL AND c.user_agent != '-'
 )
 {% endif %}
