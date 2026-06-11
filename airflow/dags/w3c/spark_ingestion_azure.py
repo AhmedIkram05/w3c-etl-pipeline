@@ -186,7 +186,7 @@ def _export_dimensions(**context) -> None:
                         agent_type      NVARCHAR(50)   NULL,
                         browser_name    NVARCHAR(100)  NULL,
                         browser_version NVARCHAR(50)   NULL,
-                        os              NVARCHAR(100)  NULL,
+                        operating_system NVARCHAR(100)  NULL,
                         device_type     NVARCHAR(50)   NULL,
                         CONSTRAINT uq_dim_useragent__ua_hash
                             UNIQUE (ua_hash)
@@ -194,7 +194,7 @@ def _export_dimensions(**context) -> None:
 
                     -- Seed -1 sentinel unknown row for FK integrity
                     SET IDENTITY_INSERT dbo.dim_useragent ON;
-                    INSERT INTO dbo.dim_useragent (user_agent_sk, ua_hash, user_agent, agent_type, browser_name, browser_version, os, device_type)
+                    INSERT INTO dbo.dim_useragent (user_agent_sk, ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
                     VALUES (-1, '0000000000000000000000000000000000000000000000000000000000000000', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown');
                     SET IDENTITY_INSERT dbo.dim_useragent OFF;
                 END;
@@ -274,12 +274,12 @@ def _export_dimensions(**context) -> None:
                             cursor.execute(
                                 f"""
                                 MERGE dbo.dim_useragent AS target
-                                USING (VALUES {placeholders}) AS source (ua_hash, user_agent, agent_type, browser_name, browser_version, os, device_type)
+                                USING (VALUES {placeholders}) AS source (ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
                                 ON target.ua_hash = source.ua_hash
                                 WHEN NOT MATCHED THEN
-                                    INSERT (ua_hash, user_agent, agent_type, browser_name, browser_version, os, device_type)
+                                    INSERT (ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
                                     VALUES (source.ua_hash, source.user_agent, source.agent_type, source.browser_name,
-                                            source.browser_version, source.os, source.device_type);
+                                            source.browser_version, source.operating_system, source.device_type);
                             """,
                                 params,
                             )
