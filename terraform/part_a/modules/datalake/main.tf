@@ -8,8 +8,8 @@ resource "azurerm_storage_account" "this" {
   is_hns_enabled           = true
 
   network_rules {
-    default_action             = "Deny"
-    bypass                     = ["AzureServices"]
+    default_action             = "Allow"
+    bypass                     = ["AzureServices", "Logging", "Metrics"]
     virtual_network_subnet_ids = [var.databricks_subnet_id]
   }
 
@@ -32,3 +32,5 @@ resource "azurerm_role_assignment" "databricks_contributor" {
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = var.databricks_managed_identity_id
 }
+
+

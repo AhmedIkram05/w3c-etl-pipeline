@@ -13,3 +13,11 @@ output "managed_identity_id" {
 output "managed_resource_group_name" {
   value = azurerm_databricks_workspace.this.managed_resource_group_name
 }
+
+output "access_connector_id" {
+  value = azurerm_databricks_access_connector.this.id
+}
+
+output "access_connector_identity_principal_id" {
+  value = data.azurerm_databricks_access_connector.this.identity[0].principal_id
+}
