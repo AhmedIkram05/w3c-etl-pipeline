@@ -96,7 +96,7 @@ dag = DAG(
     schedule=[AZURE_WAREHOUSE_LOADED],
     start_date=dt.datetime(2026, 3, 1),
     catchup=False,
-    max_active_tasks=1,
+    max_active_runs=1,
     default_args=default_args,
     description="Dataset-triggered dbt pipeline: source freshness → run → test → docs → CSV export (Azure SQL)",
     tags=["w3c", "dbt", "marts", "azure", "dataset-triggered"],
@@ -166,5 +166,5 @@ export_csv = PythonOperator(
 # Dependencies
 # ════════════════════════════════════════════════════════════════════════════
 dbt_source_freshness >> dbt_run >> dbt_test
-dbt_test >> dbt_docs >> export_dbt_docs
 dbt_test >> export_csv
+dbt_test >> dbt_docs >> export_dbt_docs
