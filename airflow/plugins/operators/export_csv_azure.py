@@ -23,26 +23,30 @@ logger = logging.getLogger(__name__)
 
 STAR_SCHEMA_DIR = "/opt/airflow/data/Star-Schema"
 
+# Azure SQL profile uses schema: dbo, so dbt concatenates it with the
+# +schema config: dbo + "_" + staging = dbo_staging (same as PostgreSQL's
+# dbt + "_" + staging = dbt_staging). These must match the actual schema
+# names created by dbt in Azure SQL.
 STAGING_TABLES = [
-    "dbt_staging.fact_webrequest",
-    "dbt_staging.dim_date",
-    "dbt_staging.dim_time",
-    "dbt_staging.dim_page",
-    "dbt_staging.dim_status",
-    "dbt_staging.dim_referrer",
-    "dbt_staging.dim_method",
-    "dbt_staging.dim_visitortype",
-    "dbt_staging.dim_visit_buckets",
-    "dbt_staging.crawler_ips",
+    "staging.fact_webrequest",
+    "staging.dim_date",
+    "staging.dim_time",
+    "staging.dim_page",
+    "staging.dim_status",
+    "staging.dim_referrer",
+    "staging.dim_method",
+    "staging.dim_visitortype",
+    "staging.dim_visit_buckets",
+    "staging.crawler_ips",
 ]
 
 MART_TABLES = [
-    "dbt_marts.mart_page_performance",
-    "dbt_marts.mart_daily_aggregates",
-    "dbt_marts.mart_crawler_analysis",
-    "dbt_marts.mart_browser_analysis",
-    "dbt_marts.mart_timeofday_analysis",
-    "dbt_marts.mart_country_browser_share",
+    "marts.mart_page_performance",
+    "marts.mart_daily_aggregates",
+    "marts.mart_crawler_analysis",
+    "marts.mart_browser_analysis",
+    "marts.mart_timeofday_analysis",
+    "marts.mart_country_browser_share",
 ]
 
 PUBLIC_TABLES = [
@@ -105,23 +109,39 @@ def export_csv_azure(**context) -> None:
 
     os.makedirs(STAR_SCHEMA_DIR, exist_ok=True)
 
+    failures: list[tuple[str, str]] = []
+
     try:
         with pyodbc.connect(conn_str, timeout=30) as conn:
             for table in STAGING_TABLES + MART_TABLES:
-                _export_table(conn, table, f"{STAR_SCHEMA_DIR}/{table}.csv")
+                try:
+                    _export_table(conn, table, f"{STAR_SCHEMA_DIR}/{table}.csv")
+                except Exception as exc:
+                    failures.append((table, str(exc)))
 
             # Public tables (dbo.*) use 'public.' prefix to match Power BI contract
             for table in PUBLIC_TABLES:
-                file_name = table.replace("dbo.", "public.")
-                _export_table(conn, table, f"{STAR_SCHEMA_DIR}/{file_name}.csv")
-
-        logger.info(
-            f"CSV export complete: {len(ALL_TABLES)} tables exported "
-            f"to {STAR_SCHEMA_DIR}"
-        )
+                try:
+                    file_name = table.replace("dbo.", "public.")
+                    _export_table(conn, table, f"{STAR_SCHEMA_DIR}/{file_name}.csv")
+                except Exception as exc:
+                    failures.append((table, str(exc)))
     except pyodbc.Error:
         logger.exception("Azure SQL error during CSV export")
         raise
+
+    if failures:
+        fail_msg = (
+            f"CSV export completed with {len(failures)}/{len(ALL_TABLES)} "
+            f"table failures: {failures}"
+        )
+        logger.error(fail_msg)
+        raise RuntimeError(fail_msg)
+
+    logger.info(
+        f"CSV export complete: {len(ALL_TABLES)} tables exported "
+        f"to {STAR_SCHEMA_DIR}"
+    )
 
 
 def _export_table(conn, table_name: str, csv_path: str) -> None:
@@ -142,3 +162,4 @@ def _export_table(conn, table_name: str, csv_path: str) -> None:
         logger.warning(
             f"Failed to export {table_name}: {exc}"
         )
+        raise
