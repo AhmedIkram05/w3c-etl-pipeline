@@ -60,8 +60,6 @@ MUST_HAVE_INLINE_CONDITIONALS = frozenset({
     "dim_referrer.sql",
     "crawler_ips.sql",
     "mart_daily_aggregates.sql",
-    "mart_page_performance.sql",
-    "mart_timeofday_analysis.sql",
 })
 
 # Models that use pure ANSI SQL and need no inline conditionals.
@@ -73,6 +71,8 @@ PURE_ANSI_SQL_MODELS = frozenset({
     "mart_browser_analysis.sql",
     "mart_country_browser_share.sql",
     "mart_crawler_analysis.sql",
+    "mart_page_performance.sql",
+    "mart_timeofday_analysis.sql",
 })
 
 STAGING_MODEL_FILES = frozenset({
@@ -432,40 +432,36 @@ class TestCompiledAzureSqlOutput:
         assert "GENERATE_SERIES" in content, "dim_time.sql should use GENERATE_SERIES on Azure SQL"
 
     def test_compiled_percentile_uses_within_group(self):
-        """T-SQL compiled output uses ``PERCENTILE_CONT(...) WITHIN GROUP (ORDER BY ...) OVER ()`` or NULL fallback.
+        """T-SQL compiled output uses ``PERCENTILE_CONT(...) WITHIN GROUP (ORDER BY ...) OVER (PARTITION BY ...)``.
 
-        Some mart models replace PERCENTILE_CONT with NULL on Azure SQL because
-        T-SQL's ``PERCENTILE_CONT ... OVER ()`` cannot be used inside a GROUP BY
-        query — the column referenced in the inner ORDER BY is not in the GROUP BY
-        clause. See ``mart_page_performance.sql``, ``mart_timeofday_analysis.sql``,
-        ``mart_daily_aggregates.sql`` for the sqlserver branch pattern.
+        P95 is computed in a separate CTE using ``PERCENTILE_CONT`` as a window
+        function with ``OVER (PARTITION BY ...)``, then LEFT JOINed to the main
+        aggregation. This avoids the GROUP BY context limitation that prevented
+        inline use.
+
+        See ``mart_page_performance.sql``, ``mart_timeofday_analysis.sql``,
+        ``mart_daily_aggregates.sql`` for the separate CTE pattern.
         """
         for name in ("mart_page_performance.sql", "mart_daily_aggregates.sql"):
             path = self._find_compiled(name)
             if path is None:
                 continue
             content = path.read_text(encoding="utf-8")
-            # If PERCENTILE_CONT is present (actual call, not comment), it must use proper T-SQL syntax
-            # Note: some models have `-- PERCENTILE_CONT not supported` in sqlserver branch
             if "PERCENTILE_CONT(" in content:
                 assert "WITHIN GROUP" in content, f"{name} PERCENTILE_CONT must use WITHIN GROUP on Azure SQL"
-                assert "OVER ()" in content, f"{name} PERCENTILE_CONT must use explicit OVER () on Azure SQL"
-            # Otherwise the model must use the NULL fallback pattern
-            else:
-                assert "NULL AS p95_response_time_ms" in content, (
-                    f"{name} must either use PERCENTILE_CONT or the NULL fallback pattern, "
-                    f"neither found in compiled output"
+                assert "OVER (PARTITION BY" in content, (
+                    f"{name} PERCENTILE_CONT must use OVER (PARTITION BY ...) from separate CTE, "
+                    f"not inline in GROUP BY"
                 )
 
-    def test_compiled_timeofday_uses_null_percentile_fallback(self):
-        """``mart_timeofday_analysis.sql`` uses NULL p95 fallback on Azure SQL due to GROUP BY context."""
+    def test_compiled_timeofday_uses_cte_percentile(self):
+        """``mart_timeofday_analysis.sql`` uses PERCENTILE_CONT in separate CTE."""
         path = self._find_compiled("mart_timeofday_analysis.sql")
         if path is None:
             return
         content = path.read_text(encoding="utf-8")
-        # Should use NULL p95 for sqlserver (GROUP BY context prevents PERCENTILE_CONT)
-        assert "NULL AS p95_response_time_ms" in content or "PERCENTILE_CONT" in content, (
-            "mart_timeofday_analysis should use NULL or PERCENTILE_CONT for p95 on Azure SQL"
+        assert "PERCENTILE_CONT" in content, (
+            "mart_timeofday_analysis should use PERCENTILE_CONT in separate CTE for p95 on Azure SQL"
         )
 
     def test_compiled_boolean_expressions_use_case_when(self):
