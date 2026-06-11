@@ -1,0 +1,27 @@
+status_sk,status_code,sub_status,win32_status,status_category,status_label,description,severity
+1,200,0,0,Success,OK,OK - The request succeeded,Info
+2,200,0,22,Success,OK,OK - The request succeeded,Info
+3,200,0,64,Success,OK,OK - The request succeeded,Info
+4,200,0,121,Success,OK,OK - The request succeeded,Info
+5,200,0,995,Success,OK,OK - The request succeeded,Info
+6,200,0,1236,Success,OK,OK - The request succeeded,Info
+7,206,0,0,Success,Other,Other - 206 status code,Info
+8,206,0,64,Success,Other,Other - 206 status code,Info
+9,302,0,0,Redirect,Found (Redirect),Found (Redirect) - Resource temporarily moved,Warning
+10,302,0,64,Redirect,Found (Redirect),Found (Redirect) - Resource temporarily moved,Warning
+11,304,0,0,Redirect,Not Modified,Not Modified - Cached version is still valid,Warning
+12,304,0,22,Redirect,Not Modified,Not Modified - Cached version is still valid,Warning
+13,304,0,64,Redirect,Not Modified,Not Modified - Cached version is still valid,Warning
+14,304,0,121,Redirect,Not Modified,Not Modified - Cached version is still valid,Warning
+15,304,0,1236,Redirect,Not Modified,Not Modified - Cached version is still valid,Warning
+16,403,14,0,Client Error,Forbidden,Forbidden - Access to the resource is denied,Error
+17,404,0,0,Client Error,Not Found,Not Found - Server could not find the requested resource,Error
+18,404,0,2,Client Error,Not Found,Not Found - Server could not find the requested resource,Error
+19,404,0,64,Client Error,Not Found,Not Found - Server could not find the requested resource,Error
+20,404,0,121,Client Error,Not Found,Not Found - Server could not find the requested resource,Error
+21,404,0,1236,Client Error,Not Found,Not Found - Server could not find the requested resource,Error
+22,404,8,0,Client Error,Not Found,Not Found - Server could not find the requested resource,Error
+23,404,11,0,Client Error,Not Found,Not Found - Server could not find the requested resource,Error
+24,405,0,64,Client Error,Method Not Allowed,Method Not Allowed - HTTP method not supported for this resource,Error
+25,406,0,0,Client Error,Other,Other - 406 status code,Error
+26,500,0,0,Server Error,Internal Server Error,Internal Server Error - Server encountered an unexpected condition,Critical

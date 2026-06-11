@@ -1,0 +1,4 @@
+visitor_sk,crawler_flag,visitor_type
+-1,Ukn,Unknown
+1,Yes,Crawler
+2,No,Human
