@@ -93,12 +93,14 @@ computed AS (
         ei.page_category,
         ei.referrer_domain,
         ei.traffic_type,
-        -- Geo columns for dim_geolocation FK restoration (sqlserver only)
-        ei.country,
-        ei.region,
-        ei.city,
-        ei.latitude,
-        ei.longitude,
+        {% if target.type == 'sqlserver' %}
+            -- Geo columns for dim_geolocation FK restoration (sqlserver only)
+            ei.country,
+            ei.region,
+            ei.city,
+            ei.latitude,
+            ei.longitude,
+        {% endif %}
         -- Visitor lookup key from is_crawler flag
         {% if target.type == 'sqlserver' %}
             CASE WHEN COALESCE(ei.is_crawler, 0) = 1 THEN 1 ELSE 2 END AS visitor_key
@@ -127,7 +129,7 @@ ua_lookup AS (
         c.user_agent,
         ua.user_agent_sk
     FROM computed c
-    LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua ON ua.user_agent = c.user_agent
+    LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua ON REPLACE(ua.user_agent, ' ', '+') = c.user_agent
     WHERE c.user_agent IS NOT NULL AND c.user_agent != '-'
 )
 {% endif %}
