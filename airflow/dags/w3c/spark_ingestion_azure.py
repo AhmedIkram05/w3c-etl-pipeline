@@ -220,8 +220,12 @@ def _export_dimensions(**context) -> None:
                     insert_data = []
                     seen_hashes = set()
                     for idx, (ua_raw,) in enumerate(ua_rows):
-                        ua_str = unquote_plus(ua_raw[:1000] if ua_raw else "")
-                        parsed = ua_parse(ua_str)
+                        # Keep the RAW (URL-encoded) string for storage so the join key
+                        # matches dbo.raw_enriched.user_agent in fact_webrequest.sql.
+                        # Use the decoded string only for parsing browser/OS/device.
+                        ua_raw_str = ua_raw[:1000] if ua_raw else ""
+                        ua_str_decoded = unquote_plus(ua_raw_str)
+                        parsed = ua_parse(ua_str_decoded)
 
                         agent_type = "Crawler" if getattr(parsed, "is_bot", False) else "Browser"
                         browser_name = parsed.browser.family or "Unknown"
@@ -239,9 +243,10 @@ def _export_dimensions(**context) -> None:
                         else:
                             device = "Other"
 
-                        # Compute hash in Python (much faster than SQL round-trips)
-                        # Include ua_str so differently-parsed UAs get unique dim rows
-                        hash_input = f"{ua_str[:500]}|{agent_type or ''}|{browser_name or ''}|{browser_version or ''}|{os_name or ''}|{device or ''}"
+                        # Compute hash from DECODED string so two differently-escaped
+                        # raw strings that decode to the same UA produce the same hash
+                        # (consistent dedup regardless of URL encoding).
+                        hash_input = f"{ua_str_decoded[:500]}|{agent_type or ''}|{browser_name or ''}|{browser_version or ''}|{os_name or ''}|{device or ''}"
                         ua_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
 
                         # Dedup after URL-unescaping: two differently-escaped raw strings may
@@ -250,7 +255,9 @@ def _export_dimensions(**context) -> None:
                             continue
                         seen_hashes.add(ua_hash)
 
-                        insert_data.append((ua_hash, ua_str, agent_type, browser_name, browser_version, os_name, device))
+                        # Store the RAW (encoded) user_agent string so the FK join in
+                        # fact_webrequest.sql matches dbo.raw_enriched.user_agent.
+                        insert_data.append((ua_hash, ua_raw_str, agent_type, browser_name, browser_version, os_name, device))
 
                         # Log progress every 500 UAs
                         if (idx + 1) % 500 == 0:
