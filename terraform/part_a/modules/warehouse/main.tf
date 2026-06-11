@@ -15,6 +15,16 @@ resource "azurerm_mssql_server" "this" {
   }
 }
 
+# Azure SQL Server firewall rules for external access (e.g., Airflow workers)
+resource "azurerm_mssql_firewall_rule" "allowed_ips" {
+  for_each = toset(var.allowed_ips)
+
+  name             = "allow-${replace(each.value, "/", "-")}"
+  server_id        = azurerm_mssql_server.this.id
+  start_ip_address = each.value
+  end_ip_address   = each.value
+}
+
 resource "azurerm_mssql_database" "this" {
   name                = var.database_name
   server_id           = azurerm_mssql_server.this.id
