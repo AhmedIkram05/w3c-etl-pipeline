@@ -34,6 +34,7 @@ module "databricks" {
   sku                 = var.databricks_sku
   vnet_id             = module.networking.vnet_id
   private_subnet_id   = module.networking.databricks_subnet_id
+  storage_account_id  = module.datalake.storage_account_id
 }
 
 module "warehouse" {

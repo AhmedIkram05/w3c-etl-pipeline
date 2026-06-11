@@ -52,3 +52,8 @@ output "sql_subnet_id" {
   description = "SQL subnet ID"
   value       = module.networking.sql_subnet_id
 }
+
+output "access_connector_identity_principal_id" {
+  description = "Databricks access connector system-assigned managed identity principal ID"
+  value       = module.databricks.access_connector_identity_principal_id
+}

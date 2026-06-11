@@ -34,3 +34,8 @@ variable "enable_private_endpoints" {
   type        = bool
   default     = false
 }
+
+variable "storage_account_id" {
+  description = "Storage account ID for access connector role assignment"
+  type        = string
+}
