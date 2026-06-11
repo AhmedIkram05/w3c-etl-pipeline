@@ -53,3 +53,21 @@ variable "jdbc_export_notebook_path" {
   type        = string
   default     = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/jdbc_export_azure.py"
 }
+
+variable "access_connector_id" {
+  description = "Databricks access connector resource ID (from Part A)"
+  type        = string
+}
+
+variable "azure_sql_user" {
+  description = "Azure SQL admin username"
+  type        = string
+  sensitive   = true
+}
+
+variable "azure_sql_password" {
+  description = "Azure SQL admin password (set via TF_VAR_azure_sql_password)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
