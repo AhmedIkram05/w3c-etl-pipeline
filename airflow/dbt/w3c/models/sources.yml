@@ -65,7 +65,7 @@ sources:
             description: "Browser family (e.g. Chrome, Firefox)"
           - name: browser_version
             description: "Browser version string"
-          - name: os
+          - name: operating_system
             description: "Operating system family (e.g. Windows, Mac OS X)"
           - name: device_type
             description: "Device type (e.g. Desktop, Mobile, Tablet)"
