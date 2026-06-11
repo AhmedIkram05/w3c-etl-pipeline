@@ -7,9 +7,6 @@ sources:
     tables:
       - name: raw_enriched
         description: "Denormalized enriched log table populated by Databricks DLT pipeline via MaxMind GeoLite2 enrichment. Contains all raw log fields plus geo and computed enrichment columns."
-        freshness:
-          warn_after: {count: 24, period: hour}
-          error_after: {count: 48, period: hour}
         loaded_at_field: "log_date"
         columns:
           - name: log_date
