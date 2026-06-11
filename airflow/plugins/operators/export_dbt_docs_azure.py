@@ -41,8 +41,16 @@ def export_dbt_docs_to_airflow(**context) -> None:
     os.makedirs(LOCAL_DOCS_DIR, exist_ok=True)
 
     # ── Method 1: Azure Blob Storage SDK ──────────────────────────────
-    storage_account = os.environ.get("STORAGE_ACCOUNT_NAME", "")
-    storage_key = os.environ.get("STORAGE_ACCESS_KEY", "")
+    # Check Databricks-convention names (AZURE_STORAGE_ACCOUNT / AZURE_STORAGE_KEY)
+    # and fall back to legacy Airflow names (STORAGE_ACCOUNT_NAME / STORAGE_ACCESS_KEY).
+    storage_account = (
+        os.environ.get("AZURE_STORAGE_ACCOUNT")
+        or os.environ.get("STORAGE_ACCOUNT_NAME", "")
+    )
+    storage_key = (
+        os.environ.get("AZURE_STORAGE_KEY")
+        or os.environ.get("STORAGE_ACCESS_KEY", "")
+    )
 
     if storage_account and storage_key:
         try:
@@ -53,7 +61,8 @@ def export_dbt_docs_to_airflow(**context) -> None:
             logger.warning(f"Azure Blob SDK download failed: {exc}")
     else:
         logger.info(
-            "STORAGE_ACCOUNT_NAME / STORAGE_ACCESS_KEY not configured "
+            "AZURE_STORAGE_ACCOUNT / AZURE_STORAGE_KEY (or "
+            "STORAGE_ACCOUNT_NAME / STORAGE_ACCESS_KEY) not configured "
             "(only needed for dbt docs sync; not required for core pipeline)"
         )
 
@@ -66,8 +75,9 @@ def export_dbt_docs_to_airflow(**context) -> None:
         f"dbt docs artifacts not downloaded to {LOCAL_DOCS_DIR}. "
         f"They remain available on Databricks DBFS at "
         f"/dbfs/mnt/w3c-data/dbt-docs/. "
-        f"To enable automatic sync, set STORAGE_ACCOUNT_NAME and "
-        f"STORAGE_ACCESS_KEY environment variables and ensure "
+        f"To enable automatic sync, set AZURE_STORAGE_ACCOUNT and "
+        f"AZURE_STORAGE_KEY (or STORAGE_ACCOUNT_NAME and "
+        f"STORAGE_ACCESS_KEY) environment variables and ensure "
         f"azure-storage-blob is installed."
     )
 
