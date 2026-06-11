@@ -70,7 +70,7 @@ dag = DAG(
     schedule=[Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")],
     start_date=dt.datetime(2026, 3, 1),
     catchup=False,
-    max_active_tasks=1,
+    max_active_runs=1,
     default_args={
         "owner": "w3c-team",
         "depends_on_past": False,
