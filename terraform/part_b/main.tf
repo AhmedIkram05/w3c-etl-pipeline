@@ -214,6 +214,17 @@ resource "databricks_notebook" "dbt_docs" {
 }
 
 # --------------------------------------------------------------------------
+# dbt Common Module (regular Python file, NOT a notebook)
+# The dbt notebooks `import dbt_common` — needs a regular .py file, not
+# a Databricks notebook. Using databricks_workspace_file instead of
+# databricks_notebook ensures Python's import mechanism can find it.
+# --------------------------------------------------------------------------
+resource "databricks_workspace_file" "dbt_common" {
+  path   = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_common.py"
+  source = "${path.module}/../../airflow/spark/databricks/dbt_common.py"
+}
+
+# --------------------------------------------------------------------------
 # dbt Project ZIP File
 # The dbt notebooks download this from /dbt_project/w3c via workspace export API
 # --------------------------------------------------------------------------
