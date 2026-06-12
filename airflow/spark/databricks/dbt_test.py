@@ -1,5 +1,6 @@
 # Databricks notebook source
 """dbt Test — Azure SQL target"""
+
 import dbt_common
 from pyspark.sql import SparkSession
 

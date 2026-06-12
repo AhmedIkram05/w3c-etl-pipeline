@@ -390,9 +390,7 @@ class TestDBTMartsAzureDAG:
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
         dag = dag_bag.get_dag(dag_id="w3c_dbt_marts_azure")
-        assert dag is not None, (
-            "w3c_dbt_marts_azure DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
-        )
+        assert dag is not None, "w3c_dbt_marts_azure DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
         # Expected: dbt_source_freshness, dbt_run, dbt_test, dbt_docs, export_dbt_docs, export_csv
         assert len(dag.tasks) == 6, (
             f"Expected 6 tasks (dbt_source_freshness, dbt_run, dbt_test, "
@@ -438,9 +436,7 @@ class TestDBTMartsAzureDAG:
         assert downstream_map["dbt_source_freshness"] == {"dbt_run"}, (
             f"dbt_source_freshness downstream: {downstream_map['dbt_source_freshness']}"
         )
-        assert downstream_map["dbt_run"] == {"dbt_test"}, (
-            f"dbt_run downstream: {downstream_map['dbt_run']}"
-        )
+        assert downstream_map["dbt_run"] == {"dbt_test"}, f"dbt_run downstream: {downstream_map['dbt_run']}"
 
         # Fork at dbt_test → dbt_docs and export_csv
         assert "dbt_docs" in downstream_map["dbt_test"], (
@@ -454,15 +450,11 @@ class TestDBTMartsAzureDAG:
         )
 
         # dbt_docs >> export_dbt_docs
-        assert downstream_map["dbt_docs"] == {"export_dbt_docs"}, (
-            f"dbt_docs downstream: {downstream_map['dbt_docs']}"
-        )
+        assert downstream_map["dbt_docs"] == {"export_dbt_docs"}, f"dbt_docs downstream: {downstream_map['dbt_docs']}"
         assert downstream_map["export_dbt_docs"] == set(), (
             f"export_dbt_docs should be terminal: {downstream_map['export_dbt_docs']}"
         )
-        assert downstream_map["export_csv"] == set(), (
-            f"export_csv should be terminal: {downstream_map['export_csv']}"
-        )
+        assert downstream_map["export_csv"] == set(), f"export_csv should be terminal: {downstream_map['export_csv']}"
 
     def test_azure_dbt_marts_is_dataset_triggered(self):
         """Verify w3c_dbt_marts_azure is triggered by Dataset('mssql://azure-sql/dbo/raw_enriched_loaded')."""
@@ -486,8 +478,7 @@ class TestDBTMartsAzureDAG:
 
         target = Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")
         assert target in dbt_inlet_datasets, (
-            f"Expected Dataset('mssql://azure-sql/dbo/raw_enriched_loaded') in schedule, "
-            f"got {dbt_inlet_datasets}"
+            f"Expected Dataset('mssql://azure-sql/dbo/raw_enriched_loaded') in schedule, got {dbt_inlet_datasets}"
         )
 
     def test_azure_dbt_marts_has_dataset_outlets(self):

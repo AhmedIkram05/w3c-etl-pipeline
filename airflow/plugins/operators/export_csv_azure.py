@@ -131,17 +131,11 @@ def export_csv_azure(**context) -> None:
         raise
 
     if failures:
-        fail_msg = (
-            f"CSV export completed with {len(failures)}/{len(ALL_TABLES)} "
-            f"table failures: {failures}"
-        )
+        fail_msg = f"CSV export completed with {len(failures)}/{len(ALL_TABLES)} table failures: {failures}"
         logger.error(fail_msg)
         raise RuntimeError(fail_msg)
 
-    logger.info(
-        f"CSV export complete: {len(ALL_TABLES)} tables exported "
-        f"to {STAR_SCHEMA_DIR}"
-    )
+    logger.info(f"CSV export complete: {len(ALL_TABLES)} tables exported to {STAR_SCHEMA_DIR}")
 
 
 def _export_table(conn, table_name: str, csv_path: str) -> None:
@@ -155,11 +149,7 @@ def _export_table(conn, table_name: str, csv_path: str) -> None:
     try:
         df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
         df.to_csv(csv_path, index=False)
-        logger.info(
-            f"Exported {table_name} -> {csv_path} ({len(df)} rows)"
-        )
+        logger.info(f"Exported {table_name} -> {csv_path} ({len(df)} rows)")
     except Exception as exc:
-        logger.warning(
-            f"Failed to export {table_name}: {exc}"
-        )
+        logger.warning(f"Failed to export {table_name}: {exc}")
         raise

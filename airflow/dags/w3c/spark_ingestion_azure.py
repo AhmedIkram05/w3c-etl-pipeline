@@ -257,7 +257,15 @@ def _export_dimensions(**context) -> None:
 
                         # Store the RAW (encoded) user_agent string so the FK join in
                         # fact_webrequest.sql matches dbo.raw_enriched.user_agent.
-                        insert_data.append((ua_hash, ua_raw_str, agent_type, browser_name, browser_version, os_name, device))
+                        insert_data.append((
+                            ua_hash,
+                            ua_raw_str,
+                            agent_type,
+                            browser_name,
+                            browser_version,
+                            os_name,
+                            device,
+                        ))
 
                         # Log progress every 500 UAs
                         if (idx + 1) % 500 == 0:
