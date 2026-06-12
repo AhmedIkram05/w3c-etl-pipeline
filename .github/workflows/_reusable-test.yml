@@ -1,0 +1,41 @@
+name: Reusable Test
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Create DAG folder symlink
+        run: |
+          sudo mkdir -p /opt/airflow/dags
+          sudo ln -sf $PWD/airflow/dags/w3c /opt/airflow/dags/w3c
+      - name: Install dependencies
+        run: |
+          pip install -r tests/requirements-test.txt
+          pip install pytest apache-airflow-providers-databricks
+      - name: Run tests
+        # Run everything except integration tests (need Azure creds)
+        # and terraform tests (need provider setup).
+        # DAG integrity tests run in CI — they verify structure, not schedules.
+        # dbt_compile unit tests run in CI — they verify macro structure.
+        run: pytest tests/ -v --tb=short -m "not integration and not terraform"
