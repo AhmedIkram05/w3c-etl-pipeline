@@ -136,5 +136,5 @@ variable "github_repository" {
 variable "github_environments" {
   description = "List of GitHub environment names for OIDC federation credentials"
   type        = list(string)
-  default     = ["azure-dev", "azure-staging", "azure-prod"]
+  default     = ["azure-dev"]
 }

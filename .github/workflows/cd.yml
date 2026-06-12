@@ -4,11 +4,7 @@
 # Runs on merge to main. Deploys Terraform infra, Databricks bundle, dbt
 # models, Airflow DAGs, then runs a post-deploy smoke test.
 #
-# Environments:
-#   azure-dev     — auto-approve on merge to main
-#   azure-staging — manual approval gate
-#   azure-prod    — manual approval + required reviewers
-#
+# Single environment: azure-dev (auto-approve on merge to main).
 # Rollback available via workflow_dispatch.
 # ---------------------------------------------------------------------------
 name: CD - Deploy to Azure
@@ -17,13 +13,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      environment:
-        description: "Target environment"
-        required: true
-        default: azure-dev
-        type: choice
-        options: [azure-dev, azure-staging, azure-prod]
 
 concurrency:
   group: cd-${{ github.ref }}
@@ -31,7 +20,6 @@ concurrency:
 
 env:
   TF_VERSION: "1.10.5"
-  DEV_ENVIRONMENT: azure-dev
 
 jobs:
   # -----------------------------------------------------------------------
@@ -94,7 +82,7 @@ jobs:
     name: Terraform Apply
     needs: terraform-plan
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'azure-dev' }}
+    environment: azure-dev
     permissions:
       id-token: write
       contents: read
@@ -133,7 +121,7 @@ jobs:
     name: Deploy Databricks Bundle
     needs: terraform-apply
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'azure-dev' }}
+    environment: azure-dev
     steps:
       - uses: actions/checkout@v4
 
@@ -144,18 +132,8 @@ jobs:
         env:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           DATABRICKS_HOST_DEV: ${{ vars.DATABRICKS_HOST_DEV }}
-          DATABRICKS_HOST_STAGING: ${{ vars.DATABRICKS_HOST_STAGING }}
-          DATABRICKS_HOST_PROD: ${{ vars.DATABRICKS_HOST_PROD }}
         run: |
-          TARGET="${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}"
-          # Map GitHub environment to DAB target
-          case "$TARGET" in
-            azure-dev)     DAB_TARGET="dev" ;;
-            azure-staging) DAB_TARGET="staging" ;;
-            azure-prod)    DAB_TARGET="prod" ;;
-            *)             DAB_TARGET="dev" ;;
-          esac
-          databricks bundle deploy -t "$DAB_TARGET"
+          databricks bundle deploy -t dev
 
   # -----------------------------------------------------------------------
   # Deploy dbt Models
@@ -164,7 +142,7 @@ jobs:
     name: Deploy dbt Models
     needs: terraform-apply
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'azure-dev' }}
+    environment: azure-dev
     steps:
       - uses: actions/checkout@v4
 
@@ -221,7 +199,7 @@ jobs:
     name: Sync Airflow DAGs
     needs: terraform-apply
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'azure-dev' }}
+    environment: azure-dev
     steps:
       - uses: actions/checkout@v4
 
@@ -249,7 +227,7 @@ jobs:
     name: Post-Deploy Smoke Test
     needs: [deploy-dab, deploy-dbt, sync-airflow]
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'azure-dev' }}
+    environment: azure-dev
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -306,7 +284,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     needs: [terraform-plan]
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: azure-dev
     permissions:
       id-token: write
       contents: read
@@ -355,14 +333,5 @@ jobs:
         env:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           DATABRICKS_HOST_DEV: ${{ vars.DATABRICKS_HOST_DEV }}
-          DATABRICKS_HOST_STAGING: ${{ vars.DATABRICKS_HOST_STAGING }}
-          DATABRICKS_HOST_PROD: ${{ vars.DATABRICKS_HOST_PROD }}
         run: |
-          TARGET="${{ inputs.environment }}"
-          case "$TARGET" in
-            azure-dev)     DAB_TARGET="dev" ;;
-            azure-staging) DAB_TARGET="staging" ;;
-            azure-prod)    DAB_TARGET="prod" ;;
-            *)             DAB_TARGET="dev" ;;
-          esac
-          databricks bundle deploy -t "$DAB_TARGET" --version prev
+          databricks bundle deploy -t dev --version prev
