@@ -8,6 +8,12 @@ provider "databricks" {
 
 provider "time" {}
 
+provider "azuread" {
+  # Uses same authentication as azurerm:
+  #   Local dev:  Azure CLI (az login)
+  #   CI/CD:      OIDC via ARM_USE_OIDC=true (once federation is bootstrapped)
+}
+
 module "networking" {
   source              = "./modules/networking"
   resource_group_name = var.resource_group_name

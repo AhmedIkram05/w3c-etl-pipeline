@@ -111,3 +111,30 @@ variable "sql_allowed_ips" {
   type        = list(string)
   default     = []
 }
+
+# ---------------------------------------------------------------------------
+# GitHub Actions OIDC Federation
+# ---------------------------------------------------------------------------
+variable "github_oidc_enabled" {
+  description = "Enable OIDC federation between GitHub Actions and Azure"
+  type        = bool
+  default     = true
+}
+
+variable "github_organization" {
+  description = "GitHub organization or username owning the repository"
+  type        = string
+  default     = "AhmedIkram05"
+}
+
+variable "github_repository" {
+  description = "GitHub repository name"
+  type        = string
+  default     = "w3c-etl-pipeline"
+}
+
+variable "github_environments" {
+  description = "List of GitHub environment names for OIDC federation credentials"
+  type        = list(string)
+  default     = ["azure-dev", "azure-staging", "azure-prod"]
+}

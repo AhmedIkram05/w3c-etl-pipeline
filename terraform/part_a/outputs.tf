@@ -53,6 +53,16 @@ output "sql_subnet_id" {
   value       = module.networking.sql_subnet_id
 }
 
+output "github_actions_application_id" {
+  description = "Azure AD application (client) ID for GitHub Actions OIDC — set as AZURE_CLIENT_ID in GitHub Environments"
+  value       = one(azuread_application.github_actions[*].client_id)
+}
+
+output "github_actions_principal_id" {
+  description = "Azure AD service principal object ID for GitHub Actions OIDC"
+  value       = one(azuread_service_principal.github_actions[*].object_id)
+}
+
 output "access_connector_identity_principal_id" {
   description = "Databricks access connector system-assigned managed identity principal ID"
   value       = module.databricks.access_connector_identity_principal_id
