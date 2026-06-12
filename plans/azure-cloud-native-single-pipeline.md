@@ -952,14 +952,14 @@ The storage account key remains in pipeline configurations (via `TF_VAR_storage_
 All items are grouped by implementation order within a single phase. Start with Step 1 (CI), then Step 2 (CD).
 
 **Step 1 — CI Pipeline (Tier 1 — every push, no Azure creds):**
-- [ ] Create/update `.github/workflows/ci.yml` with Tier 1 jobs
-- [ ] Configure Tier 1: Ruff linting
-- [ ] Configure Tier 1: mypy type checking
-- [ ] Configure Tier 1: pytest unit + DAG integrity tests
-- [ ] Configure Tier 1: dbt compile --profile w3c (PostgreSQL)
-- [ ] Configure Tier 1: dbt compile --profile w3c_azure (SQL Server, for T-SQL validation)
-- [ ] Configure Tier 1: terraform validate + fmt --check (Part A and B)
-- [ ] **Create reusable workflow templates** (`.github/workflows/_reusable-lint.yml`, `_reusable-test.yml`, `_reusable-terraform.yml`) — optional refactoring after baseline works
+- [x] Create/update `.github/workflows/ci.yml` with Tier 1 jobs
+- [x] Configure Tier 1: Ruff linting
+- [x] Configure Tier 1: mypy type checking
+- [x] Configure Tier 1: pytest unit + DAG integrity tests
+- [x] Configure Tier 1: dbt compile --profile w3c (PostgreSQL)
+- [x] Configure Tier 1: dbt compile --profile w3c_azure (SQL Server, for T-SQL validation)
+- [x] Configure Tier 1: terraform validate + fmt --check (Part A and B)
+- [x] **Create reusable workflow templates** (`.github/workflows/_reusable-lint.yml`, `_reusable-test.yml`, `_reusable-terraform.yml`) — optional refactoring after baseline works
 - [ ] Test Tier 1 CI on push
 
 **Step 2 — CD Pipeline (Continuous Deployment — merge to main):**
@@ -2008,8 +2008,8 @@ chmod +x scripts/teardown.sh
 
 ### CI/CD
 
-- [ ] Tier 1 CI configured (every push, no Azure creds)
-- [ ] Tier 1 includes: Ruff, mypy, pytest, dbt compile, terraform validate
+- [x] Tier 1 CI configured (every push, no Azure creds)
+- [x] Tier 1 includes: Ruff, mypy, pytest, dbt compile, terraform validate
 - [ ] CD pipeline configured (merge to main, deploy to Azure)
 - [ ] CD includes: Terraform plan/apply, DAB deploy, dbt deploy, Airflow sync, smoke test
 - [ ] Scheduled trigger configured (Friday 5:00 PM UTC via cron)
