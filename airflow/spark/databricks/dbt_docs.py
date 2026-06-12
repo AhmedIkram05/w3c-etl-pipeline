@@ -1,5 +1,6 @@
 # Databricks notebook source
 """dbt Docs Generate — Azure SQL target"""
+
 import json
 import os
 
@@ -30,17 +31,10 @@ if os.path.exists(target_dir):
                     f"nodes, {len(data.get('sources', {}))} sources"
                 )
             elif filename == "catalog.json":
-                print(
-                    f"{filename} ({sz} bytes): "
-                    f"{len(data.get('nodes', {}))} catalog nodes"
-                )
+                print(f"{filename} ({sz} bytes): {len(data.get('nodes', {}))} catalog nodes")
             elif filename == "run_results.json":
                 for r in data.get("results", []):
-                    print(
-                        f"{filename}: "
-                        f"{r.get('node', {}).get('name', '?')} -> "
-                        f"{r.get('status', '?')}"
-                    )
+                    print(f"{filename}: {r.get('node', {}).get('name', '?')} -> {r.get('status', '?')}")
 
 # ── Upload artifacts to Azure Blob Storage (gold/dbt-docs/) ──────────
 storage_account = os.environ.get("AZURE_STORAGE_ACCOUNT")
@@ -65,22 +59,14 @@ if storage_account and storage_key:
             if os.path.exists(fp):
                 blob_path = f"dbt-docs/{filename}"
                 with open(fp, "rb") as fh:
-                    container_client.upload_blob(
-                        blob_path, fh, overwrite=True
-                    )
+                    container_client.upload_blob(blob_path, fh, overwrite=True)
                 print(f"Uploaded {blob_path} ({os.path.getsize(fp)} bytes)")
                 uploaded += 1
 
         if uploaded == 0:
-            print(
-                "Warning: No dbt docs artifacts found in target/ "
-                "— nothing uploaded to Blob Storage"
-            )
+            print("Warning: No dbt docs artifacts found in target/ — nothing uploaded to Blob Storage")
         else:
-            print(
-                f"dbt docs artifacts uploaded to gold/dbt-docs/ "
-                f"({uploaded} files)"
-            )
+            print(f"dbt docs artifacts uploaded to gold/dbt-docs/ ({uploaded} files)")
     except Exception as exc:
         print(f"Warning: Could not upload docs to Blob Storage: {exc}")
 else:

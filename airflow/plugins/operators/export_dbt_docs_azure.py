@@ -43,14 +43,8 @@ def export_dbt_docs_to_airflow(**context) -> None:
     # ── Method 1: Azure Blob Storage SDK ──────────────────────────────
     # Check Databricks-convention names (AZURE_STORAGE_ACCOUNT / AZURE_STORAGE_KEY)
     # and fall back to legacy Airflow names (STORAGE_ACCOUNT_NAME / STORAGE_ACCESS_KEY).
-    storage_account = (
-        os.environ.get("AZURE_STORAGE_ACCOUNT")
-        or os.environ.get("STORAGE_ACCOUNT_NAME", "")
-    )
-    storage_key = (
-        os.environ.get("AZURE_STORAGE_KEY")
-        or os.environ.get("STORAGE_ACCESS_KEY", "")
-    )
+    storage_account = os.environ.get("AZURE_STORAGE_ACCOUNT") or os.environ.get("STORAGE_ACCOUNT_NAME", "")
+    storage_key = os.environ.get("AZURE_STORAGE_KEY") or os.environ.get("STORAGE_ACCESS_KEY", "")
 
     if storage_account and storage_key:
         try:
@@ -87,10 +81,7 @@ def _download_with_azure_sdk(account_name: str, account_key: str) -> None:
     try:
         from azure.storage.blob import BlobServiceClient
     except ImportError:
-        logger.warning(
-            "azure-storage-blob SDK not installed. "
-            "Install it with: pip install azure-storage-blob"
-        )
+        logger.warning("azure-storage-blob SDK not installed. Install it with: pip install azure-storage-blob")
         return
 
     conn_str = (
@@ -107,10 +98,7 @@ def _download_with_azure_sdk(account_name: str, account_key: str) -> None:
     try:
         container_client.get_container_properties()
     except Exception:
-        logger.warning(
-            f"Container '{GOLD_CONTAINER}' not found or not accessible "
-            f"in storage account '{account_name}'"
-        )
+        logger.warning(f"Container '{GOLD_CONTAINER}' not found or not accessible in storage account '{account_name}'")
         return
 
     downloaded = 0

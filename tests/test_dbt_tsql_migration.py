@@ -188,10 +188,14 @@ class TestMacroDefinitions:
                 pytest.fail(f"Macro '{name}' is missing an '{{% else %}}' fallback branch")
 
     def test_macro_naming_consistent(self):
-        """All macros in the file must start with ``tsql_`` prefix."""
+        """All macros in the file must start with ``tsql_`` or ``sqlserver__`` prefix.
+
+        ``sqlserver__`` is the standard dbt dispatch prefix for adapter-specific
+        overrides of dbt-core built-ins (e.g. source freshness, test expressions).
+        """
         macros = _parse_macro_names(self.macro_source)
-        bad = {m for m in macros if not m.startswith("tsql_")}
-        assert not bad, f"Macros without 'tsql_' prefix: {sorted(bad)}"
+        bad = {m for m in macros if not m.startswith("tsql_") and not m.startswith("sqlserver__")}
+        assert not bad, f"Macros without 'tsql_' or 'sqlserver__' prefix: {sorted(bad)}"
 
     def test_no_raw_jinja_comments_left_in_macro_defs(self):
         """Flag any leftover TODO or FIXME markers in macro source."""
@@ -450,8 +454,7 @@ class TestCompiledAzureSqlOutput:
             if "PERCENTILE_CONT(" in content:
                 assert "WITHIN GROUP" in content, f"{name} PERCENTILE_CONT must use WITHIN GROUP on Azure SQL"
                 assert "OVER (PARTITION BY" in content, (
-                    f"{name} PERCENTILE_CONT must use OVER (PARTITION BY ...) from separate CTE, "
-                    f"not inline in GROUP BY"
+                    f"{name} PERCENTILE_CONT must use OVER (PARTITION BY ...) from separate CTE, not inline in GROUP BY"
                 )
 
     def test_compiled_timeofday_uses_cte_percentile(self):

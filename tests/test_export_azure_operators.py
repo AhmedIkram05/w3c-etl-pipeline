@@ -26,7 +26,7 @@ import os
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import MagicMock, call, mock_open, patch
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
@@ -70,6 +70,7 @@ class TestExportCSVAzureConstants:
             STAGING_TABLES,
             STAR_SCHEMA_DIR,
         )
+
         return STAGING_TABLES, MART_TABLES, PUBLIC_TABLES, ALL_TABLES, STAR_SCHEMA_DIR
 
     def test_staging_tables_has_10_entries(self):
@@ -135,6 +136,7 @@ class TestExportCSVAzure:
             _export_table,
             export_csv_azure,
         )
+
         self._export_csv_azure = export_csv_azure
         self._export_table = _export_table
         yield
@@ -170,7 +172,6 @@ class TestExportCSVAzure:
         """
         mock_pyodbc = MagicMock()
         mock_conn = MagicMock()
-        mock_cursor = MagicMock()
         mock_pyodbc.connect.return_value.__enter__.return_value = mock_conn
         mock_pyodbc.connect.return_value.__exit__.return_value = None
 
@@ -186,11 +187,13 @@ class TestExportCSVAzure:
             mock_pyodbc.connect.side_effect = mock_pyodbc.Error("Connection refused")
 
         if fail_tables:
+
             def read_sql_side_effect(sql, conn):
                 for ft in fail_tables:
                     if ft.replace(".", ".") in sql:
                         raise RuntimeError(f"Error reading {sql}")
                 return mock_df
+
             mock_pandas.read_sql.side_effect = read_sql_side_effect
 
         with patch.dict("sys.modules", {"pyodbc": mock_pyodbc, "pandas": mock_pandas}):
@@ -275,10 +278,7 @@ class TestExportCSVAzure:
                         self._export_csv_azure()
 
             # Check public table CSV paths
-            public_calls = [
-                call for call in mock_export.call_args_list
-                if "dbo.dim" in call[0][1]
-            ]
+            public_calls = [call for call in mock_export.call_args_list if "dbo.dim" in call[0][1]]
             assert len(public_calls) == 2
             for call_args in public_calls:
                 csv_path = call_args[0][2]
@@ -319,9 +319,7 @@ class TestExportCSVAzure:
         with patch.dict("sys.modules", {"pandas": mock_pandas}):
             self._export_table(mock_conn, "staging.fact_webrequest", "/tmp/test.csv")
 
-        mock_pandas.read_sql.assert_called_once_with(
-            "SELECT * FROM staging.fact_webrequest", mock_conn
-        )
+        mock_pandas.read_sql.assert_called_once_with("SELECT * FROM staging.fact_webrequest", mock_conn)
         mock_df.to_csv.assert_called_once_with("/tmp/test.csv", index=False)
 
     def test_export_table_logs_warning_and_raises_on_failure(self, caplog_export):
@@ -366,6 +364,7 @@ class TestExportDBTDocsAzureConstants:
             LOCAL_DOCS_DIR,
             REQUIRED_FILES,
         )
+
         return REQUIRED_FILES, LOCAL_DOCS_DIR, GOLD_CONTAINER, BLOB_PREFIX
 
     def test_required_files(self):
@@ -433,6 +432,7 @@ class TestExportDBTDocsAzure:
             _verify_docs,
             export_dbt_docs_to_airflow,
         )
+
         self._export_dbt_docs_to_airflow = export_dbt_docs_to_airflow
         self._download_with_azure_sdk = _download_with_azure_sdk
         self._verify_docs = _verify_docs
@@ -453,6 +453,7 @@ class TestExportDBTDocsAzure:
 
     def test_verify_docs_missing_file(self):
         """Missing file → False."""
+
         def fake_isfile(path):
             return "catalog.json" not in path
 
@@ -501,9 +502,7 @@ class TestExportDBTDocsAzure:
         mock_container_client.get_blob_client.return_value = mock_blob_client
 
         mock_blob_service = MagicMock()
-        mock_blob_service.from_connection_string.return_value.get_container_client.return_value = (
-            mock_container_client
-        )
+        mock_blob_service.from_connection_string.return_value.get_container_client.return_value = mock_container_client
 
         with self._mock_azure_sdk(blob_service_cls=mock_blob_service):
             with patch("builtins.open", mock_open()):
@@ -517,9 +516,7 @@ class TestExportDBTDocsAzure:
         mock_container_client.get_container_properties.side_effect = Exception("Not found")
 
         mock_blob_service = MagicMock()
-        mock_blob_service.from_connection_string.return_value.get_container_client.return_value = (
-            mock_container_client
-        )
+        mock_blob_service.from_connection_string.return_value.get_container_client.return_value = mock_container_client
 
         with self._mock_azure_sdk(blob_service_cls=mock_blob_service):
             self._download_with_azure_sdk("acct", "key")
@@ -541,9 +538,7 @@ class TestExportDBTDocsAzure:
         mock_container_client.get_blob_client.side_effect = blob_side_effect
 
         mock_blob_service = MagicMock()
-        mock_blob_service.from_connection_string.return_value.get_container_client.return_value = (
-            mock_container_client
-        )
+        mock_blob_service.from_connection_string.return_value.get_container_client.return_value = mock_container_client
 
         with self._mock_azure_sdk(blob_service_cls=mock_blob_service):
             with patch("builtins.open", mock_open()):
@@ -632,12 +627,8 @@ class TestExportDBTDocsAzure:
 
     def test_databricks_env_vars_used_when_set(self):
         """AZURE_STORAGE_ACCOUNT / AZURE_STORAGE_KEY → SDK called with those values."""
-        saved = (
-            os.environ.pop("STORAGE_ACCOUNT_NAME", None),
-            os.environ.pop("STORAGE_ACCESS_KEY", None),
-            os.environ.pop("AZURE_STORAGE_ACCOUNT", None),
-            os.environ.pop("AZURE_STORAGE_KEY", None),
-        )
+        for k in ("STORAGE_ACCOUNT_NAME", "STORAGE_ACCESS_KEY", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY"):
+            os.environ.pop(k, None)
         try:
             os.environ["AZURE_STORAGE_ACCOUNT"] = "databricks-acct"
             os.environ["AZURE_STORAGE_KEY"] = "databricks-key"
@@ -654,12 +645,8 @@ class TestExportDBTDocsAzure:
 
     def test_databricks_names_take_priority(self):
         """Both conventions set → AZURE_STORAGE_* takes priority."""
-        saved = (
-            os.environ.pop("STORAGE_ACCOUNT_NAME", None),
-            os.environ.pop("STORAGE_ACCESS_KEY", None),
-            os.environ.pop("AZURE_STORAGE_ACCOUNT", None),
-            os.environ.pop("AZURE_STORAGE_KEY", None),
-        )
+        for k in ("STORAGE_ACCOUNT_NAME", "STORAGE_ACCESS_KEY", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY"):
+            os.environ.pop(k, None)
         try:
             os.environ["AZURE_STORAGE_ACCOUNT"] = "priority-acct"
             os.environ["AZURE_STORAGE_KEY"] = "priority-key"
@@ -687,6 +674,7 @@ class TestDBTCommonWriteProfiles:
 
     def _import_func(self):
         from dbt_common import _write_profiles_yml
+
         return _write_profiles_yml
 
     def test_writes_profiles_yml(self, tmp_path):
@@ -745,7 +733,7 @@ class TestDBTCommonWriteProfiles:
         os.environ.pop("AZURE_SQL_PASSWORD", None)
 
         write_profiles = self._import_func()
-        result_path = write_profiles(str(tmp_path))
+        write_profiles(str(tmp_path))
 
         content = (tmp_path / "profiles.yml").read_text()
         assert 'server: ""' in content
@@ -760,10 +748,14 @@ class TestDBTCommonRunCommand:
 
     def _import_func(self):
         from dbt_common import run_dbt_command
+
         return run_dbt_command
 
-    def test_appends_profile_flags(self):
+    def test_appends_profile_flags(self, tmp_path):
         """run_dbt_command appends --profile w3c_azure --profiles-dir."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "dbt_project.yml").write_text("")
         run_dbt = self._import_func()
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -771,17 +763,20 @@ class TestDBTCommonRunCommand:
         mock_result.stderr = ""
 
         with patch("dbt_common.subprocess.run", return_value=mock_result) as mock_run:
-            run_dbt(["dbt", "run"], "/tmp/project", "run")
+            run_dbt(["dbt", "run"], str(project_dir), "run")
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
         assert "--profile" in args
         assert "w3c_azure" in args
         assert "--profiles-dir" in args
-        assert "/tmp/project" in args
+        assert str(project_dir) in args
 
-    def test_returns_completed_process(self):
+    def test_returns_completed_process(self, tmp_path):
         """Successful run returns the CompletedProcess."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "dbt_project.yml").write_text("")
         run_dbt = self._import_func()
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -789,12 +784,15 @@ class TestDBTCommonRunCommand:
         mock_result.stderr = ""
 
         with patch("dbt_common.subprocess.run", return_value=mock_result):
-            result = run_dbt(["dbt", "run"], "/tmp/project", "run")
+            result = run_dbt(["dbt", "run"], str(project_dir), "run")
 
         assert result is mock_result
 
-    def test_non_zero_exit_raises(self):
+    def test_non_zero_exit_raises(self, tmp_path):
         """Non-zero returncode → RuntimeError with stdout/stderr."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "dbt_project.yml").write_text("")
         run_dbt = self._import_func()
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -803,13 +801,16 @@ class TestDBTCommonRunCommand:
 
         with patch("dbt_common.subprocess.run", return_value=mock_result):
             with pytest.raises(RuntimeError) as excinfo:
-                run_dbt(["dbt", "run"], "/tmp/project", "run")
+                run_dbt(["dbt", "run"], str(project_dir), "run")
 
         assert "dbt run failed" in str(excinfo.value)
         assert "error details" in str(excinfo.value)
 
-    def test_custom_command_name_in_error(self):
+    def test_custom_command_name_in_error(self, tmp_path):
         """Custom command_name appears in error message."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "dbt_project.yml").write_text("")
         run_dbt = self._import_func()
         mock_result = MagicMock()
         mock_result.returncode = 2
@@ -818,7 +819,7 @@ class TestDBTCommonRunCommand:
 
         with patch("dbt_common.subprocess.run", return_value=mock_result):
             with pytest.raises(RuntimeError) as excinfo:
-                run_dbt(["dbt", "docs", "generate"], "/tmp/proj", "docs generate")
+                run_dbt(["dbt", "docs", "generate"], str(project_dir), "docs generate")
 
         assert "dbt docs generate failed" in str(excinfo.value)
 
@@ -828,6 +829,7 @@ class TestDBTCommonCleanup:
 
     def _import_func(self):
         from dbt_common import cleanup
+
         return cleanup
 
     def test_cleanup_removes_directory(self):

@@ -21,6 +21,7 @@ Each notebook is responsible for its own ``SparkSession`` lifecycle,
 post-dbt logic (e.g. artifact upload in ``dbt_docs``), and any unique
 pip extras.
 """
+
 from __future__ import annotations
 
 import base64
@@ -41,8 +42,7 @@ import requests
 # When Microsoft releases a new version, update this single URL instead of
 # touching all four notebooks.
 _ODBC_DRIVER_URL = (
-    "https://packages.microsoft.com/ubuntu/22.04/prod/pool/main/m/"
-    "msodbcsql18/msodbcsql18_18.6.2.1-1_amd64.deb"
+    "https://packages.microsoft.com/ubuntu/22.04/prod/pool/main/m/msodbcsql18/msodbcsql18_18.6.2.1-1_amd64.deb"
 )
 
 _SCOPE = "w3c-etl-pipeline"
@@ -163,9 +163,12 @@ def run_dbt_command(
     print(f"Profiles directory: {profiles_dir}")
     full_cmd = [
         *cmd_args,
-        "--project-dir", project_dir,
-        "--profile", "w3c_azure",
-        "--profiles-dir", profiles_dir,
+        "--project-dir",
+        project_dir,
+        "--profile",
+        "w3c_azure",
+        "--profiles-dir",
+        profiles_dir,
     ]
     print(f"Running dbt {command_name}...")
     result = subprocess.run(full_cmd, capture_output=True, text=True)
@@ -173,10 +176,7 @@ def run_dbt_command(
     if result.stderr:
         print(result.stderr)
     if result.returncode != 0:
-        raise RuntimeError(
-            f"dbt {command_name} failed (rc={result.returncode})\n"
-            f"{result.stdout}\n{result.stderr}"
-        )
+        raise RuntimeError(f"dbt {command_name} failed (rc={result.returncode})\n{result.stdout}\n{result.stderr}")
     return result
 
 
@@ -197,6 +197,7 @@ def _get_dbutils():
     """Return the Databricks utility object, or ``None`` outside Databricks."""
     try:
         import IPython  # type: ignore[import-untyped]
+
         return IPython.get_ipython().user_ns.get("dbutils")
     except ImportError:
         return None
@@ -207,18 +208,10 @@ def _load_azure_sql_credentials(dbutils) -> None:
     if dbutils is None:
         print("dbutils not available — credentials must be set via env vars")
         return
-    os.environ["AZURE_SQL_SERVER"] = dbutils.secrets.get(
-        scope=_SCOPE, key="azure.sql.server"
-    )
-    os.environ["AZURE_SQL_DB"] = dbutils.secrets.get(
-        scope=_SCOPE, key="azure.sql.database"
-    )
-    os.environ["AZURE_SQL_USER"] = dbutils.secrets.get(
-        scope=_SCOPE, key="azure.sql.username"
-    )
-    os.environ["AZURE_SQL_PASSWORD"] = dbutils.secrets.get(
-        scope=_SCOPE, key="azure.sql.password"
-    )
+    os.environ["AZURE_SQL_SERVER"] = dbutils.secrets.get(scope=_SCOPE, key="azure.sql.server")
+    os.environ["AZURE_SQL_DB"] = dbutils.secrets.get(scope=_SCOPE, key="azure.sql.database")
+    os.environ["AZURE_SQL_USER"] = dbutils.secrets.get(scope=_SCOPE, key="azure.sql.username")
+    os.environ["AZURE_SQL_PASSWORD"] = dbutils.secrets.get(scope=_SCOPE, key="azure.sql.password")
     print("Azure SQL credentials loaded from Databricks secrets")
 
 
@@ -226,12 +219,8 @@ def _load_storage_credentials(dbutils) -> None:
     """Load Azure Storage credentials from Databricks secrets into env vars."""
     if dbutils is None:
         return
-    os.environ["AZURE_STORAGE_ACCOUNT"] = dbutils.secrets.get(
-        scope=_SCOPE, key="azure.storage.account"
-    )
-    os.environ["AZURE_STORAGE_KEY"] = dbutils.secrets.get(
-        scope=_SCOPE, key="azure.storage.key"
-    )
+    os.environ["AZURE_STORAGE_ACCOUNT"] = dbutils.secrets.get(scope=_SCOPE, key="azure.storage.account")
+    os.environ["AZURE_STORAGE_KEY"] = dbutils.secrets.get(scope=_SCOPE, key="azure.storage.key")
     print("Storage credentials loaded from Databricks secrets")
 
 
@@ -249,12 +238,8 @@ def _install_packages(extra_packages: list[str] | None = None) -> None:
 
 def _setup_odbc_driver() -> None:
     """Download and extract ODBC Driver 18 for SQL Server (without root)."""
-    deb_path = os.path.join(
-        tempfile.gettempdir(), f"msodbcsql18_{os.getpid()}.deb"
-    )
-    driver_dir = os.path.join(
-        tempfile.gettempdir(), f"msodbc_{os.getpid()}"
-    )
+    deb_path = os.path.join(tempfile.gettempdir(), f"msodbcsql18_{os.getpid()}.deb")
+    driver_dir = os.path.join(tempfile.gettempdir(), f"msodbc_{os.getpid()}")
 
     print("Downloading ODBC Driver 18...")
     urllib.request.urlretrieve(_ODBC_DRIVER_URL, deb_path)
@@ -265,13 +250,9 @@ def _setup_odbc_driver() -> None:
     print("Extracted to", driver_dir)
 
     # Find the driver .so library (may be in lib64/ or lib/)
-    driver_libs = glob.glob(
-        os.path.join(driver_dir, "opt/microsoft/msodbcsql18/lib64/libmsodbcsql*.so*")
-    )
+    driver_libs = glob.glob(os.path.join(driver_dir, "opt/microsoft/msodbcsql18/lib64/libmsodbcsql*.so*"))
     if not driver_libs:
-        driver_libs = glob.glob(
-            os.path.join(driver_dir, "opt/microsoft/msodbcsql18/lib/libmsodbcsql*.so*")
-        )
+        driver_libs = glob.glob(os.path.join(driver_dir, "opt/microsoft/msodbcsql18/lib/libmsodbcsql*.so*"))
     if not driver_libs:
         raise RuntimeError("ODBC driver library not found in extracted deb!")
     driver_path = os.path.realpath(driver_libs[0])
@@ -296,20 +277,8 @@ def _download_dbt_project(prefix: str = "dbt") -> str:
     Returns the path to the temporary directory where it was extracted.
     """
     dbutils = _get_dbutils()
-    api_token = (
-        dbutils.notebook.entry_point.getDbutils()
-        .notebook()
-        .getContext()
-        .apiToken()
-        .get()
-    )
-    api_url = (
-        dbutils.notebook.entry_point.getDbutils()
-        .notebook()
-        .getContext()
-        .apiUrl()
-        .get()
-    )
+    api_token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
+    api_url = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiUrl().get()
 
     tmpdir = tempfile.mkdtemp(prefix=f"{prefix}_")
     resp = requests.get(
@@ -320,15 +289,10 @@ def _download_dbt_project(prefix: str = "dbt") -> str:
     )
     resp.raise_for_status()
 
-    with zipfile.ZipFile(
-        io.BytesIO(base64.b64decode(resp.json()["content"]))
-    ) as zf:
+    with zipfile.ZipFile(io.BytesIO(base64.b64decode(resp.json()["content"]))) as zf:
         zf.extractall(tmpdir)
 
-    print(
-        f"Extracted project to {tmpdir} "
-        f"({len(resp.json()['content'])} bytes base64)"
-    )
+    print(f"Extracted project to {tmpdir} ({len(resp.json()['content'])} bytes base64)")
     return tmpdir
 
 
@@ -351,10 +315,10 @@ def _write_profiles_yml(profiles_dir: str) -> str:
             f"      driver: ODBC Driver 18 for SQL Server\n"
             f'      server: "{os.environ.get("AZURE_SQL_SERVER", "")}"\n'
             f"      port: 1433\n"
-            f'      database: {os.environ.get("AZURE_SQL_DB", "w3c_etl")}\n'
+            f"      database: {os.environ.get('AZURE_SQL_DB', 'w3c_etl')}\n"
             f"      schema: dbo\n"
-            f'      user: {os.environ.get("AZURE_SQL_USER", "")}\n'
-            f'      password: {os.environ.get("AZURE_SQL_PASSWORD", "")}\n'
+            f"      user: {os.environ.get('AZURE_SQL_USER', '')}\n"
+            f"      password: {os.environ.get('AZURE_SQL_PASSWORD', '')}\n"
             f"      authentication: sql\n"
             f"      encrypt: true\n"
             f"      trust_cert: false\n"
@@ -385,10 +349,7 @@ def _find_project_dir(extract_dir: str) -> str:
         candidate = os.path.join(extract_dir, entry, "dbt_project.yml")
         if os.path.exists(candidate):
             return os.path.join(extract_dir, entry)
-    raise RuntimeError(
-        f"dbt_project.yml not found under {extract_dir}. "
-        f"Contents: {entries}"
-    )
+    raise RuntimeError(f"dbt_project.yml not found under {extract_dir}. Contents: {entries}")
 
 
 def _run_dbt_deps(project_dir: str, profiles_dir: str) -> None:
@@ -403,9 +364,12 @@ def _run_dbt_deps(project_dir: str, profiles_dir: str) -> None:
     print("Running dbt deps...")
     result = subprocess.run(
         [
-            "dbt", "deps",
-            "--project-dir", project_dir,
-            "--profiles-dir", profiles_dir,
+            "dbt",
+            "deps",
+            "--project-dir",
+            project_dir,
+            "--profiles-dir",
+            profiles_dir,
         ],
         capture_output=True,
         text=True,
@@ -414,8 +378,5 @@ def _run_dbt_deps(project_dir: str, profiles_dir: str) -> None:
     if result.stderr:
         print(result.stderr)
     if result.returncode != 0:
-        raise RuntimeError(
-            f"dbt deps failed (rc={result.returncode})\n"
-            f"{result.stdout}\n{result.stderr}"
-        )
+        raise RuntimeError(f"dbt deps failed (rc={result.returncode})\n{result.stdout}\n{result.stderr}")
     print("dbt deps completed")
