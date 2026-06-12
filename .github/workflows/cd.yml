@@ -1,0 +1,349 @@
+# ---------------------------------------------------------------------------
+# CD - Deploy to Azure
+# ---------------------------------------------------------------------------
+# Runs on merge to main. Deploys Terraform infra, Databricks bundle, dbt
+# models, Airflow DAGs, then runs a post-deploy smoke test.
+#
+# Environments:
+#   azure-dev     — auto-approve on merge to main
+#   azure-staging — manual approval gate
+#   azure-prod    — manual approval + required reviewers
+#
+# Rollback available via workflow_dispatch.
+# ---------------------------------------------------------------------------
+name: CD - Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: azure-dev
+        type: choice
+        options: [azure-dev, azure-staging, azure-prod]
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false  # Queue sequential runs — do NOT cancel in-progress
+
+env:
+  TF_VERSION: "1.10.5"
+  DEV_ENVIRONMENT: azure-dev
+  DAB_TARGET_DEV: dev
+
+jobs:
+  # -----------------------------------------------------------------------
+  # Terraform Plan (read-only, always runs)
+  # -----------------------------------------------------------------------
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      plan_a_exitcode: ${{ steps.plan_a.outputs.exitcode }}
+      plan_b_exitcode: ${{ steps.plan_b.outputs.exitcode }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "${{ env.TF_VERSION }}"
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Plan (Part A)
+        id: plan_a
+        run: |
+          cd terraform/part_a
+          terraform init
+          terraform plan -no-color -input=false 2>&1 | tee tfplan_a.log
+          echo "exitcode=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Part A Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-part-a
+          path: terraform/part_a/tfplan_a.log
+
+      - name: Terraform Plan (Part B)
+        id: plan_b
+        run: |
+          cd terraform/part_b
+          terraform init
+          terraform plan -no-color -input=false 2>&1 | tee tfplan_b.log
+          echo "exitcode=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Part B Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-part-b
+          path: terraform/part_b/tfplan_b.log
+
+  # -----------------------------------------------------------------------
+  # Terraform Apply (per environment, gated by GitHub Environments)
+  # -----------------------------------------------------------------------
+  terraform-apply:
+    name: Terraform Apply
+    needs: terraform-plan
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.DEV_ENVIRONMENT }}
+    permissions:
+      id-token: write
+      contents: read
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "${{ env.TF_VERSION }}"
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Apply (Part A)
+        run: |
+          cd terraform/part_a
+          terraform init
+          terraform apply -auto-approve -input=false
+
+      - name: Terraform Apply (Part B)
+        env:
+          TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
+        run: |
+          cd terraform/part_b
+          terraform init
+          terraform apply -auto-approve -input=false
+
+  # -----------------------------------------------------------------------
+  # Deploy Databricks Asset Bundle
+  # -----------------------------------------------------------------------
+  deploy-dab:
+    name: Deploy Databricks Bundle
+    needs: terraform-apply
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.DEV_ENVIRONMENT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Databricks CLI
+        uses: databricks/setup-cli@v1
+
+      - name: Deploy DAB
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          TARGET="${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}"
+          # Map GitHub environment to DAB target
+          case "$TARGET" in
+            azure-dev)     DAB_TARGET="dev" ;;
+            azure-staging) DAB_TARGET="staging" ;;
+            azure-prod)    DAB_TARGET="prod" ;;
+            *)             DAB_TARGET="dev" ;;
+          esac
+          databricks bundle deploy -t "$DAB_TARGET"
+
+  # -----------------------------------------------------------------------
+  # Deploy dbt Models
+  # -----------------------------------------------------------------------
+  deploy-dbt:
+    name: Deploy dbt Models
+    needs: terraform-apply
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.DEV_ENVIRONMENT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dbt
+        run: pip install "dbt-sqlserver==1.8.4" "dbt-core==1.8.9" "dbt-common==1.27.1" "protobuf>=5.27,<6"
+
+      - name: Install ODBC Driver 18 for SQL Server
+        run: |
+          sudo apt-get update && sudo apt-get install -y curl gnupg2
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 mssql-tools18
+
+      - name: dbt deps
+        run: dbt deps --project-dir airflow/dbt/w3c
+
+      - name: dbt run (--defer --state)
+        env:
+          AZURE_SQL_SERVER: ${{ vars.AZURE_SQL_SERVER }}
+          AZURE_SQL_DB: ${{ vars.AZURE_SQL_DATABASE }}
+          AZURE_SQL_USER: ${{ vars.AZURE_SQL_USER }}
+          AZURE_SQL_PASSWORD: ${{ secrets.AZURE_SQL_PASSWORD }}
+        run: |
+          cd airflow/dbt/w3c
+          dbt run --profile w3c_azure --defer --state ./target-prod
+
+      - name: dbt test
+        env:
+          AZURE_SQL_SERVER: ${{ vars.AZURE_SQL_SERVER }}
+          AZURE_SQL_DB: ${{ vars.AZURE_SQL_DATABASE }}
+          AZURE_SQL_USER: ${{ vars.AZURE_SQL_USER }}
+          AZURE_SQL_PASSWORD: ${{ secrets.AZURE_SQL_PASSWORD }}
+        run: |
+          cd airflow/dbt/w3c
+          dbt test --profile w3c_azure
+
+  # -----------------------------------------------------------------------
+  # Sync Airflow DAGs to ADLS
+  # -----------------------------------------------------------------------
+  sync-airflow:
+    name: Sync Airflow DAGs
+    needs: terraform-apply
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.DEV_ENVIRONMENT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sync DAGs to ADLS Gen2
+        run: |
+          az storage fs upload \
+            -f airflow-dags \
+            -s airflow/dags/ \
+            --account-name ${{ vars.STORAGE_ACCOUNT_NAME }} \
+            --recursive
+
+      - name: Trigger DAG Bag Refresh via Airflow REST API
+        run: |
+          curl -s -X POST "${{ vars.AIRFLOW_URL }}/api/v1/dags/w3c_spark_ingestion_azure/dagRuns" \
+            -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" \
+            -H "Content-Type: application/json" \
+            -d '{"conf": {"trigger_source": "cd_dag_sync"}}'
+
+  # -----------------------------------------------------------------------
+  # Post-Deploy Smoke Test
+  # -----------------------------------------------------------------------
+  smoke-test:
+    name: Post-Deploy Smoke Test
+    needs: [deploy-dab, deploy-dbt, sync-airflow]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.DEV_ENVIRONMENT }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger Airflow DAG via REST API
+        run: |
+          DAG_RUN_ID=$(curl -s -X POST "${{ vars.AIRFLOW_URL }}/api/v1/dags/spark_ingestion_azure/dagRuns" \
+            -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" \
+            -H "Content-Type: application/json" \
+            -d '{"conf": {"trigger_source": "cd_smoke_test"}}' | jq -r '.dag_run_id // empty')
+          echo "DAG_RUN_ID=$DAG_RUN_ID" >> "$GITHUB_ENV"
+          echo "Triggered DAG run: $DAG_RUN_ID"
+
+      - name: Poll DAG Until Complete
+        run: |
+          for i in $(seq 1 60); do
+            STATE=$(curl -s "${{ vars.AIRFLOW_URL }}/api/v1/dags/spark_ingestion_azure/dagRuns/${{ env.DAG_RUN_ID }}" \
+              -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" | jq -r '.state // "unknown"')
+            echo "Attempt $i: DAG state = $STATE"
+            if [ "$STATE" = "success" ]; then
+              echo "DAG completed successfully"
+              exit 0
+            fi
+            if [ "$STATE" = "failed" ] || [ "$STATE" = "failed" ]; then
+              echo "DAG failed"
+              exit 1
+            fi
+            sleep 15
+          done
+          echo "Timeout waiting for DAG to complete"
+          exit 1
+
+      - name: Assert Azure SQL Row Count
+        run: |
+          ROWS=$(sqlcmd -S "${{ vars.AZURE_SQL_SERVER }}" \
+            -d "${{ vars.AZURE_SQL_DATABASE }}" \
+            -U "${{ vars.AZURE_SQL_USER }}" \
+            -P "${{ secrets.AZURE_SQL_PASSWORD }}" \
+            -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM dbo.raw_enriched" -h -1 | tr -d ' ')
+          echo "Azure SQL dbo.raw_enriched row count: $ROWS"
+          if [ "$ROWS" -gt 0 ]; then
+            echo "Smoke test PASSED — $ROWS rows found"
+            exit 0
+          else
+            echo "Smoke test FAILED — no rows in dbo.raw_enriched"
+            exit 1
+          fi
+
+  # -----------------------------------------------------------------------
+  # Rollback (manual workflow_dispatch only)
+  # -----------------------------------------------------------------------
+  rollback:
+    name: Rollback
+    if: github.event_name == 'workflow_dispatch'
+    needs: [terraform-plan]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 'HEAD~1'
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "${{ env.TF_VERSION }}"
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Rollback — Part A (refresh-only)
+        run: |
+          cd terraform/part_a
+          terraform init
+          terraform apply -refresh-only -auto-approve -input=false
+
+      - name: Terraform Rollback — Part B (refresh-only)
+        env:
+          TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
+        run: |
+          cd terraform/part_b
+          terraform init
+          terraform apply -refresh-only -auto-approve -input=false
+
+      - name: Deploy Previous DAB Version
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          TARGET="${{ inputs.environment }}"
+          case "$TARGET" in
+            azure-dev)     DAB_TARGET="dev" ;;
+            azure-staging) DAB_TARGET="staging" ;;
+            azure-prod)    DAB_TARGET="prod" ;;
+            *)             DAB_TARGET="dev" ;;
+          esac
+          databricks bundle deploy -t "$DAB_TARGET" --version prev
