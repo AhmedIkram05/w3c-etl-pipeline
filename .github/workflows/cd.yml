@@ -143,6 +143,9 @@ jobs:
       - name: Deploy DAB
         env:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          DATABRICKS_HOST_DEV: ${{ vars.DATABRICKS_HOST_DEV }}
+          DATABRICKS_HOST_STAGING: ${{ vars.DATABRICKS_HOST_STAGING }}
+          DATABRICKS_HOST_PROD: ${{ vars.DATABRICKS_HOST_PROD }}
         run: |
           TARGET="${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}"
           # Map GitHub environment to DAB target
@@ -351,6 +354,9 @@ jobs:
       - name: Deploy Previous DAB Version
         env:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          DATABRICKS_HOST_DEV: ${{ vars.DATABRICKS_HOST_DEV }}
+          DATABRICKS_HOST_STAGING: ${{ vars.DATABRICKS_HOST_STAGING }}
+          DATABRICKS_HOST_PROD: ${{ vars.DATABRICKS_HOST_PROD }}
         run: |
           TARGET="${{ inputs.environment }}"
           case "$TARGET" in
