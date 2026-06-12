@@ -32,7 +32,6 @@ concurrency:
 env:
   TF_VERSION: "1.10.5"
   DEV_ENVIRONMENT: azure-dev
-  DAB_TARGET_DEV: dev
 
 jobs:
   # -----------------------------------------------------------------------
@@ -186,7 +185,7 @@ jobs:
       - name: dbt deps
         run: dbt deps --project-dir airflow/dbt/w3c
 
-      - name: dbt run (--defer --state)
+      - name: dbt run (--defer --state, with first-deploy fallback)
         env:
           AZURE_SQL_SERVER: ${{ vars.AZURE_SQL_SERVER }}
           AZURE_SQL_DB: ${{ vars.AZURE_SQL_DATABASE }}
@@ -194,7 +193,13 @@ jobs:
           AZURE_SQL_PASSWORD: ${{ secrets.AZURE_SQL_PASSWORD }}
         run: |
           cd airflow/dbt/w3c
-          dbt run --profile w3c_azure --defer --state ./target-prod
+          if [ -f "./target-prod/manifest.json" ]; then
+            echo "Found production state — running with --defer"
+            dbt run --profile w3c_azure --defer --state ./target-prod
+          else
+            echo "No production state found — running without --defer (first deploy)"
+            dbt run --profile w3c_azure
+          fi
 
       - name: dbt test
         env:
@@ -231,12 +236,8 @@ jobs:
             --account-name ${{ vars.STORAGE_ACCOUNT_NAME }} \
             --recursive
 
-      - name: Trigger DAG Bag Refresh via Airflow REST API
-        run: |
-          curl -s -X POST "${{ vars.AIRFLOW_URL }}/api/v1/dags/w3c_spark_ingestion_azure/dagRuns" \
-            -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" \
-            -H "Content-Type: application/json" \
-            -d '{"conf": {"trigger_source": "cd_dag_sync"}}'
+      - name: DAG file sync complete — smoke test will trigger ingestion
+        run: echo "DAGs synced to ADLS; smoke test will trigger the ingestion DAG"
 
   # -----------------------------------------------------------------------
   # Post-Deploy Smoke Test
@@ -252,7 +253,7 @@ jobs:
 
       - name: Trigger Airflow DAG via REST API
         run: |
-          DAG_RUN_ID=$(curl -s -X POST "${{ vars.AIRFLOW_URL }}/api/v1/dags/spark_ingestion_azure/dagRuns" \
+          DAG_RUN_ID=$(curl -s -X POST "${{ vars.AIRFLOW_URL }}/api/v1/dags/w3c_spark_ingestion_azure/dagRuns" \
             -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" \
             -H "Content-Type: application/json" \
             -d '{"conf": {"trigger_source": "cd_smoke_test"}}' | jq -r '.dag_run_id // empty')
@@ -262,14 +263,14 @@ jobs:
       - name: Poll DAG Until Complete
         run: |
           for i in $(seq 1 60); do
-            STATE=$(curl -s "${{ vars.AIRFLOW_URL }}/api/v1/dags/spark_ingestion_azure/dagRuns/${{ env.DAG_RUN_ID }}" \
+            STATE=$(curl -s "${{ vars.AIRFLOW_URL }}/api/v1/dags/w3c_spark_ingestion_azure/dagRuns/${{ env.DAG_RUN_ID }}" \
               -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" | jq -r '.state // "unknown"')
             echo "Attempt $i: DAG state = $STATE"
             if [ "$STATE" = "success" ]; then
               echo "DAG completed successfully"
               exit 0
             fi
-            if [ "$STATE" = "failed" ] || [ "$STATE" = "failed" ]; then
+            if [ "$STATE" = "failed" ] || [ "$STATE" = "upstream_failed" ]; then
               echo "DAG failed"
               exit 1
             fi
@@ -321,19 +322,31 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Terraform Rollback — Part A (refresh-only)
+      - name: Terraform Rollback — Part A (plan)
         run: |
           cd terraform/part_a
           terraform init
-          terraform apply -refresh-only -auto-approve -input=false
+          terraform plan -no-color -input=false -out=tfplan_rollback
 
-      - name: Terraform Rollback — Part B (refresh-only)
+      - name: Terraform Rollback — Part A (apply)
+        run: |
+          cd terraform/part_a
+          terraform apply -auto-approve -input=false tfplan_rollback
+
+      - name: Terraform Rollback — Part B (plan)
         env:
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
           cd terraform/part_b
           terraform init
-          terraform apply -refresh-only -auto-approve -input=false
+          terraform plan -no-color -input=false -out=tfplan_rollback
+
+      - name: Terraform Rollback — Part B (apply)
+        env:
+          TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
+        run: |
+          cd terraform/part_b
+          terraform apply -auto-approve -input=false tfplan_rollback
 
       - name: Deploy Previous DAB Version
         env:
