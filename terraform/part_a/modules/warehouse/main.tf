@@ -26,12 +26,12 @@ resource "azurerm_mssql_firewall_rule" "allowed_ips" {
 }
 
 resource "azurerm_mssql_database" "this" {
-  name                = var.database_name
-  server_id           = azurerm_mssql_server.this.id
-  collation           = "SQL_Latin1_General_CP1_CI_AS"
-  sku_name            = "GP_S_Gen5_1"
+  name                        = var.database_name
+  server_id                   = azurerm_mssql_server.this.id
+  collation                   = "SQL_Latin1_General_CP1_CI_AS"
+  sku_name                    = "GP_S_Gen5_1"
   auto_pause_delay_in_minutes = 60
-  min_capacity        = 1
+  min_capacity                = 1
 
   lifecycle {
     prevent_destroy = true
