@@ -6,8 +6,8 @@ pre-existing unit tests**:
 
 1. ``plugins.operators.export_csv_azure`` — CSV export from Azure SQL to
    ``/opt/airflow/data/Star-Schema/`` for Power BI (with failure tracking).
-2. ``plugins.operators.export_dbt_docs_azure`` — Download dbt documentation
-   artifacts from Azure Blob Storage (gold container) to local Airflow.
+2. ``plugins.operators.export_dbt_docs_azure`` — Copy dbt documentation
+   artifacts from local dbt project target to Airflow.
 3. ``dbt_common`` — Shared bootstrap utilities for Databricks dbt notebooks
    (``_write_profiles_yml``, ``run_dbt_command``, ``cleanup``).
 
@@ -359,33 +359,21 @@ class TestExportDBTDocsAzureConstants:
 
     def _import_constants(self):
         from plugins.operators.export_dbt_docs_azure import (
-            BLOB_PREFIX,
-            GOLD_CONTAINER,
             LOCAL_DOCS_DIR,
             REQUIRED_FILES,
         )
 
-        return REQUIRED_FILES, LOCAL_DOCS_DIR, GOLD_CONTAINER, BLOB_PREFIX
+        return REQUIRED_FILES, LOCAL_DOCS_DIR
 
     def test_required_files(self):
         """REQUIRED_FILES lists the three expected artifacts."""
-        files, _, _, _ = self._import_constants()
+        files, _ = self._import_constants()
         assert files == ["index.html", "manifest.json", "catalog.json"]
 
     def test_docs_dir(self):
         """LOCAL_DOCS_DIR is set to the expected path."""
-        _, docs_dir, _, _ = self._import_constants()
+        _, docs_dir = self._import_constants()
         assert docs_dir == "/opt/airflow/data/dbt-docs"
-
-    def test_gold_container(self):
-        """GOLD_CONTAINER is 'gold'."""
-        _, _, container, _ = self._import_constants()
-        assert container == "gold"
-
-    def test_blob_prefix(self):
-        """BLOB_PREFIX is 'dbt-docs'."""
-        _, _, _, prefix = self._import_constants()
-        assert prefix == "dbt-docs"
 
 
 class TestExportDBTDocsAzure:
@@ -393,48 +381,16 @@ class TestExportDBTDocsAzure:
 
     # ── Helpers ──────────────────────────────────────────────────────────
 
-    @contextmanager
-    def _mock_azure_sdk(self, blob_service_cls=None):
-        """Mock the ``azure.storage.blob`` package in ``sys.modules``.
-
-        The ``_download_with_azure_sdk`` function imports
-        ``BlobServiceClient`` inside a ``try`` block, so we inject a mock
-        module hierarchy to satisfy that import without requiring the actual
-        ``azure-storage-blob`` package.
-        """
-        mock_blob = MagicMock(name="azure.storage.blob")
-        if blob_service_cls is not None:
-            mock_blob.BlobServiceClient = blob_service_cls
-
-        saved = {}
-        for key in ("azure", "azure.storage", "azure.storage.blob"):
-            saved[key] = sys.modules.get(key)
-
-        sys.modules["azure"] = MagicMock(name="azure")
-        sys.modules["azure.storage"] = MagicMock(name="azure.storage")
-        # Wire submodule access so ``from azure.storage.blob import X`` works
-        sys.modules["azure.storage"].blob = mock_blob
-        sys.modules["azure.storage.blob"] = mock_blob
-
-        try:
-            yield mock_blob
-        finally:
-            for key in ("azure", "azure.storage", "azure.storage.blob"):
-                if saved[key] is not None:
-                    sys.modules[key] = saved[key]
-                else:
-                    sys.modules.pop(key, None)
-
     @pytest.fixture(autouse=True)
     def _ensure_module_loaded(self):
         from plugins.operators.export_dbt_docs_azure import (
-            _download_with_azure_sdk,
+            _copy_from_local_target,
             _verify_docs,
             export_dbt_docs_to_airflow,
         )
 
         self._export_dbt_docs_to_airflow = export_dbt_docs_to_airflow
-        self._download_with_azure_sdk = _download_with_azure_sdk
+        self._copy_from_local_target = _copy_from_local_target
         self._verify_docs = _verify_docs
         yield
 
@@ -473,195 +429,56 @@ class TestExportDBTDocsAzure:
         with patch("os.path.isfile", return_value=False):
             assert self._verify_docs() is False
 
-    # ── _download_with_azure_sdk() ──────────────────────────────────────
+    # ── _copy_from_local_target() ───────────────────────────────────────
 
-    def test_sdk_not_installed(self, caplog_export):
-        """azure-storage-blob ImportError → warning, returns None."""
-        # Simulate missing azure by patching sys.modules to remove it
-        saved_azure = sys.modules.pop("azure", None)
-        saved_storage = sys.modules.pop("azure.storage", None)
-        saved_blob = sys.modules.pop("azure.storage.blob", None)
-        try:
-            self._download_with_azure_sdk("acct", "key")
-        finally:
-            if saved_azure is not None:
-                sys.modules["azure"] = saved_azure
-            if saved_storage is not None:
-                sys.modules["azure.storage"] = saved_storage
-            if saved_blob is not None:
-                sys.modules["azure.storage.blob"] = saved_blob
-        self._assert_log_contains(caplog_export, "azure-storage-blob SDK not installed")
+    def test_local_target_copy_success(self):
+        """Local dbt target has all files → copies them, returns True."""
+        with patch("os.path.isdir", return_value=True):
+            with patch("os.path.isfile", return_value=True):
+                with patch("os.path.getsize", return_value=100):
+                    with patch("plugins.operators.export_dbt_docs_azure.shutil.copy2") as mock_copy:
+                        result = self._copy_from_local_target()
 
-    def test_sdk_download_success(self):
-        """Full SDK flow with all files downloaded."""
-        mock_blob_client = MagicMock()
-        mock_blob_client.download_blob.return_value.readall.return_value = b"content"
+        assert result is True
+        assert mock_copy.call_count == 3
 
-        mock_container_client = MagicMock()
-        mock_container_client.get_container_properties.return_value = None
-        mock_container_client.get_blob_client.return_value = mock_blob_client
+    def test_local_target_missing_dir(self, caplog_export):
+        """Local dbt target directory does not exist → False."""
+        with patch("os.path.isdir", return_value=False):
+            result = self._copy_from_local_target()
 
-        mock_blob_service = MagicMock()
-        mock_blob_service.from_connection_string.return_value.get_container_client.return_value = mock_container_client
+        assert result is False
+        self._assert_log_contains(caplog_export, "Local dbt target directory not found")
 
-        with self._mock_azure_sdk(blob_service_cls=mock_blob_service):
-            with patch("builtins.open", mock_open()):
-                self._download_with_azure_sdk("acct", "key")
+    def test_local_target_no_files(self, caplog_export):
+        """Local dbt target exists but has no artifacts → False."""
+        with patch("os.path.isdir", return_value=True):
+            with patch("os.path.isfile", return_value=False):
+                result = self._copy_from_local_target()
 
-        assert mock_blob_client.download_blob.call_count == 3
-
-    def test_sdk_container_not_found(self, caplog_export):
-        """Container not accessible → warning, no download."""
-        mock_container_client = MagicMock()
-        mock_container_client.get_container_properties.side_effect = Exception("Not found")
-
-        mock_blob_service = MagicMock()
-        mock_blob_service.from_connection_string.return_value.get_container_client.return_value = mock_container_client
-
-        with self._mock_azure_sdk(blob_service_cls=mock_blob_service):
-            self._download_with_azure_sdk("acct", "key")
-
-        self._assert_log_contains(caplog_export, "not found or not accessible")
-
-    def test_sdk_partial_download(self, caplog_export):
-        """Some blobs fail → warning, continues to next."""
-        mock_container_client = MagicMock()
-        mock_container_client.get_container_properties.return_value = None
-
-        def blob_side_effect(path):
-            if "manifest" in path:
-                raise Exception("Blob not found")
-            mock = MagicMock()
-            mock.download_blob().readall.return_value = b"ok"
-            return mock
-
-        mock_container_client.get_blob_client.side_effect = blob_side_effect
-
-        mock_blob_service = MagicMock()
-        mock_blob_service.from_connection_string.return_value.get_container_client.return_value = mock_container_client
-
-        with self._mock_azure_sdk(blob_service_cls=mock_blob_service):
-            with patch("builtins.open", mock_open()):
-                self._download_with_azure_sdk("acct", "key")
-
-        self._assert_log_contains(caplog_export, "Could not download")
+        assert result is False
+        self._assert_log_contains(caplog_export, "No dbt docs artifacts found")
 
     # ── export_dbt_docs_to_airflow() ────────────────────────────────────
 
-    def test_no_storage_creds_falls_through(self, caplog_export):
-        """No STORAGE_ACCOUNT_NAME/STORAGE_ACCESS_KEY → info log, local check."""
-        saved = os.environ.pop("STORAGE_ACCOUNT_NAME", None), os.environ.pop("STORAGE_ACCESS_KEY", None)
-        try:
-            # Both no creds and no local docs → warning
+    def test_local_target_success_returns_early(self, caplog_export):
+        """Local target copy succeeds → returns, no fallback."""
+        with patch("plugins.operators.export_dbt_docs_azure._copy_from_local_target", return_value=True):
+            with patch("plugins.operators.export_dbt_docs_azure._verify_docs", return_value=True):
+                with patch("plugins.operators.export_dbt_docs_azure.os.makedirs"):
+                    self._export_dbt_docs_to_airflow()
+
+        self._assert_log_contains(caplog_export, "dbt docs artifacts copied from")
+
+    def test_both_methods_fail_graceful(self, caplog_export):
+        """Both local methods fail → warning with actionable steps."""
+        with patch("plugins.operators.export_dbt_docs_azure._copy_from_local_target", return_value=False):
             with patch("plugins.operators.export_dbt_docs_azure._verify_docs", return_value=False):
                 with patch("plugins.operators.export_dbt_docs_azure.os.makedirs"):
                     self._export_dbt_docs_to_airflow()
 
-            self._assert_log_contains(caplog_export, "not configured")
-            self._assert_log_contains(caplog_export, "not downloaded")
-        finally:
-            if saved[0] is not None:
-                os.environ["STORAGE_ACCOUNT_NAME"] = saved[0]
-            if saved[1] is not None:
-                os.environ["STORAGE_ACCESS_KEY"] = saved[1]
-
-    def test_sdk_success_returns_early(self):
-        """SDK download succeeds → returns, no fallback needed."""
-        saved = os.environ.pop("STORAGE_ACCOUNT_NAME", None), os.environ.pop("STORAGE_ACCESS_KEY", None)
-        try:
-            os.environ["STORAGE_ACCOUNT_NAME"] = "myacct"
-            os.environ["STORAGE_ACCESS_KEY"] = "mykey"
-
-            with patch("plugins.operators.export_dbt_docs_azure._download_with_azure_sdk") as mock_dl:
-                with patch("plugins.operators.export_dbt_docs_azure._verify_docs", return_value=True):
-                    with patch("plugins.operators.export_dbt_docs_azure.os.makedirs"):
-                        self._export_dbt_docs_to_airflow()
-
-            mock_dl.assert_called_once_with("myacct", "mykey")
-        finally:
-            if saved[1] is not None:
-                os.environ["STORAGE_ACCESS_KEY"] = saved[1]
-            if saved[0] is not None:
-                os.environ["STORAGE_ACCOUNT_NAME"] = saved[0]
-
-    def test_sdk_failure_falls_back_to_local(self, caplog_export):
-        """SDK fails → tries local, succeeds there."""
-        saved = os.environ.pop("STORAGE_ACCOUNT_NAME", None), os.environ.pop("STORAGE_ACCESS_KEY", None)
-        try:
-            os.environ["STORAGE_ACCOUNT_NAME"] = "myacct"
-            os.environ["STORAGE_ACCESS_KEY"] = "mykey"
-
-            with patch("plugins.operators.export_dbt_docs_azure._download_with_azure_sdk") as mock_dl:
-                mock_dl.side_effect = Exception("SDK download failed")
-                with patch(
-                    "plugins.operators.export_dbt_docs_azure._verify_docs",
-                    return_value=True,
-                ):
-                    with patch("plugins.operators.export_dbt_docs_azure.os.makedirs"):
-                        self._export_dbt_docs_to_airflow()
-
-            self._assert_log_contains(caplog_export, "SDK download failed")
-            self._assert_log_contains(caplog_export, "already present")
-        finally:
-            if saved[1] is not None:
-                os.environ["STORAGE_ACCESS_KEY"] = saved[1]
-            if saved[0] is not None:
-                os.environ["STORAGE_ACCOUNT_NAME"] = saved[0]
-
-    def test_all_methods_fail_graceful(self, caplog_export):
-        """Both methods fail → warning about remaining on DBFS."""
-        saved = os.environ.pop("STORAGE_ACCOUNT_NAME", None), os.environ.pop("STORAGE_ACCESS_KEY", None)
-        try:
-            with patch("plugins.operators.export_dbt_docs_azure._verify_docs", return_value=False):
-                with patch("plugins.operators.export_dbt_docs_azure.os.makedirs"):
-                    self._export_dbt_docs_to_airflow()
-
-            self._assert_log_contains(caplog_export, "remain available on Databricks DBFS")
-        finally:
-            if saved[0] is not None:
-                os.environ["STORAGE_ACCOUNT_NAME"] = saved[0]
-            if saved[1] is not None:
-                os.environ["STORAGE_ACCESS_KEY"] = saved[1]
-
-    # ── Databricks-convention env var tests ──────────────────────────────
-
-    def test_databricks_env_vars_used_when_set(self):
-        """AZURE_STORAGE_ACCOUNT / AZURE_STORAGE_KEY → SDK called with those values."""
-        for k in ("STORAGE_ACCOUNT_NAME", "STORAGE_ACCESS_KEY", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY"):
-            os.environ.pop(k, None)
-        try:
-            os.environ["AZURE_STORAGE_ACCOUNT"] = "databricks-acct"
-            os.environ["AZURE_STORAGE_KEY"] = "databricks-key"
-
-            with patch("plugins.operators.export_dbt_docs_azure._download_with_azure_sdk") as mock_dl:
-                with patch("plugins.operators.export_dbt_docs_azure._verify_docs", return_value=True):
-                    with patch("plugins.operators.export_dbt_docs_azure.os.makedirs"):
-                        self._export_dbt_docs_to_airflow()
-
-            mock_dl.assert_called_once_with("databricks-acct", "databricks-key")
-        finally:
-            for k in ("AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY", "STORAGE_ACCOUNT_NAME", "STORAGE_ACCESS_KEY"):
-                os.environ.pop(k, None)
-
-    def test_databricks_names_take_priority(self):
-        """Both conventions set → AZURE_STORAGE_* takes priority."""
-        for k in ("STORAGE_ACCOUNT_NAME", "STORAGE_ACCESS_KEY", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY"):
-            os.environ.pop(k, None)
-        try:
-            os.environ["AZURE_STORAGE_ACCOUNT"] = "priority-acct"
-            os.environ["AZURE_STORAGE_KEY"] = "priority-key"
-            os.environ["STORAGE_ACCOUNT_NAME"] = "legacy-acct"
-            os.environ["STORAGE_ACCESS_KEY"] = "legacy-key"
-
-            with patch("plugins.operators.export_dbt_docs_azure._download_with_azure_sdk") as mock_dl:
-                with patch("plugins.operators.export_dbt_docs_azure._verify_docs", return_value=True):
-                    with patch("plugins.operators.export_dbt_docs_azure.os.makedirs"):
-                        self._export_dbt_docs_to_airflow()
-
-            mock_dl.assert_called_once_with("priority-acct", "priority-key")
-        finally:
-            for k in ("AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY", "STORAGE_ACCOUNT_NAME", "STORAGE_ACCESS_KEY"):
-                os.environ.pop(k, None)
+        self._assert_log_contains(caplog_export, "not downloaded")
+        self._assert_log_contains(caplog_export, "dbt project target")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
