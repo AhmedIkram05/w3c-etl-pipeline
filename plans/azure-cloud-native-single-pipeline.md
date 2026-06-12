@@ -325,7 +325,7 @@ Docker is NOT a production data platform.
 
 - **Tier 1 (every push):** Ruff, mypy, pytest (unit + DAG integrity only — NOT integration), `dbt compile --profile w3c` (PostgreSQL dialect, no cloud needed), `terraform validate`, `terraform fmt --check`
 - **CD (merge to main):** Terraform plan/apply, DAB deploy, dbt deploy, Airflow sync, post-deploy smoke test (trigger Airflow DAG via REST API + poll DAG completion + assert Azure SQL row count). No standalone nightly integration suite — smoke test covers same ground only when code changes.
-- **CD OIDC auth:** CD uses OIDC Workload Identity Federation (no client secrets). GitHub Environments: `azure-dev`, `azure-staging`, `azure-prod` with protection rules.
+- **CD OIDC auth:** CD uses OIDC Workload Identity Federation (no client secrets). Single GitHub Environment: `azure-dev` (auto on merge to main).
 - **Shared credentials:** Terraform remote state backend credentials (`ARM_*`) are the same OIDC identity used by CD.
 
 ### Docker Role Constraints
@@ -947,18 +947,19 @@ The storage account key remains in pipeline configurations (via `TF_VAR_storage_
 
 **Phase Goal:** Configure CI/CD (Tier 1 on every push + CD on merge to main). Tier 1 provides fast code-quality feedback with no Azure creds. CD deploys to Azure with an embedded post-deploy smoke test validating the pipeline end-to-end.
 
-**Summary:** Created 4 CI jobs (lint, test, dbt-compile, terraform) via 3 reusable workflow templates (`_reusable-lint.yml`, `_reusable-test.yml`, `_reusable-terraform.yml`) and 1 inline `dbt-compile` job requiring dual service containers. Built 7-job CD pipeline (`cd.yml`, 349 lines) with OIDC-managed auth, environment-gated approvals (dev auto, staging/prod manual), DAB deploy, dbt deploy with first-deploy fallback, DAG sync, and post-deploy smoke test (trigger → poll → SQL assert). **OIDC fully managed by Terraform** (`github_oidc.tf` — 77 lines) — no manual Azure CLI commands. Deployment runbook documented (`docs/deployment-runbook.md`, 301 lines). Dependabot configured (`.github/dependabot.yml` + auto-merge workflow). Code review caught 9 issues across `cd.yml` and `databricks.yml` — all fixed. All artifacts validate locally (terraform fmt/validate ✅, ruff ✅, mypy ✅, databricks.yml YAML valid ✅).
+**Summary:** Created 4 CI jobs (lint, test, dbt-compile, terraform) via 3 reusable workflow templates (`_reusable-lint.yml`, `_reusable-test.yml`, `_reusable-terraform.yml`) and 1 inline `dbt-compile` job requiring dual service containers. Built 7-job CD pipeline (`cd.yml`, 362 lines) with OIDC-managed auth, single environment (`azure-dev`, auto on merge to main), DAB deploy, dbt deploy with first-deploy fallback, DAG sync, and post-deploy smoke test (trigger → poll → SQL assert). **OIDC fully managed by Terraform** (`github_oidc.tf`) — creates `azuread_application`, `azuread_application_federated_identity_credential` (1 for `azure-dev`), `azurerm_role_assignment`. Pulled back from 3 environments to 1 (`azure-dev` only) per user request — staging/prod unnecessary complexity for a CV project. Dependabot configured (`.github/dependabot.yml` + auto-merge workflow). Code review caught 9 issues across `cd.yml` and `databricks.yml` — all fixed. All artifacts validate locally (terraform fmt/validate ✅, ruff ✅, mypy ✅, databricks.yml YAML valid ✅).
 
 **⚠️ Differences from Plan Scaffold:**
 
 | Plan Scaffold | Actual Implementation | Reason |
 |---------------|----------------------|--------|
-| OIDC via manual `az ad app` CLI commands | Terraform-managed via `github_oidc.tf` — `azuread_application`, `azuread_application_federated_identity_credential` × 3, `azurerm_role_assignment` | IaC best practice; single deploy creates app + 3 federated creds + Contributor role |
+| OIDC via manual `az ad app` CLI commands | Terraform-managed via `github_oidc.tf` — `azuread_application`, `azuread_application_federated_identity_credential` (1 for `azure-dev`), `azurerm_role_assignment` | IaC best practice; single deploy creates app + federated cred + Contributor role |
+| 3 GitHub Environments (dev, staging, prod) | Single environment `azure-dev` only | Simplified for CV project — staging/prod add complexity without portfolio value |
 | Smoke test DAG ID `spark_ingestion_azure` | `w3c_spark_ingestion_azure` — actual ID matching DAG definition | Code review fix — wrong ID causes 404 on every CD run |
 | Duplicate `failed` condition `[ "$STATE" = "failed" ] \|\| [ "$STATE" = "failed" ]` | `[ "$STATE" = "failed" ] \|\| [ "$STATE" = "upstream_failed" ]` | Copy-paste error — `upstream_failed` and other terminal states were silently ignored |
-| dbt `--defer --state` with no fallback for first deploy | `if [ -f "./target-prod/manifest.json" ]` check falls back to plain `dbt run` | First deployment has no prior manifest — `--defer` would fail |
+| dbt `--defer --state` with no fallback for first deploy | `if [ -f "./target-dev/manifest.json" ]` check falls back to plain `dbt run` | First deployment has no prior manifest — `--defer` would fail |
 | Rollback: `terraform apply -refresh-only` | Rollback: `terraform plan` + `terraform apply` for Part A and B separately (+ prior commit checkout) | `-refresh-only` syncs state without changing infrastructure — no-op as rollback |
-| Reusable workflows: "optional refactoring after baseline works" | Mandatory from the start — `ci.yml` calls 3 reusable templates | Cleaner separation; easier to maintain and extend in Phase 10+ |
+| Reusable workflows: "optional refactoring after baseline works" | Mandatory from the start — `ci.yml` calls 3 reusable templates | Cleaner separation; easier to maintain and extend |
 | `dbt_compile` pytest marker not registered | Registered in `pyproject.toml` — `dbt_compile` excluded from main CI test run | Required for CI to correctly filter dbt compile unit tests |
 
 **Post-Completion Fixes Applied (code review — 2026-06-13):**
@@ -968,17 +969,16 @@ The storage account key remains in pipeline configurations (via `TF_VAR_storage_
 | 1 | `cd.yml`: unused `DAB_TARGET_DEV: dev` env var | Removed (dead code) |
 | 2 | `cd.yml`: sync-airflow step redundantly triggered DAG via curl **and** smoke test also triggers separately | Replaced curl trigger with echo confirmation — smoke test is the sole trigger |
 | 3 | `cd.yml`: misleading step name "Trigger DAG Bag Refresh" | Renamed to "DAG file sync complete — smoke test will trigger ingestion" |
-| 4 | `databricks.yml`: hardcoded Databricks dev workspace URL | Changed to `${DATABRICKS_HOST_DEV}` env var (consistent with staging/prod pattern) |
+| 4 | `databricks.yml`: hardcoded Databricks dev workspace URL | Changed to `${DATABRICKS_HOST_DEV}` env var |
 | 5 | Missing Dependabot auto-merge workflow | Created `.github/workflows/dependabot-auto-merge.yml` — approves + merges patch PRs |
 
 **Verified State:**
 - CI: 4 jobs (lint, test, dbt-compile, terraform) — ruff, mypy, pytest (227 tests), dbt compile (2 profiles), terraform validate + fmt (Part A + B) all pass locally
-- CD: 7 jobs (terraform-plan, terraform-apply, deploy-dab, deploy-dbt, sync-airflow, smoke-test, rollback) — environment-gated via GitHub Environments
-- OIDC: `azuread_application.github_actions` (gha-w3c-etl-pipeline) + service principal + 3 federated identity credentials + Contributor role assignment — all Terraform-managed
-- DAB: `databricks.yml` with 9 workspace file resources + 3 targets (dev/staging/prod)
-- Runbook: `docs/deployment-runbook.md` — OIDC bootstrap, GitHub Environment setup, deployment sequence, troubleshooting
+- CD: 7 jobs (terraform-plan, terraform-apply, deploy-dab, deploy-dbt, sync-airflow, smoke-test, rollback) — single environment (`azure-dev`, auto on merge to main)
+- OIDC: `azuread_application.github_actions` (gha-w3c-etl-pipeline) + service principal + 1 federated identity credential (for `azure-dev`) + Contributor role assignment — all Terraform-managed
+- DAB: `databricks.yml` with 9 workspace file resources + 1 target (`dev`)
 - Dependabot: `.github/dependabot.yml` (5 ecosystems) + `dependabot-auto-merge.yml` (patch auto-approve)
-- 2 checklist items require git push (CI test on push, CD test on merge to main) + 1 requires GitHub UI (Environments) + 1 requires bootstrap terraform apply (OIDC first deploy)
+- Remaining: 2 items require git push (CI test on push, CD test on merge to main) + 1 requires GitHub UI (Environment with variables/secrets) + 1 requires bootstrap terraform apply (OIDC first deploy)
 
 **Critical Lessons Learned:**
 1. **DAG IDs need the full namespace** — Smoke test referenced `spark_ingestion_azure` but the actual ID is `w3c_spark_ingestion_azure`. Always check actual DAG definitions when building CD smoke tests.
@@ -987,7 +987,7 @@ The storage account key remains in pipeline configurations (via `TF_VAR_storage_
 4. **Dependabot auto-merge needs a separate workflow** — `dependabot.yml` alone can't auto-merge PRs. A `workflow_run` or `pull_request_target` workflow is required to approve and merge.
 5. **CD pipeline must handle idempotent dbt deployment** — `--defer` references production state but the state file doesn't exist on first deploy per environment. The manifest check pattern solves this.
 
-**Phase 9 → Phase 10 Handoff:** ✅ Complete. CI/CD pipelines built and validated locally (terraform validate/fmt, ruff, mypy, pytest all pass). OIDC Terraform-managed with 3 federated identity credentials. Remaining items require git push to GitHub (CI/CD test on push/merge), manual GitHub Environment creation with variables/secrets, and one-time OIDC bootstrap apply. Ready for Phase 10 monitoring configuration.
+**Phase 9 → Phase 10 Handoff:** ✅ Complete. CI/CD pipelines built and validated locally (terraform validate/fmt, ruff, mypy, pytest all pass). OIDC Terraform-managed with 1 federated identity credential for `azure-dev`. Remaining items require git push to GitHub (CI/CD test on push/merge), manual GitHub Environment setup with variables/secrets, and one-time OIDC bootstrap apply. Ready for Phase 10 monitoring configuration.
 
 ---
 
@@ -1426,7 +1426,7 @@ az ad sp delete --id $SP_ID
 
 ```bash
 # Via GitHub UI: Settings > Secrets and variables > Actions
-# Delete CD secrets from each GitHub Environment (azure-dev, azure-staging, azure-prod):
+# Delete CD secrets from GitHub Environment (azure-dev):
 # - AZURE_CLIENT_ID (OIDC federated credential app ID)
 # - AZURE_TENANT_ID
 # - AZURE_SUBSCRIPTION_ID
@@ -1440,7 +1440,7 @@ az ad sp delete --id $SP_ID
 
 ```bash
 # Via GitHub UI: Settings > Environments
-# Delete azure-dev, azure-staging, azure-prod environments
+# Delete azure-dev environment
 ```
 
 ## Step 7: Verify Cleanup
@@ -1607,9 +1607,9 @@ chmod +x scripts/teardown.sh
 - [x] CD pipeline configured (merge to main, deploy to Azure)
 - [x] CD includes: Terraform plan/apply, DAB deploy, dbt deploy, Airflow sync, smoke test
 - [ ] Scheduled trigger configured (Friday 5:00 PM UTC via cron) — pending from Phase 8
-- [ ] GitHub Environments configured: `azure-dev`, `azure-staging`, `azure-prod` — requires GitHub UI setup
-- [ ] OIDC Workload Identity Federation configured (no client secrets) — requires Azure CLI setup
-- [ ] CD secrets configured in GitHub Environments — documented in runbook
+- [ ] GitHub Environment configured: `azure-dev` — requires GitHub UI setup with variables/secrets
+- [ ] OIDC Workload Identity Federation configured via Terraform (github_oidc.tf) — requires bootstrap terraform apply + copy client ID to Azure Client ID environment variable
+- [ ] CD secrets configured in GitHub Environment azure-dev
 - [x] Deployment runbook documented (`docs/deployment-runbook.md`)
 
 ### Monitoring
