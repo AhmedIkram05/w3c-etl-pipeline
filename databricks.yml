@@ -63,7 +63,7 @@ resources:
 targets:
   dev:
     workspace:
-      host: https://adb-7405616994554630.10.azuredatabricks.net
+      host: ${DATABRICKS_HOST_DEV}
 
   staging:
     workspace:
