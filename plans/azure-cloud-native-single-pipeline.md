@@ -77,9 +77,14 @@ Power BI (18 CSV files under airflow/data/Star-Schema/)
 ### Orchestration Flow
 
 ```
-Airflow (Docker container)
-
-  DAG 1: spark_ingestion_azure.py (Daily 2 AM UTC — schedule: "0 2 * * *")
+ Azure Event Grid (BlobCreated on ADLS raw-logs/*.log)
+      │
+      ▼
+ Azure Function (forward BlobCreated event → Airflow REST API)
+      │  POST /api/v1/dags/spark_ingestion_azure/dagRuns
+      ▼
+ Airflow DAG: spark_ingestion_azure.py (schedule=None — REST API-triggered)
+    │  2 sequential tasks:
     │
     ├─ Task 1: bronze_silver_jdbc_pipeline
     │    └─ DatabricksRunNowOperator → Databricks Workflows (job_id: 847995192336508)
@@ -93,7 +98,7 @@ Airflow (Docker container)
               ├─ Builds dbo.dim_useragent (MERGE upsert on ua_hash)
               └─ Fires Dataset: mssql://azure-sql/dbo/raw_enriched_loaded
 
-  DAG 2: dbt_marts_azure.py (Dataset-triggered by spark_ingestion_azure's outlet)
+ Airflow DAG: dbt_marts_azure.py (Dataset-triggered by spark_ingestion_azure's outlet)
     └─ DatabricksSubmitRunOperator running dbt against Azure SQL
          ├─ dbt run --profile w3c_azure
          ├─ dbt test --profile w3c_azure
@@ -130,8 +135,10 @@ Docker is NOT a production data platform.
 | **Power BI** | Analytics consumption layer (CSV-based semantic model) |
 | **Grafana + Prometheus** | Monitoring and alerting |
 | **Terraform** | Infrastructure as Code (Azure + Databricks resources) |
-| **GitHub Actions** | CI/CD automation (split-tier: every push + nightly integration) |
-| **Python 3.11** | Primary language for PySpark, UDFs, Airflow operators |
+| **Azure Event Grid** | Event-driven trigger on ADLS BlobCreated events (replaces cron schedules) |
+| **Azure Functions** | Lightweight handler forwarding Event Grid events → Databricks Jobs API |
+| **GitHub Actions** | CI/CD automation (split-tier: every push + CD on merge to main) |
+| **Python 3.12** | Primary language for PySpark, UDFs, Airflow operators |
 | **PySpark** | Data processing framework (Databricks Runtime 15.4.x) |
 
 ---
@@ -202,8 +209,9 @@ Docker is NOT a production data platform.
 **CI/CD:**
 
 - Tier 1 CI (every push, no Azure creds)
-- Tier 2 CI (nightly integration, protected by GitHub Environment)
-- Service principal credential setup for Terraform backend + Tier 2 CI
+- CD pipeline (merge to main, Terraform plan/apply, DAB deploy, dbt deploy, Airflow sync, smoke test)
+- Event-driven scheduling (Event Grid + Azure Function, no cron schedules)
+- OIDC Workload Identity Federation setup (no client secrets)
 
 **Documentation:**
 
@@ -301,10 +309,10 @@ Docker is NOT a production data platform.
 
 ### Airflow DAG Constraints
 
-- **DAG 1:** `spark_ingestion_azure.py` (Daily 2 AM UTC): orchestrates entire ETL with 2 sequential tasks:
-  - Task 1: `bronze_silver_jdbc_pipeline` — `DatabricksRunNowOperator` triggers Databricks Workflow (job ID from `DATABRICKS_JOB_ID` env var)
+- **DAG 1:** `spark_ingestion_azure.py`: REST API-triggered (`schedule=None`). Triggered by Azure Function via Airflow REST API (`POST /api/v1/dags/spark_ingestion_azure/dagRuns`) when Event Grid detects a new log file. 2 sequential tasks:
+  - Task 1: `bronze_silver_jdbc_pipeline` — `DatabricksRunNowOperator` triggers Databricks Workflow (job ID from `DATABRICKS_JOB_ID` env var). The Workflow runs Bronze → Silver → JDBC Export. Task waits for completion.
   - Task 2: `export_dimensions` — `PythonOperator` with inline `_export_dimensions` callable; builds `dim_geolocation` + `dim_useragent` from Azure SQL via pyodbc MERGE upsert; fires `Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")` outlet for downstream dbt DAG
-- **DAG 2:** `dbt_marts_azure.py`: Dataset-triggered; runs dbt against Azure SQL target (not yet implemented)
+- **DAG 2:** `dbt_marts_azure.py`: Dataset-triggered by `spark_ingestion_azure.py`'s outlet; runs dbt against Azure SQL target
 - **No standalone operator file:** Dimension export logic is inlined in `spark_ingestion_azure.py` as `_export_dimensions()` — no separate `airflow/dags/operators/` directory needed. The existing `airflow/dags/w3c/` directory hosts all DAG files.
 - **Provider version:** `apache-airflow-providers-databricks==4.6.0` installed in Dockerfile (NOT in requirements.txt — avoid pip conflict)
 - **Databricks connection:** `databricks_default` in Airflow with workspace URL + PAT token
@@ -322,10 +330,10 @@ Docker is NOT a production data platform.
 ### CI/CD Constraints
 
 - **Tier 1 (every push):** Ruff, mypy, pytest (unit + DAG integrity only — NOT integration), `dbt compile --profile w3c` (PostgreSQL dialect, no cloud needed), `terraform validate`, `terraform fmt --check`
-- **Tier 2 (nightly or manual):** Full integration test — upload sample logs to ADLS Gen2, trigger Databricks Workflow via REST API, poll job status, query Azure SQL for expected row counts, assert 18 CSV exports produced. Also triggers `dbt docs generate` on Databricks and validates `catalog.json` artifact is written.
-- **Tier 2 protection:** Tier 2 GitHub Actions job uses `azure/login` with service principal credentials. Required secrets: `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_SUBSCRIPTION_ID`, `ARM_TENANT_ID`, `DATABRICKS_TOKEN`, `AZURE_SQL_SERVER`, `AZURE_SQL_DB`, `AZURE_SQL_USER`, `AZURE_SQL_PASSWORD`
-- **GitHub Environment:** Tier 2 is protected by a GitHub Environment (`azure-integration`) with manual approval gate to prevent accidental credit spend
-- **Shared credentials:** Terraform remote state backend credentials (`ARM_*`) are the same service principal used by Tier 2 CI — document this shared credential reuse in Phase 0
+- **CD (merge to main):** Terraform plan/apply, DAB deploy, dbt deploy, Airflow sync, post-deploy smoke test (trigger Airflow DAG via REST API + poll DAG completion + assert Azure SQL row count). No standalone nightly integration suite — smoke test covers same ground only when code changes.
+- **Event-driven scheduling:** All cron schedules removed. Trigger chain: Event Grid (BlobCreated on raw-logs/*.log) → Azure Function → Airflow REST API (triggers DAG 1). DAG 1 orchestrates the Databricks Workflow via `DatabricksRunNowOperator`. Databricks Workflow has no schedule block. Local `spark_ingestion.py` DAG also loses its weekly schedule.
+- **CD OIDC auth:** CD uses OIDC Workload Identity Federation (no client secrets). GitHub Environments: `azure-dev`, `azure-staging`, `azure-prod` with protection rules.
+- **Shared credentials:** Terraform remote state backend credentials (`ARM_*`) are the same OIDC identity used by CD.
 
 ### Docker Role Constraints
 
@@ -942,39 +950,323 @@ The storage account key remains in pipeline configurations (via `TF_VAR_storage_
 
 ---
 
-### Phase 9 — Split CI/CD
+### Phase 9 — CI/CD
 
-**Phase Goal:** Configure split-tier CI/CD with Tier 1 (every push, no Azure creds) and Tier 2 (nightly integration, protected by GitHub Environment).
+**Phase Goal:** Configure CI/CD (Tier 1 on every push + CD on merge to main) with event-driven pipeline scheduling. Tier 1 provides fast code-quality feedback with no Azure creds. CD deploys to Azure with an embedded post-deploy smoke test validating the pipeline end-to-end. All cron schedules are replaced with Azure Event Grid triggers on ADLS blob creation events. No standalone nightly integration suite — the CD smoke test covers the same ground only when code actually changes.
 
 **Checklist:**
 
-- [ ] Create `.github/workflows/ci.yml` with Tier 1 jobs
+All items are grouped by implementation order within a single phase. Start with Step 1 (event-driven refactor), then Step 2 (CI), then Step 3 (CD).
+
+**Step 1 — Event-Driven Scheduling Refactor (remove cron, add Event Grid):**
+- [ ] Add Terraform resources to Part A (`event-grid.tf`): storage account for function runtime, consumption plan, function app (Python 3.12), Event Grid system topic, Event Grid subscription
+- [ ] Add `airflow_url`, `airflow_username`, `airflow_password` variables to Part A `variables.tf`
+- [ ] Run `terraform apply` on Part A to create Event Grid + Function App infrastructure
+- [ ] Create Azure Function source code (`airflow/functions/trigger-airflow-dag/__init__.py`, `requirements.txt`, `function.json`) that POSTs to Airflow REST API on BlobCreated
+- [ ] Remove `schedule {}` block from Databricks Workflow in `terraform/part_b/main.tf`
+- [ ] Run `terraform apply` on Part B to remove schedule
+- [ ] Set `schedule=None` on `spark_ingestion_azure.py` DAG (REST API-triggered, keep DatabricksRunNowOperator)
+- [ ] Set `schedule=None` on `spark_ingestion.py` (local dev DAG, manual trigger only)
+- [ ] Update `test_terraform_part_b.py` — remove "daily schedule set correctly" test assertion
+- [ ] Update `test_dag_integrity.py` — remove cron schedule assertions; keep task count/dependency assertions
+- [ ] Verify trigger chain: upload .log → Event Grid → Azure Function → Airflow REST API → DAG 1 starts
+
+**Step 2 — CI Pipeline (Tier 1 — every push, no Azure creds):**
+- [ ] Create/update `.github/workflows/ci.yml` with Tier 1 jobs
 - [ ] Configure Tier 1: Ruff linting
 - [ ] Configure Tier 1: mypy type checking
 - [ ] Configure Tier 1: pytest unit + DAG integrity tests
 - [ ] Configure Tier 1: dbt compile --profile w3c (PostgreSQL)
-- [ ] Configure Tier 1: terraform validate
-- [ ] Configure Tier 1: terraform fmt --check
-- [ ] Create `.github/workflows/ci-integration.yml` with Tier 2 jobs
-- [ ] Configure Tier 2: Upload sample logs to ADLS
-- [ ] Configure Tier 2: Trigger Databricks Workflow via REST API
-- [ ] Configure Tier 2: Poll job status
-- [ ] Configure Tier 2: Query Azure SQL for expected row counts
-- [ ] Configure Tier 2: Assert 18 CSV exports produced
-- [ ] Configure Tier 2: Validate catalog.json dbt docs artifact
-- [ ] Configure GitHub Environment `azure-integration`
-- [ ] Add manual approval gate to Tier 2
-- [ ] Configure Tier 2 secrets (ARM_*, DATABRICKS_TOKEN, AZURE_SQL_*)
-- [ ] Document shared credential usage (Terraform backend + Tier 2 CI)
+- [ ] Configure Tier 1: dbt compile --profile w3c_azure (SQL Server, for T-SQL validation)
+- [ ] Configure Tier 1: terraform validate + fmt --check (Part A and B)
+- [ ] **Create reusable workflow templates** (`.github/workflows/_reusable-lint.yml`, `_reusable-test.yml`, `_reusable-terraform.yml`) — optional refactoring after baseline works
 - [ ] Test Tier 1 CI on push
-- [ ] Test Tier 2 CI via workflow_dispatch
+
+**Step 3 — CD Pipeline (Continuous Deployment — merge to main):**
+- [ ] Create `.github/workflows/cd.yml` with CD jobs
+- [ ] **Configure OIDC Workload Identity Federation for Azure auth** (no client secrets)
+- [ ] Create GitHub Environments: `azure-dev`, `azure-staging`, `azure-prod` with protection rules
+- [ ] Add `terraform plan` job (outputs plan to job logs; Tier 1 CI handles `terraform validate` + `fmt --check`)
+- [ ] Add `terraform apply` job for `azure-dev` (auto-approve on merge to main)
+- [ ] Add `terraform apply` job for `azure-staging` (manual approval gate)
+- [ ] Add `terraform apply` job for `azure-prod` (manual approval + required reviewers)
+- [ ] Deploy Databricks Asset Bundle per environment (`databricks bundle deploy -t <env>`)
+- [ ] Deploy dbt models per environment with `--defer` to prod (`dbt run --profile <env> --defer --state ./target-prod`)
+- [ ] Deploy Airflow DAGs to production (sync `airflow/dags/` to ADLS + trigger DAG bag refresh)
+- [ ] Deploy Azure Function code (zip deploy to `fn-w3c-event-forwarder` after Terraform creates infrastructure)
+- [ ] Add rollback job (`terraform apply -refresh-only` + previous bundle version, manual `workflow_dispatch`)
+- [ ] **Add post-deploy smoke test** (trigger Airflow DAG 1 via REST API + poll DAG completion + assert Azure SQL row counts — replaces standalone Tier 2 nightlies)
+- [ ] Add concurrency group on CD workflow (queue sequential runs — do NOT cancel in-progress)
+- [ ] Document deployment runbook (`docs/deployment-runbook.md`)
+- [ ] Configure Dependabot with auto-merge for patch updates (`.github/dependabot.yml`)
+- [ ] Test CD via merge to main
 
 **Code Scaffolds:**
 
-**.github/workflows/ci.yml (Tier 1):**
+Scaffolds below are grouped by implementation order. Implement Step 1 first, then Step 2, then Step 3 — each step can be verified independently before proceeding.
+
+---
+
+#### Step 1: Event-Driven Scheduling Refactor
+
+Implement event-driven triggering first so the pipeline no longer depends on cron schedules. This refactors the existing pipeline's scheduling mechanism without changing CI/CD.
+
+**Event Grid + Azure Function — Terraform Part A (`terraform/part_a/event-grid.tf`):**
+
+All Event Grid and Azure Function infrastructure is managed by Terraform in Part A (scoped to the same resource group as the storage account). The function's Python source code is deployed separately via the CD pipeline.
+
+```hcl
+# Standard StorageV2 account for Azure Function runtime (separate from ADLS Gen2)
+resource "azurerm_storage_account" "function_app" {
+  name                     = "stw3cfnwestus3"
+  resource_group_name      = azurerm_resource_group.main.name
+  location                 = azurerm_resource_group.main.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  account_kind             = "StorageV2"
+  tags                     = var.tags
+}
+
+# Consumption plan for Azure Function (Linux, Y1 — auto-scales to zero)
+resource "azurerm_service_plan" "function" {
+  name                = "asp-w3c-function"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  os_type             = "Linux"
+  sku_name            = "Y1"
+  tags                = var.tags
+}
+
+# Azure Function App (Python 3.12, Event Grid trigger)
+resource "azurerm_linux_function_app" "event_forwarder" {
+  name                       = "fn-w3c-event-forwarder"
+  resource_group_name        = azurerm_resource_group.main.name
+  location                   = azurerm_resource_group.main.location
+  service_plan_id            = azurerm_service_plan.function.id
+  storage_account_name       = azurerm_storage_account.function_app.name
+  storage_account_access_key = azurerm_storage_account.function_app.primary_access_key
+  https_only                 = true
+  functions_extension_version = "~4"
+
+  site_config {
+    application_stack {
+      python_version = "3.12"
+    }
+  }
+
+  app_settings = {
+    "AIRFLOW_URL"      = var.airflow_url
+    "AIRFLOW_USERNAME" = var.airflow_username
+    "AIRFLOW_PASSWORD" = var.airflow_password
+    "AIRFLOW_DAG_ID"   = "spark_ingestion_azure"
+  }
+
+  identity {
+    type = "SystemAssigned"  # Managed identity for Azure resource access
+  }
+
+  tags = var.tags
+}
+
+# Event Grid system topic on the ADLS storage account
+resource "azurerm_eventgrid_system_topic" "new_file" {
+  name                   = "evgt-w3c-new-file-event"
+  resource_group_name    = azurerm_resource_group.main.name
+  location               = azurerm_resource_group.main.location
+  source_arm_resource_id = azurerm_storage_account.adls.id
+  topic_type             = "Microsoft.Storage.StorageAccounts"
+  tags                   = var.tags
+}
+
+# Event Grid subscription: BlobCreated on raw-logs/*.log → Azure Function
+resource "azurerm_eventgrid_system_topic_event_subscription" "raw_logs" {
+  name                = "w3c-raw-logs-sub"
+  system_topic        = azurerm_eventgrid_system_topic.new_file.name
+  resource_group_name = azurerm_resource_group.main.name
+
+  included_event_types = ["Microsoft.Storage.BlobCreated"]
+
+  subject_filter {
+    subject_begins_with = "/blobServices/default/containers/raw-logs/"
+    subject_ends_with   = ".log"
+  }
+
+  azure_function_endpoint {
+    function_id = "${azurerm_linux_function_app.event_forwarder.id}/functions/trigger-airflow-dag"
+  }
+}
+```
+
+**Variables to add to `terraform/part_a/variables.tf`:**
+```hcl
+variable "airflow_url" {
+  description = "Airflow webserver URL for REST API triggers"
+  type        = string
+  sensitive   = false
+}
+
+variable "airflow_username" {
+  description = "Airflow REST API username"
+  type        = string
+  sensitive   = true
+}
+
+variable "airflow_password" {
+  description = "Airflow REST API password"
+  type        = string
+  sensitive   = true
+}
+```
+
+Note: Sensitive variables (`airflow_password`) should be supplied via `TF_VAR_airflow_password` env var or a `.tfvars` file excluded from version control. For production, use Key Vault references in the function app settings instead.
+
+**Azure Function — trigger-airflow-dag (__init__.py) — code deployed via CD pipeline:**
+
+The Python source code below lives in `airflow/functions/trigger-airflow-dag/` and is deployed to the function app by the CD pipeline after Terraform apply (see Step 3 — `deploy-functions` job in cd.yml).
+
+```python
+import azure.functions as func
+import logging
+import os
+import requests
+
+def main(event: func.EventGridEvent):
+    logging.info(f"Blob created: {event.subject}")
+
+    # Only trigger for .log files in raw-logs container
+    if not event.subject.endswith(".log"):
+        return
+
+    airflow_url = os.environ["AIRFLOW_URL"].rstrip("/")
+    airflow_username = os.environ["AIRFLOW_USERNAME"]
+    airflow_password = os.environ["AIRFLOW_PASSWORD"]
+    dag_id = os.environ.get("AIRFLOW_DAG_ID", "spark_ingestion_azure")
+
+    # Trigger Airflow DAG 1 via REST API
+    # DAG 1 handles all downstream orchestration: DatabricksRunNowOperator → Workflow → export_dimensions
+    response = requests.post(
+        f"{airflow_url}/api/v1/dags/{dag_id}/dagRuns",
+        auth=(airflow_username, airflow_password),
+        json={
+            "conf": {
+                "trigger_source": "event_grid",
+                "blob_name": event.subject.split("/")[-1],
+                "blob_path": event.subject,
+            }
+        },
+    )
+    response.raise_for_status()
+    dag_run = response.json()
+    logging.info(f"Airflow DAG triggered: dag_run_id={dag_run.get('dag_run_id')}")
+```
+
+**Azure Function — requirements.txt:**
+```
+azure-functions==1.18.*
+requests==2.31.*
+```
+
+**Azure Function — function.json (bindings):**
+```json
+{
+  "scriptFile": "__init__.py",
+  "bindings": [
+    {
+      "type": "eventGridTrigger",
+      "name": "event",
+      "direction": "in"
+    }
+  ]
+}
+```
+
+**Azure Function — Function App Settings (env vars, encrypted at rest):**
+```
+AIRFLOW_URL = "http://<airflow-host>:8080"
+AIRFLOW_USERNAME = "<airflow-api-user>"
+AIRFLOW_PASSWORD = "<airflow-api-password>"
+AIRFLOW_DAG_ID = "spark_ingestion_azure"
+```
+Note: The Azure Function uses managed identity (`DefaultAzureCredential`) for all Azure resource access (Key Vault, storage). The Airflow connection credentials are stored in Function App Settings (Azure-managed encryption at rest) — this is standard for HTTP API connections where managed identity does not apply.
+
+**Terraform Part B — Workflow resource (schedule removed):**
+```hcl
+resource "databricks_job" "w3c_etl_workflow" {
+  name = "w3c-etl-workflow"
+
+  # NO schedule block — triggered by Event Grid → Azure Function
+  # Schedule was removed in Phase 9 event-driven migration
+
+  task {
+    task_key = "bronze_pipeline"
+    ...
+  }
+  task {
+    task_key = "silver_pipeline"
+    ...
+  }
+  task {
+    task_key = "jdbc_export"
+    ...
+  }
+}
+```
+
+**Airflow DAG — spark_ingestion_azure.py (schedule=None, REST API-triggered):**
+```python
+# DAG is triggered by Azure Function via Airflow REST API — no cron schedule
+# Previously: schedule="0 2 * * *" (removed in Phase 9)
+# Trigger chain: Event Grid (BlobCreated) → Azure Function → POST /api/v1/dags/spark_ingestion_azure/dagRuns
+with DAG(
+    dag_id="spark_ingestion_azure",
+    schedule=None,  # Triggered externally via Airflow REST API
+    start_date=pendulum.datetime(2026, 1, 1, tz="UTC"),
+    catchup=False,
+    ...
+) as dag:
+    # Task 1: Trigger Databricks Workflow (Bronze → Silver → JDBC Export)
+    # DatabricksRunNowOperator handles polling for completion
+    bronze_silver_jdbc_pipeline = DatabricksRunNowOperator(
+        task_id="bronze_silver_jdbc_pipeline",
+        databricks_conn_id="databricks_default",
+        job_id=os.environ.get("DATABRICKS_JOB_ID", "847995192336508"),
+        polling_period_seconds=30,
+        timeout_seconds=7200,
+    )
+
+    # Task 2: Build dimension tables from Azure SQL
+    export_dimensions = PythonOperator(
+        task_id="export_dimensions",
+        python_callable=_export_dimensions,
+        provide_context=True,
+        outlets=[Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")],
+    )
+
+    bronze_silver_jdbc_pipeline >> export_dimensions
+```
+
+**Airflow DAG — spark_ingestion.py (local dev, schedule removed):**
+```python
+# Previously: schedule="0 6 * * 6" (weekly Saturday — removed in Phase 9)
+# Repurposed for manual/manual-trigger only
+with DAG(
+    dag_id="spark_ingestion",
+    schedule=None,
+    ...
+) as dag:
+    ...
+```
+
+---
+
+#### Step 2: CI Pipeline
+
+Add CI after event-driven refactor is verified. Runs on every push with no Azure credentials.
+
+**.github/workflows/ci.yml (calls reusable workflows):**
 
 ```yaml
-name: CI Tier 1 - Every Push
+name: CI - Every Push
 
 on:
   push:
@@ -982,237 +1274,456 @@ on:
   pull_request:
     branches: [main, develop]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    uses: ./.github/workflows/_reusable-lint.yml
+    secrets: inherit
+
+  test:
+    uses: ./.github/workflows/_reusable-test.yml
+    secrets: inherit
+
+  dbt-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_DB: test, POSTGRES_PASSWORD: test }
+        ports: [5432:5432]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          MSSQL_SA_PASSWORD: "Test123!Pass"
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: Developer
+        ports: [1433:1433]
+        options: >-
+          --health-cmd="/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Test123!Pass -C -Q 'SELECT 1'"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: "pip" }
+      - name: Install dbt
+        run: pip install dbt-core dbt-postgres dbt-sqlserver
+      - name: dbt compile (PostgreSQL)
+        run: |
+          cd airflow/dbt/w3c
+          dbt compile --profile w3c
+      - name: dbt compile (Azure SQL / T-SQL validation)
+        run: |
+          cd airflow/dbt/w3c
+          dbt compile --profile w3c_azure
+
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        dir: [terraform/part_a, terraform/part_b]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.10.5" }
+      - name: Terraform fmt
+        run: cd ${{ matrix.dir }} && terraform fmt --check
+      - name: Terraform init
+        run: cd ${{ matrix.dir }} && terraform init -backend=false
+      - name: Terraform validate
+        run: cd ${{ matrix.dir }} && terraform validate
+```
+
+**.github/workflows/_reusable-lint.yml:**
+
+```yaml
+name: Reusable Lint
+on: workflow_call
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: |
-          pip install ruff mypy pytest
-          pip install -r requirements.txt
-      - name: Run Ruff
-        run: ruff check .
-      - name: Run mypy
-        run: mypy .
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: |
-          pip install pytest
-          pip install -r requirements.txt
-      - name: Run unit tests
-        run: pytest tests/unit/ -v
-      - name: Run DAG integrity tests
-        run: pytest tests/dag_integrity/ -v
-
-  dbt-compile:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dbt
-        run: |
-          pip install dbt-core dbt-postgres
-      - name: Compile dbt models
-        run: |
-          cd airflow/dbt/w3c
-          dbt compile --profile w3c
-
-  terraform-validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.10.5"
-      - name: Terraform fmt check Part A
-        run: |
-          cd terraform/part_a
-          terraform fmt --check
-      - name: Terraform fmt check Part B
-        run: |
-          cd terraform/part_b
-          terraform fmt --check
-      - name: Terraform validate Part A
-        run: |
-          cd terraform/part_a
-          terraform init -backend=false
-          terraform validate
-      - name: Terraform validate Part B
-        run: |
-          cd terraform/part_b
-          terraform init -backend=false
-          terraform validate
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: "pip" }
+      - run: pip install ruff mypy
+      - run: ruff check --output-format=github .
+      - run: mypy --ignore-missing-imports .
 ```
 
-**.github/workflows/ci-integration.yml (Tier 2):**
+**.github/workflows/_reusable-test.yml:**
 
 ```yaml
-name: CI Tier 2 - Azure Integration
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: "0 2 * * *"  # Daily at 2 AM UTC
-
-env:
-  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-  AZURE_SQL_SERVER: ${{ secrets.AZURE_SQL_SERVER }}
-  AZURE_SQL_DB: ${{ secrets.AZURE_SQL_DB }}
-  AZURE_SQL_USER: ${{ secrets.AZURE_SQL_USER }}
-  AZURE_SQL_PASSWORD: ${{ secrets.AZURE_SQL_PASSWORD }}
-
+name: Reusable Test
+on: workflow_call
 jobs:
-  integration-test:
+  test:
     runs-on: ubuntu-latest
-    environment: azure-integration
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_DB: test, POSTGRES_PASSWORD: test }
+        ports: [5432:5432]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: "pip" }
+      - run: pip install -r tests/requirements-test.txt pytest
+      # Run everything except integration tests (need Azure creds) and terraform tests (need provider setup)
+      # DAG integrity tests run in CI — they verify structure, not schedules
+      # dbt_compile unit tests run in CI — they verify macro structure
+      - run: pytest tests/ -v --tb=short -m "not integration and not terraform"
+```
 
-      - name: Azure Login
-        uses: azure/login@v2
+---
+
+#### Step 3: CD Pipeline
+
+Implement CD last — it builds on the event-driven foundation (verified in Step 1) and the CI quality gate (verified in Step 2).
+
+**.github/workflows/cd.yml (Continuous Deployment — merge to main):**
+
+```yaml
+name: CD - Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: azure-dev
+        type: choice
+        options: [azure-dev, azure-staging, azure-prod]
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false  # Queue sequential runs — do NOT cancel in-progress deployments
+
+env:
+  TF_VERSION: "1.10.5"
+
+jobs:
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+      - uses: azure/login@v2
         with:
-          client-id: ${{ secrets.ARM_CLIENT_ID }}
-          tenant-id: ${{ secrets.ARM_TENANT_ID }}
-          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-
-      - name: Upload sample logs to ADLS
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Terraform Plan (Part A)
         run: |
-          # Upload real log files (93 files in airflow/data/LogFiles/) for integration test
-          for f in airflow/data/LogFiles/*.log; do
-            az storage blob upload \
-              --container-name raw-logs \
-              --file "$f" \
-              --name "ci-test/$(basename "$f")" \
-              --account-name ${{ secrets.STORAGE_ACCOUNT_NAME }}
-          done
-
-      - name: Trigger Databricks Workflow
+          cd terraform/part_a
+          terraform init
+          terraform plan -no-color 2>&1
+      - name: Terraform Plan (Part B)
         run: |
-          curl -X POST \
-            "https://${{ secrets.DATABRICKS_HOST }}/api/2.1/jobs/run-now" \
-            -H "Authorization: Bearer ${{ secrets.DATABRICKS_TOKEN }}" \
+          cd terraform/part_b
+          terraform init
+          terraform plan -no-color 2>&1
+
+  terraform-apply:
+    name: Terraform Apply (${{ inputs.environment || 'azure-dev' }})
+    needs: terraform-plan
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'azure-dev' }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Terraform Apply (Part A)
+        run: cd terraform/part_a && terraform init && terraform apply -auto-approve
+      - name: Terraform Apply (Part B)
+        run: cd terraform/part_b && terraform init && terraform apply -auto-approve
+
+  deploy-dab:
+    name: Deploy Databricks Bundle
+    needs: terraform-apply
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'azure-dev' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy DAB
+        run: databricks bundle deploy -t ${{ inputs.environment || 'dev' }}
+
+  deploy-dbt:
+    name: Deploy dbt Models
+    needs: terraform-apply
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install dbt-core dbt-sqlserver
+      - name: dbt run (--defer --state)
+        run: |
+          cd airflow/dbt/w3c
+          dbt run --profile w3c_azure --defer --state ./target-prod
+          dbt test --profile w3c_azure
+
+  sync-airflow:
+    name: Sync Airflow DAGs
+    needs: terraform-apply
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Sync to ADLS
+        run: az storage fs upload -f airflow-dags -s airflow/dags/ --account-name $STORAGE_ACCOUNT_NAME
+
+  deploy-functions:
+    name: Deploy Azure Functions
+    needs: terraform-apply
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy function code via zip
+        run: |
+          cd airflow/functions/trigger-airflow-dag
+          zip -r ../../_deploy/function.zip .
+          az functionapp deployment source config-zip \
+            --resource-group rg-w3c-etl \
+            --name fn-w3c-event-forwarder \
+            --src ../../_deploy/function.zip
+
+  smoke-test:
+    name: Post-Deploy Smoke Test
+    needs: [deploy-dab, deploy-dbt, sync-airflow, deploy-functions]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'azure-dev' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trigger Airflow DAG 1 via REST API
+        run: |
+          DAG_RUN_ID=$(curl -s -X POST "${{ vars.AIRFLOW_URL }}/api/v1/dags/spark_ingestion_azure/dagRuns" \
+            -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" \
             -H "Content-Type: application/json" \
-            -d '{"job_id": ${{ secrets.DATABRICKS_WORKFLOW_ID }}}'
-
-      - name: Poll job status
+            -d '{"conf": {"trigger_source": "cd_smoke_test"}}' | jq -r '.dag_run_id // empty')
+          echo "DAG_RUN_ID=$DAG_RUN_ID" >> $GITHUB_ENV
+      - name: Poll DAG Until Complete
         run: |
-          # Poll job status until completion
-          # Implementation depends on Databricks API
-          echo "Polling job status..."
-
-      - name: Query Azure SQL row counts
+          for i in $(seq 1 60); do
+            STATE=$(curl -s "${{ vars.AIRFLOW_URL }}/api/v1/dags/spark_ingestion_azure/dagRuns/${{ env.DAG_RUN_ID }}" \
+              -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" | jq -r '.state // "unknown"')
+            echo "Attempt $i: $STATE"
+            if [ "$STATE" = "success" ]; then exit 0; fi
+            if [ "$STATE" = "failed" ] || [ "$STATE" = "failed" ]; then exit 1; fi
+            sleep 15
+          done
+          exit 1
+      - name: Assert Azure SQL Row Count
         run: |
-          # Query dbo.raw_enriched for expected row counts
-          sqlcmd -S ${{ secrets.AZURE_SQL_SERVER }} \
-            -d ${{ secrets.AZURE_SQL_DB }} \
-            -U ${{ secrets.AZURE_SQL_USER }} \
-            -P ${{ secrets.AZURE_SQL_PASSWORD }} \
-            -Q "SELECT COUNT(*) FROM dbo.raw_enriched"
+          ROWS=$(sqlcmd -S ${{ vars.AZURE_SQL_SERVER }} -d ${{ vars.AZURE_SQL_DATABASE }} \
+            -U ${{ vars.AZURE_SQL_USER }} -P ${{ secrets.AZURE_SQL_PASSWORD }} \
+            -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM dbo.raw_enriched" -h -1 | tr -d ' ')
+          echo "Azure SQL rows: $ROWS"
+          [ "$ROWS" -gt 0 ] && exit 0 || exit 1
 
-      - name: Assert 18 CSV exports produced
+  rollback:
+    name: Rollback (${{ inputs.environment || 'azure-dev' }})
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'azure-dev' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: 'HEAD~1' }
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Terraform Rollback
         run: |
-          # Verify 18 CSV files in airflow/data/Star-Schema/
-          count=$(ls airflow/data/Star-Schema/*.csv | wc -l)
-          if [ $count -ne 18 ]; then
-            echo "Expected 18 CSV files, found $count"
-            exit 1
-          fi
-
-      - name: Validate catalog.json
-        run: |
-          # Verify catalog.json exists in airflow/data/dbt-docs/
-          if [ ! -f airflow/data/dbt-docs/catalog.json ]; then
-            echo "catalog.json not found"
-            exit 1
-          fi
-          # Validate JSON structure
-          python -m json.tool airflow/data/dbt-docs/catalog.json > /dev/null
-
-      - name: Azure Logout
-        if: always()
-        run: az logout
+          cd terraform/part_b
+          terraform init && terraform apply -refresh-only -auto-approve
+      - name: Deploy Previous Bundle
+        run: databricks bundle deploy -t ${{ inputs.environment || 'dev' }} --version prev
 ```
 
-**GitHub Environment configuration:**
+**OIDC Workload Identity Federation Setup (one-time, replaces client secret):**
 
 ```bash
-# Create GitHub Environment via GitHub UI or CLI
-# Navigate to: Settings > Environments > New environment
-# Name: azure-integration
-# Add protection rules:
-#   - Required reviewers: add your username
-#   - Wait timer: 0 minutes
-#   - Restrict branches to: main, develop
+# 1. Create Entra ID app registration for GitHub Actions
+az ad app create --display-name "github-actions-w3c-etl" \
+  --web-redirect-uris "https://github.com/<owner>/<repo>"
+
+# 2. Create service principal
+az ad sp create --id <app-id>
+
+# 3. Assign Azure roles (Contributor on resource group, or custom)
+az role assignment create --assignee <sp-object-id> \
+  --role "Contributor" \
+  --scope "/subscriptions/<sub-id>/resourceGroups/<rg-name>"
+
+# 4. Configure Federated Identity Credential for each CD environment
+az ad app federated-credential create --id <app-id> \
+  --parameters '{
+    "name": "github-actions-dev",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:<owner>/<repo>:environment:azure-dev",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+
+# 5. Repeat for staging and prod environments:
+#    subject: repo:<owner>/<repo>:environment:azure-staging
+#    subject: repo:<owner>/<repo>:environment:azure-prod
 ```
 
-**Secrets configuration (GitHub repository settings):**
+**CD secrets (GitHub Environment-scoped, one set per environment):**
 
 ```bash
-# Tier 2 secrets (add to GitHub repository)
-ARM_CLIENT_ID=<service-principal-appId>
-ARM_CLIENT_SECRET=<service-principal-password>
-ARM_SUBSCRIPTION_ID=<subscription-id>
-ARM_TENANT_ID=<tenant-id>
-DATABRICKS_TOKEN=<personal-access-token>
-DATABRICKS_HOST=<workspace-url>
-DATABRICKS_WORKFLOW_ID=<workflow-job-id>
+# Add to each GitHub Environment (azure-dev, azure-staging, azure-prod):
+AZURE_CLIENT_ID=<app-id>
+AZURE_TENANT_ID=<tenant-id>
+AZURE_SUBSCRIPTION_ID=<subscription-id>
+AIRFLOW_URL=<airflow-webserver-url>
+AIRFLOW_USERNAME=<airflow-api-username>
 AZURE_SQL_SERVER=<server-fqdn>
-AZURE_SQL_DB=w3c-etl-db
-AZURE_SQL_USER=sqladmin
-AZURE_SQL_PASSWORD=<strong-password>
+AZURE_SQL_USER=<sql-username>
 STORAGE_ACCOUNT_NAME=<storage-account-name>
+
+# Secrets (masked in logs):
+AIRFLOW_PASSWORD=<airflow-api-password>
+DATABRICKS_TOKEN=<personal-access-token>
+AZURE_SQL_PASSWORD=<sql-password>
+
+# No ARM_CLIENT_SECRET — OIDC replaces it entirely
 ```
 
 **Acceptance Criteria:**
 
-- Tier 1 CI configured with all checks
+Organized by implementation order within the single phase.
+
+**Step 1 — Event-Driven Scheduling:**
+- No cron schedules remain on any Databricks Workflow or Airflow DAG
+- Event Grid system topic created on ADLS storage account
+- Event Grid subscription filtering BlobCreated events for raw-logs/*.log
+- Azure Function deployed that POSTs to Airflow REST API (`/api/v1/dags/spark_ingestion_azure/dagRuns`) on Event Grid trigger
+- Azure Function uses managed identity (`DefaultAzureCredential`) for Azure resources; Airflow credentials in Function App Settings (encrypted at rest)
+- Event-driven trigger verified: upload .log file → Event Grid → Function → Airflow REST API → DAG 1 starts
+- Databricks Workflow schedule block removed — Workflow only triggered by DAG 1's `DatabricksRunNowOperator`
+- All tests updated: no schedule assertions in terraform or DAG tests
+
+**Step 2 — CI Pipeline (Tier 1):**
+- Tier 1 CI configured with all checks including DAG integrity and dbt compile tests
 - Tier 1 runs on every push to main/develop
 - Tier 1 passes without Azure credentials
-- Tier 2 CI configured with integration tests
-- Tier 2 triggers on workflow_dispatch and nightly schedule
-- Tier 2 protected by GitHub Environment azure-integration
-- Manual approval gate configured for Tier 2
-- Tier 2 secrets configured in GitHub repository
-- Shared credential usage documented
 - Tier 1 CI tested on push
-- Tier 2 CI tested via workflow_dispatch
-- Integration tests pass end-to-end
+- dbt compile validates both PostgreSQL and Azure SQL (T-SQL) profiles (with SQL Server service container)
+
+**Step 3 — CD Pipeline:**
+- OIDC configured for Azure auth — no client secrets
+- CD secrets configured in GitHub Environments
+- CD workflow deploys to dev/staging/prod on merge to main
+- Terraform plan/apply runs correctly in CD pipeline
+- Databricks Asset Bundle deployed to each environment
+- dbt models deployed to each environment with `--defer` to prod
+- Airflow DAGs synced to production
+- CD includes post-deploy smoke test (trigger Airflow DAG 1 via REST API + poll DAG completion + assert Azure SQL row count)
+- CD concurrency queues sequential deployments — does NOT cancel in-progress runs
+- Smoke test failure rolls back or alerts
+- Rollback job available via `workflow_dispatch`
+- Deployment runbook documented
+- Dependabot configured with patch auto-merge
+- CD tested via merge to main
 
 **Phase Handoff Validation:**
 
 ```bash
-# Trigger Tier 1 CI
+# Step 1: Remove cron schedules
+#   - terraform/part_b/main.tf: remove schedule {} block
+#   - airflow/dags/w3c/spark_ingestion_azure.py: remove schedule param (→ Dataset-triggered or None)
+#   - airflow/dags/w3c/spark_ingestion.py: remove schedule param (→ None, manual trigger)
+#   - tests/test_terraform_part_b.py: remove "daily schedule" assertion
+#   - tests/test_dag_integrity.py: remove cron schedule tests
+git commit -am "feat: remove cron schedules, move to event-driven triggers"
+
+# Step 2: Create Event Grid infrastructure
+az eventgrid system-topic create ...
+az eventgrid system-topic event-subscription create ...
+az functionapp create ...
+az webapp deployment source config-zip ...
+
+# Verify Azure Function forwards events to Airflow:
+az functionapp log tail --name w3c-event-forwarder
+
+# Step 3: Upload a log file and verify event-driven trigger
+az storage blob upload \
+  --account-name stw3cetlwestus3 \
+  --container-name raw-logs \
+  --file test-file.log \
+  --name test-file.log
+
+# Expected: Event Grid fires → Function runs → Airflow REST API → DAG 1 starts
+# Verify in Airflow UI: DAG spark_ingestion_azure shows new DAG run triggered by event
+# DAG Task 1 triggers Databricks Workflow via DatabricksRunNowOperator
+
+# Step 4: Trigger Tier 1 CI
 git push origin develop
+# Verify Tier 1 passes in GitHub Actions (lint, test, dbt compile, terraform)
 
-# Verify Tier 1 passes in GitHub Actions
+# Step 5: Trigger CD (merge to main)
+git checkout main && git merge develop && git push origin main
+# Verify terraform plan logs output in CD job
+# Verify terraform apply runs for azure-dev (auto)
+# Verify Databricks bundle deployed to dev
+# Verify dbt models deployed to dev
+# Verify Airflow DAGs synced
+# Verify post-deploy smoke test passes (Airflow REST API → trigger DAG 1 → poll → SQL count)
 
-# Trigger Tier 2 CI manually
-# Navigate to GitHub Actions > CI Tier 2 > Run workflow
-# Request approval
-# Approve in GitHub Environments
+# Step 6: Promote to staging/prod
+# Approve azure-staging in GitHub Environments
+# Verify smoke test passes in staging
+# Approve azure-prod in GitHub Environments
+# Verify smoke test passes in prod
 
-# Verify Tier 2 passes
+# Step 7: Test rollback
+# Run workflow_dispatch rollback job with previous bundle version
 ```
 
 ---
@@ -1390,7 +1901,7 @@ az monitor metrics alert list --resource-group rg-w3c-etl-dev
 - [ ] Validate CSV headers against baseline
 - [ ] Validate DAX measure field dependencies
 - [ ] Verify Power BI semantic contract
-- [ ] Run Tier 2 CI integration test
+- [ ] Run CD smoke test (post-deploy pipeline validation)
 - [ ] Verify all monitoring alerts
 - [ ] Document any issues and resolutions
 
@@ -1483,7 +1994,7 @@ echo "End-to-end verification completed successfully!"
 - CSV headers match baseline
 - DAX measure field dependencies validated
 - Power BI semantic contract verified
-- Tier 2 CI integration test passed
+- CD smoke test passed (post-deploy pipeline validation)
 - All monitoring alerts functional
 - Issues and resolutions documented
 
@@ -1547,9 +2058,9 @@ curl http://localhost:9090/api/v1/targets
 - Lifecycle policies for data retention (90 days for raw logs)
 
 ### CI/CD
-- Tier 2 CI limited to nightly runs (not on every push)
-- Manual approval gate prevents accidental integration test runs
-- Integration tests use minimal sample data
+- Tier 1 CI runs on every push (no Azure creds) — Ruff, mypy, pytest, dbt compile, terraform validate
+- CD pipeline deploys to Azure on merge to main (OIDC auth, no client secrets)
+- Post-deploy smoke test validates pipeline end-to-end (trigger DAG → poll → SQL row count)
 
 ## Budget Alerts
 
@@ -1650,29 +2161,24 @@ az ad sp delete --id $SP_ID
 
 ## Step 5: Clean Up GitHub Secrets
 
-\`\`\`bash
+```bash
 # Via GitHub UI: Settings > Secrets and variables > Actions
-# Delete all Tier 2 secrets:
-# - ARM_CLIENT_ID
-# - ARM_CLIENT_SECRET
-# - ARM_SUBSCRIPTION_ID
-# - ARM_TENANT_ID
+# Delete CD secrets from each GitHub Environment (azure-dev, azure-staging, azure-prod):
+# - AZURE_CLIENT_ID (OIDC federated credential app ID)
+# - AZURE_TENANT_ID
+# - AZURE_SUBSCRIPTION_ID
+# - AIRFLOW_URL / AIRFLOW_USERNAME / AIRFLOW_PASSWORD
 # - DATABRICKS_TOKEN
-# - DATABRICKS_HOST
-# - DATABRICKS_WORKFLOW_ID
-# - AZURE_SQL_SERVER
-# - AZURE_SQL_DB
-# - AZURE_SQL_USER
-# - AZURE_SQL_PASSWORD
+# - AZURE_SQL_SERVER / AZURE_SQL_USER / AZURE_SQL_PASSWORD
 # - STORAGE_ACCOUNT_NAME
-\`\`\`
+```
 
-## Step 6: Delete GitHub Environment
+## Step 6: Delete GitHub Environments
 
-\`\`\`bash
+```bash
 # Via GitHub UI: Settings > Environments
-# Delete azure-integration environment
-\`\`\`
+# Delete azure-dev, azure-staging, azure-prod environments
+```
 
 ## Step 7: Verify Cleanup
 
@@ -1766,7 +2272,7 @@ chmod +x scripts/teardown.sh
 | T-SQL migration syntax errors | High | Medium | Comprehensive testing of all macros, Azure SQL compat level verification |
 | dbt docs generation failure | Low | Low | Separate task in workflow, error handling, manual fallback |
 
-| CI/CD Tier 2 approval delays | Low | Medium | Multiple approvers, clear documentation, automated retry logic |
+| CD deploy queue blocked by failed smoke test | Low | Medium | Rollback job restores previous state; alert DevOps team on failure |
 | Service principal credential compromise | High | Low | Regular rotation (quarterly), monitoring for unusual activity, immediate revocation if compromised |
 | Terraform state corruption | High | Low | Azure Blob Storage backend, regular state backups, state locking |
 | Power BI semantic contract violations | High | Medium | Header validation, DAX field dependency checks, baseline comparison |
@@ -1835,12 +2341,13 @@ chmod +x scripts/teardown.sh
 
 - [ ] Tier 1 CI configured (every push, no Azure creds)
 - [ ] Tier 1 includes: Ruff, mypy, pytest, dbt compile, terraform validate
-- [ ] Tier 2 CI configured (nightly integration)
-- [ ] Tier 2 includes: end-to-end integration test, 18 CSV assertion, catalog.json validation
-- [ ] GitHub Environment `azure-integration` configured
-- [ ] Manual approval gate for Tier 2
-- [ ] Tier 2 secrets configured (ARM_*, DATABRICKS_TOKEN, AZURE_SQL_*)
-- [ ] Shared credential usage documented
+- [ ] CD pipeline configured (merge to main, deploy to Azure)
+- [ ] CD includes: Terraform plan/apply, DAB deploy, dbt deploy, Airflow sync, smoke test
+- [ ] Event-driven scheduling configured (Event Grid + Azure Function, no cron)
+- [ ] GitHub Environments configured: `azure-dev`, `azure-staging`, `azure-prod`
+- [ ] OIDC Workload Identity Federation configured (no client secrets)
+- [ ] CD secrets configured in GitHub Environments
+- [ ] Deployment runbook documented
 
 ### Monitoring
 
@@ -1873,7 +2380,8 @@ chmod +x scripts/teardown.sh
 - [x] Complete pipeline test passed — both DAGs (spark_ingestion_azure + dbt_marts_azure) completed green
 - [x] All phases executed successfully
 - [x] Data flows end-to-end: ADLS → Bronze → Silver → Azure SQL → dbt → CSV
-- [ ] Tier 2 CI integration test passed — Phase 9 scope
+- [ ] Event-driven trigger verified (upload .log → Event Grid → Function → Airflow → DAG → Workflow) — Phase 9 scope
+- [ ] Post-deploy smoke test passed in CD pipeline — Phase 9 scope
 - [x] Issues and resolutions documented — resolved: trailing comma, dbt deps, expression_is_true, ORDER BY, NOT IN→LEFT JOIN, freshness thresholds removed, export_csv parallelized
 - [x] Code review (Phases 8c/8d) completed — 11 issues found, 7 fixed; see `plans/code-review-phases-8c-8d.md`
 
