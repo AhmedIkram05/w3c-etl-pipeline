@@ -16,8 +16,8 @@ transformations against Azure SQL (not yet implemented).
 
 Schedule
 --------
-Daily at 2:00 AM UTC — matching the Databricks Workflow schedule defined
-in ``terraform/part_b/main.tf``.
+Weekly — runs every Friday at 5:00 PM UTC. Scheduled via Airflow cron
+expression (``schedule="0 17 * * 5"``).
 
 Prerequisites
 -------------
@@ -315,7 +315,7 @@ def _export_dimensions(**context) -> None:
 # ── DAG definition ─────────────────────────────────────────────────────────
 dag = DAG(
     dag_id="w3c_spark_ingestion_azure",
-    schedule="0 2 * * *",  # Daily at 2:00 AM UTC
+    schedule="0 17 * * 5",  # Friday at 5:00 PM UTC
     start_date=dt.datetime(2026, 3, 1),
     catchup=False,
     max_active_runs=1,
