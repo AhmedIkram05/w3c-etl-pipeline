@@ -44,6 +44,8 @@ REQUIRED_MACROS = frozenset({
     "tsql_percentile_cont",
     "tsql_create_index_if_not_exists",
     "tsql_hash_md5",
+    "sqlserver__collect_freshness",
+    "sqlserver__test_expression_is_true",
     "tsql_boolean_to_int",
     "tsql_bool_literal",
     "tsql_true_val",
@@ -58,12 +60,18 @@ MUST_HAVE_INLINE_CONDITIONALS = frozenset({
     "dim_time.sql",
     "dim_page.sql",
     "dim_referrer.sql",
-    "crawler_ips.sql",
     "mart_daily_aggregates.sql",
 })
 
 # Models that use pure ANSI SQL and need no inline conditionals.
+# Models that use inline `{% if target.type == 'sqlserver' %}` with raw T-SQL
+# (no tsql_ macros) because the SQL structure itself differs between dialects.
+RAW_TSQL_INLINE_MODELS = frozenset({
+    "dim_time.sql",
+})
+
 PURE_ANSI_SQL_MODELS = frozenset({
+    "crawler_ips.sql",
     "dim_method.sql",
     "dim_status.sql",
     "dim_visitortype.sql",
@@ -264,6 +272,10 @@ class TestModelStructure:
             if path is None:
                 continue
             content = path.read_text(encoding="utf-8")
+            # Inline-only models (RAW_TSQL_INLINE_MODELS) are allowed to use
+            # raw T-SQL without tsql_ macros (e.g. table-valued function aliases).
+            if model_name in RAW_TSQL_INLINE_MODELS:
+                continue
             # If it has inline conditionals, it should use at least one tsql_ macro call
             if "target.type == 'sqlserver'" in content:
                 # Check that it also references at least one tsql_ macro
