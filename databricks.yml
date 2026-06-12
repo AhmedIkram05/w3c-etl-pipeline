@@ -1,20 +1,15 @@
 # ---------------------------------------------------------------------------
 # Databricks Asset Bundle (DAB) — w3c-etl-pipeline
 # ---------------------------------------------------------------------------
-# Deploys notebooks, DLT pipelines, and workflow definitions to Databricks
-# workspaces across environments.
+# Deploys notebooks and project files to the Databricks workspace.
 #
-# The Terraform Part B (`terraform/part_b/`) handles the initial provisioning
-# of Databricks secrets, storage credentials, external locations, DLT pipeline
-# resources, and the orchestration workflow. This DAB provides an additional
-# code-deployment layer for rapid notebook updates without full terraform
-# apply cycles.
+# Terraform Part B handles initial provisioning of secrets, storage
+# credentials, and DLT pipeline resources. This DAB provides rapid
+# code-deployment for notebook updates without full terraform cycles.
 #
 # Usage:
-#   databricks bundle deploy -t dev      # Deploy to dev
-#   databricks bundle deploy -t staging  # Deploy to staging
-#   databricks bundle deploy -t prod     # Deploy to prod
-#   databricks bundle deploy -t dev --version prev  # Rollback to previous
+#   databricks bundle deploy -t dev                  # Deploy
+#   databricks bundle deploy -t dev --version prev   # Rollback
 # ---------------------------------------------------------------------------
 
 bundle:
@@ -64,11 +59,3 @@ targets:
   dev:
     workspace:
       host: ${DATABRICKS_HOST_DEV}
-
-  staging:
-    workspace:
-      host: ${DATABRICKS_HOST_STAGING}
-
-  prod:
-    workspace:
-      host: ${DATABRICKS_HOST_PROD}
