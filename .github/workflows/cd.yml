@@ -94,7 +94,7 @@ jobs:
     name: Terraform Apply
     needs: terraform-plan
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.DEV_ENVIRONMENT }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'azure-dev' }}
     permissions:
       id-token: write
       contents: read
@@ -133,7 +133,7 @@ jobs:
     name: Deploy Databricks Bundle
     needs: terraform-apply
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.DEV_ENVIRONMENT }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'azure-dev' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -161,7 +161,7 @@ jobs:
     name: Deploy dbt Models
     needs: terraform-apply
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.DEV_ENVIRONMENT }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'azure-dev' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -218,7 +218,7 @@ jobs:
     name: Sync Airflow DAGs
     needs: terraform-apply
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.DEV_ENVIRONMENT }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'azure-dev' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -246,7 +246,7 @@ jobs:
     name: Post-Deploy Smoke Test
     needs: [deploy-dab, deploy-dbt, sync-airflow]
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.DEV_ENVIRONMENT }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'azure-dev' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
