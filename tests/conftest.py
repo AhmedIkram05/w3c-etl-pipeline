@@ -11,6 +11,8 @@ can import from ``airflow.spark.jobs``, ``airflow.plugins``, and
 
 import os
 import sys
+import tempfile
+import zipfile
 
 import pytest
 
@@ -37,11 +39,51 @@ if _DAGS_DIR not in sys.path:
     sys.path.insert(0, _DAGS_DIR)
 
 
+# ── Cached utils.zip for PySpark workers ──────────────────────────────
+# PySpark workers run in separate Python processes that do not inherit
+# the driver's ``sys.path``.  When UDFs imported from ``utils.*`` are
+# serialised to workers, cloudpickle tries to re-import them and fails.
+#
+# The production DAGs solve this by shipping a ``utils.zip`` via the
+# ``py_files`` parameter of ``SparkSubmitOperator``.  For tests we use
+# the equivalent ``SparkContext.addPyFile()``.
+_UTILS_ZIP_PATH = None  # type: str | None
+
+
+def _build_utils_zip() -> str:
+    """Build a temporary ``utils.zip`` and return its path.
+
+    The zip preserves the ``utils/`` package prefix so workers can
+    ``from utils.transformations import ...``.
+    """
+    global _UTILS_ZIP_PATH
+    if _UTILS_ZIP_PATH is not None:
+        return _UTILS_ZIP_PATH
+
+    utils_dir = os.path.join(_SPARK_JOBS_DIR, "utils")
+    if not os.path.isdir(utils_dir):
+        raise FileNotFoundError(f"utils directory not found: {utils_dir}")
+
+    fd, zip_path = tempfile.mkstemp(suffix=".zip")
+    os.close(fd)
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, _, files in os.walk(utils_dir):
+            for fname in files:
+                if not fname.endswith(".py"):
+                    continue
+                src = os.path.join(root, fname)
+                arc = os.path.relpath(src, _SPARK_JOBS_DIR)
+                zf.write(src, arcname=arc)
+
+    _UTILS_ZIP_PATH = zip_path
+    return zip_path
+
+
 def _create_spark_session():
     """Build a fresh local SparkSession for unit tests."""
     from pyspark.sql import SparkSession
 
-    return (
+    session = (
         SparkSession.builder
         .master("local[1]")
         .appName("W3C_ETL_Test")
@@ -51,6 +93,13 @@ def _create_spark_session():
         .config("spark.ui.enabled", "false")  # no UI overhead
         .getOrCreate()
     )
+
+    # Ship the ``utils/`` package to PySpark workers so that UDFs
+    # depending on ``utils.transformations``, ``utils.ua_parser`` etc.
+    # can be deserialised without ``ModuleNotFoundError``.
+    session.sparkContext.addPyFile(_build_utils_zip())
+
+    return session
 
 
 def _spark_session_is_alive(session) -> bool:
