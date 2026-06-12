@@ -963,21 +963,21 @@ All items are grouped by implementation order within a single phase. Start with 
 - [ ] Test Tier 1 CI on push
 
 **Step 2 — CD Pipeline (Continuous Deployment — merge to main):**
-- [ ] Create `.github/workflows/cd.yml` with CD jobs
-- [ ] **Configure OIDC Workload Identity Federation for Azure auth** (no client secrets)
-- [ ] Create GitHub Environments: `azure-dev`, `azure-staging`, `azure-prod` with protection rules
-- [ ] Add `terraform plan` job (outputs plan to job logs; Tier 1 CI handles `terraform validate` + `fmt --check`)
-- [ ] Add `terraform apply` job for `azure-dev` (auto-approve on merge to main)
-- [ ] Add `terraform apply` job for `azure-staging` (manual approval gate)
-- [ ] Add `terraform apply` job for `azure-prod` (manual approval + required reviewers)
-- [ ] Deploy Databricks Asset Bundle per environment (`databricks bundle deploy -t <env>`)
-- [ ] Deploy dbt models per environment with `--defer` to prod (`dbt run --profile <env> --defer --state ./target-prod`)
-- [ ] Deploy Airflow DAGs to production (sync `airflow/dags/` to ADLS + trigger DAG bag refresh)
-- [ ] Add rollback job (`terraform apply -refresh-only` + previous bundle version, manual `workflow_dispatch`)
-- [ ] **Add post-deploy smoke test** (trigger Airflow DAG 1 via REST API + poll DAG completion + assert Azure SQL row counts — replaces standalone Tier 2 nightlies)
-- [ ] Add concurrency group on CD workflow (queue sequential runs — do NOT cancel in-progress)
-- [ ] Document deployment runbook (`docs/deployment-runbook.md`)
-- [ ] Configure Dependabot with auto-merge for patch updates (`.github/dependabot.yml`)
+- [x] Create `.github/workflows/cd.yml` with CD jobs
+- [x] **Configure OIDC Workload Identity Federation for Azure auth via Terraform** (github_oidc.tf — no client secrets, no Azure CLI)
+- [ ] **Create GitHub Environments**: `azure-dev`, `azure-staging`, `azure-prod` with protection rules — runbook docs ready, requires GitHub UI setup
+- [x] Add `terraform plan` job (outputs plan to job logs; Tier 1 CI handles `terraform validate` + `fmt --check`)
+- [x] Add `terraform apply` job for `azure-dev` (auto-approve on merge to main)
+- [x] Add `terraform apply` job for `azure-staging` (manual approval gate via environment)
+- [x] Add `terraform apply` job for `azure-prod` (manual approval + required reviewers via environment)
+- [x] Deploy Databricks Asset Bundle per environment (`databricks bundle deploy -t <env>`)
+- [x] Deploy dbt models per environment with `--defer` to prod (`dbt run --profile <env> --defer --state ./target-prod`)
+- [x] Deploy Airflow DAGs to production (sync `airflow/dags/` to ADLS + trigger DAG bag refresh)
+- [x] Add rollback job (`terraform apply -refresh-only` + previous bundle version, manual `workflow_dispatch`)
+- [x] **Add post-deploy smoke test** (trigger Airflow DAG 1 via REST API + poll DAG completion + assert Azure SQL row counts — replaces standalone Tier 2 nightlies)
+- [x] Add concurrency group on CD workflow (queue sequential runs — do NOT cancel in-progress)
+- [x] Document deployment runbook (`docs/deployment-runbook.md`)
+- [x] Configure Dependabot with auto-merge for patch updates (`.github/dependabot.yml`)
 - [ ] Test CD via merge to main
 
 **Code Scaffolds:**
@@ -2010,13 +2010,13 @@ chmod +x scripts/teardown.sh
 
 - [x] Tier 1 CI configured (every push, no Azure creds)
 - [x] Tier 1 includes: Ruff, mypy, pytest, dbt compile, terraform validate
-- [ ] CD pipeline configured (merge to main, deploy to Azure)
-- [ ] CD includes: Terraform plan/apply, DAB deploy, dbt deploy, Airflow sync, smoke test
-- [ ] Scheduled trigger configured (Friday 5:00 PM UTC via cron)
-- [ ] GitHub Environments configured: `azure-dev`, `azure-staging`, `azure-prod`
-- [ ] OIDC Workload Identity Federation configured (no client secrets)
-- [ ] CD secrets configured in GitHub Environments
-- [ ] Deployment runbook documented
+- [x] CD pipeline configured (merge to main, deploy to Azure)
+- [x] CD includes: Terraform plan/apply, DAB deploy, dbt deploy, Airflow sync, smoke test
+- [ ] Scheduled trigger configured (Friday 5:00 PM UTC via cron) — pending from Phase 8
+- [ ] GitHub Environments configured: `azure-dev`, `azure-staging`, `azure-prod` — requires GitHub UI setup
+- [ ] OIDC Workload Identity Federation configured (no client secrets) — requires Azure CLI setup
+- [ ] CD secrets configured in GitHub Environments — documented in runbook
+- [x] Deployment runbook documented (`docs/deployment-runbook.md`)
 
 ### Monitoring
 
