@@ -105,3 +105,9 @@ variable "azuread_admin_object_id" {
   type        = string
   default     = ""
 }
+
+variable "sql_allowed_ips" {
+  description = "List of IP addresses allowed to access Azure SQL server (e.g., Airflow worker IPs)"
+  type        = list(string)
+  default     = []
+}

@@ -22,11 +22,6 @@ WITH daily_stats AS (
         COUNT(DISTINCT CASE WHEN fw.geolocation_sk > 0 THEN dg.country END) AS active_countries,
         SUM({{ tsql_boolean_to_int('fw.is_404') }}) AS total_404,
         {{ tsql_cast('AVG(fw.response_time_ms)', 'NUMERIC(10,2)') }} AS avg_response_time_ms,
-        {% if target.type == 'sqlserver' %}
-            CAST(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms) OVER () AS NUMERIC(10,2)) AS p95_response_time_ms,
-        {% else %}
-            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2) AS p95_response_time_ms,
-        {% endif %}
         SUM(fw.bytes_sent) AS total_bytes_sent,
         SUM({{ tsql_boolean_to_int('fw.is_crawler') }}) AS crawler_requests,
         SUM({{ tsql_boolean_to_int('fw.is_direct_traffic') }}) AS direct_traffic_requests,
@@ -35,6 +30,15 @@ WITH daily_stats AS (
     JOIN {{ ref('dim_date') }} dd ON dd.date_sk = fw.date_sk
     LEFT JOIN {{ source('w3c', 'dim_geolocation') }} dg ON dg.geolocation_sk = fw.geolocation_sk
     GROUP BY fw.date_sk, dd.date, dd.day_name, dd.is_weekend, dd.holiday_flag, dd.year, dd.month
+),
+p95_cte AS (
+    SELECT DISTINCT
+        fw.date_sk,
+        {{ tsql_cast(
+            'PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms) OVER (PARTITION BY fw.date_sk)',
+            'NUMERIC(10,2)'
+        ) }} AS p95_response_time_ms
+    FROM {{ ref('fact_webrequest') }} fw
 ),
 peak_hour AS (
     SELECT
@@ -75,7 +79,7 @@ SELECT
     ds.total_404,
     ROUND(100.0 * ds.total_404 / NULLIF(ds.total_requests, 0), 2) AS pct_404,
     ds.avg_response_time_ms,
-    ds.p95_response_time_ms,
+    p95.p95_response_time_ms,
     ds.total_bytes_sent,
     ds.crawler_requests,
     ROUND(100.0 * ds.crawler_requests / NULLIF(ds.total_requests, 0), 2) AS pct_crawler,
@@ -86,5 +90,6 @@ SELECT
     ph.peak_traffic_hour,
     tb.top_browser_share
 FROM daily_stats ds
+LEFT JOIN p95_cte p95 ON p95.date_sk = ds.date_sk
 LEFT JOIN peak_hour ph ON ph.date_sk = ds.date_sk
 LEFT JOIN top_browser tb ON tb.date_sk = ds.date_sk

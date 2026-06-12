@@ -1,10 +1,6 @@
 {{ config(
     materialized='table',
-    tags=['dimension', 'dbt'],
-    post_hook=[
-        "{{ tsql_create_index_if_not_exists(this.identifier, 'idx_dim_page_path', 'page_path') }}",
-        "{{ tsql_create_index_if_not_exists(this.identifier, 'idx_dim_page_category', 'page_category') }}"
-    ]
+    tags=['dimension', 'dbt']
 ) }}
 
 WITH raw_pages AS (

@@ -1,66 +1,77 @@
 -- Singular test: verify fact_webrequest has no orphan foreign keys
 -- All FK values should resolve to existing dimensions
+-- Uses LEFT JOIN instead of NOT IN subqueries for SQL Server compatibility
 
 WITH fk_checks AS (
     SELECT
         'date_sk' AS fk_name,
         COUNT(*) AS total,
-        SUM(CASE WHEN date_sk != -1 AND date_sk NOT IN (SELECT date_sk FROM {{ ref('dim_date') }}) THEN 1 ELSE 0 END) AS orphans
-    FROM {{ ref('fact_webrequest') }}
+        COUNT(CASE WHEN f.date_sk != -1 AND d.date_sk IS NULL THEN 1 END) AS orphans
+    FROM {{ ref('fact_webrequest') }} f
+    LEFT JOIN {{ ref('dim_date') }} d ON f.date_sk = d.date_sk
     UNION ALL
     SELECT
         'time_sk',
         COUNT(*),
-        SUM(CASE WHEN time_sk != -1 AND time_sk NOT IN (SELECT time_sk FROM {{ ref('dim_time') }}) THEN 1 ELSE 0 END)
-    FROM {{ ref('fact_webrequest') }}
+        COUNT(CASE WHEN f.time_sk != -1 AND d.time_sk IS NULL THEN 1 END)
+    FROM {{ ref('fact_webrequest') }} f
+    LEFT JOIN {{ ref('dim_time') }} d ON f.time_sk = d.time_sk
     UNION ALL
     SELECT
         'page_sk',
         COUNT(*),
-        SUM(CASE WHEN page_sk != -1 AND page_sk NOT IN (SELECT page_sk FROM {{ ref('dim_page') }}) THEN 1 ELSE 0 END)
-    FROM {{ ref('fact_webrequest') }}
+        COUNT(CASE WHEN f.page_sk != -1 AND d.page_sk IS NULL THEN 1 END)
+    FROM {{ ref('fact_webrequest') }} f
+    LEFT JOIN {{ ref('dim_page') }} d ON f.page_sk = d.page_sk
     UNION ALL
     SELECT
         'method_sk',
         COUNT(*),
-        SUM(CASE WHEN method_sk != -1 AND method_sk NOT IN (SELECT method_sk FROM {{ ref('dim_method') }}) THEN 1 ELSE 0 END)
-    FROM {{ ref('fact_webrequest') }}
+        COUNT(CASE WHEN f.method_sk != -1 AND d.method_sk IS NULL THEN 1 END)
+    FROM {{ ref('fact_webrequest') }} f
+    LEFT JOIN {{ ref('dim_method') }} d ON f.method_sk = d.method_sk
     UNION ALL
     SELECT
         'status_sk',
         COUNT(*),
-        SUM(CASE WHEN status_sk != -1 AND status_sk NOT IN (SELECT status_sk FROM {{ ref('dim_status') }}) THEN 1 ELSE 0 END)
-    FROM {{ ref('fact_webrequest') }}
+        COUNT(CASE WHEN f.status_sk != -1 AND d.status_sk IS NULL THEN 1 END)
+    FROM {{ ref('fact_webrequest') }} f
+    LEFT JOIN {{ ref('dim_status') }} d ON f.status_sk = d.status_sk
     UNION ALL
     SELECT
         'referrer_sk',
         COUNT(*),
-        SUM(CASE WHEN referrer_sk != -1 AND referrer_sk NOT IN (SELECT referrer_sk FROM {{ ref('dim_referrer') }}) THEN 1 ELSE 0 END)
-    FROM {{ ref('fact_webrequest') }}
+        COUNT(CASE WHEN f.referrer_sk != -1 AND d.referrer_sk IS NULL THEN 1 END)
+    FROM {{ ref('fact_webrequest') }} f
+    LEFT JOIN {{ ref('dim_referrer') }} d ON f.referrer_sk = d.referrer_sk
     UNION ALL
     SELECT
         'visit_bucket_sk',
         COUNT(*),
-        SUM(CASE WHEN visit_bucket_sk != -1 AND visit_bucket_sk NOT IN (SELECT visit_bucket_sk FROM {{ ref('dim_visit_buckets') }}) THEN 1 ELSE 0 END)
-    FROM {{ ref('fact_webrequest') }}
+        COUNT(CASE WHEN f.visit_bucket_sk != -1 AND d.visit_bucket_sk IS NULL THEN 1 END)
+    FROM {{ ref('fact_webrequest') }} f
+    LEFT JOIN {{ ref('dim_visit_buckets') }} d ON f.visit_bucket_sk = d.visit_bucket_sk
     UNION ALL
     SELECT
         'geolocation_sk',
         COUNT(*),
-        SUM(CASE WHEN geolocation_sk != -1 AND geolocation_sk NOT IN (SELECT geolocation_sk FROM {{ source('w3c', 'dim_geolocation') }}) THEN 1 ELSE 0 END)
-    FROM {{ ref('fact_webrequest') }}
+        COUNT(CASE WHEN f.geolocation_sk != -1 AND d.geolocation_sk IS NULL THEN 1 END)
+    FROM {{ ref('fact_webrequest') }} f
+    LEFT JOIN {{ source('w3c', 'dim_geolocation') }} d ON f.geolocation_sk = d.geolocation_sk
     UNION ALL
     SELECT
         'user_agent_sk',
         COUNT(*),
-        SUM(CASE WHEN user_agent_sk != -1 AND user_agent_sk NOT IN (SELECT user_agent_sk FROM {{ source('w3c', 'dim_useragent') }}) THEN 1 ELSE 0 END)
-    FROM {{ ref('fact_webrequest') }}
+        COUNT(CASE WHEN f.user_agent_sk != -1 AND d.user_agent_sk IS NULL THEN 1 END)
+    FROM {{ ref('fact_webrequest') }} f
+    LEFT JOIN {{ source('w3c', 'dim_useragent') }} d ON f.user_agent_sk = d.user_agent_sk
     UNION ALL
     SELECT
         'visitor_sk',
         COUNT(*),
-        SUM(CASE WHEN visitor_sk != -1 AND visitor_sk NOT IN (SELECT visitor_sk FROM {{ ref('dim_visitortype') }}) THEN 1 ELSE 0 END)
-    FROM {{ ref('fact_webrequest') }}
+        COUNT(CASE WHEN f.visitor_sk != -1 AND d.visitor_sk IS NULL THEN 1 END)
+    FROM {{ ref('fact_webrequest') }} f
+    LEFT JOIN {{ ref('dim_visitortype') }} d ON f.visitor_sk = d.visitor_sk
 )
 
 SELECT
@@ -70,4 +81,3 @@ SELECT
     ROUND(100.0 * orphans / NULLIF(total, 0), 2) AS orphan_pct
 FROM fk_checks
 WHERE orphans > 0
-ORDER BY orphans DESC

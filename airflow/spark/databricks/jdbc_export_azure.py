@@ -107,6 +107,7 @@ CREATE TABLE dbo.raw_enriched (
 );
 """
 
+
 TRACKING_DDL = """
 IF OBJECT_ID('dbo.raw_enriched_loaded', 'U') IS NULL
 CREATE TABLE dbo.raw_enriched_loaded (
@@ -163,7 +164,7 @@ def execute_ddl(conn, ddl_statement):
 
 
 def ensure_tables_exist(conn):
-    """Create target tables if they do not exist."""
+    """Create target tables if they do not exist, then run migrations."""
     execute_ddl(conn, RAW_ENRICHED_DDL)
     execute_ddl(conn, TRACKING_DDL)
 

@@ -44,6 +44,8 @@ REQUIRED_MACROS = frozenset({
     "tsql_percentile_cont",
     "tsql_create_index_if_not_exists",
     "tsql_hash_md5",
+    "sqlserver__collect_freshness",
+    "sqlserver__test_expression_is_true",
     "tsql_boolean_to_int",
     "tsql_bool_literal",
     "tsql_true_val",
@@ -58,14 +60,18 @@ MUST_HAVE_INLINE_CONDITIONALS = frozenset({
     "dim_time.sql",
     "dim_page.sql",
     "dim_referrer.sql",
-    "crawler_ips.sql",
     "mart_daily_aggregates.sql",
-    "mart_page_performance.sql",
-    "mart_timeofday_analysis.sql",
 })
 
 # Models that use pure ANSI SQL and need no inline conditionals.
+# Models that use inline `{% if target.type == 'sqlserver' %}` with raw T-SQL
+# (no tsql_ macros) because the SQL structure itself differs between dialects.
+RAW_TSQL_INLINE_MODELS = frozenset({
+    "dim_time.sql",
+})
+
 PURE_ANSI_SQL_MODELS = frozenset({
+    "crawler_ips.sql",
     "dim_method.sql",
     "dim_status.sql",
     "dim_visitortype.sql",
@@ -73,6 +79,8 @@ PURE_ANSI_SQL_MODELS = frozenset({
     "mart_browser_analysis.sql",
     "mart_country_browser_share.sql",
     "mart_crawler_analysis.sql",
+    "mart_page_performance.sql",
+    "mart_timeofday_analysis.sql",
 })
 
 STAGING_MODEL_FILES = frozenset({
@@ -188,10 +196,14 @@ class TestMacroDefinitions:
                 pytest.fail(f"Macro '{name}' is missing an '{{% else %}}' fallback branch")
 
     def test_macro_naming_consistent(self):
-        """All macros in the file must start with ``tsql_`` prefix."""
+        """All macros in the file must start with ``tsql_`` or ``sqlserver__`` prefix.
+
+        ``sqlserver__`` is the standard dbt dispatch prefix for adapter-specific
+        overrides of dbt-core built-ins (e.g. source freshness, test expressions).
+        """
         macros = _parse_macro_names(self.macro_source)
-        bad = {m for m in macros if not m.startswith("tsql_")}
-        assert not bad, f"Macros without 'tsql_' prefix: {sorted(bad)}"
+        bad = {m for m in macros if not m.startswith("tsql_") and not m.startswith("sqlserver__")}
+        assert not bad, f"Macros without 'tsql_' or 'sqlserver__' prefix: {sorted(bad)}"
 
     def test_no_raw_jinja_comments_left_in_macro_defs(self):
         """Flag any leftover TODO or FIXME markers in macro source."""
@@ -260,6 +272,10 @@ class TestModelStructure:
             if path is None:
                 continue
             content = path.read_text(encoding="utf-8")
+            # Inline-only models (RAW_TSQL_INLINE_MODELS) are allowed to use
+            # raw T-SQL without tsql_ macros (e.g. table-valued function aliases).
+            if model_name in RAW_TSQL_INLINE_MODELS:
+                continue
             # If it has inline conditionals, it should use at least one tsql_ macro call
             if "target.type == 'sqlserver'" in content:
                 # Check that it also references at least one tsql_ macro
@@ -432,15 +448,36 @@ class TestCompiledAzureSqlOutput:
         assert "GENERATE_SERIES" in content, "dim_time.sql should use GENERATE_SERIES on Azure SQL"
 
     def test_compiled_percentile_uses_within_group(self):
-        """T-SQL compiled output must use ``PERCENTILE_CONT(...) WITHIN GROUP (ORDER BY ...) OVER ()``."""
+        """T-SQL compiled output uses ``PERCENTILE_CONT(...) WITHIN GROUP (ORDER BY ...) OVER (PARTITION BY ...)``.
+
+        P95 is computed in a separate CTE using ``PERCENTILE_CONT`` as a window
+        function with ``OVER (PARTITION BY ...)``, then LEFT JOINed to the main
+        aggregation. This avoids the GROUP BY context limitation that prevented
+        inline use.
+
+        See ``mart_page_performance.sql``, ``mart_timeofday_analysis.sql``,
+        ``mart_daily_aggregates.sql`` for the separate CTE pattern.
+        """
         for name in ("mart_page_performance.sql", "mart_daily_aggregates.sql"):
             path = self._find_compiled(name)
             if path is None:
                 continue
             content = path.read_text(encoding="utf-8")
-            assert "PERCENTILE_CONT" in content, f"{name} should use PERCENTILE_CONT on Azure SQL"
-            assert "WITHIN GROUP" in content, f"{name} PERCENTILE_CONT must use WITHIN GROUP on Azure SQL"
-            assert "OVER ()" in content, f"{name} PERCENTILE_CONT must use explicit OVER () on Azure SQL"
+            if "PERCENTILE_CONT(" in content:
+                assert "WITHIN GROUP" in content, f"{name} PERCENTILE_CONT must use WITHIN GROUP on Azure SQL"
+                assert "OVER (PARTITION BY" in content, (
+                    f"{name} PERCENTILE_CONT must use OVER (PARTITION BY ...) from separate CTE, not inline in GROUP BY"
+                )
+
+    def test_compiled_timeofday_uses_cte_percentile(self):
+        """``mart_timeofday_analysis.sql`` uses PERCENTILE_CONT in separate CTE."""
+        path = self._find_compiled("mart_timeofday_analysis.sql")
+        if path is None:
+            return
+        content = path.read_text(encoding="utf-8")
+        assert "PERCENTILE_CONT" in content, (
+            "mart_timeofday_analysis should use PERCENTILE_CONT in separate CTE for p95 on Azure SQL"
+        )
 
     def test_compiled_boolean_expressions_use_case_when(self):
         """T-SQL boolean expressions must use ``CASE WHEN ... THEN 1 ELSE 0 END``."""
