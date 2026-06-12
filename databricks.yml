@@ -1,0 +1,74 @@
+# ---------------------------------------------------------------------------
+# Databricks Asset Bundle (DAB) — w3c-etl-pipeline
+# ---------------------------------------------------------------------------
+# Deploys notebooks, DLT pipelines, and workflow definitions to Databricks
+# workspaces across environments.
+#
+# The Terraform Part B (`terraform/part_b/`) handles the initial provisioning
+# of Databricks secrets, storage credentials, external locations, DLT pipeline
+# resources, and the orchestration workflow. This DAB provides an additional
+# code-deployment layer for rapid notebook updates without full terraform
+# apply cycles.
+#
+# Usage:
+#   databricks bundle deploy -t dev      # Deploy to dev
+#   databricks bundle deploy -t staging  # Deploy to staging
+#   databricks bundle deploy -t prod     # Deploy to prod
+#   databricks bundle deploy -t dev --version prev  # Rollback to previous
+# ---------------------------------------------------------------------------
+
+bundle:
+  name: w3c-etl-pipeline
+
+# ---------------------------------------------------------------------------
+# Resources managed by this bundle
+# ---------------------------------------------------------------------------
+# These are workspace files deployed to exact paths expected by Terraform
+# Part B's databricks_notebook and databricks_workspace_file resources.
+# Terraform manages the initial creation; DAB provides rapid code updates.
+# ---------------------------------------------------------------------------
+resources:
+  files:
+    dlt_bronze:
+      source: ./airflow/spark/databricks/dlt_bronze.py
+      path: /Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_bronze.py
+    dlt_silver:
+      source: ./airflow/spark/databricks/dlt_silver.py
+      path: /Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_silver.py
+    jdbc_export_azure:
+      source: ./airflow/spark/databricks/jdbc_export_azure.py
+      path: /Repos/w3c-etl-pipeline/airflow/spark/databricks/jdbc_export_azure.py
+    dbt_freshness:
+      source: ./airflow/spark/databricks/dbt_freshness.py
+      path: /Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_freshness.py
+    dbt_run:
+      source: ./airflow/spark/databricks/dbt_run.py
+      path: /Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_run.py
+    dbt_test:
+      source: ./airflow/spark/databricks/dbt_test.py
+      path: /Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_test.py
+    dbt_docs:
+      source: ./airflow/spark/databricks/dbt_docs.py
+      path: /Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_docs.py
+    dbt_common:
+      source: ./airflow/spark/databricks/dbt_common.py
+      path: /Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_common.py
+    dbt_project_zip:
+      source: ./airflow/dbt/w3c.zip
+      path: /dbt_project/w3c
+
+# ---------------------------------------------------------------------------
+# Environment targets
+# ---------------------------------------------------------------------------
+targets:
+  dev:
+    workspace:
+      host: https://adb-7405616994554630.10.azuredatabricks.net
+
+  staging:
+    workspace:
+      host: ${DATABRICKS_HOST_STAGING}
+
+  prod:
+    workspace:
+      host: ${DATABRICKS_HOST_PROD}
