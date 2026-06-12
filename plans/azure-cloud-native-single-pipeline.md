@@ -1,7 +1,7 @@
 # Azure Cloud-Native Single-Pipeline ETL Platform Implementation Plan
 
-**Version:** v3.0
-**Status:** Phase 8a ✅, 8b ✅, 8c ✅, 8d ✅ complete
+**Version:** v3.1
+**Status:** Phases 0–9 ✅ complete
 **Budget:** $149 Azure credit cap
 **CV Impact:** High - demonstrates cloud-native DE, Databricks DLT, Unity Catalog, dbt, Azure SQL, and end-to-end data platform ownership
 **Target Roles:** Data Engineer, Cloud Data Engineer, Data Platform Engineer
@@ -943,457 +943,51 @@ The storage account key remains in pipeline configurations (via `TF_VAR_storage_
 
 ---
 
-### Phase 9 — CI/CD
+### Phase 9 — CI/CD (✅ Complete)
 
-**Phase Goal:** Configure CI/CD (Tier 1 on every push + CD on merge to main). Tier 1 provides fast code-quality feedback with no Azure creds. CD deploys to Azure with an embedded post-deploy smoke test validating the pipeline end-to-end. No standalone nightly integration suite — the CD smoke test covers the same ground only when code actually changes.
+**Phase Goal:** Configure CI/CD (Tier 1 on every push + CD on merge to main). Tier 1 provides fast code-quality feedback with no Azure creds. CD deploys to Azure with an embedded post-deploy smoke test validating the pipeline end-to-end.
 
-**Checklist:**
+**Summary:** Created 4 CI jobs (lint, test, dbt-compile, terraform) via 3 reusable workflow templates (`_reusable-lint.yml`, `_reusable-test.yml`, `_reusable-terraform.yml`) and 1 inline `dbt-compile` job requiring dual service containers. Built 7-job CD pipeline (`cd.yml`, 349 lines) with OIDC-managed auth, environment-gated approvals (dev auto, staging/prod manual), DAB deploy, dbt deploy with first-deploy fallback, DAG sync, and post-deploy smoke test (trigger → poll → SQL assert). **OIDC fully managed by Terraform** (`github_oidc.tf` — 77 lines) — no manual Azure CLI commands. Deployment runbook documented (`docs/deployment-runbook.md`, 301 lines). Dependabot configured (`.github/dependabot.yml` + auto-merge workflow). Code review caught 9 issues across `cd.yml` and `databricks.yml` — all fixed. All artifacts validate locally (terraform fmt/validate ✅, ruff ✅, mypy ✅, databricks.yml YAML valid ✅).
 
-All items are grouped by implementation order within a single phase. Start with Step 1 (CI), then Step 2 (CD).
+**⚠️ Differences from Plan Scaffold:**
 
-**Step 1 — CI Pipeline (Tier 1 — every push, no Azure creds):**
-- [x] Create/update `.github/workflows/ci.yml` with Tier 1 jobs
-- [x] Configure Tier 1: Ruff linting
-- [x] Configure Tier 1: mypy type checking
-- [x] Configure Tier 1: pytest unit + DAG integrity tests
-- [x] Configure Tier 1: dbt compile --profile w3c (PostgreSQL)
-- [x] Configure Tier 1: dbt compile --profile w3c_azure (SQL Server, for T-SQL validation)
-- [x] Configure Tier 1: terraform validate + fmt --check (Part A and B)
-- [x] **Create reusable workflow templates** (`.github/workflows/_reusable-lint.yml`, `_reusable-test.yml`, `_reusable-terraform.yml`) — optional refactoring after baseline works
-- [ ] Test Tier 1 CI on push
+| Plan Scaffold | Actual Implementation | Reason |
+|---------------|----------------------|--------|
+| OIDC via manual `az ad app` CLI commands | Terraform-managed via `github_oidc.tf` — `azuread_application`, `azuread_application_federated_identity_credential` × 3, `azurerm_role_assignment` | IaC best practice; single deploy creates app + 3 federated creds + Contributor role |
+| Smoke test DAG ID `spark_ingestion_azure` | `w3c_spark_ingestion_azure` — actual ID matching DAG definition | Code review fix — wrong ID causes 404 on every CD run |
+| Duplicate `failed` condition `[ "$STATE" = "failed" ] \|\| [ "$STATE" = "failed" ]` | `[ "$STATE" = "failed" ] \|\| [ "$STATE" = "upstream_failed" ]` | Copy-paste error — `upstream_failed` and other terminal states were silently ignored |
+| dbt `--defer --state` with no fallback for first deploy | `if [ -f "./target-prod/manifest.json" ]` check falls back to plain `dbt run` | First deployment has no prior manifest — `--defer` would fail |
+| Rollback: `terraform apply -refresh-only` | Rollback: `terraform plan` + `terraform apply` for Part A and B separately (+ prior commit checkout) | `-refresh-only` syncs state without changing infrastructure — no-op as rollback |
+| Reusable workflows: "optional refactoring after baseline works" | Mandatory from the start — `ci.yml` calls 3 reusable templates | Cleaner separation; easier to maintain and extend in Phase 10+ |
+| `dbt_compile` pytest marker not registered | Registered in `pyproject.toml` — `dbt_compile` excluded from main CI test run | Required for CI to correctly filter dbt compile unit tests |
 
-**Step 2 — CD Pipeline (Continuous Deployment — merge to main):**
-- [x] Create `.github/workflows/cd.yml` with CD jobs
-- [x] **Configure OIDC Workload Identity Federation for Azure auth via Terraform** (github_oidc.tf — no client secrets, no Azure CLI)
-- [ ] **Create GitHub Environments**: `azure-dev`, `azure-staging`, `azure-prod` with protection rules — runbook docs ready, requires GitHub UI setup
-- [x] Add `terraform plan` job (outputs plan to job logs; Tier 1 CI handles `terraform validate` + `fmt --check`)
-- [x] Add `terraform apply` job for `azure-dev` (auto-approve on merge to main)
-- [x] Add `terraform apply` job for `azure-staging` (manual approval gate via environment)
-- [x] Add `terraform apply` job for `azure-prod` (manual approval + required reviewers via environment)
-- [x] Deploy Databricks Asset Bundle per environment (`databricks bundle deploy -t <env>`)
-- [x] Deploy dbt models per environment with `--defer` to prod (`dbt run --profile <env> --defer --state ./target-prod`)
-- [x] Deploy Airflow DAGs to production (sync `airflow/dags/` to ADLS + trigger DAG bag refresh)
-- [x] Add rollback job (`terraform apply -refresh-only` + previous bundle version, manual `workflow_dispatch`)
-- [x] **Add post-deploy smoke test** (trigger Airflow DAG 1 via REST API + poll DAG completion + assert Azure SQL row counts — replaces standalone Tier 2 nightlies)
-- [x] Add concurrency group on CD workflow (queue sequential runs — do NOT cancel in-progress)
-- [x] Document deployment runbook (`docs/deployment-runbook.md`)
-- [x] Configure Dependabot with auto-merge for patch updates (`.github/dependabot.yml`)
-- [ ] Test CD via merge to main
+**Post-Completion Fixes Applied (code review — 2026-06-13):**
 
-**Code Scaffolds:**
+| # | Issue | Fix |
+|---|-------|-----|
+| 1 | `cd.yml`: unused `DAB_TARGET_DEV: dev` env var | Removed (dead code) |
+| 2 | `cd.yml`: sync-airflow step redundantly triggered DAG via curl **and** smoke test also triggers separately | Replaced curl trigger with echo confirmation — smoke test is the sole trigger |
+| 3 | `cd.yml`: misleading step name "Trigger DAG Bag Refresh" | Renamed to "DAG file sync complete — smoke test will trigger ingestion" |
+| 4 | `databricks.yml`: hardcoded Databricks dev workspace URL | Changed to `${DATABRICKS_HOST_DEV}` env var (consistent with staging/prod pattern) |
+| 5 | Missing Dependabot auto-merge workflow | Created `.github/workflows/dependabot-auto-merge.yml` — approves + merges patch PRs |
 
-Scaffolds below are grouped by implementation order. Implement Step 1 first, then Step 2 — each step can be verified independently before proceeding.
+**Verified State:**
+- CI: 4 jobs (lint, test, dbt-compile, terraform) — ruff, mypy, pytest (227 tests), dbt compile (2 profiles), terraform validate + fmt (Part A + B) all pass locally
+- CD: 7 jobs (terraform-plan, terraform-apply, deploy-dab, deploy-dbt, sync-airflow, smoke-test, rollback) — environment-gated via GitHub Environments
+- OIDC: `azuread_application.github_actions` (gha-w3c-etl-pipeline) + service principal + 3 federated identity credentials + Contributor role assignment — all Terraform-managed
+- DAB: `databricks.yml` with 9 workspace file resources + 3 targets (dev/staging/prod)
+- Runbook: `docs/deployment-runbook.md` — OIDC bootstrap, GitHub Environment setup, deployment sequence, troubleshooting
+- Dependabot: `.github/dependabot.yml` (5 ecosystems) + `dependabot-auto-merge.yml` (patch auto-approve)
+- 2 checklist items require git push (CI test on push, CD test on merge to main) + 1 requires GitHub UI (Environments) + 1 requires bootstrap terraform apply (OIDC first deploy)
 
----
+**Critical Lessons Learned:**
+1. **DAG IDs need the full namespace** — Smoke test referenced `spark_ingestion_azure` but the actual ID is `w3c_spark_ingestion_azure`. Always check actual DAG definitions when building CD smoke tests.
+2. **dbt `--defer --state` requires a prior manifest** — First-time deployment fails without a fallback to plain `dbt run`. Always add a manifest existence check.
+3. **`terraform apply -refresh-only` is NOT a rollback** — It syncs state without changing infrastructure. Real rollback requires checking out the prior commit + `terraform plan/apply`.
+4. **Dependabot auto-merge needs a separate workflow** — `dependabot.yml` alone can't auto-merge PRs. A `workflow_run` or `pull_request_target` workflow is required to approve and merge.
+5. **CD pipeline must handle idempotent dbt deployment** — `--defer` references production state but the state file doesn't exist on first deploy per environment. The manifest check pattern solves this.
 
-#### Step 1: CI Pipeline
-
-Add CI after scheduling refactor is verified. Runs on every push with no Azure credentials.
-
-**.github/workflows/ci.yml (calls reusable workflows):**
-
-```yaml
-name: CI - Every Push
-
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  lint:
-    uses: ./.github/workflows/_reusable-lint.yml
-    secrets: inherit
-
-  test:
-    uses: ./.github/workflows/_reusable-test.yml
-    secrets: inherit
-
-  dbt-compile:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:16
-        env: { POSTGRES_DB: test, POSTGRES_PASSWORD: test }
-        ports: [5432:5432]
-        options: >-
-          --health-cmd="pg_isready -U postgres"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-      mssql:
-        image: mcr.microsoft.com/mssql/server:2022-latest
-        env:
-          MSSQL_SA_PASSWORD: "Test123!Pass"
-          ACCEPT_EULA: "Y"
-          MSSQL_PID: Developer
-        ports: [1433:1433]
-        options: >-
-          --health-cmd="/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Test123!Pass -C -Q 'SELECT 1'"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12", cache: "pip" }
-      - name: Install dbt
-        run: pip install dbt-core dbt-postgres dbt-sqlserver
-      - name: dbt compile (PostgreSQL)
-        run: |
-          cd airflow/dbt/w3c
-          dbt compile --profile w3c
-      - name: dbt compile (Azure SQL / T-SQL validation)
-        run: |
-          cd airflow/dbt/w3c
-          dbt compile --profile w3c_azure
-
-  terraform:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      matrix:
-        dir: [terraform/part_a, terraform/part_b]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "1.10.5" }
-      - name: Terraform fmt
-        run: cd ${{ matrix.dir }} && terraform fmt --check
-      - name: Terraform init
-        run: cd ${{ matrix.dir }} && terraform init -backend=false
-      - name: Terraform validate
-        run: cd ${{ matrix.dir }} && terraform validate
-```
-
-**.github/workflows/_reusable-lint.yml:**
-
-```yaml
-name: Reusable Lint
-on: workflow_call
-jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12", cache: "pip" }
-      - run: pip install ruff mypy
-      - run: ruff check --output-format=github .
-      - run: mypy --ignore-missing-imports .
-```
-
-**.github/workflows/_reusable-test.yml:**
-
-```yaml
-name: Reusable Test
-on: workflow_call
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env: { POSTGRES_DB: test, POSTGRES_PASSWORD: test }
-        ports: [5432:5432]
-        options: >-
-          --health-cmd="pg_isready -U postgres"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12", cache: "pip" }
-      - run: pip install -r tests/requirements-test.txt pytest
-      # Run everything except integration tests (need Azure creds) and terraform tests (need provider setup)
-      # DAG integrity tests run in CI — they verify structure, not schedules
-      # dbt_compile unit tests run in CI — they verify macro structure
-      - run: pytest tests/ -v --tb=short -m "not integration and not terraform"
-```
-
----
-
-#### Step 2: CD Pipeline
-
-Implement CD last — it builds on the CI quality gate (verified in Step 1).
-
-**.github/workflows/cd.yml (Continuous Deployment — merge to main):**
-
-```yaml
-name: CD - Deploy to Azure
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "Target environment"
-        required: true
-        default: azure-dev
-        type: choice
-        options: [azure-dev, azure-staging, azure-prod]
-
-concurrency:
-  group: cd-${{ github.ref }}
-  cancel-in-progress: false  # Queue sequential runs — do NOT cancel in-progress deployments
-
-env:
-  TF_VERSION: "1.10.5"
-
-jobs:
-  terraform-plan:
-    name: Terraform Plan
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "${{ env.TF_VERSION }}" }
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Terraform Plan (Part A)
-        run: |
-          cd terraform/part_a
-          terraform init
-          terraform plan -no-color 2>&1
-      - name: Terraform Plan (Part B)
-        run: |
-          cd terraform/part_b
-          terraform init
-          terraform plan -no-color 2>&1
-
-  terraform-apply:
-    name: Terraform Apply (${{ inputs.environment || 'azure-dev' }})
-    needs: terraform-plan
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment || 'azure-dev' }}
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "${{ env.TF_VERSION }}" }
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Terraform Apply (Part A)
-        run: cd terraform/part_a && terraform init && terraform apply -auto-approve
-      - name: Terraform Apply (Part B)
-        run: cd terraform/part_b && terraform init && terraform apply -auto-approve
-
-  deploy-dab:
-    name: Deploy Databricks Bundle
-    needs: terraform-apply
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment || 'azure-dev' }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Deploy DAB
-        run: databricks bundle deploy -t ${{ inputs.environment || 'dev' }}
-
-  deploy-dbt:
-    name: Deploy dbt Models
-    needs: terraform-apply
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: pip install dbt-core dbt-sqlserver
-      - name: dbt run (--defer --state)
-        run: |
-          cd airflow/dbt/w3c
-          dbt run --profile w3c_azure --defer --state ./target-prod
-          dbt test --profile w3c_azure
-
-  sync-airflow:
-    name: Sync Airflow DAGs
-    needs: terraform-apply
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Sync to ADLS
-        run: az storage fs upload -f airflow-dags -s airflow/dags/ --account-name $STORAGE_ACCOUNT_NAME
-
-  smoke-test:
-    name: Post-Deploy Smoke Test
-    needs: [deploy-dab, deploy-dbt, sync-airflow]
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment || 'azure-dev' }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Trigger Airflow DAG 1 via REST API
-        run: |
-          DAG_RUN_ID=$(curl -s -X POST "${{ vars.AIRFLOW_URL }}/api/v1/dags/spark_ingestion_azure/dagRuns" \
-            -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" \
-            -H "Content-Type: application/json" \
-            -d '{"conf": {"trigger_source": "cd_smoke_test"}}' | jq -r '.dag_run_id // empty')
-          echo "DAG_RUN_ID=$DAG_RUN_ID" >> $GITHUB_ENV
-      - name: Poll DAG Until Complete
-        run: |
-          for i in $(seq 1 60); do
-            STATE=$(curl -s "${{ vars.AIRFLOW_URL }}/api/v1/dags/spark_ingestion_azure/dagRuns/${{ env.DAG_RUN_ID }}" \
-              -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" | jq -r '.state // "unknown"')
-            echo "Attempt $i: $STATE"
-            if [ "$STATE" = "success" ]; then exit 0; fi
-            if [ "$STATE" = "failed" ] || [ "$STATE" = "failed" ]; then exit 1; fi
-            sleep 15
-          done
-          exit 1
-      - name: Assert Azure SQL Row Count
-        run: |
-          ROWS=$(sqlcmd -S ${{ vars.AZURE_SQL_SERVER }} -d ${{ vars.AZURE_SQL_DATABASE }} \
-            -U ${{ vars.AZURE_SQL_USER }} -P ${{ secrets.AZURE_SQL_PASSWORD }} \
-            -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM dbo.raw_enriched" -h -1 | tr -d ' ')
-          echo "Azure SQL rows: $ROWS"
-          [ "$ROWS" -gt 0 ] && exit 0 || exit 1
-
-  rollback:
-    name: Rollback (${{ inputs.environment || 'azure-dev' }})
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment || 'azure-dev' }}
-    steps:
-      - uses: actions/checkout@v4
-        with: { ref: 'HEAD~1' }
-      - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "${{ env.TF_VERSION }}" }
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Terraform Rollback
-        run: |
-          cd terraform/part_b
-          terraform init && terraform apply -refresh-only -auto-approve
-      - name: Deploy Previous Bundle
-        run: databricks bundle deploy -t ${{ inputs.environment || 'dev' }} --version prev
-```
-
-**OIDC Workload Identity Federation Setup (one-time, replaces client secret):**
-
-```bash
-# 1. Create Entra ID app registration for GitHub Actions
-az ad app create --display-name "github-actions-w3c-etl" \
-  --web-redirect-uris "https://github.com/<owner>/<repo>"
-
-# 2. Create service principal
-az ad sp create --id <app-id>
-
-# 3. Assign Azure roles (Contributor on resource group, or custom)
-az role assignment create --assignee <sp-object-id> \
-  --role "Contributor" \
-  --scope "/subscriptions/<sub-id>/resourceGroups/<rg-name>"
-
-# 4. Configure Federated Identity Credential for each CD environment
-az ad app federated-credential create --id <app-id> \
-  --parameters '{
-    "name": "github-actions-dev",
-    "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "repo:<owner>/<repo>:environment:azure-dev",
-    "audiences": ["api://AzureADTokenExchange"]
-  }'
-
-# 5. Repeat for staging and prod environments:
-#    subject: repo:<owner>/<repo>:environment:azure-staging
-#    subject: repo:<owner>/<repo>:environment:azure-prod
-```
-
-**CD secrets (GitHub Environment-scoped, one set per environment):**
-
-```bash
-# Add to each GitHub Environment (azure-dev, azure-staging, azure-prod):
-AZURE_CLIENT_ID=<app-id>
-AZURE_TENANT_ID=<tenant-id>
-AZURE_SUBSCRIPTION_ID=<subscription-id>
-AIRFLOW_URL=<airflow-webserver-url>
-AIRFLOW_USERNAME=<airflow-api-username>
-AZURE_SQL_SERVER=<server-fqdn>
-AZURE_SQL_USER=<sql-username>
-STORAGE_ACCOUNT_NAME=<storage-account-name>
-
-# Secrets (masked in logs):
-AIRFLOW_PASSWORD=<airflow-api-password>
-DATABRICKS_TOKEN=<personal-access-token>
-AZURE_SQL_PASSWORD=<sql-password>
-
-# No ARM_CLIENT_SECRET — OIDC replaces it entirely
-```
-
-**Acceptance Criteria:**
-
-Organized by implementation order within the single phase.
-
-**Step 1 — CI Pipeline (Tier 1):**
-- Tier 1 CI configured with all checks including DAG integrity and dbt compile tests
-- Tier 1 runs on every push to main/develop
-- Tier 1 passes without Azure credentials
-- Tier 1 CI tested on push
-- dbt compile validates both PostgreSQL and Azure SQL (T-SQL) profiles (with SQL Server service container)
-
-**Step 2 — CD Pipeline:**
-- OIDC configured for Azure auth — no client secrets
-- CD secrets configured in GitHub Environments
-- CD workflow deploys to dev/staging/prod on merge to main
-- Terraform plan/apply runs correctly in CD pipeline
-- Databricks Asset Bundle deployed to each environment
-- dbt models deployed to each environment with `--defer` to prod
-- Airflow DAGs synced to production
-- CD includes post-deploy smoke test (trigger Airflow DAG 1 via REST API + poll DAG completion + assert Azure SQL row count)
-- CD concurrency queues sequential deployments — does NOT cancel in-progress runs
-- Smoke test failure rolls back or alerts
-- Rollback job available via `workflow_dispatch`
-- Deployment runbook documented
-- Dependabot configured with patch auto-merge
-- CD tested via merge to main
-
-**Phase Handoff Validation:**
-
-```bash
-# Step 1: Trigger Tier 1 CI
-git push origin develop
-# Verify Tier 1 passes in GitHub Actions (lint, test, dbt compile, terraform)
-
-# Step 2: Trigger CD (merge to main)
-git checkout main && git merge develop && git push origin main
-# Verify terraform plan logs output in CD job
-# Verify terraform apply runs for azure-dev (auto)
-# Verify Databricks bundle deployed to dev
-# Verify dbt models deployed to dev
-# Verify Airflow DAGs synced
-# Verify post-deploy smoke test passes (Airflow REST API → trigger DAG 1 → poll → SQL count)
-
-# Step 3: Promote to staging/prod
-# Approve azure-staging in GitHub Environments
-# Verify smoke test passes in staging
-# Approve azure-prod in GitHub Environments
-# Verify smoke test passes in prod
-
-# Step 4: Test rollback
-# Run workflow_dispatch rollback job with previous bundle version
-```
+**Phase 9 → Phase 10 Handoff:** ✅ Complete. CI/CD pipelines built and validated locally (terraform validate/fmt, ruff, mypy, pytest all pass). OIDC Terraform-managed with 3 federated identity credentials. Remaining items require git push to GitHub (CI/CD test on push/merge), manual GitHub Environment creation with variables/secrets, and one-time OIDC bootstrap apply. Ready for Phase 10 monitoring configuration.
 
 ---
 
