@@ -2,12 +2,7 @@
     materialized='incremental',
     unique_key='raw_log_id',
     on_schema_change='append_new_columns',
-    tags=['fact', 'dbt'],
-    post_hook=[
-        "{{ tsql_create_index_if_not_exists(this.identifier, 'idx_fact_raw_log_id', 'raw_log_id') }}",
-        "{{ tsql_create_index_if_not_exists(this.identifier, 'idx_fact_date_sk', 'date_sk') }}",
-        "{{ tsql_create_index_if_not_exists(this.identifier, 'idx_fact_page_sk', 'page_sk') }}"
-    ]
+    tags=['fact', 'dbt']
 ) }}
 
 WITH enriched_input AS (
@@ -46,17 +41,6 @@ method_map AS (
 
 referrer_map AS (
     SELECT referrer_sk, referrer_url FROM {{ ref('dim_referrer') }}
-),
-
-geo_map AS (
-    SELECT
-        geolocation_sk,
-        ip AS client_ip
-    FROM {{ source('w3c', 'dim_geolocation') }}
-),
-
-ua_map AS (
-    SELECT user_agent_sk, user_agent FROM {{ source('w3c', 'dim_useragent') }}
 ),
 
 ip_visit_buckets AS (
@@ -109,6 +93,14 @@ computed AS (
         ei.page_category,
         ei.referrer_domain,
         ei.traffic_type,
+        {% if target.type == 'sqlserver' %}
+            -- Geo columns for dim_geolocation FK restoration (sqlserver only)
+            ei.country,
+            ei.region,
+            ei.city,
+            ei.latitude,
+            ei.longitude,
+        {% endif %}
         -- Visitor lookup key from is_crawler flag
         {% if target.type == 'sqlserver' %}
             CASE WHEN COALESCE(ei.is_crawler, 0) = 1 THEN 1 ELSE 2 END AS visitor_key
@@ -116,7 +108,31 @@ computed AS (
             CASE WHEN COALESCE(ei.is_crawler, FALSE) THEN 1 ELSE 2 END AS visitor_key
         {% endif %}
     FROM enriched_input ei
+),
+
+{% if target.type == 'sqlserver' %}
+geo_lookup AS (
+    SELECT DISTINCT
+        c.client_ip,
+        CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',
+            ISNULL(c.country, '') + '|'
+            + ISNULL(c.region, '') + '|'
+            + ISNULL(c.city, '') + '|'
+            + ISNULL(CAST(c.latitude AS NVARCHAR), '') + '|'
+            + ISNULL(CAST(c.longitude AS NVARCHAR), '')
+        ), 2) AS geo_hash
+    FROM computed c
+    WHERE c.country IS NOT NULL
+),
+ua_lookup AS (
+    SELECT DISTINCT
+        c.user_agent,
+        ua.user_agent_sk
+    FROM computed c
+    LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua ON ua.user_agent = c.user_agent
+    WHERE c.user_agent IS NOT NULL AND c.user_agent != '-'
 )
+{% endif %}
 
 SELECT
     c.raw_log_id,
@@ -127,8 +143,13 @@ SELECT
     m.method_sk,
     s.status_sk,
     rf.referrer_sk,
-    COALESCE(g.geolocation_sk, -1) AS geolocation_sk,
-    COALESCE(ua.user_agent_sk, -1) AS user_agent_sk,
+    {% if target.type == 'sqlserver' %}
+        COALESCE(g.geolocation_sk, -1) AS geolocation_sk,
+        COALESCE(ua.user_agent_sk, -1) AS user_agent_sk,
+    {% else %}
+        -1 AS geolocation_sk,
+        -1 AS user_agent_sk,
+    {% endif %}
     v.visitor_sk,
     vb.visit_bucket_sk,
     c.bytes_sent,
@@ -163,8 +184,11 @@ INNER JOIN status_map s
     AND s.sub_status = c.sub_status
     AND s.win32_status = c.win32_status
 INNER JOIN referrer_map rf ON rf.referrer_url = c.referrer_url
-LEFT JOIN geo_map g ON g.client_ip = c.client_ip
-LEFT JOIN ua_map ua ON ua.user_agent = c.user_agent
 INNER JOIN {{ ref('dim_visitortype') }} v ON v.visitor_sk = c.visitor_key
 INNER JOIN ip_visit_buckets ib ON ib.client_ip = c.client_ip
 INNER JOIN {{ ref('dim_visit_buckets') }} vb ON vb.visit_bucket = ib.visit_bucket_name
+{% if target.type == 'sqlserver' %}
+LEFT JOIN geo_lookup gl ON gl.client_ip = c.client_ip
+LEFT JOIN {{ source('w3c', 'dim_geolocation') }} g ON g.geo_hash = gl.geo_hash
+LEFT JOIN ua_lookup ua ON ua.user_agent = c.user_agent
+{% endif %}

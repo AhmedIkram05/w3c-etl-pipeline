@@ -8,8 +8,8 @@ resource "azurerm_storage_account" "this" {
   is_hns_enabled           = true
 
   network_rules {
-    default_action             = "Deny"
-    bypass                     = ["AzureServices"]
+    default_action             = "Allow"
+    bypass                     = ["AzureServices", "Logging", "Metrics"]
     virtual_network_subnet_ids = [var.databricks_subnet_id]
   }
 

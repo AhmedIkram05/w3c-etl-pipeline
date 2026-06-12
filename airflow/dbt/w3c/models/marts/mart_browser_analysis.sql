@@ -25,7 +25,7 @@ browser_stats AS (
     FROM {{ ref('fact_webrequest') }} fw
     JOIN {{ ref('dim_date') }} dd ON dd.date_sk = fw.date_sk
     LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua ON ua.user_agent_sk = fw.user_agent_sk
-    WHERE fw.user_agent_sk > 0  -- exclude unknown user agents
+    WHERE fw.user_agent_sk > -1  -- exclude the -1 Unknown sentinel; NULL user_agents have no dim row
     GROUP BY fw.date_sk, dd.date, ua.browser_name, ua.operating_system, ua.device_type
 )
 

@@ -85,6 +85,13 @@ x-airflow-common:
     AZURE_SQL_USER: ${AZURE_SQL_USER}
     AZURE_SQL_PASS: ${AZURE_SQL_PASS}
 
+    # ── Azure Blob Storage (for dbt docs export from gold/dbt-docs/) ──
+    # Uses Databricks-convention names (AZURE_STORAGE_*) for consistency with the
+    # Databricks secret scope. Legacy STORAGE_ACCOUNT_NAME / STORAGE_ACCESS_KEY
+    # are also supported by the operator as a fallback.
+    AZURE_STORAGE_ACCOUNT: ${AZURE_STORAGE_ACCOUNT:-stw3cetlwestus3}
+    AZURE_STORAGE_KEY: ${AZURE_STORAGE_KEY:-}
+
     # ── Databricks Workflow job ID ──
     DATABRICKS_JOB_ID: ${DATABRICKS_JOB_ID}
 

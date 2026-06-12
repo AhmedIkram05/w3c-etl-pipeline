@@ -236,6 +236,7 @@ def bronze_raw_logs():
         )
 
     # Auto Loader configuration (binaryFile -> per-file rows)
+    # Authorization is provided via Unity Catalog external location with managed identity
     df = (
         spark.readStream  # noqa: F821
         .format("cloudFiles")

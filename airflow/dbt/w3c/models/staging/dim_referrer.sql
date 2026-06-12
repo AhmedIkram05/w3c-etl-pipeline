@@ -1,9 +1,6 @@
 {{ config(
     materialized='table',
-    tags=['dimension', 'dbt'],
-    post_hook=[
-        "{{ tsql_create_index_if_not_exists(this.identifier, 'idx_dim_referrer_domain', 'referrer_domain') }}"
-    ]
+    tags=['dimension', 'dbt']
 ) }}
 
 WITH raw_referrers AS (

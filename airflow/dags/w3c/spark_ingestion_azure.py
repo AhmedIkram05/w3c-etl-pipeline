@@ -182,10 +182,11 @@ def _export_dimensions(**context) -> None:
                     CREATE TABLE dbo.dim_useragent (
                         user_agent_sk   INT IDENTITY(1,1) PRIMARY KEY,
                         ua_hash         NVARCHAR(64)   NOT NULL,
+                        user_agent      NVARCHAR(2048) NULL,
                         agent_type      NVARCHAR(50)   NULL,
                         browser_name    NVARCHAR(100)  NULL,
                         browser_version NVARCHAR(50)   NULL,
-                        os              NVARCHAR(100)  NULL,
+                        operating_system NVARCHAR(100)  NULL,
                         device_type     NVARCHAR(50)   NULL,
                         CONSTRAINT uq_dim_useragent__ua_hash
                             UNIQUE (ua_hash)
@@ -193,8 +194,8 @@ def _export_dimensions(**context) -> None:
 
                     -- Seed -1 sentinel unknown row for FK integrity
                     SET IDENTITY_INSERT dbo.dim_useragent ON;
-                    INSERT INTO dbo.dim_useragent (user_agent_sk, ua_hash, agent_type, browser_name, browser_version, os, device_type)
-                    VALUES (-1, '0000000000000000000000000000000000000000000000000000000000000000', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown');
+                    INSERT INTO dbo.dim_useragent (user_agent_sk, ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
+                    VALUES (-1, '0000000000000000000000000000000000000000000000000000000000000000', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown');
                     SET IDENTITY_INSERT dbo.dim_useragent OFF;
                 END;
             """)
@@ -219,8 +220,12 @@ def _export_dimensions(**context) -> None:
                     insert_data = []
                     seen_hashes = set()
                     for idx, (ua_raw,) in enumerate(ua_rows):
-                        ua_str = unquote_plus(ua_raw[:1000] if ua_raw else "")
-                        parsed = ua_parse(ua_str)
+                        # Keep the RAW (URL-encoded) string for storage so the join key
+                        # matches dbo.raw_enriched.user_agent in fact_webrequest.sql.
+                        # Use the decoded string only for parsing browser/OS/device.
+                        ua_raw_str = ua_raw[:1000] if ua_raw else ""
+                        ua_str_decoded = unquote_plus(ua_raw_str)
+                        parsed = ua_parse(ua_str_decoded)
 
                         agent_type = "Crawler" if getattr(parsed, "is_bot", False) else "Browser"
                         browser_name = parsed.browser.family or "Unknown"
@@ -238,8 +243,10 @@ def _export_dimensions(**context) -> None:
                         else:
                             device = "Other"
 
-                        # Compute hash in Python (much faster than SQL round-trips)
-                        hash_input = f"{agent_type or ''}|{browser_name or ''}|{browser_version or ''}|{os_name or ''}|{device or ''}"
+                        # Compute hash from DECODED string so two differently-escaped
+                        # raw strings that decode to the same UA produce the same hash
+                        # (consistent dedup regardless of URL encoding).
+                        hash_input = f"{ua_str_decoded[:500]}|{agent_type or ''}|{browser_name or ''}|{browser_version or ''}|{os_name or ''}|{device or ''}"
                         ua_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
 
                         # Dedup after URL-unescaping: two differently-escaped raw strings may
@@ -248,7 +255,17 @@ def _export_dimensions(**context) -> None:
                             continue
                         seen_hashes.add(ua_hash)
 
-                        insert_data.append((ua_hash, agent_type, browser_name, browser_version, os_name, device))
+                        # Store the RAW (encoded) user_agent string so the FK join in
+                        # fact_webrequest.sql matches dbo.raw_enriched.user_agent.
+                        insert_data.append((
+                            ua_hash,
+                            ua_raw_str,
+                            agent_type,
+                            browser_name,
+                            browser_version,
+                            os_name,
+                            device,
+                        ))
 
                         # Log progress every 500 UAs
                         if (idx + 1) % 500 == 0:
@@ -257,20 +274,20 @@ def _export_dimensions(**context) -> None:
                     # Batch insert with MERGE for idempotency (batched VALUES for performance)
                     if insert_data:
                         logger.info(f"Inserting {len(insert_data)} rows into dim_useragent...")
-                        batch_size = 300  # Stay under SQL Server's 2100-param limit (6 params/row)
+                        batch_size = 250  # Stay under SQL Server's 2100-param limit (7 params/row)
                         for batch_start in range(0, len(insert_data), batch_size):
                             batch = insert_data[batch_start : batch_start + batch_size]
-                            placeholders = ",".join(["(?,?,?,?,?,?)"] * len(batch))
+                            placeholders = ",".join(["(?,?,?,?,?,?,?)"] * len(batch))
                             params = tuple(v for row in batch for v in row)
                             cursor.execute(
                                 f"""
                                 MERGE dbo.dim_useragent AS target
-                                USING (VALUES {placeholders}) AS source (ua_hash, agent_type, browser_name, browser_version, os, device_type)
+                                USING (VALUES {placeholders}) AS source (ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
                                 ON target.ua_hash = source.ua_hash
                                 WHEN NOT MATCHED THEN
-                                    INSERT (ua_hash, agent_type, browser_name, browser_version, os, device_type)
-                                    VALUES (source.ua_hash, source.agent_type, source.browser_name,
-                                            source.browser_version, source.os, source.device_type);
+                                    INSERT (ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
+                                    VALUES (source.ua_hash, source.user_agent, source.agent_type, source.browser_name,
+                                            source.browser_version, source.operating_system, source.device_type);
                             """,
                                 params,
                             )

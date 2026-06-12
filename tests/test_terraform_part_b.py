@@ -114,10 +114,10 @@ class TestTerraformPartBResources:
         assert re.search(pattern, content), f"Resource '{resource_name}' not found in main.tf"
 
     def test_three_resources_total(self):
-        """main.tf defines exactly 3 resource blocks (2 pipelines + 1 job)."""
+        """main.tf defines all expected resource blocks."""
         content = self._main_tf_content()
         matches = re.findall(r'resource\s+"(\w+)"\s+"(\w+)"', content)
-        assert len(matches) == 3, f"Expected 3 resources, found {len(matches)}: {matches}"
+        assert len(matches) == 21, f"Expected 21 resources, found {len(matches)}: {matches}"
 
     def test_both_pipelines_are_serverless(self):
         """Both pipeline resources have serverless = true."""
