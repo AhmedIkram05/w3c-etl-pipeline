@@ -69,6 +69,7 @@ sys.modules["user_agents"] = _ua_mod
 # implement package protocol (``__spec__``, ``__path__``).
 try:
     import airflow  # noqa: F401
+
     _AIRFLOW_AVAILABLE = True
 except ImportError:
     _AIRFLOW_AVAILABLE = False
