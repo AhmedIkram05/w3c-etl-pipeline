@@ -20,32 +20,32 @@ resource "databricks_secret_scope" "w3c_etl" {
 }
 
 resource "databricks_secret" "sql_server" {
-  key        = "azure.sql.server"
-  scope      = databricks_secret_scope.w3c_etl.name
+  key          = "azure.sql.server"
+  scope        = databricks_secret_scope.w3c_etl.name
   string_value = var.azure_sql_server
 }
 
 resource "databricks_secret" "sql_database" {
-  key        = "azure.sql.database"
-  scope      = databricks_secret_scope.w3c_etl.name
+  key          = "azure.sql.database"
+  scope        = databricks_secret_scope.w3c_etl.name
   string_value = var.azure_sql_database
 }
 
 resource "databricks_secret" "sql_username" {
-  key        = "azure.sql.username"
-  scope      = databricks_secret_scope.w3c_etl.name
+  key          = "azure.sql.username"
+  scope        = databricks_secret_scope.w3c_etl.name
   string_value = var.azure_sql_user
 }
 
 resource "databricks_secret" "sql_password" {
-  key        = "azure.sql.password"
-  scope      = databricks_secret_scope.w3c_etl.name
+  key          = "azure.sql.password"
+  scope        = databricks_secret_scope.w3c_etl.name
   string_value = var.azure_sql_password
 }
 
 resource "databricks_secret" "storage_key" {
-  key        = "storage-access-key"
-  scope      = databricks_secret_scope.w3c_etl.name
+  key          = "storage-access-key"
+  scope        = databricks_secret_scope.w3c_etl.name
   string_value = var.storage_access_key
 }
 

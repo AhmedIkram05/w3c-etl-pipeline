@@ -28,6 +28,11 @@ rebuild:
 	$(MAKE) start
 
 # Copy DLT source modules into container (not mounted by default) then run unit tests
+# Excluded markers:
+#   terraform    — needs terraform binary on PATH (not in Docker)
+#   dbt_compile  — needs 'dbt compile --profile w3c_azure' output (run in CI)
+#   dag_integrity — now passes in Docker (conftest avoids namespace shadowing)
+#   integration  — reserved for future Azure-dependent end-to-end tests
 test:
 	$(COMPOSE_CMD) cp $(AIRFLOW_DIR)/spark/databricks/ airflow-scheduler:/opt/airflow/spark/databricks/
-	$(COMPOSE_CMD) exec -T airflow-scheduler bash -c 'pip install --no-cache-dir -r /opt/airflow/tests/requirements-test.txt && PYTHONPATH=/opt/airflow/spark/jobs:/opt/airflow/spark/databricks:/opt:/opt/airflow/plugins:$$PYTHONPATH python -m pytest /opt/airflow/tests/ -v --tb=short -m "not integration and not dag_integrity"'
+	$(COMPOSE_CMD) exec -T airflow-scheduler bash -c 'pip install --no-cache-dir -r /opt/airflow/tests/requirements-test.txt && PYTHONPATH=/opt/airflow/spark/jobs:/opt/airflow/spark/databricks:/opt:/opt/airflow/plugins:$$PYTHONPATH python -m pytest /opt/airflow/tests/ -v --tb=short -m "not integration and not terraform and not dbt_compile"'

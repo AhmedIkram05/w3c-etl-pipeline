@@ -1,0 +1,86 @@
+# ---------------------------------------------------------------------------
+# Dependabot — Automated Dependency Updates
+# ---------------------------------------------------------------------------
+# - Patch updates auto-merged via workflow
+# - Minor/major create PRs for human review
+# - Check daily for critical security patches
+# ---------------------------------------------------------------------------
+
+version: 2
+updates:
+  # Python dependencies (pip + uv)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+      - "python"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "ahmedikram"
+    # Only auto-merge patch updates
+    allow:
+      - dependency-type: "direct"
+        update-types: ["version-update:semver-patch"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "ahmedikram"
+
+  # Terraform providers
+  - package-ecosystem: "terraform"
+    directory: "/terraform/part_a"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+      - "terraform"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "ahmedikram"
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/part_b"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+      - "terraform"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "ahmedikram"
+
+  # Docker images
+  - package-ecosystem: "docker"
+    directory: "/airflow"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+      - "docker"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "ahmedikram"
