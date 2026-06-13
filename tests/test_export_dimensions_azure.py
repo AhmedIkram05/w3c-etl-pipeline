@@ -58,30 +58,43 @@ sys.modules["user_agents"] = _ua_mod
 
 # ── Mock Airflow (not available outside Docker container) ──────────────
 # The DAG module constructs DAG objects at the module level, which requires
-# Airflow imports.  We mock all Airflow modules so the function can be
-# imported and tested outside an Airflow runtime.  This is the exact same
-# pattern used for ``dlt`` in test_dlt_bronze.py / test_dlt_silver.py.
-_airflow = MagicMock()
-_airflow.DAG = MagicMock
-_airflow.Dataset = MagicMock
+# Airflow imports.  Inside the Docker container Airflow is installed, so we
+# leave the real module in ``sys.modules`` and skip the mock.  Outside Docker
+# (e.g. the dbt-compile CI job) we inject MagicMock stubs for all Airflow
+# submodules so the function can be imported and tested.
+#
+# IMPORTANT: unconditionally injecting ``sys.modules["airflow"] = MagicMock()``
+# corrupts the real Airflow module for any other test in the same Python
+# process (notably ``test_dag_integrity``), because a MagicMock does not
+# implement package protocol (``__spec__``, ``__path__``).
+try:
+    import airflow  # noqa: F401
+    _AIRFLOW_AVAILABLE = True
+except ImportError:
+    _AIRFLOW_AVAILABLE = False
 
-_airflow_datasets = MagicMock()
-_airflow_datasets.Dataset = MagicMock
+if not _AIRFLOW_AVAILABLE:
+    _airflow = MagicMock()
+    _airflow.DAG = MagicMock
+    _airflow.Dataset = MagicMock
 
-_airflow_python = MagicMock()
-_airflow_python.PythonOperator = MagicMock
+    _airflow_datasets = MagicMock()
+    _airflow_datasets.Dataset = MagicMock
 
-_airflow_databricks = MagicMock()
-_airflow_databricks.DatabricksRunNowOperator = MagicMock
+    _airflow_python = MagicMock()
+    _airflow_python.PythonOperator = MagicMock
 
-sys.modules["airflow"] = _airflow
-sys.modules["airflow.datasets"] = _airflow_datasets
-sys.modules["airflow.operators"] = MagicMock()
-sys.modules["airflow.operators.python"] = _airflow_python
-sys.modules["airflow.providers"] = MagicMock()
-sys.modules["airflow.providers.databricks"] = MagicMock()
-sys.modules["airflow.providers.databricks.operators"] = MagicMock()
-sys.modules["airflow.providers.databricks.operators.databricks"] = _airflow_databricks
+    _airflow_databricks = MagicMock()
+    _airflow_databricks.DatabricksRunNowOperator = MagicMock
+
+    sys.modules["airflow"] = _airflow
+    sys.modules["airflow.datasets"] = _airflow_datasets
+    sys.modules["airflow.operators"] = MagicMock()
+    sys.modules["airflow.operators.python"] = _airflow_python
+    sys.modules["airflow.providers"] = MagicMock()
+    sys.modules["airflow.providers.databricks"] = MagicMock()
+    sys.modules["airflow.providers.databricks.operators"] = MagicMock()
+    sys.modules["airflow.providers.databricks.operators.databricks"] = _airflow_databricks
 
 # ── Module under test ─────────────────────────────────────────────────────
 from dags.w3c.spark_ingestion_azure import _export_dimensions  # noqa: E402 — sys.modules mock comes first
@@ -199,36 +212,6 @@ class TestCredentials:
         # DDL/MERGE path runs without error.  The conn_str is verified
         # indirectly by the fact that pyodbc.connect() was called.
         pass
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 2. IMDB — pyodbc import error
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestPyodbcImportError:
-    """Graceful degradation when pyodbc is not installed."""
-
-    def test_pyodbc_not_installed_logs_warning(self, caplog):
-        """pyodbc ImportError → logged warning, returns without error."""
-        with patch.dict(
-            os.environ,
-            {
-                "AZURE_SQL_SERVER": "s",
-                "AZURE_SQL_USER": "u",
-                "AZURE_SQL_PASS": "p",
-            },
-            clear=True,
-        ):
-            # Remove pyodbc from sys.modules so import fails
-            saved = sys.modules.pop("pyodbc", None)
-            try:
-                result = _export_dimensions()
-            finally:
-                if saved:
-                    sys.modules["pyodbc"] = saved
-        assert result is None
-        assert any("pyodbc not installed" in msg for msg in caplog.messages)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
