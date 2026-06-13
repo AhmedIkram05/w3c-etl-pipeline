@@ -23,6 +23,10 @@ They are marked ``@pytest.mark.dag_integrity`` and are skipped by default:
 
 import pytest
 
+# Skip the entire module when Airflow is not installed or importable
+# (e.g. in the dbt-compile CI job that does not install apache-airflow).
+pytest.importorskip("airflow.models")
+
 # DAG folder on the Airflow worker (also works when running from project root
 # via ``PYTHONPATH`` pointing at the ``dags`` directory).
 _DAG_FOLDER = "/opt/airflow/dags/w3c"
@@ -37,7 +41,7 @@ class TestSparkIngestionDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_spark_ingestion")
+        dag = dag_bag.dags.get("w3c_spark_ingestion")
         assert dag is not None, "w3c_spark_ingestion DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
         # Expected: bronze_ingestion, silver_enrichment, export_warehouse, export_dimensions
         assert len(dag.tasks) == 4, (
@@ -51,7 +55,7 @@ class TestSparkIngestionDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_spark_ingestion")
+        dag = dag_bag.dags.get("w3c_spark_ingestion")
         assert dag is not None
 
         task_ids = {t.task_id for t in dag.tasks}
@@ -71,7 +75,7 @@ class TestSparkIngestionDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_spark_ingestion")
+        dag = dag_bag.dags.get("w3c_spark_ingestion")
         assert dag is not None
 
         # Identify upstream → downstream relationships
@@ -90,7 +94,7 @@ class TestSparkIngestionDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_spark_ingestion")
+        dag = dag_bag.dags.get("w3c_spark_ingestion")
         assert dag is not None
 
         # Find the export_dimensions task (it has the outlet)
@@ -133,7 +137,7 @@ class TestDBTMartsDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts")
+        dag = dag_bag.dags.get("w3c_dbt_marts")
         assert dag is not None, "dbt_marts DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
         # Expected: dbt_deps, dbt_run, dbt_test, dbt_docs, export_csv
         assert len(dag.tasks) == 5, (
@@ -146,7 +150,7 @@ class TestDBTMartsDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts")
+        dag = dag_bag.dags.get("w3c_dbt_marts")
         assert dag is not None
 
         task_ids = {t.task_id for t in dag.tasks}
@@ -161,7 +165,7 @@ class TestDBTMartsDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts")
+        dag = dag_bag.dags.get("w3c_dbt_marts")
         assert dag is not None
 
         downstream_map = {}
@@ -180,7 +184,7 @@ class TestDBTMartsDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts")
+        dag = dag_bag.dags.get("w3c_dbt_marts")
         assert dag is not None
 
         # Extract datasets from the timetable
@@ -213,7 +217,7 @@ class TestDBTMartsDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts")
+        dag = dag_bag.dags.get("w3c_dbt_marts")
         assert dag is not None
 
         export_task = None
@@ -262,7 +266,7 @@ class TestDAGDataContract:
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
 
         # Get spark DAG outlet
-        spark_dag = dag_bag.get_dag(dag_id="w3c_spark_ingestion")
+        spark_dag = dag_bag.dags.get("w3c_spark_ingestion")
         assert spark_dag is not None
 
         spark_outlet_datasets = set()
@@ -273,7 +277,7 @@ class TestDAGDataContract:
         assert len(spark_outlet_datasets) > 0, "spark_ingestion has no Dataset outlets"
 
         # Get dbt DAG inlet (schedule = Dataset list or timetable collection)
-        dbt_dag = dag_bag.get_dag(dag_id="w3c_dbt_marts")
+        dbt_dag = dag_bag.dags.get("w3c_dbt_marts")
         assert dbt_dag is not None
 
         dbt_inlet_datasets = set()
@@ -304,7 +308,7 @@ class TestSparkIngestionAzureDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_spark_ingestion_azure")
+        dag = dag_bag.dags.get("w3c_spark_ingestion_azure")
         assert dag is not None, (
             "w3c_spark_ingestion_azure DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
         )
@@ -318,7 +322,7 @@ class TestSparkIngestionAzureDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_spark_ingestion_azure")
+        dag = dag_bag.dags.get("w3c_spark_ingestion_azure")
         assert dag is not None
 
         task_ids = {t.task_id for t in dag.tasks}
@@ -336,7 +340,7 @@ class TestSparkIngestionAzureDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_spark_ingestion_azure")
+        dag = dag_bag.dags.get("w3c_spark_ingestion_azure")
         assert dag is not None
 
         downstream_map = {}
@@ -351,7 +355,7 @@ class TestSparkIngestionAzureDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_spark_ingestion_azure")
+        dag = dag_bag.dags.get("w3c_spark_ingestion_azure")
         assert dag is not None
 
         export_dim_task = None
@@ -389,7 +393,7 @@ class TestDBTMartsAzureDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts_azure")
+        dag = dag_bag.dags.get("w3c_dbt_marts_azure")
         assert dag is not None, "w3c_dbt_marts_azure DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
         # Expected: dbt_source_freshness, dbt_run, dbt_test, dbt_docs, export_dbt_docs, export_csv
         assert len(dag.tasks) == 6, (
@@ -403,7 +407,7 @@ class TestDBTMartsAzureDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts_azure")
+        dag = dag_bag.dags.get("w3c_dbt_marts_azure")
         assert dag is not None
 
         task_ids = {t.task_id for t in dag.tasks}
@@ -425,7 +429,7 @@ class TestDBTMartsAzureDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts_azure")
+        dag = dag_bag.dags.get("w3c_dbt_marts_azure")
         assert dag is not None
 
         downstream_map = {}
@@ -462,7 +466,7 @@ class TestDBTMartsAzureDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts_azure")
+        dag = dag_bag.dags.get("w3c_dbt_marts_azure")
         assert dag is not None
 
         timetable = dag.timetable
@@ -487,7 +491,7 @@ class TestDBTMartsAzureDAG:
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
-        dag = dag_bag.get_dag(dag_id="w3c_dbt_marts_azure")
+        dag = dag_bag.dags.get("w3c_dbt_marts_azure")
         assert dag is not None
 
         # Check export_dbt_docs outlet
