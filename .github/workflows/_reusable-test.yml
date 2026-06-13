@@ -34,8 +34,8 @@ jobs:
           pip install -r tests/requirements-test.txt
           pip install pytest apache-airflow-providers-databricks
       - name: Run tests
-        # Run everything except integration tests (need Azure creds)
-        # and terraform tests (need provider setup).
+        # Run everything except integration tests (need Azure creds),
+        # terraform tests (need provider setup), and dbt_compile tests
+        # (need dbt compile --profile w3c_azure to have run first).
         # DAG integrity tests run in CI — they verify structure, not schedules.
-        # dbt_compile unit tests run in CI — they verify macro structure.
-        run: pytest tests/ -v --tb=short -m "not integration and not terraform"
+        run: pytest tests/ -v --tb=short -m "not integration and not terraform and not dbt_compile"

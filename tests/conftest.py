@@ -5,8 +5,11 @@ Provides a shared SparkSession for integration tests that need to
 exercise PySpark UDFs and DataFrame operations.
 
 Also adds necessary project paths to sys.path so all test modules
-can import from ``airflow.spark.jobs``, ``airflow.plugins``, and
-``airflow.dags`` using fully-qualified module names.
+can import using fully-qualified names like::
+
+    from utils.transformations import page_category
+    from plugins.operators.export_dimensions import _parse_user_agent
+    from dags.w3c.spark_ingestion import _export_dimensions
 """
 
 import os
@@ -16,12 +19,32 @@ import zipfile
 
 import pytest
 
-# ── Add project source paths to sys.path ──────────────────────────────
-# This allows test files to import using fully-qualified names like:
-#   from utils.transformations import page_category
-#   from plugins.operators.export_dimensions import _parse_user_agent
+# ── Ensure real apache-airflow is importable ─────────────────────────
+# Pytest auto-adds the project root to sys.path.  Since the project's
+# ``airflow/`` directory has no ``__init__.py``, Python 3.3+ treats it as
+# a PEP 420 namespace package, which shadows the installed
+# ``apache-airflow`` package and causes ``from airflow.models import
+# DagBag`` to fail with ``ModuleNotFoundError``.
+#
+# We work around this by importing the real ``airflow`` package *before*
+# adding the project root to sys.path — once cached in ``sys.modules``,
+# subsequent imports will always find the real package.
 
-_PROJECT_ROOT = os.path.join(os.path.dirname(__file__), "..")
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+for p in list(sys.path):
+    if os.path.abspath(p) == _PROJECT_ROOT:
+        sys.path.remove(p)
+        break
+
+import airflow  # noqa: F401, E402  — caches the real package in sys.modules
+
+sys.path.insert(0, _PROJECT_ROOT)
+
+# ── Add project source paths to sys.path ──────────────────────────────
+# This allows test files to import from the project's code using
+# fully-qualified names as shown in the module docstring.
+
 _AIRFLOW_DIR = os.path.join(_PROJECT_ROOT, "airflow")
 
 # Spark jobs directory (for utils/ module imports)
