@@ -44,6 +44,30 @@ _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 # still allows Python to discover the local airflow/ namespace.
 sys.path = [p for p in sys.path if os.path.abspath(p) != _PROJECT_ROOT]
 
+# ── Import Airflow early (with clean sys.path) ──────────────────────
+# At this point sys.path contains NO project directories (the project
+# root was removed above).  We import ``airflow`` NOW so that its
+# ``__init__.py`` calls ``pkgutil.extend_path`` with this clean path.
+#
+# ``extend_path`` iterates ``sys.path`` searching for directories named
+# ``airflow/``.  With only site-packages on sys.path, it finds and adds
+# the REAL airflow (from site-packages) to ``airflow.__path__`` — but
+# NOT the project's ``airflow/`` directory.
+#
+# If we added project subdirectories (``airflow/``, ``airflow/dags/``,
+# ``airflow/spark/jobs/``) BEFORE importing airflow, ``extend_path``
+# would find them on sys.path and pollute ``airflow.__path__`` with the
+# project's directories.  This is the root cause of the namespace
+# shadowing bug.
+#
+# The try/except handles CI jobs (e.g. dbt-compile) that don't install
+# apache-airflow — in that case tests simply skip via ``importorskip``.
+
+try:
+    import airflow  # noqa: F811, F401
+except ImportError:
+    pass
+
 # ── Add only the specific subdirectories needed for test imports ─────
 # Adding the project root would re-introduce the airflow namespace
 # shadowing, so we never add it back.
