@@ -40,6 +40,7 @@ markers = [
     "integration: marks tests that need Docker stack running (deselect with '-m \"not integration\"')",
     "dag_integrity: marks tests that need Airflow environment (deselect with '-m \"not dag_integrity\"')",
     "terraform: marks tests that need terraform binary on PATH (deselect with '-m \"not terraform\"')",
+    "dbt_compile: marks tests that validate dbt compiled output (deselect with '-m \"not dbt_compile\"')",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:airflow.*",

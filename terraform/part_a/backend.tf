@@ -19,6 +19,10 @@ terraform {
       source  = "hashicorp/time"
       version = "~> 0.12"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.1"
+    }
   }
 
   required_version = ">= 1.10.5, < 2.0"

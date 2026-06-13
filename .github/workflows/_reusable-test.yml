@@ -1,0 +1,47 @@
+name: Reusable Test
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Create Airflow directory structure
+        run: |
+          sudo mkdir -p /opt/airflow/dags
+          sudo ln -sf $PWD/airflow/dags/w3c /opt/airflow/dags/w3c
+          # spark/jobs needed by spark_ingestion.py at module load time
+          sudo mkdir -p /opt/airflow/spark/jobs
+          sudo ln -sf $PWD/airflow/spark/jobs/utils /opt/airflow/spark/jobs/utils
+          sudo mkdir -p /opt/airflow/plugins
+          sudo ln -sf $PWD/airflow/plugins/operators /opt/airflow/plugins/operators
+      - name: Install dependencies
+        run: |
+          pip install -r tests/requirements-test.txt
+          pip install pytest apache-airflow-providers-databricks
+      - name: Run tests
+        # Run everything except integration tests (need Azure creds),
+        # terraform tests (need provider setup), and dbt_compile tests
+        # (need dbt compile --profile w3c_azure to have run first).
+        # dag_integrity was previously excluded due to a sys.modules
+        # corruption bug that has since been fixed.
+        run: pytest tests/ -v --tb=short -m "not integration and not terraform and not dbt_compile"

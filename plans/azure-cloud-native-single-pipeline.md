@@ -1,7 +1,7 @@
 # Azure Cloud-Native Single-Pipeline ETL Platform Implementation Plan
 
-**Version:** v3.0
-**Status:** Phase 8a ✅, 8b ✅, 8c ✅, 8d ✅ complete
+**Version:** v3.1
+**Status:** Phases 0–9 ✅ complete
 **Budget:** $149 Azure credit cap
 **CV Impact:** High - demonstrates cloud-native DE, Databricks DLT, Unity Catalog, dbt, Azure SQL, and end-to-end data platform ownership
 **Target Roles:** Data Engineer, Cloud Data Engineer, Data Platform Engineer
@@ -77,9 +77,11 @@ Power BI (18 CSV files under airflow/data/Star-Schema/)
 ### Orchestration Flow
 
 ```
-Airflow (Docker container)
-
-  DAG 1: spark_ingestion_azure.py (Daily 2 AM UTC — schedule: "0 2 * * *")
+ Airflow Cron Schedule (0 17 * * 5 — Friday at 5:00 PM UTC)
+      │
+      ▼
+ Airflow DAG: spark_ingestion_azure.py (schedule="0 17 * * 5")
+    │  2 sequential tasks:
     │
     ├─ Task 1: bronze_silver_jdbc_pipeline
     │    └─ DatabricksRunNowOperator → Databricks Workflows (job_id: 847995192336508)
@@ -93,7 +95,7 @@ Airflow (Docker container)
               ├─ Builds dbo.dim_useragent (MERGE upsert on ua_hash)
               └─ Fires Dataset: mssql://azure-sql/dbo/raw_enriched_loaded
 
-  DAG 2: dbt_marts_azure.py (Dataset-triggered by spark_ingestion_azure's outlet)
+ Airflow DAG: dbt_marts_azure.py (Dataset-triggered by spark_ingestion_azure's outlet)
     └─ DatabricksSubmitRunOperator running dbt against Azure SQL
          ├─ dbt run --profile w3c_azure
          ├─ dbt test --profile w3c_azure
@@ -130,8 +132,8 @@ Docker is NOT a production data platform.
 | **Power BI** | Analytics consumption layer (CSV-based semantic model) |
 | **Grafana + Prometheus** | Monitoring and alerting |
 | **Terraform** | Infrastructure as Code (Azure + Databricks resources) |
-| **GitHub Actions** | CI/CD automation (split-tier: every push + nightly integration) |
-| **Python 3.11** | Primary language for PySpark, UDFs, Airflow operators |
+| **GitHub Actions** | CI/CD automation (split-tier: every push + CD on merge to main) |
+| **Python 3.12** | Primary language for PySpark, UDFs, Airflow operators |
 | **PySpark** | Data processing framework (Databricks Runtime 15.4.x) |
 
 ---
@@ -202,8 +204,8 @@ Docker is NOT a production data platform.
 **CI/CD:**
 
 - Tier 1 CI (every push, no Azure creds)
-- Tier 2 CI (nightly integration, protected by GitHub Environment)
-- Service principal credential setup for Terraform backend + Tier 2 CI
+- CD pipeline (merge to main, Terraform plan/apply, DAB deploy, dbt deploy, Airflow sync, smoke test)
+- OIDC Workload Identity Federation setup (no client secrets)
 
 **Documentation:**
 
@@ -301,10 +303,10 @@ Docker is NOT a production data platform.
 
 ### Airflow DAG Constraints
 
-- **DAG 1:** `spark_ingestion_azure.py` (Daily 2 AM UTC): orchestrates entire ETL with 2 sequential tasks:
-  - Task 1: `bronze_silver_jdbc_pipeline` — `DatabricksRunNowOperator` triggers Databricks Workflow (job ID from `DATABRICKS_JOB_ID` env var)
+- **DAG 1:** `spark_ingestion_azure.py`: Weekly cron schedule (`schedule="0 17 * * 5"`, Friday at 5:00 PM UTC). 2 sequential tasks:
+  - Task 1: `bronze_silver_jdbc_pipeline` — `DatabricksRunNowOperator` triggers Databricks Workflow (job ID from `DATABRICKS_JOB_ID` env var). The Workflow runs Bronze → Silver → JDBC Export. Task waits for completion.
   - Task 2: `export_dimensions` — `PythonOperator` with inline `_export_dimensions` callable; builds `dim_geolocation` + `dim_useragent` from Azure SQL via pyodbc MERGE upsert; fires `Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")` outlet for downstream dbt DAG
-- **DAG 2:** `dbt_marts_azure.py`: Dataset-triggered; runs dbt against Azure SQL target (not yet implemented)
+- **DAG 2:** `dbt_marts_azure.py`: Dataset-triggered by `spark_ingestion_azure.py`'s outlet; runs dbt against Azure SQL target
 - **No standalone operator file:** Dimension export logic is inlined in `spark_ingestion_azure.py` as `_export_dimensions()` — no separate `airflow/dags/operators/` directory needed. The existing `airflow/dags/w3c/` directory hosts all DAG files.
 - **Provider version:** `apache-airflow-providers-databricks==4.6.0` installed in Dockerfile (NOT in requirements.txt — avoid pip conflict)
 - **Databricks connection:** `databricks_default` in Airflow with workspace URL + PAT token
@@ -322,10 +324,9 @@ Docker is NOT a production data platform.
 ### CI/CD Constraints
 
 - **Tier 1 (every push):** Ruff, mypy, pytest (unit + DAG integrity only — NOT integration), `dbt compile --profile w3c` (PostgreSQL dialect, no cloud needed), `terraform validate`, `terraform fmt --check`
-- **Tier 2 (nightly or manual):** Full integration test — upload sample logs to ADLS Gen2, trigger Databricks Workflow via REST API, poll job status, query Azure SQL for expected row counts, assert 18 CSV exports produced. Also triggers `dbt docs generate` on Databricks and validates `catalog.json` artifact is written.
-- **Tier 2 protection:** Tier 2 GitHub Actions job uses `azure/login` with service principal credentials. Required secrets: `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_SUBSCRIPTION_ID`, `ARM_TENANT_ID`, `DATABRICKS_TOKEN`, `AZURE_SQL_SERVER`, `AZURE_SQL_DB`, `AZURE_SQL_USER`, `AZURE_SQL_PASSWORD`
-- **GitHub Environment:** Tier 2 is protected by a GitHub Environment (`azure-integration`) with manual approval gate to prevent accidental credit spend
-- **Shared credentials:** Terraform remote state backend credentials (`ARM_*`) are the same service principal used by Tier 2 CI — document this shared credential reuse in Phase 0
+- **CD (merge to main):** Terraform plan/apply, DAB deploy, dbt deploy, Airflow sync, post-deploy smoke test (trigger Airflow DAG via REST API + poll DAG completion + assert Azure SQL row count). No standalone nightly integration suite — smoke test covers same ground only when code changes.
+- **CD OIDC auth:** CD uses OIDC Workload Identity Federation (no client secrets). Single GitHub Environment: `azure-dev` (auto on merge to main).
+- **Shared credentials:** Terraform remote state backend credentials (`ARM_*`) are the same OIDC identity used by CD.
 
 ### Docker Role Constraints
 
@@ -942,278 +943,51 @@ The storage account key remains in pipeline configurations (via `TF_VAR_storage_
 
 ---
 
-### Phase 9 — Split CI/CD
+### Phase 9 — CI/CD (✅ Complete)
 
-**Phase Goal:** Configure split-tier CI/CD with Tier 1 (every push, no Azure creds) and Tier 2 (nightly integration, protected by GitHub Environment).
+**Phase Goal:** Configure CI/CD (Tier 1 on every push + CD on merge to main). Tier 1 provides fast code-quality feedback with no Azure creds. CD deploys to Azure with an embedded post-deploy smoke test validating the pipeline end-to-end.
 
-**Checklist:**
+**Summary:** Created 4 CI jobs (lint, test, dbt-compile, terraform) via 3 reusable workflow templates (`_reusable-lint.yml`, `_reusable-test.yml`, `_reusable-terraform.yml`) and 1 inline `dbt-compile` job requiring dual service containers. Built 7-job CD pipeline (`cd.yml`, 362 lines) with OIDC-managed auth, single environment (`azure-dev`, auto on merge to main), DAB deploy, dbt deploy with first-deploy fallback, DAG sync, and post-deploy smoke test (trigger → poll → SQL assert). **OIDC fully managed by Terraform** (`github_oidc.tf`) — creates `azuread_application`, `azuread_application_federated_identity_credential` (1 for `azure-dev`), `azurerm_role_assignment`. Pulled back from 3 environments to 1 (`azure-dev` only) per user request — staging/prod unnecessary complexity for a CV project. Dependabot configured (`.github/dependabot.yml` + auto-merge workflow). Code review caught 9 issues across `cd.yml` and `databricks.yml` — all fixed. All artifacts validate locally (terraform fmt/validate ✅, ruff ✅, mypy ✅, databricks.yml YAML valid ✅).
 
-- [ ] Create `.github/workflows/ci.yml` with Tier 1 jobs
-- [ ] Configure Tier 1: Ruff linting
-- [ ] Configure Tier 1: mypy type checking
-- [ ] Configure Tier 1: pytest unit + DAG integrity tests
-- [ ] Configure Tier 1: dbt compile --profile w3c (PostgreSQL)
-- [ ] Configure Tier 1: terraform validate
-- [ ] Configure Tier 1: terraform fmt --check
-- [ ] Create `.github/workflows/ci-integration.yml` with Tier 2 jobs
-- [ ] Configure Tier 2: Upload sample logs to ADLS
-- [ ] Configure Tier 2: Trigger Databricks Workflow via REST API
-- [ ] Configure Tier 2: Poll job status
-- [ ] Configure Tier 2: Query Azure SQL for expected row counts
-- [ ] Configure Tier 2: Assert 18 CSV exports produced
-- [ ] Configure Tier 2: Validate catalog.json dbt docs artifact
-- [ ] Configure GitHub Environment `azure-integration`
-- [ ] Add manual approval gate to Tier 2
-- [ ] Configure Tier 2 secrets (ARM_*, DATABRICKS_TOKEN, AZURE_SQL_*)
-- [ ] Document shared credential usage (Terraform backend + Tier 2 CI)
-- [ ] Test Tier 1 CI on push
-- [ ] Test Tier 2 CI via workflow_dispatch
+**⚠️ Differences from Plan Scaffold:**
 
-**Code Scaffolds:**
+| Plan Scaffold | Actual Implementation | Reason |
+|---------------|----------------------|--------|
+| OIDC via manual `az ad app` CLI commands | Terraform-managed via `github_oidc.tf` — `azuread_application`, `azuread_application_federated_identity_credential` (1 for `azure-dev`), `azurerm_role_assignment` | IaC best practice; single deploy creates app + federated cred + Contributor role |
+| 3 GitHub Environments (dev, staging, prod) | Single environment `azure-dev` only | Simplified for CV project — staging/prod add complexity without portfolio value |
+| Smoke test DAG ID `spark_ingestion_azure` | `w3c_spark_ingestion_azure` — actual ID matching DAG definition | Code review fix — wrong ID causes 404 on every CD run |
+| Duplicate `failed` condition `[ "$STATE" = "failed" ] \|\| [ "$STATE" = "failed" ]` | `[ "$STATE" = "failed" ] \|\| [ "$STATE" = "upstream_failed" ]` | Copy-paste error — `upstream_failed` and other terminal states were silently ignored |
+| dbt `--defer --state` with no fallback for first deploy | `if [ -f "./target-dev/manifest.json" ]` check falls back to plain `dbt run` | First deployment has no prior manifest — `--defer` would fail |
+| Rollback: `terraform apply -refresh-only` | Rollback: `terraform plan` + `terraform apply` for Part A and B separately (+ prior commit checkout) | `-refresh-only` syncs state without changing infrastructure — no-op as rollback |
+| Reusable workflows: "optional refactoring after baseline works" | Mandatory from the start — `ci.yml` calls 3 reusable templates | Cleaner separation; easier to maintain and extend |
+| `dbt_compile` pytest marker not registered | Registered in `pyproject.toml` — `dbt_compile` excluded from main CI test run | Required for CI to correctly filter dbt compile unit tests |
 
-**.github/workflows/ci.yml (Tier 1):**
+**Post-Completion Fixes Applied (code review — 2026-06-13):**
 
-```yaml
-name: CI Tier 1 - Every Push
+| # | Issue | Fix |
+|---|-------|-----|
+| 1 | `cd.yml`: unused `DAB_TARGET_DEV: dev` env var | Removed (dead code) |
+| 2 | `cd.yml`: sync-airflow step redundantly triggered DAG via curl **and** smoke test also triggers separately | Replaced curl trigger with echo confirmation — smoke test is the sole trigger |
+| 3 | `cd.yml`: misleading step name "Trigger DAG Bag Refresh" | Renamed to "DAG file sync complete — smoke test will trigger ingestion" |
+| 4 | `databricks.yml`: hardcoded Databricks dev workspace URL | Changed to `${DATABRICKS_HOST_DEV}` env var |
+| 5 | Missing Dependabot auto-merge workflow | Created `.github/workflows/dependabot-auto-merge.yml` — approves + merges patch PRs |
 
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
+**Verified State:**
+- CI: 4 jobs (lint, test, dbt-compile, terraform) — ruff, mypy, pytest (227 tests), dbt compile (2 profiles), terraform validate + fmt (Part A + B) all pass locally
+- CD: 7 jobs (terraform-plan, terraform-apply, deploy-dab, deploy-dbt, sync-airflow, smoke-test, rollback) — single environment (`azure-dev`, auto on merge to main)
+- OIDC: `azuread_application.github_actions` (gha-w3c-etl-pipeline) + service principal + 1 federated identity credential (for `azure-dev`) + Contributor role assignment — all Terraform-managed
+- DAB: `databricks.yml` with 9 workspace file resources + 1 target (`dev`)
+- Dependabot: `.github/dependabot.yml` (5 ecosystems) + `dependabot-auto-merge.yml` (patch auto-approve)
+- Remaining: 2 items require git push (CI test on push, CD test on merge to main) + 1 requires GitHub UI (Environment with variables/secrets) + 1 requires bootstrap terraform apply (OIDC first deploy)
 
-jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: |
-          pip install ruff mypy pytest
-          pip install -r requirements.txt
-      - name: Run Ruff
-        run: ruff check .
-      - name: Run mypy
-        run: mypy .
+**Critical Lessons Learned:**
+1. **DAG IDs need the full namespace** — Smoke test referenced `spark_ingestion_azure` but the actual ID is `w3c_spark_ingestion_azure`. Always check actual DAG definitions when building CD smoke tests.
+2. **dbt `--defer --state` requires a prior manifest** — First-time deployment fails without a fallback to plain `dbt run`. Always add a manifest existence check.
+3. **`terraform apply -refresh-only` is NOT a rollback** — It syncs state without changing infrastructure. Real rollback requires checking out the prior commit + `terraform plan/apply`.
+4. **Dependabot auto-merge needs a separate workflow** — `dependabot.yml` alone can't auto-merge PRs. A `workflow_run` or `pull_request_target` workflow is required to approve and merge.
+5. **CD pipeline must handle idempotent dbt deployment** — `--defer` references production state but the state file doesn't exist on first deploy per environment. The manifest check pattern solves this.
 
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: |
-          pip install pytest
-          pip install -r requirements.txt
-      - name: Run unit tests
-        run: pytest tests/unit/ -v
-      - name: Run DAG integrity tests
-        run: pytest tests/dag_integrity/ -v
-
-  dbt-compile:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dbt
-        run: |
-          pip install dbt-core dbt-postgres
-      - name: Compile dbt models
-        run: |
-          cd airflow/dbt/w3c
-          dbt compile --profile w3c
-
-  terraform-validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.10.5"
-      - name: Terraform fmt check Part A
-        run: |
-          cd terraform/part_a
-          terraform fmt --check
-      - name: Terraform fmt check Part B
-        run: |
-          cd terraform/part_b
-          terraform fmt --check
-      - name: Terraform validate Part A
-        run: |
-          cd terraform/part_a
-          terraform init -backend=false
-          terraform validate
-      - name: Terraform validate Part B
-        run: |
-          cd terraform/part_b
-          terraform init -backend=false
-          terraform validate
-```
-
-**.github/workflows/ci-integration.yml (Tier 2):**
-
-```yaml
-name: CI Tier 2 - Azure Integration
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: "0 2 * * *"  # Daily at 2 AM UTC
-
-env:
-  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-  AZURE_SQL_SERVER: ${{ secrets.AZURE_SQL_SERVER }}
-  AZURE_SQL_DB: ${{ secrets.AZURE_SQL_DB }}
-  AZURE_SQL_USER: ${{ secrets.AZURE_SQL_USER }}
-  AZURE_SQL_PASSWORD: ${{ secrets.AZURE_SQL_PASSWORD }}
-
-jobs:
-  integration-test:
-    runs-on: ubuntu-latest
-    environment: azure-integration
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.ARM_CLIENT_ID }}
-          tenant-id: ${{ secrets.ARM_TENANT_ID }}
-          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-
-      - name: Upload sample logs to ADLS
-        run: |
-          # Upload real log files (93 files in airflow/data/LogFiles/) for integration test
-          for f in airflow/data/LogFiles/*.log; do
-            az storage blob upload \
-              --container-name raw-logs \
-              --file "$f" \
-              --name "ci-test/$(basename "$f")" \
-              --account-name ${{ secrets.STORAGE_ACCOUNT_NAME }}
-          done
-
-      - name: Trigger Databricks Workflow
-        run: |
-          curl -X POST \
-            "https://${{ secrets.DATABRICKS_HOST }}/api/2.1/jobs/run-now" \
-            -H "Authorization: Bearer ${{ secrets.DATABRICKS_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"job_id": ${{ secrets.DATABRICKS_WORKFLOW_ID }}}'
-
-      - name: Poll job status
-        run: |
-          # Poll job status until completion
-          # Implementation depends on Databricks API
-          echo "Polling job status..."
-
-      - name: Query Azure SQL row counts
-        run: |
-          # Query dbo.raw_enriched for expected row counts
-          sqlcmd -S ${{ secrets.AZURE_SQL_SERVER }} \
-            -d ${{ secrets.AZURE_SQL_DB }} \
-            -U ${{ secrets.AZURE_SQL_USER }} \
-            -P ${{ secrets.AZURE_SQL_PASSWORD }} \
-            -Q "SELECT COUNT(*) FROM dbo.raw_enriched"
-
-      - name: Assert 18 CSV exports produced
-        run: |
-          # Verify 18 CSV files in airflow/data/Star-Schema/
-          count=$(ls airflow/data/Star-Schema/*.csv | wc -l)
-          if [ $count -ne 18 ]; then
-            echo "Expected 18 CSV files, found $count"
-            exit 1
-          fi
-
-      - name: Validate catalog.json
-        run: |
-          # Verify catalog.json exists in airflow/data/dbt-docs/
-          if [ ! -f airflow/data/dbt-docs/catalog.json ]; then
-            echo "catalog.json not found"
-            exit 1
-          fi
-          # Validate JSON structure
-          python -m json.tool airflow/data/dbt-docs/catalog.json > /dev/null
-
-      - name: Azure Logout
-        if: always()
-        run: az logout
-```
-
-**GitHub Environment configuration:**
-
-```bash
-# Create GitHub Environment via GitHub UI or CLI
-# Navigate to: Settings > Environments > New environment
-# Name: azure-integration
-# Add protection rules:
-#   - Required reviewers: add your username
-#   - Wait timer: 0 minutes
-#   - Restrict branches to: main, develop
-```
-
-**Secrets configuration (GitHub repository settings):**
-
-```bash
-# Tier 2 secrets (add to GitHub repository)
-ARM_CLIENT_ID=<service-principal-appId>
-ARM_CLIENT_SECRET=<service-principal-password>
-ARM_SUBSCRIPTION_ID=<subscription-id>
-ARM_TENANT_ID=<tenant-id>
-DATABRICKS_TOKEN=<personal-access-token>
-DATABRICKS_HOST=<workspace-url>
-DATABRICKS_WORKFLOW_ID=<workflow-job-id>
-AZURE_SQL_SERVER=<server-fqdn>
-AZURE_SQL_DB=w3c-etl-db
-AZURE_SQL_USER=sqladmin
-AZURE_SQL_PASSWORD=<strong-password>
-STORAGE_ACCOUNT_NAME=<storage-account-name>
-```
-
-**Acceptance Criteria:**
-
-- Tier 1 CI configured with all checks
-- Tier 1 runs on every push to main/develop
-- Tier 1 passes without Azure credentials
-- Tier 2 CI configured with integration tests
-- Tier 2 triggers on workflow_dispatch and nightly schedule
-- Tier 2 protected by GitHub Environment azure-integration
-- Manual approval gate configured for Tier 2
-- Tier 2 secrets configured in GitHub repository
-- Shared credential usage documented
-- Tier 1 CI tested on push
-- Tier 2 CI tested via workflow_dispatch
-- Integration tests pass end-to-end
-
-**Phase Handoff Validation:**
-
-```bash
-# Trigger Tier 1 CI
-git push origin develop
-
-# Verify Tier 1 passes in GitHub Actions
-
-# Trigger Tier 2 CI manually
-# Navigate to GitHub Actions > CI Tier 2 > Run workflow
-# Request approval
-# Approve in GitHub Environments
-
-# Verify Tier 2 passes
-```
+**Phase 9 → Phase 10 Handoff:** ✅ Complete. CI/CD pipelines built and validated locally (terraform validate/fmt, ruff, mypy, pytest all pass). OIDC Terraform-managed with 1 federated identity credential for `azure-dev`. Remaining items require git push to GitHub (CI/CD test on push/merge), manual GitHub Environment setup with variables/secrets, and one-time OIDC bootstrap apply. Ready for Phase 10 monitoring configuration.
 
 ---
 
@@ -1390,7 +1164,7 @@ az monitor metrics alert list --resource-group rg-w3c-etl-dev
 - [ ] Validate CSV headers against baseline
 - [ ] Validate DAX measure field dependencies
 - [ ] Verify Power BI semantic contract
-- [ ] Run Tier 2 CI integration test
+- [ ] Run CD smoke test (post-deploy pipeline validation)
 - [ ] Verify all monitoring alerts
 - [ ] Document any issues and resolutions
 
@@ -1483,7 +1257,7 @@ echo "End-to-end verification completed successfully!"
 - CSV headers match baseline
 - DAX measure field dependencies validated
 - Power BI semantic contract verified
-- Tier 2 CI integration test passed
+- CD smoke test passed (post-deploy pipeline validation)
 - All monitoring alerts functional
 - Issues and resolutions documented
 
@@ -1547,9 +1321,9 @@ curl http://localhost:9090/api/v1/targets
 - Lifecycle policies for data retention (90 days for raw logs)
 
 ### CI/CD
-- Tier 2 CI limited to nightly runs (not on every push)
-- Manual approval gate prevents accidental integration test runs
-- Integration tests use minimal sample data
+- Tier 1 CI runs on every push (no Azure creds) — Ruff, mypy, pytest, dbt compile, terraform validate
+- CD pipeline deploys to Azure on merge to main (OIDC auth, no client secrets)
+- Post-deploy smoke test validates pipeline end-to-end (trigger DAG → poll → SQL row count)
 
 ## Budget Alerts
 
@@ -1650,29 +1424,24 @@ az ad sp delete --id $SP_ID
 
 ## Step 5: Clean Up GitHub Secrets
 
-\`\`\`bash
+```bash
 # Via GitHub UI: Settings > Secrets and variables > Actions
-# Delete all Tier 2 secrets:
-# - ARM_CLIENT_ID
-# - ARM_CLIENT_SECRET
-# - ARM_SUBSCRIPTION_ID
-# - ARM_TENANT_ID
+# Delete CD secrets from GitHub Environment (azure-dev):
+# - AZURE_CLIENT_ID (OIDC federated credential app ID)
+# - AZURE_TENANT_ID
+# - AZURE_SUBSCRIPTION_ID
+# - AIRFLOW_URL / AIRFLOW_USERNAME / AIRFLOW_PASSWORD
 # - DATABRICKS_TOKEN
-# - DATABRICKS_HOST
-# - DATABRICKS_WORKFLOW_ID
-# - AZURE_SQL_SERVER
-# - AZURE_SQL_DB
-# - AZURE_SQL_USER
-# - AZURE_SQL_PASSWORD
+# - AZURE_SQL_SERVER / AZURE_SQL_USER / AZURE_SQL_PASSWORD
 # - STORAGE_ACCOUNT_NAME
-\`\`\`
+```
 
-## Step 6: Delete GitHub Environment
+## Step 6: Delete GitHub Environments
 
-\`\`\`bash
+```bash
 # Via GitHub UI: Settings > Environments
-# Delete azure-integration environment
-\`\`\`
+# Delete azure-dev environment
+```
 
 ## Step 7: Verify Cleanup
 
@@ -1766,7 +1535,7 @@ chmod +x scripts/teardown.sh
 | T-SQL migration syntax errors | High | Medium | Comprehensive testing of all macros, Azure SQL compat level verification |
 | dbt docs generation failure | Low | Low | Separate task in workflow, error handling, manual fallback |
 
-| CI/CD Tier 2 approval delays | Low | Medium | Multiple approvers, clear documentation, automated retry logic |
+| CD deploy queue blocked by failed smoke test | Low | Medium | Rollback job restores previous state; alert DevOps team on failure |
 | Service principal credential compromise | High | Low | Regular rotation (quarterly), monitoring for unusual activity, immediate revocation if compromised |
 | Terraform state corruption | High | Low | Azure Blob Storage backend, regular state backups, state locking |
 | Power BI semantic contract violations | High | Medium | Header validation, DAX field dependency checks, baseline comparison |
@@ -1833,14 +1602,15 @@ chmod +x scripts/teardown.sh
 
 ### CI/CD
 
-- [ ] Tier 1 CI configured (every push, no Azure creds)
-- [ ] Tier 1 includes: Ruff, mypy, pytest, dbt compile, terraform validate
-- [ ] Tier 2 CI configured (nightly integration)
-- [ ] Tier 2 includes: end-to-end integration test, 18 CSV assertion, catalog.json validation
-- [ ] GitHub Environment `azure-integration` configured
-- [ ] Manual approval gate for Tier 2
-- [ ] Tier 2 secrets configured (ARM_*, DATABRICKS_TOKEN, AZURE_SQL_*)
-- [ ] Shared credential usage documented
+- [x] Tier 1 CI configured (every push, no Azure creds)
+- [x] Tier 1 includes: Ruff, mypy, pytest, dbt compile, terraform validate
+- [x] CD pipeline configured (merge to main, deploy to Azure)
+- [x] CD includes: Terraform plan/apply, DAB deploy, dbt deploy, Airflow sync, smoke test
+- [ ] Scheduled trigger configured (Friday 5:00 PM UTC via cron) — pending from Phase 8
+- [ ] GitHub Environment configured: `azure-dev` — requires GitHub UI setup with variables/secrets
+- [ ] OIDC Workload Identity Federation configured via Terraform (github_oidc.tf) — requires bootstrap terraform apply + copy client ID to Azure Client ID environment variable
+- [ ] CD secrets configured in GitHub Environment azure-dev
+- [x] Deployment runbook documented (`docs/deployment-runbook.md`)
 
 ### Monitoring
 
@@ -1873,7 +1643,8 @@ chmod +x scripts/teardown.sh
 - [x] Complete pipeline test passed — both DAGs (spark_ingestion_azure + dbt_marts_azure) completed green
 - [x] All phases executed successfully
 - [x] Data flows end-to-end: ADLS → Bronze → Silver → Azure SQL → dbt → CSV
-- [ ] Tier 2 CI integration test passed — Phase 9 scope
+- [x] Scheduled trigger configured (Friday 5:00 PM UTC via cron) — Phase 9 scope
+- [ ] Post-deploy smoke test passed in CD pipeline — Phase 9 scope
 - [x] Issues and resolutions documented — resolved: trailing comma, dbt deps, expression_is_true, ORDER BY, NOT IN→LEFT JOIN, freshness thresholds removed, export_csv parallelized
 - [x] Code review (Phases 8c/8d) completed — 11 issues found, 7 fixed; see `plans/code-review-phases-8c-8d.md`
 

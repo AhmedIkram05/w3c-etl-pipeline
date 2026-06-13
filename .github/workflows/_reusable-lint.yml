@@ -1,0 +1,22 @@
+name: Reusable Lint
+
+on:
+  workflow_call:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install ruff mypy types-requests types-python-dateutil
+      - name: Ruff lint
+        run: ruff check --output-format=github .
+      - name: Ruff format check
+        run: ruff format --check .
+      - name: MyPy type check
+        run: mypy --ignore-missing-imports tests/

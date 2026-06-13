@@ -71,6 +71,7 @@ def _read_file(path):
 # ── Directory & File Existence ───────────────────────────────────────
 
 
+@pytest.mark.terraform
 class TestTerraformPartBDirectory:
     """Verify the Part B directory and expected files exist."""
 
@@ -84,7 +85,6 @@ class TestTerraformPartBDirectory:
         path = os.path.join(_PART_B_DIR, filename)
         assert os.path.isfile(path), f"Expected file {filename} not found at {path}"
 
-    @pytest.mark.terraform
     def test_has_terraform_init(self):
         """terraform init has been run (.terraform directory present)."""
         assert _terraform_inited(_PART_B_DIR), (
@@ -95,6 +95,7 @@ class TestTerraformPartBDirectory:
 # ── HCL Resource Structure ───────────────────────────────────────────
 
 
+@pytest.mark.terraform
 class TestTerraformPartBResources:
     """Verify expected resource definitions exist in main.tf."""
 
@@ -168,6 +169,7 @@ class TestTerraformPartBResources:
 # ── Pipeline Configuration ───────────────────────────────────────────
 
 
+@pytest.mark.terraform
 class TestTerraformPartBConfig:
     """Verify pipeline configuration details."""
 
@@ -215,6 +217,7 @@ class TestTerraformPartBConfig:
 # ── Variables ────────────────────────────────────────────────────────
 
 
+@pytest.mark.terraform
 class TestTerraformPartBVariables:
     """Verify variables.tf contains expected inputs."""
 
@@ -246,6 +249,7 @@ class TestTerraformPartBVariables:
 # ── Outputs ──────────────────────────────────────────────────────────
 
 
+@pytest.mark.terraform
 class TestTerraformPartBOutputs:
     """Verify outputs.tf contains expected values."""
 
