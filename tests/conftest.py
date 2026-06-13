@@ -58,6 +58,7 @@ sys.path = [p for p in sys.path if os.path.abspath(p) != _PROJECT_ROOT]
 # project root (/opt/airflow), so there is no ``airflow/`` container dir.
 # On bare metal the ``airflow/`` directory exists.  We check both layouts.
 
+
 def _resolve_airflow_path(*subdirs: str) -> str | None:
     """Return the first existing path from two possible layouts.
 
@@ -73,6 +74,7 @@ def _resolve_airflow_path(*subdirs: str) -> str | None:
             return layout
     return None
 
+
 # Airflow root directory (so "plugins.operators.export_dimensions" resolves).
 # IMPORTANT: In Docker the project root IS the airflow root (since ``airflow/``
 # subdirectories are volume-mounted directly under ``/opt/airflow/``).  Adding
@@ -80,11 +82,7 @@ def _resolve_airflow_path(*subdirs: str) -> str | None:
 # shadowing, so we skip re-adding ``_AIRFLOW_DIR`` when it equals the project
 # root.
 _AIRFLOW_DIR = _resolve_airflow_path()
-if (
-    _AIRFLOW_DIR is not None
-    and _AIRFLOW_DIR != _PROJECT_ROOT
-    and _AIRFLOW_DIR not in sys.path
-):
+if _AIRFLOW_DIR is not None and _AIRFLOW_DIR != _PROJECT_ROOT and _AIRFLOW_DIR not in sys.path:
     sys.path.insert(0, _AIRFLOW_DIR)
 
 # Spark jobs directory (for utils/ module imports)
@@ -96,6 +94,11 @@ if _SPARK_JOBS_DIR is not None and _SPARK_JOBS_DIR not in sys.path:
 _DAGS_DIR = _resolve_airflow_path("dags")
 if _DAGS_DIR is not None and _DAGS_DIR not in sys.path:
     sys.path.insert(0, _DAGS_DIR)
+
+# Airflow plugins directory (so "operators.export_csv_azure" resolves)
+_PLUGINS_DIR = _resolve_airflow_path("plugins")
+if _PLUGINS_DIR is not None and _PLUGINS_DIR not in sys.path:
+    sys.path.insert(0, _PLUGINS_DIR)
 
 
 # ── Cached utils.zip for PySpark workers ──────────────────────────────
