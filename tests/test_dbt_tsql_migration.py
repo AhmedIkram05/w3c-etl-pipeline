@@ -18,13 +18,34 @@ from pathlib import Path
 import pytest
 
 # ── Paths ──────────────────────────────────────────────────────────────────
+# Path resolution: bare metal puts dbt under <root>/airflow/dbt/ while Docker
+# volume-mounts it directly at <root>/dbt/.  We check both layouts.
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_DBT_DIR = _PROJECT_ROOT / "airflow" / "dbt" / "w3c"
+
+
+def _resolve_dbt_path(*subdirs: str) -> Path:
+    """Return the first existing path from two possible layouts.
+
+    Tries ``<project_root>/airflow/<subdirs>`` (bare metal) first,
+    then ``<project_root>/<subdirs>`` (Docker volume mount).
+    """
+    candidates = [
+        _PROJECT_ROOT / "airflow" / Path(*subdirs),
+        _PROJECT_ROOT / Path(*subdirs),
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return candidates[0]  # default to bare metal layout
+
+
+_DBT_DIR = _resolve_dbt_path("dbt", "w3c")
 _MACRO_PATH = _DBT_DIR / "macros" / "t_sql_compat.sql"
 _MODELS_DIR = _DBT_DIR / "models"
 _STAGING_DIR = _MODELS_DIR / "staging"
 _MARTS_DIR = _MODELS_DIR / "marts"
-_PROFILES_FILE = _PROJECT_ROOT / "airflow" / "dbt" / "profiles.yml"
+_PROFILES_FILE = _resolve_dbt_path("dbt", "profiles.yml")
 _DBT_PROJECT_FILE = _DBT_DIR / "dbt_project.yml"
 _SOURCES_FILE = _MODELS_DIR / "sources.yml"
 _TARGET_DIR = _DBT_DIR / "target"
