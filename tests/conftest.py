@@ -34,10 +34,12 @@ import pytest
 
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-for p in list(sys.path):
-    if os.path.abspath(p) == _PROJECT_ROOT:
-        sys.path.remove(p)
-        break
+# Remove ALL sys.path entries that resolve to the project root.
+# Pytest adds the rootdir explicitly; additionally, the empty-string
+# entry '' resolves to the CWD (which is also the project root in CI).
+# Removing just the first hit via break() leaves '' on the path, which
+# still allows Python to discover the local airflow/ namespace.
+sys.path = [p for p in sys.path if os.path.abspath(p) != _PROJECT_ROOT]
 
 # ── Add only the specific subdirectories needed for test imports ─────
 # Adding the project root would re-introduce the airflow namespace
