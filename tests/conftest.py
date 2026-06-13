@@ -19,21 +19,31 @@ import zipfile
 
 import pytest
 
-# ── Add project source paths to sys.path ──────────────────────────────
-# CRITICAL: We do NOT add the project root (parent of ``airflow/``) to
-# sys.path.  The project's ``airflow/`` directory has no ``__init__.py``,
-# so Python 3.3+ treats it as a PEP 420 namespace package.  If the
-# project root were on sys.path, ``import airflow`` would resolve to this
-# namespace package instead of the installed ``apache-airflow`` package,
-# breaking ``from airflow.models import DagBag`` with:
+# ── Remove project root from sys.path ────────────────────────────────
+# Pytest auto-adds the project root to sys.path before conftest.py is
+# even loaded.  The project's ``airflow/`` directory has no
+# ``__init__.py``, so Python 3.3+ treats it as a PEP 420 namespace
+# package.  If the project root stays on sys.path, ``import airflow``
+# resolves to this namespace package instead of the installed
+# ``apache-airflow`` package, causing:
 #
-#     ModuleNotFoundError: No module named 'airflow.listeners'; 'airflow'
+#     ModuleNotFoundError: No module named 'airflow.models'; 'airflow'
 #     is not a package
 #
-# We add only the specific subdirectories that contain importable Python
-# modules, which is sufficient for all test imports:
+# We strip the project root here and NEVER add it back.
 
-_AIRFLOW_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "airflow")
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+for p in list(sys.path):
+    if os.path.abspath(p) == _PROJECT_ROOT:
+        sys.path.remove(p)
+        break
+
+# ── Add only the specific subdirectories needed for test imports ─────
+# Adding the project root would re-introduce the airflow namespace
+# shadowing, so we never add it back.
+
+_AIRFLOW_DIR = os.path.join(_PROJECT_ROOT, "airflow")
 
 # Spark jobs directory (for utils/ module imports)
 _SPARK_JOBS_DIR = os.path.join(_AIRFLOW_DIR, "spark", "jobs")
