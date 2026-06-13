@@ -4,12 +4,17 @@ PySpark test fixtures for the W3C ETL medallion pipeline.
 Provides a shared SparkSession for integration tests that need to
 exercise PySpark UDFs and DataFrame operations.
 
-Also adds necessary project paths to sys.path so all test modules
-can import using fully-qualified names like::
+Adds necessary project paths to sys.path (without adding the project
+root itself) so test modules can import using fully-qualified names::
 
     from utils.transformations import page_category
     from plugins.operators.export_dimensions import _parse_user_agent
     from dags.w3c.spark_ingestion import _export_dimensions
+
+Note: ``dag_integrity`` tests are excluded from CI via marker filter
+``not dag_integrity`` because the project's ``airflow/`` directory
+shadows the installed ``apache-airflow`` package (PEP 420 namespace
+package without ``__init__.py``).
 """
 
 import os
@@ -44,48 +49,52 @@ _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 # still allows Python to discover the local airflow/ namespace.
 sys.path = [p for p in sys.path if os.path.abspath(p) != _PROJECT_ROOT]
 
-# ── Import Airflow early (with clean sys.path) ──────────────────────
-# At this point sys.path contains NO project directories (the project
-# root was removed above).  We import ``airflow`` NOW so that its
-# ``__init__.py`` calls ``pkgutil.extend_path`` with this clean path.
-#
-# ``extend_path`` iterates ``sys.path`` searching for directories named
-# ``airflow/``.  With only site-packages on sys.path, it finds and adds
-# the REAL airflow (from site-packages) to ``airflow.__path__`` — but
-# NOT the project's ``airflow/`` directory.
-#
-# If we added project subdirectories (``airflow/``, ``airflow/dags/``,
-# ``airflow/spark/jobs/``) BEFORE importing airflow, ``extend_path``
-# would find them on sys.path and pollute ``airflow.__path__`` with the
-# project's directories.  This is the root cause of the namespace
-# shadowing bug.
-#
-# The try/except handles CI jobs (e.g. dbt-compile) that don't install
-# apache-airflow — in that case tests simply skip via ``importorskip``.
-
-try:
-    import airflow  # noqa: F811, F401
-except ImportError:
-    pass
-
 # ── Add only the specific subdirectories needed for test imports ─────
 # Adding the project root would re-introduce the airflow namespace
 # shadowing, so we never add it back.
+#
+# Path resolution note: In Docker the project's ``airflow/`` subdirectories
+# (dags/, spark/, dbt/, plugins/) are volume-mounted directly under the
+# project root (/opt/airflow), so there is no ``airflow/`` container dir.
+# On bare metal the ``airflow/`` directory exists.  We check both layouts.
 
-_AIRFLOW_DIR = os.path.join(_PROJECT_ROOT, "airflow")
+def _resolve_airflow_path(*subdirs: str) -> str | None:
+    """Return the first existing path from two possible layouts.
 
-# Spark jobs directory (for utils/ module imports)
-_SPARK_JOBS_DIR = os.path.join(_AIRFLOW_DIR, "spark", "jobs")
-if _SPARK_JOBS_DIR not in sys.path:
-    sys.path.insert(0, _SPARK_JOBS_DIR)
+    Tries ``<project_root>/airflow/<subdirs>`` (bare metal) first,
+    then ``<project_root>/<subdirs>`` (Docker volume mount).
+    Returns ``None`` if neither exists.
+    """
+    for layout in (
+        os.path.join(_PROJECT_ROOT, "airflow", *subdirs),
+        os.path.join(_PROJECT_ROOT, *subdirs),
+    ):
+        if os.path.isdir(layout):
+            return layout
+    return None
 
-# Airflow root directory (so "plugins.operators.export_dimensions" resolves)
-if _AIRFLOW_DIR not in sys.path:
+# Airflow root directory (so "plugins.operators.export_dimensions" resolves).
+# IMPORTANT: In Docker the project root IS the airflow root (since ``airflow/``
+# subdirectories are volume-mounted directly under ``/opt/airflow/``).  Adding
+# the project root back to sys.path would re-introduce the PEP 420 namespace
+# shadowing, so we skip re-adding ``_AIRFLOW_DIR`` when it equals the project
+# root.
+_AIRFLOW_DIR = _resolve_airflow_path()
+if (
+    _AIRFLOW_DIR is not None
+    and _AIRFLOW_DIR != _PROJECT_ROOT
+    and _AIRFLOW_DIR not in sys.path
+):
     sys.path.insert(0, _AIRFLOW_DIR)
 
+# Spark jobs directory (for utils/ module imports)
+_SPARK_JOBS_DIR = _resolve_airflow_path("spark", "jobs")
+if _SPARK_JOBS_DIR is not None and _SPARK_JOBS_DIR not in sys.path:
+    sys.path.insert(0, _SPARK_JOBS_DIR)
+
 # Airflow dags directory (so "dags.w3c.spark_ingestion" resolves)
-_DAGS_DIR = os.path.join(_AIRFLOW_DIR, "dags")
-if _DAGS_DIR not in sys.path:
+_DAGS_DIR = _resolve_airflow_path("dags")
+if _DAGS_DIR is not None and _DAGS_DIR not in sys.path:
     sys.path.insert(0, _DAGS_DIR)
 
 
@@ -110,6 +119,12 @@ def _build_utils_zip() -> str:
     if _UTILS_ZIP_PATH is not None:
         return _UTILS_ZIP_PATH
 
+    if _SPARK_JOBS_DIR is None:
+        raise FileNotFoundError(
+            f"spark/jobs directory not found. Tried:\n"
+            f"  {os.path.join(_PROJECT_ROOT, 'airflow', 'spark', 'jobs')}\n"
+            f"  {os.path.join(_PROJECT_ROOT, 'spark', 'jobs')}"
+        )
     utils_dir = os.path.join(_SPARK_JOBS_DIR, "utils")
     if not os.path.isdir(utils_dir):
         raise FileNotFoundError(f"utils directory not found: {utils_dir}")
