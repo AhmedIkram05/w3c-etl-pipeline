@@ -37,5 +37,6 @@ jobs:
         # Run everything except integration tests (need Azure creds),
         # terraform tests (need provider setup), and dbt_compile tests
         # (need dbt compile --profile w3c_azure to have run first).
-        # DAG integrity tests run in CI — they verify structure, not schedules.
+        # dag_integrity was previously excluded due to a sys.modules
+        # corruption bug that has since been fixed.
         run: pytest tests/ -v --tb=short -m "not integration and not terraform and not dbt_compile"
