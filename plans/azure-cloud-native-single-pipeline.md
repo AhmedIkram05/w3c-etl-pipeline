@@ -993,137 +993,787 @@ The storage account key remains in pipeline configurations (via `TF_VAR_storage_
 
 ### Phase 10 — Monitoring
 
-**Phase Goal:** Configure Grafana + Prometheus monitoring for Airflow and Azure Monitor alerts for budget and Databricks pipeline failures.
+**Phase Goal:** Implement a tiered, infrastructure-as-code monitoring stack with Grafana + Prometheus for Airflow observability and Terraform-managed Azure Monitor alerts with severity tiers for budget and pipeline failures.
+
+**Why This Matters for the CV:**
+
+This phase demonstrates three high-impact DE skills:
+
+- **Infrastructure as Code for observability** — alert rules, action groups, and budgets defined as Terraform resources, not click-ops or throwaway CLI scripts. This is the difference between "I set up alerts in the portal" and "I manage alerting as code alongside infrastructure."
+- **Tiered incident response** — a P1/P2/P3 severity model that routes critical failures to immediate notification channels while keeping informational alerts out of the on-call rotation. This is production operations maturity.
+- **Multi-layer observability** — Grafana (real-time application metrics via StatsD) + Azure Monitor (infrastructure-level alerts) + budget controls (cost governance). Together they show a holistic approach to production monitoring.
+
+**—--------------------------------------------------------------------**
+
+#### 1. Alert Severity Tiers
+
+The monitoring system uses three severity tiers to route alerts to the appropriate notification channel:
+
+| Tier | Severity | Azure Monitor Sev | Definition | Examples | Notification |
+|------|----------|-------------------|------------|----------|-------------|
+| **P1** | Critical | Sev 0 | Pipeline is broken, data is not flowing, or budget is at risk | Databricks pipeline failure, JDBC export failure, budget hard cap exceeded | Email (immediate); Slack via existing Alertmanager pipeline |
+| **P2** | Warning | Sev 1 | Non-critical degradation or approaching thresholds | Pipeline retries, approaching budget warning, Azure SQL auto-pause anomaly | Email (digest) |
+| **P3** | Informational | Sev 2 | Operational awareness, not actionable | Successful pipeline completion, budget forecast | No direct notification (dashboards only) |
+
+Each tier maps to a separate `azurerm_monitor_action_group` in Terraform, making the routing explicit and auditable.
+
+**—--------------------------------------------------------------------**
+
+#### 2. Grafana + Prometheus (Local Dev Stack)
+
+The Docker-based Grafana + Prometheus stack provides real-time Airflow observability via StatsD metrics. This stack is already implemented and provisioned — the checklist items below are verification steps, not new work.
 
 **Checklist:**
 
-- [ ] Verify Grafana + Prometheus stack is running
-- [ ] Configure Airflow StatsD exporter
-- [ ] Create Grafana dashboard for Airflow metrics
-- [ ] Configure Prometheus to scrape Airflow metrics
-- [ ] Configure Azure Monitor budget alerts ($50 warning, $100 hard cap)
-- [ ] Configure Azure Monitor alert for Databricks pipeline failures
-- [ ] Configure alert notification channels (email, Slack)
-- [ ] Test alert notifications
-- [ ] Verify Databricks pipeline event log review process
+- [x] Verify Grafana + Prometheus stack is running
+- [x] Configure Airflow StatsD exporter
+- [x] Create Grafana dashboard for Airflow metrics
+- [x] Configure Prometheus to scrape Airflow metrics
+- [ ] Verify both provisioned dashboards load correctly:
+  - `Airflow ETL Overview` (7 panels: DAG run duration, task success rate, task failure rate, DAG run count, task duration p50/p95/p99, active DAG runs, task instance state breakdown)
+  - `Container System Metrics` (6 panels: container CPU, memory, network I/O, disk I/O, restart count, uptime)
+- [ ] Verify PromQL queries return data: `rate(airflow_task_success_count[5m])`, `topk(5, sum by (dag_id) (airflow_dag_run_duration_seconds))`
+- [ ] Verify Alertmanager → Slack integration (if configured)
+
+**Existing Stack Configuration (actual repo paths):**
+
+```yaml
+# airflow/docker-compose.yaml (Monitoring services only — see full file for all services)
+services:
+  airflow-webserver: &airflow-common
+    environment: &airflow-common-env
+      AIRFLOW__METRICS__STATSD_ON: "True"
+      AIRFLOW__METRICS__STATSD_HOST: "statsd-exporter"
+      AIRFLOW__METRICS__STATSD_PORT: "9125"
+      AIRFLOW__METRICS__STATSD_PREFIX: "airflow"
+
+  statsd-exporter:
+    image: prom/statsd-exporter:v0.29.0
+    volumes:
+      - ./prometheus/statsd_mapping.yml:/etc/statsd/mapping.yml:ro
+
+  prometheus:
+    image: prom/prometheus:v3.11.3
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+```
+
+```yaml
+# airflow/prometheus/prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+scrape_configs:
+  - job_name: 'airflow-statsd'
+    static_configs:
+      - targets: ['statsd-exporter:9102']
+        labels:
+          service: 'airflow'
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'docker'
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+  - job_name: 'data-freshness-probe'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['data-freshness-probe:8000']
+```
+
+**Existing Prometheus Alert Rules (`airflow/prometheus/alert_rules.yml`):**
+
+| Alert | Severity | Expression |
+|-------|----------|------------|
+| `AirflowDAGFailureRate` | warning | `rate(airflow_dag_run_duration_seconds_count{status="failed"}[5m]) > 0` |
+| `AirflowTaskFailureRate` | warning | `rate(airflow_ti_finish{state="failed"}[5m]) > 0` |
+| `ContainerRestarts` | warning | `changes(container_start_time_seconds{...}[15m]) > 2` |
+| `HighCPUUsage` | warning | `rate(container_cpu_usage_seconds_total[...][2m]) * 100 > 80` |
+| `HighMemoryUsage` | warning | `container_memory_usage_bytes[...] / container_spec_memory_limit_bytes[...] * 100 > 85` |
+| `PrometheusTargetMissing` | critical | `up == 0` |
+
+These 6 rules are already deployed in the running Prometheus instance. Phase 10 adds 2 more (DataStaleWarning, DataStaleCritical) to the same file.
+
+The provisioned dashboards live at:
+
+- `airflow/grafana/dashboards/airflow-etl-overview.json` (7 panels, Airflow ETL overview)
+- `airflow/grafana/dashboards/container-metrics.json` (6 panels, Docker container system metrics)
+
+**—--------------------------------------------------------------------**
+
+#### 3. Terraform-Managed Azure Monitor Alerts
+
+Alert resources and action groups are defined as Terraform in `terraform/part_a/` alongside the core infrastructure. This replaces the CLI-only scaffolds from the original plan.
+
+**New files needed:**
+
+| File | Purpose |
+|------|---------|
+| `terraform/part_a/monitoring.tf` | All monitoring resources (action groups, budgets, metric alerts) |
+| `terraform/part_a/monitoring-variables.tf` | Alert-specific variables (emails, webhook URLs, toggle flags) |
+| Update `terraform/part_a/variables.tf` | Add `alert_email_critical`, `alert_email_warning`, `alert_email_info`, `enable_log_analytics` |
+| Update `terraform/part_a/environments/dev/terraform.tfvars` | Dev-specific alert values |
+
+**Terraform resources used:**
+
+```
+azurerm_monitor_action_group              # Notification routing per severity tier
+azurerm_consumption_budget_resource_group  # Budget alerts ($50 warning, $100 hard cap)
+azurerm_monitor_metric_alert               # Databricks pipeline failures + SQL auto-pause
+azurerm_monitor_scheduled_query_rules_alert_v2  # Log-based retry detection (optional, needs Log Analytics)
+```
+
+**Checklist:**
+
+- [ ] Add `terraform/part_a/monitoring.tf` with action groups (P1, P2, P3), budget alerts, and metric alerts
+- [ ] Add `terraform/part_a/monitoring-variables.tf` with alert email/URL variables
+- [ ] Update `terraform/part_a/variables.tf` with new monitoring variables
+- [ ] Update `terraform/part_a/environments/dev/terraform.tfvars` with dev alert email addresses
+- [ ] Run `terraform plan` to validate monitoring resources
+- [ ] Run `terraform apply` to deploy alerts
+- [ ] Manually trigger a test failure to verify P1 alert fires to email + Slack
+- [ ] Verify budget alerts are created in Azure Cost Management
 
 **Code Scaffolds:**
 
-**Airflow StatsD exporter configuration (docker-compose.yml):**
+**terraform/part_a/monitoring.tf:**
 
-```yaml
-services:
-  airflow-webserver:
-    environment:
-      - AIRFLOW__METRICS__STATSD_ON=true
-      - AIRFLOW__METRICS__STATSD_HOST=prometheus
-      - AIRFLOW__METRICS__STATSD_PORT=9125
-      - AIRFLOW__METRICS__STATSD_PREFIX=airflow
+```hcl
+# ---------------------------------------------------------------------------
+# Terraform-managed Azure Monitor alerts with P1/P2/P3 severity tiers
+# Phase 10 — Monitoring
+# ---------------------------------------------------------------------------
 
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+# ---- Action Groups (Notification Routing) ----
 
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards
-      - ./monitoring/grafana-datasources:/etc/grafana/provisioning/datasources
-```
+# P1 — Critical: immediate email notification
+# (Slack alerts handled by existing Alertmanager → SLACK_WEBHOOK_URL in airflow/.env)
+resource "azurerm_monitor_action_group" "critical" {
+  name                = "ag-w3c-critical"
+  resource_group_name = var.resource_group_name
+  short_name          = "w3c-p1"
 
-**Prometheus configuration (monitoring/prometheus.yml):**
+  email_receiver {
+    name          = "critical-alerts"
+    email_address = var.alert_email_critical
+  }
+}
 
-```yaml
-global:
-  scrape_interval: 15s
+# P2 — Warning: email digest
+# (Slack notifications handled by existing Alertmanager → SLACK_WEBHOOK_URL in airflow/.env)
+resource "azurerm_monitor_action_group" "warning" {
+  name                = "ag-w3c-warning"
+  resource_group_name = var.resource_group_name
+  short_name          = "w3c-p2"
 
-scrape_configs:
-  - job_name: 'airflow'
-    static_configs:
-      - targets: ['airflow-webserver:9125']
-```
+  email_receiver {
+    name          = "warning-alerts"
+    email_address = var.alert_email_warning
+  }
+}
 
-**Grafana dashboard JSON (monitoring/grafana-dashboards/airflow-dashboard.json):**
+# P3 — Informational: dashboard-only (no direct notification)
+resource "azurerm_monitor_action_group" "info" {
+  name                = "ag-w3c-info"
+  resource_group_name = var.resource_group_name
+  short_name          = "w3c-p3"
 
-```json
-{
-  "dashboard": {
-    "title": "Airflow Metrics",
-    "panels": [
-      {
-        "title": "DAG Run Duration",
-        "targets": [
-          {
-            "expr": "airflow_dag_run_duration_seconds"
-          }
-        ]
-      },
-      {
-        "title": "Task Success Rate",
-        "targets": [
-          {
-            "expr": "rate(airflow_task_success_count[5m])"
-          }
-        ]
-      },
-      {
-        "title": "Task Failure Rate",
-        "targets": [
-          {
-            "expr": "rate(airflow_task_failure_count[5m])"
-          }
-        ]
-      }
-    ]
+  email_receiver {
+    name          = "info-alerts"
+    email_address = var.alert_email_info
+  }
+}
+
+# ---- Budget Alerts ----
+
+# Look up the resource group created by the networking module
+data "azurerm_resource_group" "main" {
+  name = var.resource_group_name
+}
+
+# $50 warning budget (P2)
+resource "azurerm_consumption_budget_resource_group" "warning" {
+  name              = "w3c-etl-budget-warning"
+  resource_group_id = data.azurerm_resource_group.main.id
+
+  amount     = 50
+  time_grain = "Monthly"
+
+  time_period {
+    start_date = "2025-01-01"
+    end_date   = "2099-12-31"
+  }
+
+  notification {
+    enabled        = true
+    threshold      = 80.0
+    operator       = "GreaterThan"
+    contact_emails = [var.alert_email_warning]
+  }
+
+  notification {
+    enabled        = true
+    threshold      = 100.0
+    operator       = "GreaterThanOrEqualTo"
+    contact_emails = [var.alert_email_critical]
+  }
+}
+
+# $100 hard cap budget (P1)
+resource "azurerm_consumption_budget_resource_group" "hard_cap" {
+  name              = "w3c-etl-budget-hard-cap"
+  resource_group_id = data.azurerm_resource_group.main.id
+
+  amount     = 100
+  time_grain = "Monthly"
+
+  time_period {
+    start_date = "2025-01-01"
+    end_date   = "2099-12-31"
+  }
+
+  notification {
+    enabled        = true
+    threshold      = 100.0
+    operator       = "GreaterThanOrEqualTo"
+    contact_emails = [var.alert_email_critical]
+  }
+}
+
+# ---- Metric Alerts ----
+
+# P1 — Databricks pipeline failure
+resource "azurerm_monitor_metric_alert" "databricks_pipeline_failure" {
+  name                = "ma-w3c-databricks-pipeline-failure"
+  resource_group_name = var.resource_group_name
+  scopes              = [module.databricks.workspace_id]
+  description         = "Alert when Databricks pipeline jobs fail (P1 - Critical)"
+  severity            = 0
+
+  criteria {
+    metric_namespace = "Microsoft.Databricks/workspaces"
+    metric_name      = "JobsFailedCount"
+    aggregation      = "Total"
+    operator         = "GreaterThan"
+    threshold        = 0
+  }
+
+  window_size          = "PT5M"
+  evaluation_frequency = "PT1M"
+
+  action {
+    action_group_id = azurerm_monitor_action_group.critical.id
+  }
+}
+
+# P1 — Azure SQL auto-pause anomaly
+resource "azurerm_monitor_metric_alert" "azure_sql_auto_pause" {
+  name                = "ma-w3c-azure-sql-auto-pause"
+  resource_group_name = var.resource_group_name
+  scopes              = [module.warehouse.database_id]
+  description         = "Alert if Azure SQL DTU consumption drops near zero (P1 - Critical)"
+  severity            = 0
+
+  criteria {
+    metric_namespace = "Microsoft.Sql/servers/databases"
+    metric_name      = "dtu_consumption_percent"
+    aggregation      = "Average"
+    operator         = "LessThan"
+    threshold        = 0.1
+  }
+
+  window_size          = "PT1H"
+  evaluation_frequency = "PT5M"
+
+  action {
+    action_group_id = azurerm_monitor_action_group.critical.id
+  }
+}
+
+# P2 — Databricks job retries (log-based, requires Log Analytics)
+resource "azurerm_monitor_scheduled_query_rules_alert_v2" "databricks_job_retry" {
+  count                = var.enable_log_analytics ? 1 : 0
+  name                 = "sqr-w3c-databricks-job-retry"
+  resource_group_name  = var.resource_group_name
+  location             = var.location
+  description          = "Alert when Databricks jobs retry multiple times (P2 - Warning)"
+  severity             = 1
+  evaluation_frequency = "PT5M"
+  window_duration      = "PT30M"
+  scopes               = [module.databricks.workspace_id]
+
+  query = <<-QUERY
+    DatabricksJobs
+    | where RunStatus == "Failed" and Attempt > 1
+    | summarize RetryCount = count() by JobName, bin(TimeGenerated, 5m)
+    | where RetryCount > 1
+  QUERY
+
+  action {
+    action_group_ids = [azurerm_monitor_action_group.warning.id]
+  }
+
+  trigger {
+    operator  = "GreaterThan"
+    threshold = 1
   }
 }
 ```
 
-**Azure Monitor budget alerts (already configured in Phase 2, verify):**
+**terraform/part_a/monitoring-variables.tf:**
 
-```bash
-# Verify budget alerts
-az consumption budget list --resource-group rg-w3c-etl-dev
+```hcl
+# ---------------------------------------------------------------------------
+# Monitoring alert variables
+# Phase 10 — Monitoring
+# ---------------------------------------------------------------------------
 
-# Update notification email if needed
-az consumption budget update \
-  --name w3c-etl-budget-warning \
-  --resource-group rg-w3c-etl-dev \
-  --notification '{"threshold":50,"contactEmails":["your-email@example.com"],"operator":"GreaterThan"}'
+variable "alert_email_critical" {
+  description = "Email address for P1 (Critical) alert notifications"
+  type        = string
+  sensitive   = true
+}
+
+variable "alert_email_warning" {
+  description = "Email address for P2 (Warning) alert notifications"
+  type        = string
+  sensitive   = true
+}
+
+variable "alert_email_info" {
+  description = "Email address for P3 (Informational) alert notifications"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "enable_log_analytics" {
+  description = "Enable Log Analytics workspace for log-based alerts (increases cost)"
+  type        = bool
+  default     = false
+}
 ```
 
-**Azure Monitor alert for Databricks pipeline failures:**
+**—--------------------------------------------------------------------**
 
-```bash
-# Create alert rule for Databricks pipeline failures
-az monitor metrics alert create \
-  --name databricks-pipeline-failure \
-  --resource-group rg-w3c-etl-dev \
-  --scopes /subscriptions/<subscription-id>/resourceGroups/rg-w3c-etl-dev/providers/Microsoft.Databricks/workspaces/w3c-etl-databricks-dev \
-  --condition "avg pipeline_failure_count > 0" \
-  --window-size 5m \
-  --evaluation-frequency 1m \
-  --action-groups /subscriptions/<subscription-id>/resourceGroups/rg-w3c-etl-dev/providers/Microsoft.Insights/actionGroups/email-alert
+#### 4. Data Freshness Monitoring
+
+A data pipeline is only valuable if the data is current. This section adds a freshness probe that tracks hours since the last successful pipeline load and alerts when data goes stale.
+
+**Architecture:**
+
 ```
+Data Freshness Probe (Python — runs as Docker sidecar on port 8000)
+    │
+    ├─ Every 15 min (Azure SQL via pymssql):
+    │   ├─ dbo.raw_enriched_loaded → MAX(loaded_at) → w3c_data_freshness_seconds
+    │   ├─ dbo.raw_enriched_loaded → MAX(loaded_at) → w3c_pipeline_last_run_status
+    │   ├─ dbo.raw_enriched → COUNT(*) → w3c_row_count{source="azure_sql"}
+    │   └─ dbo.dbt_test_results → pass/fail ratio → w3c_dbt_test_pass_rate
+    │
+    ├─ Every 15 min (Databricks via Unity Catalog REST API):
+    │   ├─ GET /api/2.1/unity-catalog/tables/bronze/bronze_raw_logs → w3c_row_count{source="bronze"}
+    │   └─ GET /api/2.1/unity-catalog/tables/silver/silver_enriched_logs → w3c_row_count{source="silver"}
+    │
+    ├─ Exposes 5 Prometheus metrics on port 8000:
+    │   ├─ w3c_data_freshness_seconds{source="azure_sql"}   — hours since last load
+    │   ├─ w3c_pipeline_last_run_status{source="azure_sql"} — 1 = recent success, 0 = stale/never
+    │   ├─ w3c_dbt_test_pass_rate                           — % of dbt tests passing (0.0–1.0)
+    │   └─ w3c_row_count{source="bronze|silver|azure_sql"}  — row counts across all layers
+    │
+    └─ Consumed by:
+        ├─ Pipeline Health dashboard (all metrics as stat panels)
+        ├─ Prometheus alert: >6h → P2 (Warning)
+        └─ Prometheus alert: >24h → P1 (Critical)
+```
+
+**Checklist:**
+
+- [ ] Create `airflow/scripts/data_freshness_probe.py` — Docker-sidecar Python script that queries Azure SQL, exposes 4 Prometheus gauges on port 8000
+- [ ] Add `data-freshness-probe` service to `airflow/docker-compose.yaml` (see sidecar snippet below)
+- [ ] Add Prometheus scrape config for `data-freshness-probe:8000` (already included in the corrected prometheus.yml above — job_name: `data-freshness-probe`)
+- [ ] Verify all 5 metrics appear in Prometheus: `w3c_data_freshness_seconds`, `w3c_pipeline_last_run_status`, `w3c_dbt_test_pass_rate`, `w3c_row_count{source="bronze|silver|azure_sql"}`
+  - **Pa​rticularly:** confirm `w3c_row_count{source="bronze"}` and `{source="silver"}` show non-zero values (~153K each) — if they show 0, the Databricks PAT token is missing, expired, or the table path is wrong
+- [ ] Add Grafana stat panels to the Pipeline Health dashboard — Data Freshness, Pipeline Status, dbt Pass Rate, Row Counts (bronze + silver + azure_sql)
+- [ ] Add Alertmanager rule for P2 (>6h) and P1 (>24h) freshness alerts (see scaffold below)
+- [ ] Verify Alertmanager fires alerts correctly by pausing pipeline
+- [ ] **Prerequisite:** Add `prometheus-client` and `pymssql` to `requirements.txt` (or the Airflow `Dockerfile` pip install) — the probe container uses these
+- [ ] **Prerequisite:** Add `DATABRICKS_HOST` and `DATABRICKS_PAT_TOKEN` to `airflow/.env` alongside existing `AZURE_SQL_*` variables — the Docker sidecar reads them for Unity Catalog REST API calls
+
+**Docker sidecar snippet (add to `airflow/docker-compose.yaml` under `services:`):**
+
+```yaml
+  # ── Data Freshness Probe ────────────────────────────────────────────
+  data-freshness-probe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: data-freshness-probe
+    entrypoint:
+      - python
+      - /opt/airflow/scripts/data_freshness_probe.py
+    environment:
+      AZURE_SQL_SERVER: ${AZURE_SQL_SERVER}
+      AZURE_SQL_DATABASE: ${AZURE_SQL_DATABASE}
+      AZURE_SQL_USER: ${AZURE_SQL_USER}
+      AZURE_SQL_PASS: ${AZURE_SQL_PASS}
+      DATABRICKS_HOST: ${DATABRICKS_HOST}
+      DATABRICKS_PAT_TOKEN: ${DATABRICKS_PAT_TOKEN}
+    ports:
+      - "8000:8000"
+    networks:
+      - airflow-network
+    restart: unless-stopped
+```
+
+**Code Scaffolds:**
+
+**airflow/scripts/data_freshness_probe.py:**
+
+```python
+#!/usr/bin/env python3
+"""
+Prometheus exporter for W3C ETL pipeline health.
+
+Exposes 5 metrics on port 8000:
+  - w3c_data_freshness_seconds{source}   — seconds since last successful load
+  - w3c_pipeline_last_run_status{source}  — 1 if pipeline ran recently, 0 otherwise
+  - w3c_dbt_test_pass_rate               — fraction of dbt tests passing (0.0–1.0)
+  - w3c_row_count{source}                — row counts from bronze, silver, and azure_sql
+"""
+import json
+import os
+import time
+import urllib.request
+from datetime import datetime, timezone
+
+import pymssql
+from prometheus_client import Gauge, start_http_server
+
+# ── Prometheus gauges ──────────────────────────────────────────────────
+FRESHNESS_GAUGE = Gauge(
+    "w3c_data_freshness_seconds",
+    "Seconds since the last successful pipeline load into Azure SQL",
+    ["source"],
+)
+STATUS_GAUGE = Gauge(
+    "w3c_pipeline_last_run_status",
+    "1 if pipeline loaded data recently (within check interval), 0 otherwise",
+    ["source"],
+)
+DBT_GAUGE = Gauge(
+    "w3c_dbt_test_pass_rate",
+    "Fraction of dbt tests passing (0.0–1.0)",
+)
+ROW_COUNT_GAUGE = Gauge(
+    "w3c_row_count",
+    "Total row count per source (bronze, silver, azure_sql)",
+    ["source"],
+)
+
+# ── Configuration ──────────────────────────────────────────────────────
+DSN = {
+    "server": os.environ["AZURE_SQL_SERVER"],
+    "database": os.environ["AZURE_SQL_DATABASE"],
+    "user": os.environ["AZURE_SQL_USER"],
+    "password": os.environ["AZURE_SQL_PASSWORD"],
+}
+DATABRICKS_HOST = os.environ["DATABRICKS_HOST"]       # e.g. adb-123456.10.azuredatabricks.net
+DATABRICKS_TOKEN = os.environ["DATABRICKS_PAT_TOKEN"]
+
+# Delta table paths in the Unity Catalog
+BRONZE_TABLE = "w3c_etl_databricks.bronze.bronze_raw_logs"
+SILVER_TABLE = "w3c_etl_databricks.silver.silver_enriched_logs"
+
+# How old "recent" data can be before we mark the pipeline as stale
+STALE_THRESHOLD_SECONDS = 7200  # 2 hours
+
+
+def check_freshness() -> float | None:
+    """Return seconds since last loaded_at, or None if no data exists."""
+    conn = pymssql.connect(**DSN)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT MAX(loaded_at) FROM dbo.raw_enriched_loaded")
+        row = cursor.fetchone()
+        if row and row[0]:
+            last_load: datetime = row[0]
+            if last_load.tzinfo is None:
+                last_load = last_load.replace(tzinfo=timezone.utc)
+            return (datetime.now(timezone.utc) - last_load).total_seconds()
+        return None
+    finally:
+        conn.close()
+
+
+def check_pipeline_status() -> int:
+    """Return 1 if data was loaded recently, 0 otherwise."""
+    seconds = check_freshness()
+    if seconds is None:
+        return 0
+    return 1 if seconds < STALE_THRESHOLD_SECONDS else 0
+
+
+def check_dbt_pass_rate() -> float:
+    """
+    Estimate dbt test pass rate from Azure SQL.
+    If dbt_test_results table exists, use it; otherwise assume 1.0.
+    """
+    conn = pymssql.connect(**DSN)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                CASE
+                    WHEN OBJECT_ID('dbo.dbt_test_results') IS NOT NULL
+                    THEN 1.0 * SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)
+                    ELSE 1.0
+                END
+            FROM dbo.dbt_test_results
+            HAVING COUNT(*) > 0
+        """)
+        row = cursor.fetchone()
+        return float(row[0]) if row and row[0] is not None else 1.0
+    except Exception:
+        return 1.0
+    finally:
+        conn.close()
+
+
+def check_azure_row_count() -> int:
+    """Return total row count from dbo.raw_enriched."""
+    conn = pymssql.connect(**DSN)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM dbo.raw_enriched")
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+    finally:
+        conn.close()
+
+
+def check_databricks_row_count(full_table_name: str) -> int:
+    """
+    Return the estimated row count for a Unity Catalog table
+    via the Databricks REST API.
+
+    Uses the GET /api/2.1/unity-catalog/tables/{full_name} endpoint
+    which returns table metadata including 'rows_count' (estimated).
+    This is lightweight — no Spark cluster needed, just a PAT token.
+    """
+    url = f"https://{DATABRICKS_HOST}/api/2.1/unity-catalog/tables/{full_table_name}"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {DATABRICKS_TOKEN}"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+            return int(data.get("rows_count", 0))
+    except (urllib.error.URLError, json.JSONDecodeError, KeyError):
+        return 0
+
+
+if __name__ == "__main__":
+    start_http_server(8000)
+    while True:
+        # Freshness
+        seconds = check_freshness()
+        if seconds is not None:
+            FRESHNESS_GAUGE.labels(source="azure_sql").set(seconds)
+
+        # Pipeline status
+        STATUS_GAUGE.labels(source="azure_sql").set(check_pipeline_status())
+
+        # dbt pass rate
+        DBT_GAUGE.set(check_dbt_pass_rate())
+
+        # Row counts — all 3 sources
+        ROW_COUNT_GAUGE.labels(source="azure_sql").set(check_azure_row_count())
+        ROW_COUNT_GAUGE.labels(source="bronze").set(check_databricks_row_count(BRONZE_TABLE))
+        ROW_COUNT_GAUGE.labels(source="silver").set(check_databricks_row_count(SILVER_TABLE))
+
+        time.sleep(900)  # Every 15 minutes
+```
+
+**Alertmanager rule (monitoring/alertmanager-rules.yml):**
+
+```yaml
+groups:
+  - name: data_freshness
+    rules:
+      - alert: DataStaleWarning
+        expr: w3c_data_freshness_seconds{source="azure_sql"} > 21600
+        for: 5m
+        labels:
+          severity: warning
+          tier: P2
+        annotations:
+          summary: "Pipeline data is {{ $value | humanizeDuration }} old"
+          description: >
+            The last successful pipeline load was {{ $value | humanizeDuration }} ago.
+            Expected maximum delay is 6 hours.
+
+      - alert: DataStaleCritical
+        expr: w3c_data_freshness_seconds{source="azure_sql"} > 86400
+        for: 5m
+        labels:
+          severity: critical
+          tier: P1
+        annotations:
+          summary: "Pipeline data is {{ $value | humanizeDuration }} old — OVER 24 HOURS"
+          description: >
+            CRITICAL: No pipeline data loaded in over 24 hours.
+            Immediate investigation required.
+```
+
+**—--------------------------------------------------------------------**
+
+#### 5. Pipeline Health Grafana Dashboard
+
+A single, portfolio-ready Grafana dashboard that visualises the entire pipeline health at a glance. This is the monitoring artifact you would screenshot and walk through in an interview: *"Here's how I knew the pipeline was healthy."*
+
+**Dashboard Layout (10 panels):**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Title: W3C ETL — Pipeline Health     [Last 24h] [Auto-refresh 30s] │
+├──────────────┬──────────────┬───────────────────────────────────────┤
+│ Data         │ Pipeline     │ dbt Test                              │
+│ Freshness    │ Status       │ Pass Rate                             │
+│ ┌──────┐     │ ┌──────┐     │ ┌──────┐                              │
+│ │ 2.3h │     │ │  ✅  │     │ │ 98%  │                              │
+│ └──────┘     │ └──────┘     │ └──────┘                              │
+│ Thresholds:  │ Last run:    │ 62 pass                               │
+│ 6h (P2)      │ 2025-01-15   │ 0 fail                                │
+│ 24h (P1)     │ 17:30 UTC    │                                       │
+├──────────────┴──────────────┴───────────────────────────────────────┤
+│  DAG Run Duration (last 24h)                        ┌─────────────┐ │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │ p50  12.3s  │ │
+│  ═══════════════════════════════════════════         │ p95  18.7s  │ │
+│                                                      │ p99  45.2s  │ │
+│                                                      └─────────────┘ │
+├─────────────────────────────────────────────────────────────────────┤
+│  Task Success Rate (last 24h)           Task Failure Rate (last 24h)│
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100%   ━━━ 0.02%                    │
+│  ═══════════════════════════════         ────                         │
+├─────────────────────────────────────────────────────────────────────┤
+│  Row Counts (Prometheus: Azure SQL via pymssql, Databricks via REST) │
+│  Bronze:    142,130    Silver:    138,024    Azure SQL: 137,891    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Implementation approach:** Build the dashboard in the Grafana UI (http://localhost:3000) using the PromQL queries below, then export the JSON to `airflow/grafana/dashboards/pipeline-health.json`. This avoids hand-crafting the verbose Grafana JSON model. The provisioning YAML entry will auto-load it on container restart.
+
+**Checklist:**
+
+- [ ] Open Grafana UI → New Dashboard → Add visualization for each panel
+- [ ] Configure stat panels with threshold colours (green → yellow → red)
+- [ ] Export final JSON to `airflow/grafana/dashboards/pipeline-health.json`
+- [ ] Add provider entry in `airflow/grafana/provisioning/dashboards/airflow.yaml`
+- [ ] All panels use only Prometheus metrics — no Azure Monitor / Azure SQL datasources required
+- [ ] Data Freshness, Pipeline Status, dbt Pass Rate, and Row Count all exposed as custom Prometheus gauges by the probe script
+- [ ] Verify all panels load data within 30s of dashboard open
+- [ ] Take a screenshot for portfolio
+
+**Key Panel Queries (PromQL):**
+
+```promql
+# Data Freshness (stat panel, unit: duration, thresholds: green < 6h, yellow < 24h, red >= 24h)
+# Exposed by the data freshness probe script
+w3c_data_freshness_seconds{source="azure_sql"}
+
+# Pipeline Status (stat panel, threshold: > 0 = green)
+# Exposed by the data freshness probe script
+w3c_pipeline_last_run_status
+
+# dbt Test Pass Rate (stat panel, %)
+# Exposed by the data freshness probe script
+w3c_dbt_test_pass_rate
+
+# Row Counts (3 x stat panels, unit: short, show Bronze/Silver/Azure SQL side by side)
+# Bronze via Databricks Unity Catalog REST API, Silver via REST, Azure SQL via pymssql
+w3c_row_count{source="bronze"}
+w3c_row_count{source="silver"}
+w3c_row_count{source="azure_sql"}
+
+# DAG Run Duration (time series)
+airflow_dag_run_duration_seconds
+
+# p50 / p95 / p99 (single stat or gauge)
+histogram_quantile(0.50, sum(rate(airflow_task_duration_seconds_bucket[1h])) by (le))
+histogram_quantile(0.95, sum(rate(airflow_task_duration_seconds_bucket[1h])) by (le))
+histogram_quantile(0.99, sum(rate(airflow_task_duration_seconds_bucket[1h])) by (le))
+
+# Task Success Rate (time series)
+rate(airflow_task_success_count[5m])
+
+# Task Failure Rate (time series)
+rate(airflow_task_failure_count[5m])
+```
+
+**Provisioning entry (airflow/grafana/provisioning/dashboards/airflow.yaml):**
+
+```yaml
+apiVersion: 1
+
+providers:
+  - name: "default"
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/provisioning/dashboards
+
+  - name: "pipeline-health"      # <-- new provider entry
+    orgId: 1
+    folder: "W3C ETL"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/provisioning/dashboards/pipeline-health.json
+```
+
+**—--------------------------------------------------------------------**
+
+#### 6. Verification & Validation
 
 **Acceptance Criteria:**
 
-- Grafana + Prometheus stack running
-- Airflow StatsD exporter configured
-- Prometheus scraping Airflow metrics
-- Grafana dashboard created for Airflow metrics
-- Azure Monitor budget alerts configured ($50 warning, $100 hard cap)
-- Azure Monitor alert configured for Databricks pipeline failures
-- Alert notification channels configured (email, Slack)
-- Alert notifications tested successfully
-- Databricks pipeline event log review process documented
+- [x] Grafana + Prometheus stack running with 2 auto-provisioned dashboards
+- [x] Airflow StatsD exporter configured, Prometheus scraping `airflow_*` metrics
+- [x] Grafana dashboards show real-time DAG duration, task success/failure rates, container metrics
+- [ ] Terraform-managed action groups deployed: `az monitor action-group list` shows `ag-w3c-critical` (P1), `ag-w3c-warning` (P2), `ag-w3c-info` (P3)
+- [ ] Terraform-managed budget alerts deployed: `az consumption budget list` shows both $50 warning + $100 hard cap (actual firing requires $40 spend — not tested on limited dev credits)
+- [ ] Terraform-managed Databricks pipeline failure alert (P1, metric-based)
+- [ ] Terraform-managed Azure SQL auto-pause alert (P1, metric-based)
+- [ ] Log-based Databricks job retry alert (P2) deployed if Log Analytics enabled
+- [ ] P1 alert fires to configured email on simulated pipeline failure (e.g. temporarily stop Databricks Workflow, verify email received)
+- [ ] Budget alert resources exist in Azure (`az consumption budget list` shows both budgets) — P2 firing not tested on limited dev credits
+- [ ] Alert severity tiering documented and auditable via Terraform code
+- [ ] Data freshness probe running, all custom metrics appearing in Prometheus (`w3c_data_freshness_seconds`, `w3c_pipeline_last_run_status`, `w3c_dbt_test_pass_rate`, `w3c_row_count{source="bronze|silver|azure_sql"}`)
+- [ ] Pipeline Health dashboard has 10 panels with all panels showing data
+- [ ] P2 freshness alert fires >6h after pipeline completes
+- [ ] P1 freshness alert fires >24h after pipeline completes
 
 **Phase Handoff Validation:**
 
@@ -1131,14 +1781,23 @@ az monitor metrics alert create \
 # Verify Prometheus is scraping
 curl http://localhost:9090/api/v1/targets
 
-# Verify Grafana dashboard
+# Verify Grafana dashboards load
 open http://localhost:3000
 
-# Verify Azure budget alerts
-az consumption budget list --resource-group rg-w3c-etl-dev
+# Verify Terraform-managed action groups
+az monitor action-group list --resource-group rg-w3c-etl
 
-# Verify Databricks pipeline alert
-az monitor metrics alert list --resource-group rg-w3c-etl-dev
+# Verify Terraform-managed metric alerts
+az monitor metrics alert list --resource-group rg-w3c-etl
+
+# Verify Terraform-managed budget alerts
+az consumption budget list --resource-group rg-w3c-etl
+
+# Verify data freshness probe
+curl http://localhost:8000/metrics | grep w3c_data_freshness
+
+# Terraform plan shows no drift in monitoring resources
+terraform plan -chdir=terraform/part_a -var-file=environments/dev/terraform.tfvars -no-color | grep -E "(monitor|budget)"
 ```
 
 ---
