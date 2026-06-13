@@ -19,6 +19,9 @@ import zipfile
 
 import pytest
 
+# ── Airflow home (prevents default ~/airflow database path) ────────
+os.environ.setdefault("AIRFLOW_HOME", tempfile.mkdtemp(prefix="af_home_"))
+
 # ── Remove project root from sys.path ────────────────────────────────
 # Pytest auto-adds the project root to sys.path before conftest.py is
 # even loaded.  The project's ``airflow/`` directory has no
