@@ -19,33 +19,21 @@ import zipfile
 
 import pytest
 
-# ── Ensure real apache-airflow is importable ─────────────────────────
-# Pytest auto-adds the project root to sys.path.  Since the project's
-# ``airflow/`` directory has no ``__init__.py``, Python 3.3+ treats it as
-# a PEP 420 namespace package, which shadows the installed
-# ``apache-airflow`` package and causes ``from airflow.models import
-# DagBag`` to fail with ``ModuleNotFoundError``.
-#
-# We work around this by importing the real ``airflow`` package *before*
-# adding the project root to sys.path — once cached in ``sys.modules``,
-# subsequent imports will always find the real package.
-
-_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
-for p in list(sys.path):
-    if os.path.abspath(p) == _PROJECT_ROOT:
-        sys.path.remove(p)
-        break
-
-import airflow  # noqa: F401, E402  — caches the real package in sys.modules
-
-sys.path.insert(0, _PROJECT_ROOT)
-
 # ── Add project source paths to sys.path ──────────────────────────────
-# This allows test files to import from the project's code using
-# fully-qualified names as shown in the module docstring.
+# CRITICAL: We do NOT add the project root (parent of ``airflow/``) to
+# sys.path.  The project's ``airflow/`` directory has no ``__init__.py``,
+# so Python 3.3+ treats it as a PEP 420 namespace package.  If the
+# project root were on sys.path, ``import airflow`` would resolve to this
+# namespace package instead of the installed ``apache-airflow`` package,
+# breaking ``from airflow.models import DagBag`` with:
+#
+#     ModuleNotFoundError: No module named 'airflow.listeners'; 'airflow'
+#     is not a package
+#
+# We add only the specific subdirectories that contain importable Python
+# modules, which is sufficient for all test imports:
 
-_AIRFLOW_DIR = os.path.join(_PROJECT_ROOT, "airflow")
+_AIRFLOW_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "airflow")
 
 # Spark jobs directory (for utils/ module imports)
 _SPARK_JOBS_DIR = os.path.join(_AIRFLOW_DIR, "spark", "jobs")
