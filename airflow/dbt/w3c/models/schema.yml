@@ -35,8 +35,14 @@ models:
         description: "ISO week number"
       - name: is_weekend
         description: "'Yes' if Saturday or Sunday"
+        tests:
+          - accepted_values:
+              values: ["Yes", "No"]
       - name: holiday_flag
         description: "'Yes' if a UK bank holiday"
+        tests:
+          - accepted_values:
+              values: ["Yes", "No"]
 
   - name: dim_time
     description: "Time-of-day dimension with 1440 minute-level rows and shift/band grouping"
@@ -56,10 +62,19 @@ models:
           - not_null
       - name: am_pm
         description: "AM or PM"
+        tests:
+          - accepted_values:
+              values: ["AM", "PM"]
       - name: time_band
         description: "Time band (Early Morning, Morning, Afternoon, Evening)"
+        tests:
+          - accepted_values:
+              values: ["Early Morning", "Morning", "Afternoon", "Evening"]
       - name: shift_id
         description: "Shift identifier (1-4)"
+        tests:
+          - accepted_values:
+              values: [1, 2, 3, 4]
 
   - name: dim_page
     description: "Page dimension with URI stem, query string, extracted directory, file name, extension, and category"
@@ -83,6 +98,17 @@ models:
         description: "File extension (css, js, image, html, etc.)"
       - name: page_category
         description: "Content type classification (Static Page, Image, Script, etc.)"
+        tests:
+          - accepted_values:
+              values:
+                - "Static Page"
+                - "Image"
+                - "Script"
+                - "Style"
+                - "API"
+                - "Document"
+                - "Other"
+              severity: warn
 
   - name: dim_status
     description: "HTTP status code dimension with category, severity, and description"
@@ -102,12 +128,24 @@ models:
         description: "Win32 status code"
       - name: status_category
         description: "Category (Success, Client Error, Server Error, etc.)"
+        tests:
+          - accepted_values:
+              values:
+                - "Informational"
+                - "Success"
+                - "Redirection"
+                - "Client Error"
+                - "Server Error"
+                - "Unknown"
       - name: status_label
         description: "Human-readable status description"
       - name: description
         description: "Detailed human-readable description of the HTTP status code"
       - name: severity
         description: "Severity level (Info, Warning, Error, Critical)"
+        tests:
+          - accepted_values:
+              values: ["Info", "Warning", "Error", "Critical"]
 
   - name: dim_method
     description: "HTTP method dimension aligned with Power BI semantic model"
@@ -125,6 +163,9 @@ models:
         description: "Human-readable method description"
       - name: is_safe
         description: "Safe/Unsafe classification"
+        tests:
+          - accepted_values:
+              values: ["Safe", "Unsafe"]
 
   - name: dim_referrer
     description: "Referrer dimension with domain extraction and traffic source classification"
@@ -142,6 +183,14 @@ models:
         description: "Extracted domain from referrer URL"
       - name: traffic_source
         description: "Traffic source (Direct, Search Engine, Social Media, Referral, etc.)"
+        tests:
+          - accepted_values:
+              values:
+                - "Direct"
+                - "Search Engine"
+                - "Social Media"
+                - "Referral"
+                - "Unknown"
 
   - name: dim_visit_buckets
     description: "Visit bucket dimension grouping IPs by visit frequency"
@@ -217,10 +266,22 @@ models:
               field: referrer_sk
       - name: geolocation_sk
         description: "Foreign key to dim_geolocation"
+        tests:
+          - relationships:
+              to: source('w3c', 'dim_geolocation')
+              field: geolocation_sk
       - name: user_agent_sk
         description: "Foreign key to dim_useragent"
+        tests:
+          - relationships:
+              to: source('w3c', 'dim_useragent')
+              field: user_agent_sk
       - name: visitor_sk
         description: "Foreign key to dim_visitortype"
+        tests:
+          - relationships:
+              to: ref('dim_visitortype')
+              field: visitor_sk
       - name: visit_bucket_sk
         description: "Foreign key to dim_visit_buckets"
         tests:
@@ -229,20 +290,46 @@ models:
               field: visit_bucket_sk
       - name: bytes_sent
         description: "Bytes sent in response"
+        tests:
+          - not_null
       - name: bytes_received
         description: "Bytes received in request"
+        tests:
+          - not_null
       - name: response_time_ms
         description: "Request duration in milliseconds"
+        tests:
+          - not_null
       - name: request_count
         description: "Row count per fact record (always 1)"
+        tests:
+          - not_null
       - name: is_404
         description: "Flag indicating a 404 Not Found response"
+        tests:
+          - accepted_values:
+              values: [true, false]
       - name: is_crawler
         description: "Flag indicating the request came from a known crawler IP"
+        tests:
+          - accepted_values:
+              values: [true, false]
       - name: is_direct_traffic
         description: "Flag indicating direct traffic (no referrer)"
+        tests:
+          - accepted_values:
+              values: [true, false]
       - name: size_band
         description: "Size category (Zero, Tiny, Small, Medium, Large, Huge) based on total bytes"
+        tests:
+          - accepted_values:
+              values:
+                - "Zero"
+                - "Tiny"
+                - "Small"
+                - "Medium"
+                - "Large"
+                - "Huge"
 
       - name: page_category
         description: "Page category computed from URI stem"
@@ -250,8 +337,19 @@ models:
         description: "Domain extracted from referrer URL"
       - name: traffic_type
         description: "Traffic type classified from referrer (e.g. Direct, Search, Social)"
+        tests:
+          - accepted_values:
+              values:
+                - "Direct"
+                - "Search Engine"
+                - "Social Media"
+                - "Referral"
+                - "Unknown"
       - name: time_band
         description: "Time band denormalized from dim_time for convenience (Early Morning, Morning, Afternoon, Evening)"
+        tests:
+          - accepted_values:
+              values: ["Early Morning", "Morning", "Afternoon", "Evening"]
 
   - name: crawler_ips
     description: "Known crawler IPs detected from robots.txt requests, managed by dbt"
@@ -272,8 +370,14 @@ models:
           - not_null
       - name: crawler_flag
         description: "'Yes' for crawler, 'No' for human, 'Ukn' for unknown"
+        tests:
+          - accepted_values:
+              values: ["Yes", "No", "Ukn"]
       - name: visitor_type
         description: "Visitor type label"
+        tests:
+          - accepted_values:
+              values: ["Crawler", "Human", "Unknown"]
 
   - name: mart_page_performance
     description: "Page-level performance aggregation with error rates, response time metrics, and slow request analysis"
@@ -295,22 +399,38 @@ models:
           - not_null
       - name: unique_hosts
         description: "Number of unique hosts (IPs) accessing this page"
+        tests:
+          - not_null
       - name: total_404
         description: "Count of 404 responses"
+        tests:
+          - not_null
       - name: pct_404
         description: "Percentage of requests resulting in 404"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "pct_404 >= 0 AND pct_404 <= 100"
       - name: total_bytes_sent
         description: "Total bytes transferred"
       - name: avg_response_time_ms
         description: "Average response time in milliseconds"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "avg_response_time_ms >= 0"
       - name: p95_response_time_ms
         description: "95th percentile response time in milliseconds"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "p95_response_time_ms >= 0"
       - name: max_response_time_ms
         description: "Maximum response time in milliseconds"
       - name: slow_requests
         description: "Count of requests with response time exceeding 5000ms"
       - name: pct_slow_requests
         description: "Percentage of requests with response time exceeding 5000ms"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "pct_slow_requests >= 0 AND pct_slow_requests <= 100"
       - name: active_days
         description: "Number of distinct days with activity"
 
@@ -341,6 +461,8 @@ models:
         description: "Total requests for the day"
       - name: unique_hosts
         description: "Number of unique hosts (IPs) visiting the site"
+        tests:
+          - not_null
       - name: unique_human_hosts
         description: "Number of unique human (non-crawler) hosts"
       - name: unique_pages
@@ -349,12 +471,23 @@ models:
         description: "Number of distinct countries with traffic"
       - name: total_404
         description: "Count of 404 responses"
+        tests:
+          - not_null
       - name: pct_404
         description: "Percentage of 404 responses"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "pct_404 >= 0 AND pct_404 <= 100"
       - name: avg_response_time_ms
         description: "Average response time in milliseconds"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "avg_response_time_ms >= 0"
       - name: p95_response_time_ms
         description: "95th percentile response time in milliseconds"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "p95_response_time_ms >= 0"
       - name: total_bytes_sent
         description: "Total bytes transferred"
       - name: crawler_requests
@@ -373,6 +506,9 @@ models:
         description: "Hour of day (0-23) with the most requests"
       - name: top_browser_share
         description: "Percentage of the day's total traffic from the #1 browser by request count"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "top_browser_share >= 0 AND top_browser_share <= 100"
 
   - name: mart_crawler_analysis
     description: "Crawler behavior analysis with error rates, resource usage, and host-level metrics"
@@ -399,12 +535,18 @@ models:
         description: "Average bytes per crawler request"
       - name: avg_response_time_ms
         description: "Average response time for crawler requests"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "avg_response_time_ms >= 0"
       - name: max_response_time_ms
         description: "Maximum response time for crawler requests"
       - name: pages_with_errors
         description: "Distinct pages returning client errors"
       - name: pct_error_responses
         description: "Percentage of crawler requests resulting in errors"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "pct_error_responses >= 0 AND pct_error_responses <= 100"
 
   - name: mart_timeofday_analysis
     description: "Hourly traffic and performance breakdown showing time-of-day traffic and latency patterns"
@@ -436,20 +578,35 @@ models:
         description: "Count of 404 responses"
       - name: pct_404
         description: "Percentage of 404 responses"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "pct_404 >= 0 AND pct_404 <= 100"
       - name: avg_response_time_ms
         description: "Average response time in milliseconds"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "avg_response_time_ms >= 0"
       - name: p95_response_time_ms
         description: "95th percentile response time in milliseconds"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "p95_response_time_ms >= 0"
       - name: total_bytes_sent
         description: "Total bytes transferred"
       - name: crawler_requests
         description: "Requests from known crawler IPs"
       - name: pct_crawler
         description: "Percentage of requests from crawlers"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "pct_crawler >= 0 AND pct_crawler <= 100"
       - name: slow_requests
         description: "Count of requests with response time exceeding 5000ms"
       - name: pct_slow_requests
         description: "Percentage of requests with response time exceeding 5000ms"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "pct_slow_requests >= 0 AND pct_slow_requests <= 100"
 
   - name: mart_browser_analysis
     description: "Daily browser and client analysis with device category, platform breakdown, and traffic share"
@@ -483,8 +640,14 @@ models:
         description: "Total bytes transferred"
       - name: pct_of_daily_traffic
         description: "Percentage of the day's total traffic"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "pct_of_daily_traffic >= 0 AND pct_of_daily_traffic <= 100"
       - name: browser_rank
         description: "Rank of this browser family for the day (1 = most traffic)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "browser_rank >= 1"
 
   - name: mart_country_browser_share
     description: "Top browser share broken down by country per day, showing the dominant browser and its share of each country's traffic"
