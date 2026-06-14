@@ -61,6 +61,9 @@ sources:
               - not_null
           - name: agent_type
             description: "Agent classification (Browser/Crawler)"
+            tests:
+              - accepted_values:
+                  values: ["Browser", "Crawler"]
           - name: browser_name
             description: "Browser family (e.g. Chrome, Firefox)"
           - name: browser_version
@@ -69,3 +72,6 @@ sources:
             description: "Operating system family (e.g. Windows, Mac OS X)"
           - name: device_type
             description: "Device type (e.g. Desktop, Mobile, Tablet)"
+            tests:
+              - accepted_values:
+                  values: ["Desktop", "Mobile", "Tablet", "Bot", "Other"]
