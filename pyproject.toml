@@ -16,6 +16,10 @@ ignore = ["E501"]
 [tool.ruff.format]
 preview = true
 
+[tool.bandit]
+exclude_dirs = ["tests", ".github", "airflow/spark/databricks"]
+skips = ["B101", "B311", "B403", "B404", "B603", "B607"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = false
@@ -32,6 +36,10 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = "airflow.spark.jobs.*"
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "airflow.spark.databricks.*"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
