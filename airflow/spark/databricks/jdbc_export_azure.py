@@ -283,10 +283,7 @@ def export_to_azure_sql(spark, server, database, username, password):
         from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc)
-        tracking_rows = [
-            {"source_file": sf, "loaded_at": now}
-            for sf in sorted(new_source_files)
-        ]
+        tracking_rows = [{"source_file": sf, "loaded_at": now} for sf in sorted(new_source_files)]
         inserted_tracking = insert_batch(conn, tracking_rows, "dbo.raw_enriched_loaded")
         print(f"Updated tracking table with {inserted_tracking} new source file(s)")
 

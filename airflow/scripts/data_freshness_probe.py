@@ -12,6 +12,7 @@ Supports two database backends:
   1. Azure SQL (pymssql) — primary, used in production
   2. PostgreSQL (psycopg2) — fallback for local Docker development
 """
+
 import json
 import os
 import time
@@ -52,10 +53,10 @@ AZURE_DSN = {
     "database": os.environ.get("AZURE_SQL_DATABASE"),
     "user": os.environ.get("AZURE_SQL_USER"),
     "password": os.environ.get("AZURE_SQL_PASS"),
-    "timeout": 10,       # Connection timeout in seconds
-    "login_timeout": 10, # Login timeout in seconds (slow failover protection)
+    "timeout": 10,  # Connection timeout in seconds
+    "login_timeout": 10,  # Login timeout in seconds (slow failover protection)
     "charset": "UTF-8",  # Ensure Unicode data is handled correctly
-    "as_dict": True,     # Access columns by name instead of index
+    "as_dict": True,  # Access columns by name instead of index
 }
 HAS_AZURE_SQL = all(AZURE_DSN.values())
 
@@ -242,10 +243,14 @@ def query_databricks(sql: str) -> list[list[str]] | None:
         "warehouse_id": DATABRICKS_WAREHOUSE_ID,
         "wait_timeout": "15s",
     }).encode()
-    req = urllib.request.Request(url, data=body, headers={
-        "Authorization": f"Bearer {DATABRICKS_TOKEN}",
-        "Content-Type": "application/json",
-    })
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "Authorization": f"Bearer {DATABRICKS_TOKEN}",
+            "Content-Type": "application/json",
+        },
+    )
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read().decode())
