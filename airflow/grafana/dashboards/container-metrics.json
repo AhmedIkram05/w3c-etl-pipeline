@@ -200,6 +200,13 @@
           "decimals": 1,
           "color": {
             "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "red" },
+              { "value": 0.1, "color": "green" }
+            ]
           }
         },
         "overrides": []
