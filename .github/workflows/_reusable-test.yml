@@ -38,10 +38,13 @@ jobs:
         run: |
           pip install -r tests/requirements-test.txt
           pip install pytest apache-airflow-providers-databricks
-      - name: Run tests
-        # Run everything except integration tests (need Azure creds),
-        # terraform tests (need provider setup), and dbt_compile tests
-        # (need dbt compile --profile w3c_azure to have run first).
-        # dag_integrity was previously excluded due to a sys.modules
-        # corruption bug that has since been fixed.
-        run: pytest tests/ -v --tb=short -m "not integration and not terraform and not dbt_compile"
+      - name: Run tests with coverage
+        # Run everything except integration tests (need Azure creds)
+        # and dbt_compile tests (need dbt compile to have run first).
+        run: pytest tests/ -v --tb=short -m "not integration and not dbt_compile" --cov=airflow --cov-report=xml --cov-report=term-missing
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          flags: pytest
+          fail_ci_if_error: false

@@ -13,10 +13,17 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install dependencies
-        run: pip install ruff mypy types-requests types-python-dateutil
+        run: pip install ruff mypy types-requests types-python-dateutil bandit "sqlfluff>=3.0,<4.0"
       - name: Ruff lint
         run: ruff check --output-format=github .
       - name: Ruff format check
         run: ruff format --check .
-      - name: MyPy type check
+      - name: MyPy type check (tests)
         run: mypy --ignore-missing-imports tests/
+      - name: MyPy type check (Databricks scripts)
+        run: mypy --ignore-missing-imports airflow/spark/databricks/
+      - name: Bandit security scan
+        run: bandit -r airflow/ -c pyproject.toml
+      - name: SQLFluff dbt SQL lint
+        run: sqlfluff lint airflow/dbt/w3c/models/ --dialect postgres
+        continue-on-error: true
