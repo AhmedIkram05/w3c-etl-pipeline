@@ -36,6 +36,9 @@ _RESOURCE_PATTERNS = {
     "databricks_pipeline.bronze": r'resource\s+"databricks_pipeline"\s+"bronze"',
     "databricks_pipeline.silver": r'resource\s+"databricks_pipeline"\s+"silver"',
     "databricks_job.w3c_etl_workflow": r'resource\s+"databricks_job"\s+"w3c_etl_workflow"',
+    "databricks_schema.bronze": r'resource\s+"databricks_schema"\s+"bronze"',
+    "databricks_schema.silver": r'resource\s+"databricks_schema"\s+"silver"',
+    "databricks_schema.gold": r'resource\s+"databricks_schema"\s+"gold"',
 }
 
 _TASK_KEYS = ["run_bronze", "run_silver", "run_jdbc_export"]
@@ -118,7 +121,7 @@ class TestTerraformPartBResources:
         """main.tf defines all expected resource blocks."""
         content = self._main_tf_content()
         matches = re.findall(r'resource\s+"(\w+)"\s+"(\w+)"', content)
-        assert len(matches) == 21, f"Expected 21 resources, found {len(matches)}: {matches}"
+        assert len(matches) == 24, f"Expected 24 resources, found {len(matches)}: {matches}"
 
     def test_both_pipelines_are_serverless(self):
         """Both pipeline resources have serverless = true."""
@@ -164,6 +167,19 @@ class TestTerraformPartBResources:
         """No job_cluster block exists (all 3 tasks use serverless)."""
         content = self._main_tf_content()
         assert "job_cluster" not in content, "job_cluster block found — all tasks should use serverless"
+
+    def test_unity_catalog_schemas_defined(self):
+        """Three databricks_schema resources exist for bronze/silver/gold."""
+        content = self._main_tf_content()
+        schemas = re.findall(r'resource\s+"databricks_schema"\s+"(\w+)"', content)
+        for s in ["bronze", "silver", "gold"]:
+            assert s in schemas, f"databricks_schema '{s}' not found. Found: {schemas}"
+
+    def test_schemas_reference_catalog(self):
+        """Each schema uses data.databricks_catalog.w3c.id as catalog_name."""
+        content = self._main_tf_content()
+        catalog_refs = re.findall(r"catalog_name\s*=\s*data\.databricks_catalog\.w3c\.id", content)
+        assert len(catalog_refs) >= 3, f"Expected at least 3 schema catalog_name refs, found {len(catalog_refs)}"
 
 
 # ── Pipeline Configuration ───────────────────────────────────────────
@@ -301,3 +317,14 @@ class TestTerraformValidate:
         )
         assert result.returncode == 0, f"terraform validate failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
         assert "Success" in result.stdout, f"terraform validate did not report success:\n{result.stdout}"
+
+    def test_terraform_fmt_check(self, terraform_path):
+        """``terraform fmt --check`` passes (no formatting issues)."""
+        result = subprocess.run(
+            [terraform_path, "fmt", "--check", "-recursive"],
+            cwd=_PART_B_DIR,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, f"terraform fmt --check found formatting issues:\n{result.stdout}"
