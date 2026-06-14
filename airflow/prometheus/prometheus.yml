@@ -27,3 +27,10 @@ scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+
+  - job_name: 'data-freshness-probe'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['data-freshness-probe:8000']
+        labels:
+          service: 'pipeline'
