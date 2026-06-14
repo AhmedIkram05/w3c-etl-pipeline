@@ -82,8 +82,14 @@ CREATE TABLE IF NOT EXISTS public.raw_enriched (
 # DDL for the idempotency tracking table.
 TRACKING_DDL = """
 CREATE TABLE IF NOT EXISTS public.raw_enriched_loaded (
-    source_file TEXT PRIMARY KEY
+    source_file TEXT PRIMARY KEY,
+    loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+"""
+
+TRACKING_MIGRATION_SQL = """
+ALTER TABLE public.raw_enriched_loaded
+ADD COLUMN IF NOT EXISTS loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 """
 
 
@@ -270,6 +276,8 @@ def insert_tracking_records(
 
     Uses a batch JDBC approach: creates a temporary DataFrame with the
     new values and appends it to ``public.raw_enriched_loaded``.
+    The ``loaded_at`` column is populated automatically by the database
+    via the DEFAULT CURRENT_TIMESTAMP constraint.
     """
     if not new_source_files:
         return
@@ -399,6 +407,9 @@ def run(
     # ── 6. Create PostgreSQL tables if they do not exist ─────────────
     execute_ddl(spark, jdbc_url, jdbc_props, RAW_ENRICHED_DDL, RAW_ENRICHED_TABLE)
     execute_ddl(spark, jdbc_url, jdbc_props, TRACKING_DDL, TRACKING_TABLE)
+    # Migration: add loaded_at column for data freshness monitoring
+    # (safe to run repeatedly — IF NOT EXISTS / ADD COLUMN IF NOT EXISTS)
+    execute_ddl(spark, jdbc_url, jdbc_props, TRACKING_MIGRATION_SQL, f"{TRACKING_TABLE} (migration: loaded_at)")
 
     # ── 7. Write new data to PostgreSQL via JDBC ─────────────────────
     try:
