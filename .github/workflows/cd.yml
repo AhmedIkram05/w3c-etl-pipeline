@@ -6,11 +6,16 @@
 #
 # Single environment: azure-dev (auto-approve on merge to main).
 # Rollback available via workflow_dispatch.
+#
+# Pull requests run terraform-plan only (read-only). Apply and all downstream
+# jobs are skipped — fast feedback without risking the environment.
 # ---------------------------------------------------------------------------
 name: CD - Deploy to Azure
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -35,18 +40,17 @@ jobs:
     outputs:
       plan_a_exitcode: ${{ steps.plan_a.outputs.exitcode }}
       plan_b_exitcode: ${{ steps.plan_b.outputs.exitcode }}
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "${{ env.TF_VERSION }}"
-
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Terraform Plan (Part A)
         id: plan_a
@@ -81,6 +85,7 @@ jobs:
   # -----------------------------------------------------------------------
   terraform-apply:
     name: Terraform Apply
+    if: github.event_name != 'pull_request'
     needs: terraform-plan
     runs-on: ubuntu-latest
     environment: azure-dev
@@ -88,18 +93,17 @@ jobs:
       id-token: write
       contents: read
     timeout-minutes: 30
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "${{ env.TF_VERSION }}"
-
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Terraform Apply (Part A)
         run: |
@@ -289,6 +293,11 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -297,12 +306,6 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "${{ env.TF_VERSION }}"
-
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Terraform Rollback — Part A (plan)
         run: |
