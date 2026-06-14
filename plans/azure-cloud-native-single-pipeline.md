@@ -1,7 +1,7 @@
 # Azure Cloud-Native Single-Pipeline ETL Platform Implementation Plan
 
 **Version:** v3.1
-**Status:** Phases 0–9 ✅ complete
+**Status:** Phases 0–8e ✅, Phase 9 ✅, Phase 10 ✅ complete
 **Budget:** $149 Azure credit cap
 **CV Impact:** High - demonstrates cloud-native DE, Databricks DLT, Unity Catalog, dbt, Azure SQL, and end-to-end data platform ownership
 **Target Roles:** Data Engineer, Cloud Data Engineer, Data Platform Engineer
@@ -943,6 +943,36 @@ The storage account key remains in pipeline configurations (via `TF_VAR_storage_
 
 ---
 
+### Phase 8e — IaC Hardening (✅ Complete)
+
+**Phase Goal:** Close Terraform IaC coverage gaps identified during audit — add Unity Catalog schema management as code and create Terraform validation tests for Part A.
+
+**Summary:** Two high-impact gaps closed. (1) Added `databricks_schema` resources for `bronze`, `silver`, `gold` to `terraform/part_b/main.tf` — schemas are now managed as code alongside pipelines, notebooks, and workflow, eliminating the manual UI/SQL creation gap. (2) Created `tests/test_terraform_part_a.py` with 29 tests covering directory structure, module definitions (4 expected), variable/output coverage (15 vars, 11 outputs), `terraform validate`, and `terraform fmt --check -recursive` — mirroring the Part B test pattern. Part B tests also updated: resource count 21→24, new `test_unity_catalog_schemas_defined` and `test_schemas_reference_catalog` assertions.
+
+**Checklist:**
+
+- [x] Add `databricks_schema` resources to Part B for `bronze`, `silver`, `gold` schemas — implemented in [`terraform/part_b/main.tf`]
+- [x] Add basic Terraform validation tests for Part A — implemented in [`tests/test_terraform_part_a.py`] (29 tests)
+- [x] Update Part B tests for new schema resources — updated `test_terraform_part_b.py` (resource count 21→24, schema + catalog reference tests)
+
+**Verified State:**
+
+```bash
+# Part B Unity Catalog schemas managed as code
+grep -c 'resource "databricks_schema"' terraform/part_b/main.tf
+# Output: 3
+
+# Part A tests exist and cover validate + fmt
+pytest tests/test_terraform_part_a.py -v -m terraform --tb=short
+# Expected: 29 passed
+
+# Part B tests include schema assertions
+pytest tests/test_terraform_part_b.py -v -m terraform -k "schema" --tb=short
+# Expected: 2 passed (test_unity_catalog_schemas_defined, test_schemas_reference_catalog)
+```
+
+---
+
 ### Phase 9 — CI/CD (✅ Complete)
 
 **Phase Goal:** Configure CI/CD (Tier 1 on every push + CD on merge to main). Tier 1 provides fast code-quality feedback with no Azure creds. CD deploys to Azure with an embedded post-deploy smoke test validating the pipeline end-to-end.
@@ -1058,143 +1088,9 @@ The storage account key remains in pipeline configurations (via `TF_VAR_storage_
 
 **Phase 10 → Phase 11 Handoff:** ✅ Complete. Full monitoring stack implemented, deployed locally, and verified end-to-end with real data from all backends. Terraform monitoring resources validated with `terraform plan` against live Azure. 3 Grafana dashboards, 8 Prometheus alert rules, 4 scrape targets operational. Remaining items require `terraform apply` with Azure credentials (deploy action groups, budgets, metric alerts), setting `alert_email_*` variables in tfvars, and enabling Log Analytics for the conditional retry alert.
 
-### Phase 11 — Final Verification
-
-**Phase Goal:** Perform end-to-end verification of the complete pipeline, validate Power BI compatibility, and confirm all 18 CSV exports are produced correctly.
-
-**Checklist:**
-
-- [ ] Run complete end-to-end pipeline test
-- [ ] Upload sample logs to ADLS Gen2
-- [ ] Trigger Databricks Workflow
-- [ ] Verify Bronze pipeline execution
-- [ ] Verify Silver pipeline execution
-- [ ] Verify JDBC export to Azure SQL
-
-- [ ] Verify export_dimensions_azure execution
-- [ ] Verify dbt run execution
-- [ ] Verify dbt test execution
-- [ ] Verify dbt docs generation
-- [ ] Verify 18 CSV exports produced
-- [ ] Validate CSV headers against baseline
-- [ ] Validate DAX measure field dependencies
-- [ ] Verify Power BI semantic contract
-- [ ] Run CD smoke test (post-deploy pipeline validation)
-- [ ] Verify all monitoring alerts
-- [ ] Document any issues and resolutions
-
-**Code Scaffolds:**
-
-**End-to-end test script (scripts/e2e_test.sh):**
-
-```bash
-#!/bin/bash
-set -e
-
-echo "Starting end-to-end verification..."
-
-# Upload sample logs
-echo "Uploading sample logs to ADLS..."
-for f in airflow/data/LogFiles/*.log; do
-  az storage blob upload \
-    --container-name raw-logs \
-    --file "$f" \
-    --name "e2e-test/$(basename "$f")" \
-    --account-name $STORAGE_ACCOUNT_NAME
-done
-
-# Trigger Databricks Workflow
-echo "Triggering Databricks Workflow..."
-databricks jobs run-now --job-id $DATABRICKS_WORKFLOW_ID
-
-# Poll for completion
-echo "Polling for workflow completion..."
-# Add polling logic here
-
-# Verify Bronze table
-echo "Verifying Bronze table..."
-bronze_count=$(databricks sql execute --warehouse-id $WAREHOUSE_ID --sql "SELECT COUNT(*) FROM w3c_catalog.bronze.bronze_raw_logs" --output json | jq -r '.[0][0]')
-echo "Bronze row count: $bronze_count"
-
-# Verify Silver table
-echo "Verifying Silver table..."
-silver_count=$(databricks sql execute --warehouse-id $WAREHOUSE_ID --sql "SELECT COUNT(*) FROM w3c_catalog.silver.silver_enriched_logs" --output json | jq -r '.[0][0]')
-echo "Silver row count: $silver_count"
-
-# Verify Azure SQL
-echo "Verifying Azure SQL..."
-sql_count=$(sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.raw_enriched" -h -1)
-echo "Azure SQL row count: $sql_count"
-
-# Verify dim tables
-echo "Verifying dim tables..."
-geo_count=$(sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.dim_geolocation" -h -1)
-ua_count=$(sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DB -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.dim_useragent" -h -1)
-echo "dim_geolocation count: $geo_count"
-echo "dim_useragent count: $ua_count"
-
-# Verify CSV exports
-echo "Verifying CSV exports..."
-csv_count=$(ls airflow/data/Star-Schema/*.csv | wc -l)
-if [ $csv_count -ne 18 ]; then
-    echo "ERROR: Expected 18 CSV files, found $csv_count"
-    exit 1
-fi
-echo "CSV export count: $csv_count"
-
-# Validate CSV headers
-echo "Validating CSV headers..."
-# Add header validation logic here
-
-# Verify dbt docs
-echo "Verifying dbt docs..."
-if [ ! -f airflow/data/dbt-docs/catalog.json ]; then
-    echo "ERROR: catalog.json not found"
-    exit 1
-fi
-echo "dbt docs verified"
-
-echo "End-to-end verification completed successfully!"
-```
-
-**Acceptance Criteria:**
-
-- End-to-end pipeline test completed successfully
-- Bronze pipeline executed without errors
-- Silver pipeline executed without errors
-- JDBC export completed successfully
-
-- export_dimensions_azure completed successfully
-- dbt run completed successfully
-- dbt tests passed
-- dbt docs generated successfully
-- Exactly 18 CSV exports produced
-- CSV headers match baseline
-- DAX measure field dependencies validated
-- Power BI semantic contract verified
-- CD smoke test passed (post-deploy pipeline validation)
-- All monitoring alerts functional
-- Issues and resolutions documented
-
-**Phase Handoff Validation:**
-
-```bash
-# Run end-to-end test
-./scripts/e2e_test.sh
-
-# Verify CSV exports
-ls -la airflow/data/Star-Schema/
-
-# Verify dbt docs
-cat airflow/data/dbt-docs/catalog.json | python -m json.tool
-
-# Verify monitoring
-curl http://localhost:9090/api/v1/targets
-```
-
 ---
 
-### Phase 12 — Cost Management and Teardown Documentation - Will be reworked before beginning
+### Phase 11 — Cost Management and Teardown Documentation - Will be reworked before beginning
 
 **Phase Goal:** Document cost management procedures and provide clear teardown instructions to prevent unexpected charges.
 
@@ -1473,6 +1369,12 @@ chmod +x scripts/teardown.sh
 - [x] `spark_ingestion_azure.py` DAG created — orchestrates entire pipeline (2-task DAG)
 - [x] All resources visible and accessible in Azure portal
 
+### IaC Hardening (Phase 8e)
+
+- [x] Unity Catalog schemas `bronze`/`silver`/`gold` managed as `databricks_schema` Terraform resources
+- [x] Part A Terraform validation tests created (29 tests including validate + fmt)
+- [x] Part B tests updated for schema resources (resource count 21→24, schema + catalog ref tests)
+
 ### DLT Pipelines
 
 - [x] Bronze DLT pipeline deployed and operational — **153,380 rows** from 93 files
@@ -1580,11 +1482,14 @@ Phase 0  → Phase 1  → Phase 2  → Phase 3  → Phase 4  → Phase 5 ✅
     ↓         ↓         ↓         ↓         ↓         ↓
     └─────────┴─────────┴─────────┴─────────┴─────────┘
                           ↓
-Phase 6 ✅ → Phase 7 ✅ → Phase 8a ✅ → Phase 8b ✅ → Phase 8c ✅
-(Wf+TF+DAG) (Dims inline) (Macros)  (Complex) (Docs)
-    ↓              ↓         ↓         ↓         ↓
-    └──────────────┴─────────┴─────────┴─────────┘
-                          ↓
-Phase 9  → Phase 10 → Phase 11
-(CI/CD)  (Monitor)    (E2E)
+Phase 6 ✅ → Phase 7 ✅ → Phase 8a ✅ → Phase 8b ✅ → Phase 8c ✅ → Phase 8d ✅
+(Wf+TF+DAG) (Dims inline) (Macros)  (Complex) (Docs)    (Geo/UA FK)
+    ↓              ↓         ↓         ↓         ↓           ↓
+    └──────────────┴─────────┴─────────┴─────────┴───────────┘
+                                      ↓
+                                Phase 8e ✅
+                            (IaC Hardening)
+
+Phase 9 ✅  → Phase 10 ✅
+(CI/CD)      (Monitor)
 ```
