@@ -111,7 +111,7 @@ jobs:
     environment: azure-dev
     steps:
       - uses: actions/checkout@v4
-      - uses: databricks/setup-cli@v1
+      - uses: databricks/setup-cli@v1.3.0
       - name: Validate DAB (dev target)
         env:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
