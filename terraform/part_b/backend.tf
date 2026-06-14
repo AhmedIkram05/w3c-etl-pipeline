@@ -4,6 +4,7 @@ terraform {
     storage_account_name = "tfstatew3cetl"
     container_name       = "tfstate"
     key                  = "w3c-platform/part_b.tfstate"
+    use_azuread_auth     = true
   }
 
   required_providers {

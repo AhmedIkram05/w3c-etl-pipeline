@@ -56,6 +56,25 @@ data "databricks_catalog" "w3c" {
   name = var.unity_catalog_name
 }
 
+# Unity Catalog schemas managed as code via Terraform
+resource "databricks_schema" "bronze" {
+  catalog_name = data.databricks_catalog.w3c.id
+  name         = "bronze"
+  comment      = "Bronze schema for raw W3C log data"
+}
+
+resource "databricks_schema" "silver" {
+  catalog_name = data.databricks_catalog.w3c.id
+  name         = "silver"
+  comment      = "Silver schema for enriched W3C log data"
+}
+
+resource "databricks_schema" "gold" {
+  catalog_name = data.databricks_catalog.w3c.id
+  name         = "gold"
+  comment      = "Gold schema for aggregated/export-ready datasets"
+}
+
 # --------------------------------------------------------------------------
 # Unity Catalog Storage Credential for raw-logs container (Azure Managed Identity)
 # --------------------------------------------------------------------------
