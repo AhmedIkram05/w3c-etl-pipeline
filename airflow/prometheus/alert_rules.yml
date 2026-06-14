@@ -61,3 +61,30 @@ groups:
         annotations:
           summary: "Prometheus target {{ $labels.job }} is down"
           description: "Target {{ $labels.instance }} has been unreachable for over 1 minute."
+
+  - name: data_freshness
+    interval: 60s
+    rules:
+      - alert: DataStaleWarning
+        expr: w3c_data_freshness_seconds > 21600
+        for: 5m
+        labels:
+          severity: warning
+          tier: P2
+        annotations:
+          summary: "Pipeline data is {{ $value | humanizeDuration }} old"
+          description: >
+            The last successful pipeline load was {{ $value | humanizeDuration }} ago.
+            Expected maximum delay is 6 hours.
+
+      - alert: DataStaleCritical
+        expr: w3c_data_freshness_seconds > 86400
+        for: 5m
+        labels:
+          severity: critical
+          tier: P1
+        annotations:
+          summary: "Pipeline data is {{ $value | humanizeDuration }} old — OVER 24 HOURS"
+          description: >
+            CRITICAL: No pipeline data loaded in over 24 hours.
+            Immediate investigation required.
