@@ -260,7 +260,7 @@ def run(spark, log_files_dir: str):
 
     # Display summary (Databricks notebook output)
     try:
-        display(spark.sql(f"SELECT COUNT(*) AS total_rows FROM {BRONZE_UC_PATH}"))
+        display(spark.sql(f"SELECT COUNT(*) AS total_rows FROM {BRONZE_UC_PATH}"))  # type: ignore[name-defined]  # noqa: F821
     except NameError:
         pass  # display() only available in Databricks notebooks
 
