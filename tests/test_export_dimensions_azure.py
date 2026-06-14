@@ -68,7 +68,7 @@ sys.modules["user_agents"] = _ua_mod
 # process (notably ``test_dag_integrity``), because a MagicMock does not
 # implement package protocol (``__spec__``, ``__path__``).
 try:
-    import airflow  # noqa: F401
+    import airflow.datasets  # noqa: F401 — also ensures airflow.operators, airflow.providers exist
 
     _AIRFLOW_AVAILABLE = True
 except ImportError:
