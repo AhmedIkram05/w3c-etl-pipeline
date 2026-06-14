@@ -101,8 +101,9 @@ class TestDDLGeneration:
             for line in ddl.strip().split("\n")
             if line.strip() and "CREATE" not in line and line.strip() not in ("(", ");", "")
         ]
-        assert len(cols) == 1
+        assert len(cols) == 2
         assert "source_file" in cols[0]
+        assert "loaded_at" in cols[1]
 
     def test_both_ddl_constants_exist(self):
         """Ensure both DDL constants are defined in the source."""

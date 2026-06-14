@@ -410,7 +410,7 @@ class TestExecuteDDL:
         mock_conn.commit.assert_called_once()
 
     def test_ensure_tables_exist_runs_both_ddls(self):
-        """ensure_tables_exist calls execute_ddl for both DDL strings."""
+        """ensure_tables_exist calls execute_ddl for both DDL strings plus migration."""
 
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
@@ -421,8 +421,8 @@ class TestExecuteDDL:
         with patch("jdbc_export_azure.execute_ddl") as mock_execute:
             ensure_tables_exist(mock_conn)
 
-        # Assert execute_ddl was called twice (one for each DDL)
-        assert mock_execute.call_count == 2
+        # Assert execute_ddl was called 3 times (raw_enriched, tracking, migration)
+        assert mock_execute.call_count == 3
 
 
 # ═══════════════════════════════════════════════════════════════════════════
