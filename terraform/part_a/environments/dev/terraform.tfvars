@@ -11,3 +11,10 @@ sql_administrator_login   = "sqladmin"
 # sql_administrator_password: sourced from TF_VAR_sql_administrator_password env var
 enable_private_endpoints = false
 azuread_admin_object_id  = ""
+
+# ── Monitoring (Phase 10) ──
+# Alert email addresses — sourced from environment variables for security
+# alert_email_critical = "p1-alerts@example.com"
+# alert_email_warning  = "p2-alerts@example.com"
+# alert_email_info     = "p3-alerts@example.com"
+enable_log_analytics = false

@@ -612,6 +612,37 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  # ── Data Freshness Probe ────────────────────────────────────────────
+  data-freshness-probe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: data-freshness-probe
+    entrypoint:
+      - python
+      - /opt/airflow/scripts/data_freshness_probe.py
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/scripts:/opt/airflow/scripts
+    environment:
+      AZURE_SQL_SERVER: ${AZURE_SQL_SERVER}
+      AZURE_SQL_DATABASE: ${AZURE_SQL_DATABASE}
+      AZURE_SQL_USER: ${AZURE_SQL_USER}
+      AZURE_SQL_PASS: ${AZURE_SQL_PASS}
+      DATABRICKS_HOST: ${DATABRICKS_HOST}
+      DATABRICKS_PAT_TOKEN: ${DATABRICKS_PAT_TOKEN}
+      DATABRICKS_WAREHOUSE_ID: ${DATABRICKS_WAREHOUSE_ID}
+      # Local PostgreSQL fallback (used when Azure SQL is unreachable)
+      W3C_DB_HOST: ${W3C_DB_HOST:-postgres}
+      W3C_DB_PORT: ${W3C_DB_PORT:-5432}
+      W3C_DB_NAME: ${W3C_DB_NAME:-w3c_warehouse}
+      W3C_DB_USER: ${W3C_DB_USER:-airflow}
+      W3C_DB_PASS: ${W3C_DB_PASS:-airflow}
+    ports:
+      - "8000:8000"
+    networks:
+      - airflow-network
+    restart: unless-stopped
+
 volumes:
   postgres-db-volume:
   prometheus-data:

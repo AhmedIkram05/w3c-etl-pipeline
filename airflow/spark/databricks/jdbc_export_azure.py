@@ -111,8 +111,19 @@ CREATE TABLE dbo.raw_enriched (
 TRACKING_DDL = """
 IF OBJECT_ID('dbo.raw_enriched_loaded', 'U') IS NULL
 CREATE TABLE dbo.raw_enriched_loaded (
-    source_file VARCHAR(255) PRIMARY KEY
+    source_file VARCHAR(255) PRIMARY KEY,
+    loaded_at DATETIME2 DEFAULT GETDATE()
 );
+"""
+
+TRACKING_MIGRATION_SQL = """
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id = OBJECT_ID('dbo.raw_enriched_loaded')
+    AND name = 'loaded_at'
+)
+ALTER TABLE dbo.raw_enriched_loaded
+ADD loaded_at DATETIME2 DEFAULT GETDATE();
 """
 
 RETRY_ATTEMPTS = 4
@@ -167,6 +178,9 @@ def ensure_tables_exist(conn):
     """Create target tables if they do not exist, then run migrations."""
     execute_ddl(conn, RAW_ENRICHED_DDL)
     execute_ddl(conn, TRACKING_DDL)
+    # Migration: add loaded_at column for data freshness monitoring
+    # (safe to run repeatedly — IF NOT EXISTS guard)
+    execute_ddl(conn, TRACKING_MIGRATION_SQL)
 
 
 def get_loaded_source_files(conn):
@@ -266,7 +280,10 @@ def export_to_azure_sql(spark, server, database, username, password):
         print(f"Successfully exported {inserted} rows to dbo.raw_enriched")
 
         # ── Update tracking table ────────────────────────────────────
-        tracking_rows = [{"source_file": sf} for sf in sorted(new_source_files)]
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        tracking_rows = [{"source_file": sf, "loaded_at": now} for sf in sorted(new_source_files)]
         inserted_tracking = insert_batch(conn, tracking_rows, "dbo.raw_enriched_loaded")
         print(f"Updated tracking table with {inserted_tracking} new source file(s)")
 

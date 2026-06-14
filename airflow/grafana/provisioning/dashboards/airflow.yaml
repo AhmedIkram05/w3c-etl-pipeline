@@ -1,13 +1,13 @@
 apiVersion: 1
 
 providers:
-  - name: 'Airflow ETL'
+  - name: 'W3C ETL'
     orgId: 1
-    folder: 'Airflow ETL'
+    folder: 'W3C ETL'
     type: file
-    disableDeletion: true
-    updateIntervalSeconds: 30
-    allowUiUpdates: false
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
     options:
       path: /var/lib/grafana/dashboards
       foldersFromFilesStructure: false
