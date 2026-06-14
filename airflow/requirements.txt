@@ -14,3 +14,7 @@ sqlalchemy>=2.0,<3.0
 protobuf>=5.27,<6
 # dbt-core 1.8.x is built against protobuf 5; dbt-common 1.28+ moves to protobuf 6.
 dbt-common==1.27.1
+
+# Data freshness probe dependencies
+prometheus-client>=0.21.0,<1.0
+pymssql>=2.3.0,<3.0
