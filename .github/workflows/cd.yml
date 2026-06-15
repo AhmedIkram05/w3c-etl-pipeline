@@ -57,8 +57,9 @@ jobs:
         run: |
           cd terraform/part_a
           terraform init -input=false
-          terraform plan -no-color -input=false 2>&1 | tee tfplan_a.log
-          echo "exitcode=$?" >> "$GITHUB_OUTPUT"
+          set -o pipefail
+          terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars 2>&1 | tee tfplan_a.log || exitcode=$?
+          echo "exitcode=${exitcode:-0}" >> "$GITHUB_OUTPUT"
 
       - name: Upload Part A Plan
         uses: actions/upload-artifact@v4
@@ -68,11 +69,14 @@ jobs:
 
       - name: Terraform Plan (Part B)
         id: plan_b
+        env:
+          TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
           cd terraform/part_b
           terraform init -input=false
-          terraform plan -no-color -input=false 2>&1 | tee tfplan_b.log
-          echo "exitcode=$?" >> "$GITHUB_OUTPUT"
+          set -o pipefail
+          terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars 2>&1 | tee tfplan_b.log || exitcode=$?
+          echo "exitcode=${exitcode:-0}" >> "$GITHUB_OUTPUT"
 
       - name: Upload Part B Plan
         uses: actions/upload-artifact@v4
@@ -109,7 +113,7 @@ jobs:
         run: |
           cd terraform/part_a
           terraform init -input=false -migrate-state
-          terraform apply -auto-approve -input=false
+          terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
 
       - name: Terraform Apply (Part B)
         env:
@@ -117,7 +121,7 @@ jobs:
         run: |
           cd terraform/part_b
           terraform init -input=false -migrate-state
-          terraform apply -auto-approve -input=false
+          terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
 
   # -----------------------------------------------------------------------
   # Deploy dbt Models
@@ -290,7 +294,7 @@ jobs:
         run: |
           cd terraform/part_a
           terraform init -input=false -migrate-state
-          terraform plan -no-color -input=false -out=tfplan_rollback
+          terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback
 
       - name: Terraform Rollback — Part A (apply)
         run: |
@@ -303,7 +307,7 @@ jobs:
         run: |
           cd terraform/part_b
           terraform init -input=false -migrate-state
-          terraform plan -no-color -input=false -out=tfplan_rollback
+          terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback
 
       - name: Terraform Rollback — Part B (apply)
         env:
