@@ -97,13 +97,13 @@ def _get_connection():
             conn = pymssql.connect(**AZURE_DSN)
             return conn, "azure_sql"
         except Exception:
-            pass  # Fall through to PostgreSQL
+            pass  # nosec B110 — intentional: Azure SQL failure falls through to PostgreSQL
 
     try:
         conn = psycopg2.connect(**PG_DSN)
         return conn, "postgresql"
     except Exception:
-        return None, None
+        return None, None  # nosec B110 — intentional: both backends unavailable
 
 
 # ── Data collection functions ──────────────────────────────────────────
@@ -151,7 +151,7 @@ def check_freshness() -> float | None:
                 last_load = datetime.combine(row[0], datetime.min.time(), tzinfo=timezone.utc)
                 result = (datetime.now(timezone.utc) - last_load).total_seconds()
     except Exception:
-        pass
+        pass  # nosec B110 — intentional: monitoring probe returns None on DB failure
     finally:
         conn.close()
     return result
@@ -252,7 +252,7 @@ def query_databricks(sql: str) -> list[list[str]] | None:
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with urllib.request.urlopen(req, timeout=20) as resp:  # nosec B310 — URL is env-configured with hardcoded https:// scheme
             data = json.loads(resp.read().decode())
         if data.get("status", {}).get("state") != "SUCCEEDED":
             return None
@@ -262,8 +262,12 @@ def query_databricks(sql: str) -> list[list[str]] | None:
 
 
 def check_databricks_row_count(full_table_name: str) -> int:
-    """Return row count for a Unity Catalog table via the Databricks SQL warehouse."""
-    results = query_databricks(f"SELECT COUNT(*) AS cnt FROM {full_table_name}")
+    """Return row count for a Unity Catalog table via the Databricks SQL warehouse.
+
+    The ``full_table_name`` parameter is always called with module-level
+    constants (``BRONZE_TABLE`` or ``SILVER_TABLE``), not user input.
+    """
+    results = query_databricks(f"SELECT COUNT(*) AS cnt FROM {full_table_name}")  # nosec B608 — table name is a hardcoded constant
     if results and len(results) > 0 and len(results[0]) > 0:
         return int(results[0][0])
     return 0
