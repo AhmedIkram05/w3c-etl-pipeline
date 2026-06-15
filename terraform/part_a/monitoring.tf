@@ -6,7 +6,6 @@
 # ---- Action Groups (Notification Routing) ----
 
 # P1 — Critical: immediate email notification
-# (Slack alerts handled by existing Alertmanager → SLACK_WEBHOOK_URL in airflow/.env)
 resource "azurerm_monitor_action_group" "critical" {
   name                = "ag-w3c-critical"
   resource_group_name = var.resource_group_name
@@ -39,62 +38,6 @@ resource "azurerm_monitor_action_group" "info" {
   email_receiver {
     name          = "info-alerts"
     email_address = var.alert_email_info
-  }
-}
-
-# ---- Budget Alerts ----
-
-# Look up the resource group created by the networking module
-data "azurerm_resource_group" "main" {
-  name = var.resource_group_name
-}
-
-# $50 warning budget (P2)
-resource "azurerm_consumption_budget_resource_group" "warning" {
-  name              = "w3c-etl-budget-warning"
-  resource_group_id = data.azurerm_resource_group.main.id
-
-  amount     = 50
-  time_grain = "Monthly"
-
-  time_period {
-    start_date = local.budget_start_date
-    end_date   = "2099-12-31T23:59:59Z"
-  }
-
-  notification {
-    enabled        = true
-    threshold      = 80.0
-    operator       = "GreaterThan"
-    contact_emails = [var.alert_email_warning]
-  }
-
-  notification {
-    enabled        = true
-    threshold      = 100.0
-    operator       = "GreaterThanOrEqualTo"
-    contact_emails = [var.alert_email_critical]
-  }
-}
-
-# $100 hard cap budget (P1)
-resource "azurerm_consumption_budget_resource_group" "hard_cap" {
-  name              = "w3c-etl-budget-hard-cap"
-  resource_group_id = data.azurerm_resource_group.main.id
-
-  amount     = 100
-  time_grain = "Monthly"
-
-  time_period {
-    start_date = local.budget_start_date
-    end_date   = "2099-12-31T23:59:59Z"
-  }
-
-  notification {
-    enabled        = true
-    threshold      = 100.0
-    operator       = "GreaterThanOrEqualTo"
-    contact_emails = [var.alert_email_critical]
   }
 }
 
