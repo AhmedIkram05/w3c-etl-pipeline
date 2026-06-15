@@ -76,15 +76,3 @@ resource "azurerm_role_assignment" "github_actions" {
   skip_service_principal_aad_check = true
 }
 
-# Grant the GitHub Actions SP Storage Blob Data Contributor on the Terraform
-# state storage account (rg-tfstate/tfstatew3cetl). This is needed because
-# the backend uses use_azuread_auth = true — authenticating via OIDC instead
-# of storage account keys.
-resource "azurerm_role_assignment" "github_actions_tfstate" {
-  count                = var.github_oidc_enabled ? 1 : 0
-  scope                = "/subscriptions/${var.subscription_id}/resourceGroups/rg-tfstate/providers/Microsoft.Storage/storageAccounts/tfstatew3cetl"
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azuread_service_principal.github_actions[0].object_id
-
-  skip_service_principal_aad_check = true
-}
