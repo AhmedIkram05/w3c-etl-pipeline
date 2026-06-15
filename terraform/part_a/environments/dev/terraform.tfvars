@@ -18,5 +18,5 @@ azuread_admin_object_id  = ""
 # required variables for dev/CI plan validation.
 alert_email_critical = "dev-alerts@example.com"
 alert_email_warning  = "dev-alerts@example.com"
-alert_email_info     = ""
+alert_email_info     = "dev-alerts@example.com"
 enable_log_analytics = false
