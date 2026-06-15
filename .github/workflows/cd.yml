@@ -127,9 +127,9 @@ jobs:
         run: |
           cd terraform/part_b
           terraform init -input=false -migrate-state
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.bronze w3c_etl_databricks/bronze || true
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.silver w3c_etl_databricks/silver || true
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.gold w3c_etl_databricks/gold || true
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.bronze "w3c_etl_databricks.bronze" || true
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.silver "w3c_etl_databricks.silver" || true
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.gold "w3c_etl_databricks.gold" || true
 
       - name: Terraform Apply (Part B)
         env:
@@ -340,9 +340,9 @@ jobs:
         run: |
           cd terraform/part_b
           terraform init -input=false -migrate-state
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.bronze w3c_etl_databricks/bronze || true
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.silver w3c_etl_databricks/silver || true
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.gold w3c_etl_databricks/gold || true
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.bronze "w3c_etl_databricks.bronze" || true
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.silver "w3c_etl_databricks.silver" || true
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.gold "w3c_etl_databricks.gold" || true
 
       - name: Terraform Rollback — Part B (apply)
         env:
