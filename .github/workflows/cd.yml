@@ -59,7 +59,9 @@ jobs:
           cd terraform/part_a
           terraform init -input=false
           set -o pipefail
-          terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars 2>&1 | tee tfplan_a.log || exitcode=$?
+          # -lock=false: safe for read-only plans, avoids state lock contention
+          # when a concurrent apply holds the lock.
+          terraform plan -no-color -lock=false -input=false -var-file=environments/dev/terraform.tfvars 2>&1 | tee tfplan_a.log || exitcode=$?
           echo "exitcode=${exitcode:-0}" >> "$GITHUB_OUTPUT"
 
       - name: Upload Part A Plan
@@ -70,6 +72,7 @@ jobs:
 
       - name: Terraform Plan (Part B)
         id: plan_b
+        if: github.actor != 'dependabot[bot]'
         env:
           DATABRICKS_AUTH_TYPE: pat
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
@@ -83,6 +86,7 @@ jobs:
           echo "exitcode=${exitcode:-0}" >> "$GITHUB_OUTPUT"
 
       - name: Upload Part B Plan
+        if: steps.plan_b.conclusion == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-part-b
