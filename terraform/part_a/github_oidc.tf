@@ -75,3 +75,4 @@ resource "azurerm_role_assignment" "github_actions" {
   # propagation hasn't completed yet.
   skip_service_principal_aad_check = true
 }
+

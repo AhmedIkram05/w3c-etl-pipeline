@@ -23,6 +23,8 @@
 
 <p align="center">
     <img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/ci.yml/badge.svg" alt="CI">
+    <img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/cd.yml/badge.svg" alt="CD">
+    <img src="https://codecov.io/gh/AhmedIkram05/w3c-etl-pipeline/branch/main/graph/badge.svg" alt="Codecov">
 </p>
 
 ---

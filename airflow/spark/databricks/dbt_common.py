@@ -196,7 +196,7 @@ def cleanup(tmpdir: str) -> None:
 def _get_dbutils():
     """Return the Databricks utility object, or ``None`` outside Databricks."""
     try:
-        import IPython  # type: ignore[import-untyped]
+        import IPython
 
         return IPython.get_ipython().user_ns.get("dbutils")
     except ImportError:

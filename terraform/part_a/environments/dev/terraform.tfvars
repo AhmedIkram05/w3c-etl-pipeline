@@ -13,8 +13,10 @@ enable_private_endpoints = false
 azuread_admin_object_id  = ""
 
 # ── Monitoring (Phase 10) ──
-# Alert email addresses — sourced from environment variables for security
-# alert_email_critical = "p1-alerts@example.com"
-# alert_email_warning  = "p2-alerts@example.com"
-# alert_email_info     = "p3-alerts@example.com"
+# Alert email addresses — set real values for production via TF_VAR env vars
+# or by uncommenting and editing below. These placeholders satisfy the
+# required variables for dev/CI plan validation.
+alert_email_critical = "dev-alerts@example.com"
+alert_email_warning  = "dev-alerts@example.com"
+alert_email_info     = "dev-alerts@example.com"
 enable_log_analytics = false
