@@ -1,8 +1,8 @@
 # ---------------------------------------------------------------------------
 # CD - Deploy to Azure
 # ---------------------------------------------------------------------------
-# Runs on merge to main. Deploys Terraform infra, Databricks bundle, dbt
-# models, Airflow DAGs, then runs a post-deploy smoke test.
+# Runs on merge to main. Deploys Terraform infra, dbt models, Airflow DAGs,
+# then runs a post-deploy smoke test.
 #
 # Single environment: azure-dev (auto-approve on merge to main).
 # Rollback available via workflow_dispatch.
@@ -120,27 +120,6 @@ jobs:
           terraform apply -auto-approve -input=false
 
   # -----------------------------------------------------------------------
-  # Deploy Databricks Asset Bundle
-  # -----------------------------------------------------------------------
-  deploy-dab:
-    name: Deploy Databricks Bundle
-    needs: terraform-apply
-    runs-on: ubuntu-latest
-    environment: azure-dev
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Databricks CLI
-        uses: databricks/setup-cli@v1.3.0
-
-      - name: Deploy DAB
-        env:
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-          DATABRICKS_HOST_DEV: ${{ vars.DATABRICKS_HOST_DEV }}
-        run: |
-          databricks bundle deploy -t dev
-
-  # -----------------------------------------------------------------------
   # Deploy dbt Models
   # -----------------------------------------------------------------------
   deploy-dbt:
@@ -230,7 +209,7 @@ jobs:
   # -----------------------------------------------------------------------
   smoke-test:
     name: Post-Deploy Smoke Test
-    needs: [deploy-dab, deploy-dbt, sync-airflow]
+    needs: [deploy-dbt, sync-airflow]
     runs-on: ubuntu-latest
     environment: azure-dev
     timeout-minutes: 20
@@ -333,9 +312,4 @@ jobs:
           cd terraform/part_b
           terraform apply -auto-approve -input=false tfplan_rollback
 
-      - name: Deploy Previous DAB Version
-        env:
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-          DATABRICKS_HOST_DEV: ${{ vars.DATABRICKS_HOST_DEV }}
-        run: |
-          databricks bundle deploy -t dev --version prev
+
