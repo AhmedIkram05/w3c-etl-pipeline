@@ -1,6 +1,8 @@
 # Testing Suite Reference
 
-> **Purpose:** Inventory of every test layer, framework, and CI check in the W3C ETL Pipeline — designed to feed a "Testing" section in the README for recruiters.
+> **Purpose:** Inventory of every test layer and framework in the W3C ETL Pipeline — designed to feed a "Testing" section in the README for recruiters.
+>
+> **Related:** Pre-commit hooks and CI/CD workflow details live in the [CI/CD & Pre-commit Hooks Reference](./ci-cd-reference.md).
 
 ---
 
@@ -8,7 +10,6 @@
 
 | Layer | Framework | Count | CI Stage | Visibility |
 |-------|-----------|-------|----------|------------|
-| Pre-commit hooks | 15 hooks (ruff, mypy, pre-commit-hooks) | — | — | ✅ Local (git commit) |
 | Python lint | ruff (lint + format) | — | `lint` | ✅ Always runs |
 | Type checking | mypy | — | `lint` | ✅ Always runs |
 | Security scan | bandit | — | `lint` | ✅ Always runs |
@@ -27,29 +28,7 @@
 
 ---
 
-## 2. Pre-commit Hooks (15 local quality gates)
-
-Runs automatically on every `git commit` via `.pre-commit-config.yaml`. Catches issues before they reach CI. These are **local-only** — CI has its own equivalent checks (ruff, mypy, bandit, SQLFluff) in the `lint` job.
-
-| Hook | Source | What It Does |
-|------|--------|-------------|
-| `ruff` | astral-sh/ruff-pre-commit | Python lint: unused imports, PEP8, naming — auto-fixes |
-| `ruff-format` | astral-sh/ruff-pre-commit | Python formatting consistency |
-| `mypy` | pre-commit/mirrors-mypy | Static type checking |
-| `check-yaml` | pre-commit/pre-commit-hooks | YAML syntax validation |
-| `check-json` | pre-commit/pre-commit-hooks | JSON syntax validation |
-| `check-toml` | pre-commit/pre-commit-hooks | TOML syntax validation |
-| `check-ast` | pre-commit/pre-commit-hooks | Python AST validation (syntax errors) |
-| `check-added-large-files` | pre-commit/pre-commit-hooks | Rejects accidentally committed large files |
-| `detect-private-key` | pre-commit/pre-commit-hooks | Blocks committed private keys |
-| `debug-statements` | pre-commit/pre-commit-hooks | Catches leftover `pdb.set_trace()` / `breakpoint()` |
-| `name-tests-test` | pre-commit/pre-commit-hooks | Enforces `test_*.py` naming convention |
-| `requirements-txt-fixer` | pre-commit/pre-commit-hooks | Sorts requirement entries |
-| `trailing-whitespace` | pre-commit/pre-commit-hooks | Strips trailing whitespace |
-| `end-of-file-fixer` | pre-commit/pre-commit-hooks | Ensures files end with newline |
-| `check-merge-conflict` | pre-commit/pre-commit-hooks | Blocks `<<<<<<<` conflict markers |
-
----
+> **Pre-commit hooks moved to [CI/CD & Pre-commit Hooks Reference](./ci-cd-reference.md#pre-commit-hooks).**
 
 ## 3. Python Unit Tests (pytest — 305 total, 275 in CI)
 
@@ -244,70 +223,7 @@ Results reported as GitHub code scanning alerts in the Security tab.
 
 ---
 
-## 8. CI/CD Pipeline
-
-### 8.1. Workflow Files
-
-| File | Purpose |
-|------|---------|
-| `ci.yml` | CI — runs on every push: lint → test → dbt-compile → terraform |
-| `cd.yml` | CD — runs on merge to main: terraform-plan → terraform-apply → deploy-dbt → sync-airflow → smoke-test |
-| `codeql.yml` | Weekly SAST scan |
-| `_reusable-lint.yml` | Shared lint workflow (ruff, mypy, bandit, SQLFluff) |
-| `_reusable-test.yml` | Shared test workflow (pytest + coverage + Codecov) |
-| `_reusable-terraform.yml` | Shared terraform workflow (fmt, init, validate, test) |
-| `dependabot.yml` | Dependabot config for automated dependency updates |
-| `dependabot-auto-merge.yml` | Auto-merge for low-risk Dependabot PRs |
-
-### 8.2. CI — Every Push
-
-```
-ci.yml
-├── lint (reusable)
-│   ├── ruff check + ruff format
-│   ├── mypy (tests/ + databricks/)
-│   ├── bandit security scan
-│   └── SQLFluff dbt SQL lint
-├── test (reusable)
-│   ├── pytest (275 unit tests, coverage)
-│   └── Codecov upload
-├── dbt-compile
-│   ├── dbt compile (PostgreSQL)
-│   ├── dbt compile (T-SQL/Azure SQL)
-│   └── pytest test_dbt_tsql_migration.py -m dbt_compile (12 T-SQL output validators)
-└── terraform (reusable, matrix: part_a + part_b)
-    ├── terraform fmt --check
-    ├── terraform init
-    ├── terraform validate
-    └── terraform test (9 HCL assertions)
-```
-
-### 8.3. CD — Merge to Main
-
-```
-cd.yml
-├── terraform-plan (read-only, runs on PR too)
-│   ├── Plan Part A (Azure infra: VNet, ADLS, SQL Server, monitoring)
-│   └── Plan Part B (Databricks DLT pipelines, workflows, UC schemas)
-├── terraform-apply (merge only)
-│   ├── Apply Part A
-│   └── Apply Part B
-├── deploy-dbt
-│   ├── dbt deps + dbt run (--defer on incremental deploys)
-│   └── dbt test — 118 data tests against Azure SQL
-├── sync-airflow
-│   └── az storage fs upload → ADLS Gen2 (airflow-dags file system)
-└── smoke-test
-    ├── Trigger Airflow DAG via REST API
-    ├── Poll DAG until complete (15s intervals, 15min timeout)
-    └── Assert rows exist in dbo.raw_enriched (Azure SQL)
-```
-
-### 8.4. Rollback
-
-Manual rollback via `workflow_dispatch` in `cd.yml` — checks out `HEAD~1` and runs terraform plan + apply for both Part A and Part B.
-
----
+> **CI/CD pipeline details moved to [CI/CD & Pre-commit Hooks Reference](./ci-cd-reference.md).**
 
 ## 9. How Recruiters Should Interpret This
 
@@ -321,7 +237,6 @@ Manual rollback via `workflow_dispatch` in `cd.yml` — checks out `HEAD~1` and 
 | **dbt compile on both PostgreSQL + T-SQL** | Cross-dialect compatibility: develops on Postgres, deploys to Azure SQL |
 | **Post-deploy smoke test** | CD pipeline doesn't just deploy — it verifies the system actually works |
 | **Codecov integration** | Coverage tracking visible to the team |
-| **15 pre-commit hooks** | Local guardrails catch formatting, secrets, and syntax before code leaves the workstation |
 | **Marker-based test selection** | Thoughtful test architecture: environment-dependent suites (Docker, dbt, Terraform) are isolated by markers so CI stays fast while local coverage remains comprehensive |
 
 ---
@@ -391,4 +306,4 @@ This demonstrates deep familiarity with both Airflow's packaging quirks and PySp
 | Pre-commit hooks | **15** |
 | Linting tools | **5** (ruff, mypy, bandit, SQLFluff, terraform fmt) |
 | Security tools | **3** (bandit, CodeQL, GitGuardian) |
-| CI/CD workflow files | **8** (ci, cd, codeql, dependabot, dependabot-auto-merge, + 3 reusable workflows) |
+
