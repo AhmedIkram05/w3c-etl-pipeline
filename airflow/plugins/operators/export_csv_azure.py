@@ -147,7 +147,7 @@ def _export_table(conn, table_name: str, csv_path: str) -> None:
     import pandas as pd
 
     try:
-        df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
+        df = pd.read_sql(f"SELECT * FROM {table_name}", conn)  # nosec B608 — table_name comes from a constant list of known table names
         df.to_csv(csv_path, index=False)
         logger.info(f"Exported {table_name} -> {csv_path} ({len(df)} rows)")
     except Exception as exc:
