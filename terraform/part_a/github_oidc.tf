@@ -14,6 +14,9 @@
 # ---------------------------------------------------------------------------
 
 locals {
+  # Budget alerts require start_date to be within the current month
+  budget_start_date = "${formatdate("YYYY-MM", timestamp())}-01T00:00:00Z"
+
   # Construct the resource group ID without a data source to avoid
   # ordering issues during first-time provisioning.
   github_rg_id = format(

@@ -58,7 +58,7 @@ resource "azurerm_consumption_budget_resource_group" "warning" {
   time_grain = "Monthly"
 
   time_period {
-    start_date = "2025-01-01T00:00:00Z"
+    start_date = local.budget_start_date
     end_date   = "2099-12-31T23:59:59Z"
   }
 
@@ -86,7 +86,7 @@ resource "azurerm_consumption_budget_resource_group" "hard_cap" {
   time_grain = "Monthly"
 
   time_period {
-    start_date = "2025-01-01T00:00:00Z"
+    start_date = local.budget_start_date
     end_date   = "2099-12-31T23:59:59Z"
   }
 
@@ -100,40 +100,18 @@ resource "azurerm_consumption_budget_resource_group" "hard_cap" {
 
 # ---- Metric Alerts ----
 
-# P1 — Databricks pipeline failure
-resource "azurerm_monitor_metric_alert" "databricks_pipeline_failure" {
-  name                = "ma-w3c-databricks-pipeline-failure"
-  resource_group_name = var.resource_group_name
-  scopes              = [module.databricks.workspace_id]
-  description         = "Alert when Databricks pipeline jobs fail (P1 - Critical)"
-  severity            = 0
-
-  criteria {
-    metric_namespace = "Microsoft.Databricks/workspaces"
-    metric_name      = "JobsFailedCount"
-    aggregation      = "Total"
-    operator         = "GreaterThan"
-    threshold        = 0
-  }
-
-  window_size = "PT5M"
-
-  action {
-    action_group_id = azurerm_monitor_action_group.critical.id
-  }
-}
-
-# P1 — Azure SQL auto-pause anomaly
+# P1 — Azure SQL auto-pause anomaly (serverless tier)
+# Serverless tier uses `cpu_percent` instead of `dtu_consumption_percent`
 resource "azurerm_monitor_metric_alert" "azure_sql_auto_pause" {
   name                = "ma-w3c-azure-sql-auto-pause"
   resource_group_name = var.resource_group_name
   scopes              = [module.warehouse.database_id]
-  description         = "Alert if Azure SQL DTU consumption drops near zero (P1 - Critical)"
+  description         = "Alert if Azure SQL CPU drops near zero (serverless auto-pause detection, P1 - Critical)"
   severity            = 0
 
   criteria {
     metric_namespace = "Microsoft.Sql/servers/databases"
-    metric_name      = "dtu_consumption_percent"
+    metric_name      = "cpu_percent"
     aggregation      = "Average"
     operator         = "LessThan"
     threshold        = 0.1
