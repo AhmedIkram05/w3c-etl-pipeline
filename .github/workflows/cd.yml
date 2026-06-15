@@ -118,19 +118,6 @@ jobs:
           terraform init -input=false -migrate-state
           terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
 
-      - name: Import schemas into Terraform state (idempotent)
-        env:
-          DATABRICKS_AUTH_TYPE: pat
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-          TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
-          TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
-        run: |
-          cd terraform/part_b
-          terraform init -input=false -migrate-state
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.bronze "w3c_etl_databricks.bronze" || true
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.silver "w3c_etl_databricks.silver" || true
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.gold "w3c_etl_databricks.gold" || true
-
       - name: Terraform Apply (Part B)
         env:
           DATABRICKS_AUTH_TYPE: pat
@@ -183,10 +170,10 @@ jobs:
           cd airflow/dbt/w3c
           if [ -f "./target-prod/manifest.json" ]; then
             echo "Found production state — running with --defer"
-            dbt run --profile w3c_azure --defer --state ./target-prod
+            dbt run --profile w3c_azure --profiles-dir ../ --defer --state ./target-prod
           else
             echo "No production state found — running without --defer (first deploy)"
-            dbt run --profile w3c_azure
+            dbt run --profile w3c_azure --profiles-dir ../
           fi
 
       - name: dbt test
@@ -197,7 +184,7 @@ jobs:
           AZURE_SQL_PASSWORD: ${{ secrets.AZURE_SQL_PASSWORD }}
         run: |
           cd airflow/dbt/w3c
-          dbt test --profile w3c_azure
+          dbt test --profile w3c_azure --profiles-dir ../
 
   # -----------------------------------------------------------------------
   # Sync Airflow DAGs to ADLS
@@ -207,6 +194,9 @@ jobs:
     needs: terraform-apply
     runs-on: ubuntu-latest
     environment: azure-dev
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -330,19 +320,6 @@ jobs:
           cd terraform/part_b
           terraform init -input=false -migrate-state
           terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback
-
-      - name: Import schemas into Terraform state (idempotent)
-        env:
-          DATABRICKS_AUTH_TYPE: pat
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-          TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
-          TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
-        run: |
-          cd terraform/part_b
-          terraform init -input=false -migrate-state
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.bronze "w3c_etl_databricks.bronze" || true
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.silver "w3c_etl_databricks.silver" || true
-          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.gold "w3c_etl_databricks.gold" || true
 
       - name: Terraform Rollback — Part B (apply)
         env:
