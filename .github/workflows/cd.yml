@@ -118,7 +118,7 @@ jobs:
           terraform init -input=false -migrate-state
           terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
 
-      - name: Terraform Apply (Part B)
+      - name: Import schemas into Terraform state (idempotent)
         env:
           DATABRICKS_AUTH_TYPE: pat
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
@@ -127,6 +127,19 @@ jobs:
         run: |
           cd terraform/part_b
           terraform init -input=false -migrate-state
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.bronze w3c_etl_databricks/bronze || true
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.silver w3c_etl_databricks/silver || true
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.gold w3c_etl_databricks/gold || true
+
+      - name: Terraform Apply (Part B)
+        env:
+          DATABRICKS_AUTH_TYPE: pat
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
+          TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
+        run: |
+          cd terraform/part_b
+          terraform init -input=false
           terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
 
   # -----------------------------------------------------------------------
@@ -318,6 +331,19 @@ jobs:
           terraform init -input=false -migrate-state
           terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback
 
+      - name: Import schemas into Terraform state (idempotent)
+        env:
+          DATABRICKS_AUTH_TYPE: pat
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
+          TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
+        run: |
+          cd terraform/part_b
+          terraform init -input=false -migrate-state
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.bronze w3c_etl_databricks/bronze || true
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.silver w3c_etl_databricks/silver || true
+          terraform import -input=false -var-file=environments/dev/terraform.tfvars databricks_schema.gold w3c_etl_databricks/gold || true
+
       - name: Terraform Rollback — Part B (apply)
         env:
           DATABRICKS_AUTH_TYPE: pat
@@ -326,6 +352,7 @@ jobs:
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
           cd terraform/part_b
+          terraform init -input=false
           terraform apply -auto-approve -input=false tfplan_rollback
 
 
