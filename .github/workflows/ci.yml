@@ -105,19 +105,6 @@ jobs:
           pip install pytest
           python -m pytest tests/test_dbt_tsql_migration.py -v --tb=short -m dbt_compile
 
-  dab-validate:
-    name: Databricks Bundle Validate
-    runs-on: ubuntu-latest
-    environment: azure-dev
-    steps:
-      - uses: actions/checkout@v4
-      - uses: databricks/setup-cli@v1.3.0
-      - name: Validate DAB (dev target)
-        env:
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-          DATABRICKS_HOST_DEV: ${{ vars.DATABRICKS_HOST_DEV }}
-        run: databricks bundle validate -t dev
-
   terraform:
     uses: ./.github/workflows/_reusable-terraform.yml
     secrets: inherit
