@@ -25,6 +25,7 @@ concurrency:
 
 env:
   TF_VERSION: "1.10.5"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # -----------------------------------------------------------------------
@@ -146,7 +147,7 @@ jobs:
           cache: pip
 
       - name: Install dbt
-        run: pip install "dbt-sqlserver==1.8.4" "dbt-core==1.8.9" "dbt-common==1.27.1" "protobuf>=5.27,<6"
+        run: pip install "dbt-sqlserver==1.8.7" "dbt-core==1.8.9" "dbt-common==1.27.1" "protobuf>=5.27,<6"
 
       - name: Install ODBC Driver 18 for SQL Server
         run: |
@@ -205,6 +206,9 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install ADLS extension
+        run: az extension add --name storage-preview -y
 
       - name: Sync DAGs to ADLS Gen2
         run: |
@@ -293,7 +297,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 'HEAD~1'
+          fetch-depth: 0  # Full history needed to resolve HEAD~1
+
+      - name: Checkout previous commit (rollback)
+        run: git checkout HEAD~1
 
       - uses: hashicorp/setup-terraform@v3
         with:

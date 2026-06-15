@@ -3,6 +3,9 @@ name: Reusable Terraform
 on:
   workflow_call:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   terraform:
     runs-on: ubuntu-latest
