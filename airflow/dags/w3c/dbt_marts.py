@@ -59,7 +59,7 @@ ALL_TABLES = STAGING_TABLES + MART_TABLES + PUBLIC_TABLES
 
 # Build the export script dynamically from the table list.
 EXPORT_SCRIPT = f"mkdir -p {STAR_SCHEMA_DIR}\n" + "\n".join(
-    f"psql -h postgres -U airflow -d w3c_warehouse -c \"\\copy (SELECT * FROM {table}) TO '{STAR_SCHEMA_DIR}/{table}.csv' WITH CSV HEADER\""
+    f"psql -h postgres -U airflow -d w3c_warehouse -c \"\\copy (SELECT * FROM {table}) TO '{STAR_SCHEMA_DIR}/{table}.csv' WITH CSV HEADER\""  # nosec B608 — table names are module-level constants (ALL_TABLES)
     for table in ALL_TABLES
 )
 

@@ -1,16 +1,21 @@
 # ---------------------------------------------------------------------------
 # CD - Deploy to Azure
 # ---------------------------------------------------------------------------
-# Runs on merge to main. Deploys Terraform infra, Databricks bundle, dbt
-# models, Airflow DAGs, then runs a post-deploy smoke test.
+# Runs on merge to main. Deploys Terraform infra, dbt models, Airflow DAGs,
+# then runs a post-deploy smoke test.
 #
 # Single environment: azure-dev (auto-approve on merge to main).
 # Rollback available via workflow_dispatch.
+#
+# Pull requests run terraform-plan only (read-only). Apply and all downstream
+# jobs are skipped — fast feedback without risking the environment.
 # ---------------------------------------------------------------------------
 name: CD - Deploy to Azure
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -35,6 +40,11 @@ jobs:
     outputs:
       plan_a_exitcode: ${{ steps.plan_a.outputs.exitcode }}
       plan_b_exitcode: ${{ steps.plan_b.outputs.exitcode }}
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,19 +52,14 @@ jobs:
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
       - name: Terraform Plan (Part A)
         id: plan_a
         run: |
           cd terraform/part_a
-          terraform init
-          terraform plan -no-color -input=false 2>&1 | tee tfplan_a.log
-          echo "exitcode=$?" >> "$GITHUB_OUTPUT"
+          terraform init -input=false
+          set -o pipefail
+          terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars 2>&1 | tee tfplan_a.log || exitcode=$?
+          echo "exitcode=${exitcode:-0}" >> "$GITHUB_OUTPUT"
 
       - name: Upload Part A Plan
         uses: actions/upload-artifact@v4
@@ -64,11 +69,17 @@ jobs:
 
       - name: Terraform Plan (Part B)
         id: plan_b
+        env:
+          DATABRICKS_AUTH_TYPE: pat
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
+          TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
           cd terraform/part_b
-          terraform init
-          terraform plan -no-color -input=false 2>&1 | tee tfplan_b.log
-          echo "exitcode=$?" >> "$GITHUB_OUTPUT"
+          terraform init -input=false
+          set -o pipefail
+          terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars 2>&1 | tee tfplan_b.log || exitcode=$?
+          echo "exitcode=${exitcode:-0}" >> "$GITHUB_OUTPUT"
 
       - name: Upload Part B Plan
         uses: actions/upload-artifact@v4
@@ -81,6 +92,7 @@ jobs:
   # -----------------------------------------------------------------------
   terraform-apply:
     name: Terraform Apply
+    if: github.event_name != 'pull_request'
     needs: terraform-plan
     runs-on: ubuntu-latest
     environment: azure-dev
@@ -88,6 +100,11 @@ jobs:
       id-token: write
       contents: read
     timeout-minutes: 30
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -95,46 +112,22 @@ jobs:
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
       - name: Terraform Apply (Part A)
         run: |
           cd terraform/part_a
-          terraform init
-          terraform apply -auto-approve -input=false
+          terraform init -input=false -migrate-state
+          terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
 
       - name: Terraform Apply (Part B)
         env:
+          DATABRICKS_AUTH_TYPE: pat
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
           cd terraform/part_b
-          terraform init
-          terraform apply -auto-approve -input=false
-
-  # -----------------------------------------------------------------------
-  # Deploy Databricks Asset Bundle
-  # -----------------------------------------------------------------------
-  deploy-dab:
-    name: Deploy Databricks Bundle
-    needs: terraform-apply
-    runs-on: ubuntu-latest
-    environment: azure-dev
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Databricks CLI
-        uses: databricks/setup-cli@v1
-
-      - name: Deploy DAB
-        env:
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-          DATABRICKS_HOST_DEV: ${{ vars.DATABRICKS_HOST_DEV }}
-        run: |
-          databricks bundle deploy -t dev
+          terraform init -input=false -migrate-state
+          terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
 
   # -----------------------------------------------------------------------
   # Deploy dbt Models
@@ -226,7 +219,7 @@ jobs:
   # -----------------------------------------------------------------------
   smoke-test:
     name: Post-Deploy Smoke Test
-    needs: [deploy-dab, deploy-dbt, sync-airflow]
+    needs: [deploy-dbt, sync-airflow]
     runs-on: ubuntu-latest
     environment: azure-dev
     timeout-minutes: 20
@@ -289,6 +282,11 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -298,17 +296,11 @@ jobs:
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
       - name: Terraform Rollback — Part A (plan)
         run: |
           cd terraform/part_a
-          terraform init
-          terraform plan -no-color -input=false -out=tfplan_rollback
+          terraform init -input=false -migrate-state
+          terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback
 
       - name: Terraform Rollback — Part A (apply)
         run: |
@@ -317,22 +309,23 @@ jobs:
 
       - name: Terraform Rollback — Part B (plan)
         env:
+          DATABRICKS_AUTH_TYPE: pat
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
           cd terraform/part_b
-          terraform init
-          terraform plan -no-color -input=false -out=tfplan_rollback
+          terraform init -input=false -migrate-state
+          terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback
 
       - name: Terraform Rollback — Part B (apply)
         env:
+          DATABRICKS_AUTH_TYPE: pat
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
           cd terraform/part_b
           terraform apply -auto-approve -input=false tfplan_rollback
 
-      - name: Deploy Previous DAB Version
-        env:
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-          DATABRICKS_HOST_DEV: ${{ vars.DATABRICKS_HOST_DEV }}
-        run: |
-          databricks bundle deploy -t dev --version prev
+

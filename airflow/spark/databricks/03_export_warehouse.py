@@ -92,7 +92,7 @@ def get_source_files_in_table(spark, uc_path: str) -> Set[str]:
 def ensure_gold_tables(spark):
     """Create the Unity Catalog gold tables if they do not exist.
 
-    - ``gold.warehouse_enriched``: 35-column enriched dataset
+    - ``gold.warehouse_enriched``: 24-column enriched dataset
     - ``gold.export_tracking``: idempotency tracking table
     """
     # Main gold table (mirrors silver schema)
@@ -230,7 +230,7 @@ def run(spark):
 
     # Display summary (Databricks notebook output)
     try:
-        display(spark.sql(f"SELECT COUNT(*) AS gold_rows FROM {GOLD_UC_PATH}"))
+        display(spark.sql(f"SELECT COUNT(*) AS gold_rows FROM {GOLD_UC_PATH}"))  # noqa: F821
     except NameError:
         pass
 
