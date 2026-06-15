@@ -62,7 +62,7 @@ jobs:
           echo "exitcode=${exitcode:-0}" >> "$GITHUB_OUTPUT"
 
       - name: Upload Part A Plan
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan-part-a
           path: terraform/part_a/tfplan_a.log
@@ -82,7 +82,7 @@ jobs:
           echo "exitcode=${exitcode:-0}" >> "$GITHUB_OUTPUT"
 
       - name: Upload Part B Plan
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan-part-b
           path: terraform/part_b/tfplan_b.log
