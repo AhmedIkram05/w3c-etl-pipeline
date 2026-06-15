@@ -70,6 +70,7 @@ jobs:
       - name: Terraform Plan (Part B)
         id: plan_b
         env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
           cd terraform/part_b
@@ -117,6 +118,7 @@ jobs:
 
       - name: Terraform Apply (Part B)
         env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
           cd terraform/part_b
@@ -303,6 +305,7 @@ jobs:
 
       - name: Terraform Rollback — Part B (plan)
         env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
           cd terraform/part_b
@@ -311,6 +314,7 @@ jobs:
 
       - name: Terraform Rollback — Part B (apply)
         env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
           cd terraform/part_b
