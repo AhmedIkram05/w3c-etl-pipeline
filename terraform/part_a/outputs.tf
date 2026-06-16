@@ -67,8 +67,3 @@ output "access_connector_identity_principal_id" {
   description = "Databricks access connector system-assigned managed identity principal ID"
   value       = module.databricks.access_connector_identity_principal_id
 }
-
-output "storage_account_id" {
-  description = "Storage account resource ID — used by the bootstrap az role assignment command"
-  value       = module.datalake.storage_account_id
-}

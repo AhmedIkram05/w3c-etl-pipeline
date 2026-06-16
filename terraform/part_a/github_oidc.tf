@@ -76,22 +76,4 @@ resource "azurerm_role_assignment" "github_actions" {
   skip_service_principal_aad_check = true
 }
 
-# ---------------------------------------------------------------------------
-# Role Assignment — Storage Blob Data Contributor (data-plane)
-# ---------------------------------------------------------------------------
-# Required for ADLS Gen2 file operations (e.g., sync-airflow job uploads
-# DAGs to the airflow-dags container).
-#
-# BOOTSTRAP NOTE: This role CANNOT be managed by Terraform because the
-# GitHub OIDC service principal only has Contributor (control-plane), which
-# lacks Microsoft.Authorization/roleAssignments/write. Assign it once
-# manually:
-#
-#   az role assignment create \
-#     --assignee-object-id $(terraform output -raw github_actions_sp_object_id) \
-#     --role "Storage Blob Data Contributor" \
-#     --scope $(terraform output -raw storage_account_id)
-#
-# After that, the permission persists independently of Terraform state.
-# ---------------------------------------------------------------------------
 
