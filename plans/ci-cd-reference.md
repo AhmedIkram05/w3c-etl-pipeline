@@ -340,7 +340,7 @@ sequenceDiagram
 | `azuread_service_principal` | `gha-w3c-etl-pipeline` | Service principal linked to the app. `use_existing = true`. |
 | `azuread_application_federated_identity_credential` | `gha-azure-dev` (one per environment) | Maps GitHub environment to Azure AD subject: `repo:AhmedIkram05/w3c-etl-pipeline:environment:azure-dev`. Issuer: `https://token.actions.githubusercontent.com`. Audience: `api://AzureADTokenExchange`. |
 | `azurerm_role_assignment` | `github_actions` | Assigns **Contributor** role on the resource group scope to the service principal. `skip_service_principal_aad_check = true` to avoid timing issues on first deploy. |
-| `azurerm_role_assignment` | `github_actions_blob` | Assigns **Storage Blob Data Contributor** role on the storage account scope. Required for data-plane operations (e.g., `az storage fs upload` in the `sync-airflow` job). Contributor only covers control-plane. |
+| *(manual bootstrap)* | `Storage Blob Data Contributor` | Required for data-plane operations (e.g., `az storage fs upload` in the `sync-airflow` job). **Cannot be managed by Terraform** — the GitHub SP only has Contributor (control-plane), which lacks `Microsoft.Authorization/roleAssignments/write`. Assign once via `az role assignment create` (see bootstrap note below). |
 
 ### GitHub Environment Variables
 
@@ -372,6 +372,19 @@ The `azure-dev` GitHub Environment must be configured with:
 - **Scope:** `repo:AhmedIkram05/w3c-etl-pipeline:environment:azure-dev` — only runs triggered from the `azure-dev` environment can exchange tokens
 - **No client secret:** The workflow sets `ARM_USE_OIDC: true` instead of `ARM_CLIENT_SECRET`
 - **Zero static secrets:** The runner never stores or retrieves Azure credentials — it assumes an Azure AD identity via token exchange at runtime
+
+### Bootstrap: Storage Blob Data Contributor
+
+The `sync-airflow` job needs `Storage Blob Data Contributor` on the storage account to upload DAG files, but the GitHub SP has `Contributor` (control-plane) which cannot create role assignments (`Microsoft.Authorization/roleAssignments/write`). This is a **one-time manual bootstrap**:
+
+```bash
+az role assignment create \
+  --assignee-object-id "$(cd terraform/part_a && terraform output -raw github_actions_principal_id)" \
+  --role "Storage Blob Data Contributor" \
+  --scope "$(cd terraform/part_a && terraform output -raw storage_account_id)"
+```
+
+This must be run by someone with **Owner** or **User Access Administrator** on the subscription (typically the person who originally deployed the infrastructure). After that, the permission persists independently of Terraform state.
 
 ---
 
