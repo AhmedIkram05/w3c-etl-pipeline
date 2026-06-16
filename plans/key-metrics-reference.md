@@ -130,15 +130,14 @@
 | Metric | Old (README) | New (Reality) |
 |---|---|---|
 | **CI jobs per push** | 3 parallel | **4** parallel |
-| **CD jobs on merge** | (none) | **7** sequential |
+| **CD jobs on merge** | (none) | **3** sequential |
 | CI job types | lint, test, dbt-compile | + terraform validate (Part A + B matrix) |
-| CD pipeline stages | — | `terraform-plan` → `terraform-apply` → `deploy-dab` → `deploy-dbt` → `sync-airflow` → `smoke-test` → `rollback` |
+| CD pipeline stages | — | `terraform-plan` → `terraform-apply` → `rollback` |
 | Reusable workflows | 0 | **3** (`_reusable-lint`, `_reusable-test`, `_reusable-terraform`) |
 | Total workflow files | 2 (ci, dependabot) | **7** (ci, cd, codeql, 3 reusable, dependabot-auto-merge) |
 | OIDC federation | ❌ | ✅ (Terraform-managed `github_oidc.tf` — 1 federated identity credential for `azure-dev`) |
 | Dependabot ecosystems | 0 | **5** (pip, GitHub Actions, Terraform, Docker, Python) |
 | Security tools | 0 | **3** (bandit, CodeQL weekly, GitGuardian on every push) |
-| Post-deploy smoke test | ❌ | ✅ (trigger DAG via REST API → poll completion → assert Azure SQL row count) |
 | Pre-commit hooks | 8 | **15** |
 | Lint job tools | ruff, mypy | ruff, mypy, bandit, SQLFluff |
 | Test coverage upload | ❌ | ✅ (Codecov — fail_ci_if_error: false) |

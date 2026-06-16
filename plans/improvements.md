@@ -53,7 +53,7 @@
   - **JDBC Export**: Silver → Azure SQL via pymssql (45s for 153K rows), tracking table idempotency, 4-attempt retry with exponential backoff for DB cold-start.
   - **Dimension Export**: Inline `_export_dimensions()` in Airflow DAG, MERGE upsert on SHA-256 hashes, `user-agents` library for UA parsing.
   - **dbt T-SQL Migration**: All 16 models with inline `{% if target.type == 'sqlserver' %}` conditionals, 17 compatibility macros, dual PostgreSQL/Azure SQL profiles.
-  - **CI/CD**: 4 CI jobs (reusable workflows) + 7-job CD pipeline with OIDC Workload Identity Federation, DAB deploy, post-deploy smoke test.
+  - **CI/CD**: 4 CI jobs (reusable workflows) + 3-job CD pipeline with OIDC Workload Identity Federation.
   - **Monitoring**: 3 Grafana dashboards, 8 Prometheus alert rules, data freshness probe, Terraform-managed Azure Monitor alerts (3 action groups, 2 budgets, 2 metric alerts).
 - **What changed**: Cloud platforms rating went from **D+** to **A-**. IaC from **F** to **A**. Docker is now dev-only; Azure/Databricks is the sole production platform.
 - **Still pending**: Power BI DAX validation, git push to test CI/CD in GitHub, one-time OIDC Terraform bootstrap apply, GitHub Environment setup.
@@ -118,7 +118,7 @@
 3. **JDBC Export**: Silver → Azure SQL via pymssql (45s optimized, tracking table idempotency, 4-attempt retry)
 4. **Airflow DAGs**: `spark_ingestion_azure.py` (Workflow trigger + inline dim export) + `dbt_marts_azure.py` (Dataset-triggered, 4 dbt notebooks on Databricks serverless)
 5. **dbt T-SQL Migration**: All 16 models with inline conditionals, 17 compatibility macros, dual PostgreSQL/Azure SQL profiles, 18 CSV exports verified
-6. **CI/CD**: 4 CI jobs (3 reusable workflows) + 7-job CD pipeline with OIDC Workload Identity Federation, DAB deploy, dbt deploy with first-deploy fallback, DAG sync, post-deploy smoke test
+6. **CI/CD**: 4 CI jobs (3 reusable workflows) + 3-job CD pipeline with OIDC Workload Identity Federation
 7. **Monitoring**: 3 Grafana dashboards, 8 Prometheus alert rules, data freshness probe (4 gauges: Azure SQL + Databricks bronze/silver), Terraform-managed Azure Monitor alerts (3 action groups, 2 budgets, 2 metric alerts)
 8. **IaC Hardening**: Unity Catalog schemas as Terraform `databricks_schema` resources, 68+ validation tests, OIDC fully managed via `github_oidc.tf`
 
@@ -231,7 +231,7 @@ Dual-dialect dbt project supporting both PostgreSQL (Docker dev) and Azure SQL (
 Split-tier CI/CD pipeline:
 
 - **CI (every push, `.github/workflows/ci.yml`)**: 4 jobs — lint (ruff), test (pytest), dbt-compile (dual profiles), terraform (validate + fmt — Part A + B). Uses 3 reusable workflow templates.
-- **CD (merge to main, `.github/workflows/cd.yml`)**: 7 jobs — terraform-plan, terraform-apply, deploy-dab (Databricks Asset Bundle), deploy-dbt (with first-deploy fallback), sync-airflow (DAG sync to Databricks Workspace), smoke-test (trigger DAG → poll → SQL row count assert), rollback (checkout prior commit + `terraform plan/apply`)
+- **CD (merge to main, `.github/workflows/cd.yml`)**: 3 jobs — terraform-plan, terraform-apply, rollback (checkout prior commit + `terraform plan/apply`)
 - **OIDC**: Fully Terraform-managed via `github_oidc.tf` (azuread_application, federated identity credential, role assignment). Single GitHub Environment (`azure-dev`).
 - **Dependabot**: `.github/dependabot.yml` (5 ecosystems) + `dependabot-auto-merge.yml` (patch auto-approve and merge)
 

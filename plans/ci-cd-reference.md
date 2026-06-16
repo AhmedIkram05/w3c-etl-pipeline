@@ -1,6 +1,6 @@
 # CI/CD Pipeline Reference
 
-> **Purpose:** Single source of truth for CI/CD architecture, pre-commit hooks, workflow definitions, OIDC federation, dependabot configuration, security scanning, post-deploy smoke testing, and rollback procedures.
+> **Purpose:** Single source of truth for CI/CD architecture, pre-commit hooks, workflow definitions, OIDC federation, dependabot configuration, security scanning, and rollback procedures.
 
 ---
 
@@ -21,7 +21,7 @@ Runs **4 parallel jobs** as quality gates. Zero cloud credentials required — a
 
 Runs **2 deployment jobs** (3-job file includes rollback) that deploy to Azure with OIDC-scoped credentials. Uses GitHub Environments as a gating boundary. The `azure-dev` environment is auto-approved on merge to main. Pull requests run `terraform-plan` only (read-only, no apply). Uses `concurrency: group: cd-terraform` with `cancel-in-progress: true` to prevent state lock collisions.
 
-- `terraform-plan` → `terraform-apply` → `smoke-test`
+- `terraform-plan` → `terraform-apply`
 - dbt model execution is **not** in CD — it runs as the `w3c_dbt_marts_azure` Airflow DAG, dataset-triggered after `w3c_spark_ingestion_azure` completes its JDBC export
 - Rollback via `workflow_dispatch`
 
@@ -62,7 +62,7 @@ Runs automatically on every `git commit` via `.pre-commit-config.yaml`. Catches 
 | File | Trigger | Purpose |
 |---|---|---|
 | `ci.yml` | Push to any branch, PR to main | CI quality gates: lint, test, dbt-compile, terraform |
-| `cd.yml` | Push to main, PR (plan-only), `workflow_dispatch` | Production deployment: terraform → smoke-test (dbt runs in Airflow) |
+| `cd.yml` | Push to main, PR (plan-only), `workflow_dispatch` | Production deployment: terraform (dbt runs in Airflow) |
 | `codeql.yml` | Push to any branch, PR to main, schedule (Mon 06:00 UTC) | SAST security analysis (Python + GitHub Actions) |
 | `.github/dependabot.yml` | Scheduled (daily/weekly) | Automated dependency updates across 5 ecosystems |
 | `.github/workflows/dependabot-auto-merge.yml` | Dependabot PRs | Auto-approve + squash-merge patch updates |
@@ -188,11 +188,6 @@ flowchart TD
     tapply --> aa["Apply Part A<br/>OIDC auth"]
     tapply --> ab["Apply Part B<br/>OIDC + PAT + secrets"]
 
-    tapply --> smoke["smoke-test"]
-    smoke --> trigger["Trigger Airflow DAG<br/>via REST API"]
-    smoke --> poll["Poll DAG every 15s<br/>up to 15 min"]
-    smoke --> assert["Assert rows > 0<br/>in dbo.raw_enriched"]
-
     cd -->|"workflow_dispatch"| rollback["rollback"]
     rollback --> co["Checkout HEAD~1<br/>fetch-depth: 0"]
     rollback --> rpa["terraform init -migrate-state<br/>plan + apply Part A"]
@@ -248,22 +243,6 @@ Outputs: `plan_a_exitcode`, `plan_b_exitcode`.
 
 > dbt docs generation is handled by the `w3c_dbt_marts_azure` Airflow DAG, which runs `dbt docs generate` against the live Azure SQL database (producing a real `catalog.json`) and exports artifacts to the Airflow worker.
 
-### Job: `smoke-test` (post-deploy verification)
-
-| Attribute | Value |
-|---|---|
-| **Needs** | `terraform-apply` |
-| **Runner** | `ubuntu-latest`, timeout 20 min |
-| **Environment** | `azure-dev` |
-
-| Step | Command | What It Does |
-|---|---|---|
-| Trigger Airflow DAG | `curl -X POST $AIRFLOW_URL/api/v1/dags/w3c_spark_ingestion_azure/dagRuns` with basic auth and `{"conf": {"trigger_source": "cd_smoke_test"}}` | Start the full ingestion pipeline via Airflow REST API |
-| Poll DAG until complete | Loop 60 times (15s intervals = 15 min max): `curl $AIRFLOW_URL/api/v1/dags/w3c_spark_ingestion_azure/dagRuns/$DAG_RUN_ID` → parse `.state` | Wait for pipeline completion. States: `"success"` → exit 0, `"failed"` or `"upstream_failed"` → exit 1, others → sleep and retry. Timeout after 15 minutes. |
-| Assert Azure SQL row count | `sqlcmd -S $AZURE_SQL_SERVER -d $AZURE_SQL_DATABASE -U $AZURE_SQL_USER -P $AZURE_SQL_PASSWORD -Q "SELECT COUNT(*) FROM dbo.raw_enriched"` | Verify data landed. Fails if `ROWS == 0`. |
-
-> **What makes this meaningful:** The smoke test exercises the **entire production path** end-to-end — DAG orchestration, Databricks Workflows, DLT Bronze ingestion, DLT Silver enrichment, JDBC export to Azure SQL, and dimension export — triggered by actual code deployed in the same CD run. This is not a synthetic health check; it's a real pipeline execution with real data.
-
 ### Job: `rollback` (manual — `workflow_dispatch` only)
 
 | Attribute | Value |
@@ -285,7 +264,7 @@ Outputs: `plan_a_exitcode`, `plan_b_exitcode`.
 | Rollback Part B (plan) | `terraform init -input=false -migrate-state && terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback` | Init with state migration, then plan the rollback for Databricks (uses PAT + secrets) |
 | Rollback Part B (apply) | `terraform apply -auto-approve -input=false tfplan_rollback` | Execute the rollback for Databricks |
 
-> **Note:** The rollback is a **terraform-only** operation. After rollback, a manual smoke test is required to verify the system is operational. dbt models and Airflow DAGs are **not** automatically reverted — the previous commit's Terraform state is applied but the DAG files and dbt state remain at the current version. A complete rollback may require manually redeploying the prior commit's DAGs and dbt state.
+> **Note:** The rollback is a **terraform-only** operation. dbt models and Airflow DAGs are **not** automatically reverted — the previous commit's Terraform state is applied but the DAG files and dbt state remain at the current version. A complete rollback may require manually redeploying the prior commit's DAGs and dbt state.
 
 ---
 
@@ -334,16 +313,13 @@ The `azure-dev` GitHub Environment must be configured with:
 | `AZURE_SQL_DATABASE` | Database name |
 | `AZURE_SQL_USER` | SQL admin username |
 | `STORAGE_ACCOUNT_NAME` | ADLS Gen2 storage account |
-| `AIRFLOW_URL` | Airflow webserver URL |
-| `AIRFLOW_USERNAME` | Airflow API username |
 
 ### GitHub Environment Secrets
 
 | Secret | Source |
 |---|---|
 | `AZURE_SQL_PASSWORD` | SQL admin password |
-| `AIRFLOW_PASSWORD` | Airflow API password |
-| `DATABRICKS_TOKEN` | Databricks PAT (for Part B — Terraform + sync) |
+| `DATABRICKS_TOKEN` | Databricks PAT (for Part B — Terraform) |
 | `STORAGE_ACCESS_KEY` | ADLS Gen2 storage account key |
 
 ### Key Properties
@@ -393,61 +369,9 @@ The `azure-dev` GitHub Environment must be configured with:
 
 ---
 
-## 9. Post-Deploy Smoke Test Details
-
-The `smoke-test` job in `cd.yml` is the **final gating step** before a deployment is considered successful. It validates that the entire pipeline works end-to-end after all artifacts have been deployed.
-
-### Trigger Phase
-
-```bash
-curl -s -X POST "$AIRFLOW_URL/api/v1/dags/w3c_spark_ingestion_azure/dagRuns" \
-  -u "$AIRFLOW_USERNAME:$AIRFLOW_PASSWORD" \
-  -H "Content-Type: application/json" \
-  -d '{"conf": {"trigger_source": "cd_smoke_test"}}' | jq -r '.dag_run_id // empty'
-```
-
-Triggers the `w3c_spark_ingestion_azure` DAG (not `spark_ingestion_azure` — the full namespace is required). The DAG run ID is captured for polling.
-
-### Poll Phase
-
-| Parameter | Value |
-|---|---|
-| Poll interval | 15 seconds |
-| Max attempts | 60 |
-| Max duration | 15 minutes |
-| Poll URL | `$AIRFLOW_URL/api/v1/dags/w3c_spark_ingestion_azure/dagRuns/$DAG_RUN_ID` |
-
-State handling:
-- `"success"` → exit 0 (proceed)
-- `"failed"` → exit 1 (fail pipeline)
-- `"upstream_failed"` → exit 1 (fail pipeline)
-- All other states (including `"running"`, `"queued"`, `"unknown"`) → sleep 15s and retry
-
-After 60 attempts without a terminal state → exit 1 (timeout).
-
-### Assert Phase
-
-```bash
-ROWS=$(sqlcmd -S "$AZURE_SQL_SERVER" -d "$AZURE_SQL_DATABASE" \
-  -U "$AZURE_SQL_USER" -P "$AZURE_SQL_PASSWORD" \
-  -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM dbo.raw_enriched" -h -1 | tr -d ' ')
-if [ "$ROWS" -gt 0 ]; then
-  echo "Smoke test PASSED — $ROWS rows found"
-else
-  echo "Smoke test FAILED — no rows in dbo.raw_enriched"
-  exit 1
-fi
-```
-
-Verifies that the full pipeline (Bronze → Silver → Azure SQL export → dimension export) completed and produced data. The minimum acceptance criterion is `ROWS > 0` in `dbo.raw_enriched` (expected ~153,000+ rows from 93 real IIS log files).
-
-### Failure Notification
-
-If the smoke test fails, GitHub Actions reports the job as failed in the CD workflow run. No additional notification integration is configured — the standard GitHub Actions failure alert (email from GitHub) notifies the repository owner.
-
 ---
 
-## 10. Rollback Procedure
+## 9. Rollback Procedure
 
 ### Trigger
 
@@ -473,9 +397,8 @@ Manual `workflow_dispatch` on the `cd.yml` workflow — must be triggered by a u
 ### Post-Rollback Verification
 
 After the rollback completes, a human operator should:
-1. Run a manual smoke test (trigger Airflow DAG and verify row counts)
-2. Confirm Grafana dashboards show healthy metrics
-3. Check that the deployed DAGs match the rolled-back infrastructure
+1. Confirm Grafana dashboards show healthy metrics
+2. Check that the deployed DAGs match the rolled-back infrastructure
 
 ---
 
@@ -487,7 +410,5 @@ After the rollback completes, a human operator should:
 | **Single environment (`azure-dev`)** | Staging/prod adds complexity without portfolio value for a CV project. Auto-approve on merge to main. |
 | **3 reusable workflows** | Avoids duplication across CI jobs. Each workflow has a single responsibility: lint, test, or terraform validation. |
 | **dbt runs in Airflow, not CD** | CD deploys infra and DAGs only. dbt runs as the `w3c_dbt_marts_azure` Airflow DAG on Databricks serverless, dataset-triggered after ingestion completes. Decouples infra deploy from data transformation. |
-| **Post-deploy smoke test** | Not a synthetic health check — it runs the actual ETL pipeline with real data and validates row counts in Azure SQL. Only gating step that proves the system works. |
 | **Terraform-managed OIDC** | The Azure AD application, federated credential, and role assignment are created by Terraform — not manual CLI commands. One `terraform apply` sets up the entire auth chain. |
 | **`-lock=false` in terraform-plan** | Read-only plans shouldn't wait for state locks. Avoids contention when a concurrent apply holds the lock. |
-| **No standalone nightly integration tests** | The CD smoke test covers integration on every deploy. A separate nightly suite would run against stale data with no code changes to validate. |

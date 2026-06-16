@@ -22,7 +22,6 @@
 | Terraform tests | terraform test (HCL) | 9 assertions (1 plan + 6 resource) | `terraform` (CI) | ✅ |
 | CodeQL SAST | GitHub CodeQL | — | `codeql` | ✅ Weekly |
 | Secret scanning | GitGuardian | — | External (org-level) | ✅ Every push |
-| Post-deploy smoke test | Bash (REST API) | 1 | `smoke-test` (CD) | ✅ On merge to main |
 
 † 30 tests are excluded from CI runs: 18 integration tests (need Docker stack) + 12 dbt-compile validation tests (need `dbt compile` to run first). These are expected environment gaps, not failures.
 
@@ -235,7 +234,6 @@ Results reported as GitHub code scanning alerts in the Security tab.
 | **5 linters/type-checkers** | Multi-layered code quality: style, types, security, SQL formatting |
 | **CodeQL + bandit + GitGuardian** | Defense-in-depth for security: SAST, static analysis, secret scanning |
 | **dbt compile on both PostgreSQL + T-SQL** | Cross-dialect compatibility: develops on Postgres, deploys to Azure SQL |
-| **Post-deploy smoke test** | CD pipeline doesn't just deploy — it verifies the system actually works |
 | **Codecov integration** | Coverage tracking visible to the team |
 | **Marker-based test selection** | Thoughtful test architecture: environment-dependent suites (Docker, dbt, Terraform) are isolated by markers so CI stays fast while local coverage remains comprehensive |
 
