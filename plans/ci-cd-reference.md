@@ -19,10 +19,10 @@ Runs **4 parallel jobs** as quality gates. Zero cloud credentials required — a
 
 ### CD — Merge to Main
 
-Runs **6 deployment jobs** (7-job file includes rollback) that deploy to Azure with OIDC-scoped credentials. Uses GitHub Environments as a gating boundary. The `azure-dev` environment is auto-approved on merge to main. Pull requests run `terraform-plan` only (read-only, no apply). Uses `concurrency: group: cd-terraform` with `cancel-in-progress: true` to prevent state lock collisions.
+Runs **3 deployment jobs** (4-job file includes rollback) that deploy to Azure with OIDC-scoped credentials. Uses GitHub Environments as a gating boundary. The `azure-dev` environment is auto-approved on merge to main. Pull requests run `terraform-plan` only (read-only, no apply). Uses `concurrency: group: cd-terraform` with `cancel-in-progress: true` to prevent state lock collisions.
 
-- `terraform-plan` → `terraform-apply` → `deploy-dbt` + `sync-airflow` (parallel) → `smoke-test`
-- `deploy-dbt-docs` runs after `deploy-dbt` (generates dbt docs → GitHub Pages)
+- `terraform-plan` → `terraform-apply` → `sync-airflow` → `smoke-test`
+- dbt model execution is **not** in CD — it runs as the `w3c_dbt_marts_azure` Airflow DAG, dataset-triggered after `w3c_spark_ingestion_azure` completes its JDBC export
 - Rollback via `workflow_dispatch`
 
 ### Zero Static Secrets
@@ -62,7 +62,7 @@ Runs automatically on every `git commit` via `.pre-commit-config.yaml`. Catches 
 | File | Trigger | Purpose |
 |---|---|---|
 | `ci.yml` | Push to any branch, PR to main | CI quality gates: lint, test, dbt-compile, terraform |
-| `cd.yml` | Push to main, PR (plan-only), `workflow_dispatch` | Production deployment: terraform → dbt → sync → smoke-test |
+| `cd.yml` | Push to main, PR (plan-only), `workflow_dispatch` | Production deployment: terraform → sync → smoke-test (dbt runs in Airflow) |
 | `codeql.yml` | Push to any branch, PR to main, schedule (Mon 06:00 UTC) | SAST security analysis (Python + GitHub Actions) |
 | `.github/dependabot.yml` | Scheduled (daily/weekly) | Automated dependency updates across 5 ecosystems |
 | `.github/workflows/dependabot-auto-merge.yml` | Dependabot PRs | Auto-approve + squash-merge patch updates |
@@ -188,26 +188,26 @@ flowchart TD
     tapply --> aa["Apply Part A<br/>OIDC auth"]
     tapply --> ab["Apply Part B<br/>OIDC + PAT + secrets"]
 
-    tapply --> dbt["deploy-dbt"]
-    dbt --> dbt_run["dbt run (--defer --state<br/>first-deploy fallback)"]
-    dbt --> dbt_test["dbt test<br/>118 data tests vs Azure SQL"]
-
     tapply --> sync["sync-airflow"]
     sync --> adls["az login + az extension add<br/>az storage fs upload<br/>DAGs → ADLS Gen2"]
 
-    dbt & sync --> smoke["smoke-test"]
+    sync --> smoke["smoke-test"]
     smoke --> trigger["Trigger Airflow DAG<br/>via REST API"]
     smoke --> poll["Poll DAG every 15s<br/>up to 15 min"]
     smoke --> assert["Assert rows > 0<br/>in dbo.raw_enriched"]
-
-    dbt --> docs["deploy-dbt-docs"]
-    docs --> dg["dbt docs generate<br/>PostgreSQL"]
-    docs --> pages["Deploy to GitHub Pages"]
 
     cd -->|"workflow_dispatch"| rollback["rollback"]
     rollback --> co["Checkout HEAD~1<br/>fetch-depth: 0"]
     rollback --> rpa["terraform init -migrate-state<br/>plan + apply Part A"]
     rollback --> rpb["terraform init -migrate-state<br/>plan + apply Part B"]
+
+    subgraph airflow["Post-CD — Airflow (offline)"]
+        direction LR
+        ingestion["w3c_spark_ingestion_azure<br/>Bronze → Silver → JDBC Export"]
+        dataset["Dataset trigger"]
+        dbt["w3c_dbt_marts_azure<br/>dbt freshness → run → test → docs → CSV"]
+        ingestion --> dataset --> dbt
+    end
 ```
 
 ### Job: `terraform-plan` (always runs — PR + merge)
@@ -249,24 +249,6 @@ Outputs: `plan_a_exitcode`, `plan_b_exitcode`.
 | Apply Part A | `terraform init -input=false -migrate-state && terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars` | Deploy/modify Azure infra via OIDC auth |
 | Apply Part B | `terraform init -input=false && terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars` | Deploy/modify Databricks pipelines, workflows, UC schemas. Uses PAT + secrets for Databricks API. |
 
-### Job: `deploy-dbt` (push to main only)
-
-| Attribute | Value |
-|---|---|
-| **Needs** | `terraform-apply` |
-| **Runner** | `ubuntu-latest` |
-| **Environment** | `azure-dev` |
-| **Python** | 3.12 (via `actions/setup-python@v5`, pip cache) |
-| **Tools** | `dbt-sqlserver==1.8.7`, `dbt-core==1.8.9`, ODBC Driver 18 |
-
-| Step | Command | What It Does |
-|---|---|---|
-| Install dbt | `pip install "dbt-sqlserver==1.8.7" "dbt-core==1.8.9" "dbt-common==1.27.1" "protobuf>=5.27,<6"` | Install dbt with SQL Server adapter |
-| Install ODBC Driver 18 | apt-get + Microsoft repo + `msodbcsql18 mssql-tools18` | Native SQL Server connectivity |
-| dbt deps | `dbt deps --project-dir airflow/dbt/w3c` | Install dbt package dependencies |
-| dbt run | `dbt run --profile w3c_azure --profiles-dir ../` with first-deploy fallback: if `./target-prod/manifest.json` exists, uses `--defer --state ./target-prod`; otherwise plain `dbt run` | Execute 16 dbt models against Azure SQL. First-deploy fallback handles missing production state. |
-| dbt test | `dbt test --profile w3c_azure --profiles-dir ../` | Run 118 data tests (46 not_null, 18 unique, 20 accepted_values, 10 relationships, 24 expression_is_true) |
-
 ### Job: `sync-airflow` (push to main only)
 
 | Attribute | Value |
@@ -282,37 +264,15 @@ Outputs: `plan_a_exitcode`, `plan_b_exitcode`.
 | Checkout | `actions/checkout@v4` | Clone repo |
 | Azure login | `azure/login@v2` with `client-id`/`tenant-id`/`subscription-id` | OIDC-based Azure auth — exchanges GitHub OIDC token for Azure AD access token |
 | Install ADLS extension | `az extension add --name storage-preview -y` | Enable ADLS Gen2 CLI commands (`az storage fs upload` is in preview) |
-| Sync DAGs to ADLS | `az storage fs upload -f airflow-dags -s airflow/dags/ --account-name $STORAGE_ACCOUNT_NAME --recursive` | Upload DAG files to ADLS Gen2 `airflow-dags` file system. These are consumed by Airflow running on Databricks. |
+| Sync DAGs to ADLS | `az storage fs upload -f airflow-dags -s airflow/dags/ --account-name $STORAGE_ACCOUNT_NAME --auth-mode login --recursive` | Upload DAG files to ADLS Gen2 `airflow-dags` file system (uses `--auth-mode login` for OIDC data-plane auth). These are consumed by Airflow running on Databricks. |
 
-### Job: `deploy-dbt-docs` (push to main only — GitHub Pages)
-
-| Attribute | Value |
-|---|---|
-| **Condition** | `github.event_name != 'pull_request'` |
-| **Needs** | `deploy-dbt` |
-| **Runner** | `ubuntu-latest`, timeout 15 min |
-| **Permissions** | `contents: read`, `pages: write`, `id-token: write` |
-| **Environment** | `github-pages` (auto-deploys to Pages) |
-| **Services** | PostgreSQL 13 (port 5432, health check via `pg_isready`) |
-
-| Step | Command | What It Does |
-|---|---|---|
-| Checkout | `actions/checkout@v4` | Clone repo |
-| Setup Python | `actions/setup-python@v5` with `3.12` and pip cache | Install Python |
-| Install dbt | `pip install "dbt-postgres==1.8.2" "dbt-core==1.8.9"` | dbt core + PostgreSQL adapter |
-| dbt deps | `dbt deps --project-dir airflow/dbt/w3c` | Install dbt package dependencies |
-| dbt docs generate | `dbt docs generate --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt` | Generate dbt docs (catalog + manifest + index) from PostgreSQL |
-| Setup Pages | `actions/configure-pages@v5` | Configure GitHub Pages publishing source |
-| Upload Pages artifact | `actions/upload-pages-artifact@v3` with `path: airflow/dbt/w3c/target` | Upload dbt `target/` directory (includes `catalog.json`, `manifest.json`, `index.html`) |
-| Deploy to Pages | `actions/deploy-pages@v4` | Publish to GitHub Pages |
-
-> **Why this matters:** The dbt docs site provides browsable lineage diagrams, model descriptions, test results, and compiled SQL — all auto-updated after every `main` deploy. Accessible at the repo's GitHub Pages URL.
+> dbt docs generation is handled by the `w3c_dbt_marts_azure` Airflow DAG, which runs `dbt docs generate` against the live Azure SQL database (producing a real `catalog.json`) and exports artifacts to the Airflow worker. No GitHub Pages deployment is configured.
 
 ### Job: `smoke-test` (post-deploy verification)
 
 | Attribute | Value |
 |---|---|
-| **Needs** | `deploy-dbt`, `sync-airflow` |
+| **Needs** | `sync-airflow` |
 | **Runner** | `ubuntu-latest`, timeout 20 min |
 | **Environment** | `azure-dev` |
 
@@ -380,6 +340,7 @@ sequenceDiagram
 | `azuread_service_principal` | `gha-w3c-etl-pipeline` | Service principal linked to the app. `use_existing = true`. |
 | `azuread_application_federated_identity_credential` | `gha-azure-dev` (one per environment) | Maps GitHub environment to Azure AD subject: `repo:AhmedIkram05/w3c-etl-pipeline:environment:azure-dev`. Issuer: `https://token.actions.githubusercontent.com`. Audience: `api://AzureADTokenExchange`. |
 | `azurerm_role_assignment` | `github_actions` | Assigns **Contributor** role on the resource group scope to the service principal. `skip_service_principal_aad_check = true` to avoid timing issues on first deploy. |
+| `azurerm_role_assignment` | `github_actions_blob` | Assigns **Storage Blob Data Contributor** role on the storage account scope. Required for data-plane operations (e.g., `az storage fs upload` in the `sync-airflow` job). Contributor only covers control-plane. |
 
 ### GitHub Environment Variables
 
@@ -525,8 +486,8 @@ Manual `workflow_dispatch` on the `cd.yml` workflow — must be triggered by a u
 |---|---|---|
 | Terraform-managed Azure infra | ✅ Yes | Terraform reverts to prior state |
 | Terraform-managed Databricks resources | ✅ Yes | Terraform reverts to prior state |
-| dbt models in Azure SQL | ❌ No | dbt state is not versioned; manual `dbt run` with prior code needed |
-| dbt Docs on GitHub Pages | ❌ No | Pages deployment is not reverted; manual re-deploy of prior docs needed |
+| dbt models in Azure SQL | ❌ No (CD) | dbt runs in Airflow, not CD — no CD revert needed. Airflow re-runs dbt on next Dataset trigger. |
+| dbt Docs | ❌ No | Docs are generated by Airflow `w3c_dbt_marts_azure` — no Pages deployment to revert. |
 | Airflow DAGs on ADLS | ❌ No | DAG sync is not reversed; manual re-sync with prior DAG code needed |
 | Data in Azure SQL | ❌ No | Data is not reverted; rollback only affects infrastructure |
 | Smoke test | ❌ Manual | Must be run manually after rollback to verify system health |
@@ -535,9 +496,8 @@ Manual `workflow_dispatch` on the `cd.yml` workflow — must be triggered by a u
 
 After the rollback completes, a human operator should:
 1. Run a manual smoke test (trigger Airflow DAG and verify row counts)
-2. Verify dbt models are operational against Azure SQL
-3. Confirm Grafana dashboards show healthy metrics
-4. Check that the deployed DAGs match the rolled-back infrastructure
+2. Confirm Grafana dashboards show healthy metrics
+3. Check that the deployed DAGs match the rolled-back infrastructure
 
 ---
 
@@ -548,7 +508,7 @@ After the rollback completes, a human operator should:
 | **Split CI/CD** | CI runs without cloud credentials — fast feedback for every push. CD only deploys on merge to main with full OIDC auth. |
 | **Single environment (`azure-dev`)** | Staging/prod adds complexity without portfolio value for a CV project. Auto-approve on merge to main. |
 | **3 reusable workflows** | Avoids duplication across CI jobs. Each workflow has a single responsibility: lint, test, or terraform validation. |
-| **dbt `--defer` with first-deploy fallback** | `--defer --state` requires a prior manifest. The `if [ -f "./target-prod/manifest.json" ]` check prevents first-deploy failure. |
+| **dbt runs in Airflow, not CD** | CD deploys infra and DAGs only. dbt runs as the `w3c_dbt_marts_azure` Airflow DAG on Databricks serverless, dataset-triggered after ingestion completes. Decouples infra deploy from data transformation. |
 | **Post-deploy smoke test** | Not a synthetic health check — it runs the actual ETL pipeline with real data and validates row counts in Azure SQL. Only gating step that proves the system works. |
 | **Terraform-managed OIDC** | The Azure AD application, federated credential, and role assignment are created by Terraform — not manual CLI commands. One `terraform apply` sets up the entire auth chain. |
 | **`-lock=false` in terraform-plan** | Read-only plans shouldn't wait for state locks. Avoids contention when a concurrent apply holds the lock. |
