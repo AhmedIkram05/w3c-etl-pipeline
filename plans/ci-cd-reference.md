@@ -19,9 +19,10 @@ Runs **4 parallel jobs** as quality gates. Zero cloud credentials required — a
 
 ### CD — Merge to Main
 
-Runs **6 sequential jobs** (7-job file includes rollback) that deploy to Azure with OIDC-scoped credentials. Uses GitHub Environments as a gating boundary. The `azure-dev` environment is auto-approved on merge to main. Pull requests run `terraform-plan` only (read-only, no apply).
+Runs **6 deployment jobs** (7-job file includes rollback) that deploy to Azure with OIDC-scoped credentials. Uses GitHub Environments as a gating boundary. The `azure-dev` environment is auto-approved on merge to main. Pull requests run `terraform-plan` only (read-only, no apply). Uses `concurrency: group: cd-terraform` with `cancel-in-progress: true` to prevent state lock collisions.
 
-- `terraform-plan` → `terraform-apply` → `deploy-dbt` → `sync-airflow` → `smoke-test`
+- `terraform-plan` → `terraform-apply` → `deploy-dbt` + `sync-airflow` (parallel) → `smoke-test`
+- `deploy-dbt-docs` runs after `deploy-dbt` (generates dbt docs → GitHub Pages)
 - Rollback via `workflow_dispatch`
 
 ### Zero Static Secrets
@@ -181,7 +182,7 @@ flowchart TD
     cd["cd.yml<br/>Push to main or PR (plan-only)"]
     cd --> tplan["terraform-plan"]
     tplan --> pa["Plan Part A<br/>Azure infra via OIDC"]
-    tplan --> pb["Plan Part B<br/>Databricks via PAT"]
+    tplan --> pb["Plan Part B<br/>Databricks via PAT<br/>Skipped for Dependabot"]
 
     tplan -->|"github.event_name != 'pull_request'"| tapply["terraform-apply"]
     tapply --> aa["Apply Part A<br/>OIDC auth"]
@@ -192,17 +193,21 @@ flowchart TD
     dbt --> dbt_test["dbt test<br/>118 data tests vs Azure SQL"]
 
     tapply --> sync["sync-airflow"]
-    sync --> adls["az storage fs upload<br/>DAGs → ADLS Gen2"]
+    sync --> adls["az login + az extension add<br/>az storage fs upload<br/>DAGs → ADLS Gen2"]
 
     dbt & sync --> smoke["smoke-test"]
     smoke --> trigger["Trigger Airflow DAG<br/>via REST API"]
     smoke --> poll["Poll DAG every 15s<br/>up to 15 min"]
     smoke --> assert["Assert rows > 0<br/>in dbo.raw_enriched"]
 
+    dbt --> docs["deploy-dbt-docs"]
+    docs --> dg["dbt docs generate<br/>PostgreSQL"]
+    docs --> pages["Deploy to GitHub Pages"]
+
     cd -->|"workflow_dispatch"| rollback["rollback"]
-    rollback --> co["Checkout HEAD~1"]
-    rollback --> rpa["terraform plan + apply Part A"]
-    rollback --> rpb["terraform plan + apply Part B"]
+    rollback --> co["Checkout HEAD~1<br/>fetch-depth: 0"]
+    rollback --> rpa["terraform init -migrate-state<br/>plan + apply Part A"]
+    rollback --> rpb["terraform init -migrate-state<br/>plan + apply Part B"]
 ```
 
 ### Job: `terraform-plan` (always runs — PR + merge)
@@ -213,7 +218,7 @@ flowchart TD
 | **Environment** | `azure-dev` (provides OIDC vars) |
 | **Permissions** | `id-token: write`, `contents: read` |
 | **Tools** | Terraform `1.10.5` |
-| **Auth** | Azure OIDC (`ARM_USE_OIDC: true`, `ARM_CLIENT_ID`/`ARM_TENANT_ID`/`ARM_SUBSCRIPTION_ID` from env vars) |
+| **Auth** | Azure OIDC (`ARM_USE_OIDC: true`, `ARM_CLIENT_ID`/`ARM_TENANT_ID`/`ARM_SUBSCRIPTION_ID` from env vars), Databricks PAT for Part B |
 
 | Step | Command | What It Does |
 |---|---|---|
@@ -221,8 +226,8 @@ flowchart TD
 | Setup Terraform | `hashicorp/setup-terraform@v3` with `1.10.5` | Install pinned TF version |
 | Plan Part A | `terraform plan -no-color -lock=false -input=false -var-file=environments/dev/terraform.tfvars` | Read-only plan for Azure infra (VNet, ADLS, SQL Server, monitoring). `-lock=false` avoids state lock contention with concurrent applies. |
 | Upload Part A plan | `actions/upload-artifact@v4` → `tfplan-part-a` | Store plan log for review |
-| Plan Part B | `terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars` | Read-only plan for Databricks pipelines, workflows, UC schemas. Skipped for `dependabot[bot]`. Requires `DATABRICKS_TOKEN`, `AZURE_SQL_PASSWORD`, `STORAGE_ACCESS_KEY` secrets. |
-| Upload Part B plan | `actions/upload-artifact@v4` → `tfplan-part-b` | Store plan log for review |
+| Plan Part B | `terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars` | Read-only plan for Databricks pipelines, workflows, UC schemas. **Skipped for `dependabot[bot]`** (GitHub secrets are unavailable to Dependabot PRs). Requires `DATABRICKS_TOKEN`, `AZURE_SQL_PASSWORD`, `STORAGE_ACCESS_KEY` secrets. |
+| Upload Part B plan | `actions/upload-artifact@v4` → `tfplan-part-b` | Store plan log for review. Guarded by `if: steps.plan_b.conclusion == 'success'` to avoid upload failure when Part B is skipped. |
 
 Outputs: `plan_a_exitcode`, `plan_b_exitcode`.
 
@@ -270,13 +275,38 @@ Outputs: `plan_a_exitcode`, `plan_b_exitcode`.
 | **Runner** | `ubuntu-latest` |
 | **Environment** | `azure-dev` |
 | **Permissions** | `id-token: write`, `contents: read` |
-| **Tools** | Azure CLI (`azure/login@v2` via OIDC) |
+| **Tools** | Azure CLI via `azure/login@v2` (OIDC Workload Identity Federation) |
 
 | Step | Command | What It Does |
 |---|---|---|
-| Azure login | `azure/login@v2` with `client-id`/`tenant-id`/`subscription-id` | OIDC-based Azure auth |
-| Install ADLS extension | `az extension add --name storage-preview -y` | Enable ADLS Gen2 CLI commands |
+| Checkout | `actions/checkout@v4` | Clone repo |
+| Azure login | `azure/login@v2` with `client-id`/`tenant-id`/`subscription-id` | OIDC-based Azure auth — exchanges GitHub OIDC token for Azure AD access token |
+| Install ADLS extension | `az extension add --name storage-preview -y` | Enable ADLS Gen2 CLI commands (`az storage fs upload` is in preview) |
 | Sync DAGs to ADLS | `az storage fs upload -f airflow-dags -s airflow/dags/ --account-name $STORAGE_ACCOUNT_NAME --recursive` | Upload DAG files to ADLS Gen2 `airflow-dags` file system. These are consumed by Airflow running on Databricks. |
+
+### Job: `deploy-dbt-docs` (push to main only — GitHub Pages)
+
+| Attribute | Value |
+|---|---|
+| **Condition** | `github.event_name != 'pull_request'` |
+| **Needs** | `deploy-dbt` |
+| **Runner** | `ubuntu-latest`, timeout 15 min |
+| **Permissions** | `contents: read`, `pages: write`, `id-token: write` |
+| **Environment** | `github-pages` (auto-deploys to Pages) |
+| **Services** | PostgreSQL 13 (port 5432, health check via `pg_isready`) |
+
+| Step | Command | What It Does |
+|---|---|---|
+| Checkout | `actions/checkout@v4` | Clone repo |
+| Setup Python | `actions/setup-python@v5` with `3.12` and pip cache | Install Python |
+| Install dbt | `pip install "dbt-postgres==1.8.2" "dbt-core==1.8.9"` | dbt core + PostgreSQL adapter |
+| dbt deps | `dbt deps --project-dir airflow/dbt/w3c` | Install dbt package dependencies |
+| dbt docs generate | `dbt docs generate --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt` | Generate dbt docs (catalog + manifest + index) from PostgreSQL |
+| Setup Pages | `actions/configure-pages@v5` | Configure GitHub Pages publishing source |
+| Upload Pages artifact | `actions/upload-pages-artifact@v3` with `path: airflow/dbt/w3c/target` | Upload dbt `target/` directory (includes `catalog.json`, `manifest.json`, `index.html`) |
+| Deploy to Pages | `actions/deploy-pages@v4` | Publish to GitHub Pages |
+
+> **Why this matters:** The dbt docs site provides browsable lineage diagrams, model descriptions, test results, and compiled SQL — all auto-updated after every `main` deploy. Accessible at the repo's GitHub Pages URL.
 
 ### Job: `smoke-test` (post-deploy verification)
 
@@ -310,9 +340,9 @@ Outputs: `plan_a_exitcode`, `plan_b_exitcode`.
 | Checkout with full history | `actions/checkout@v4` with `fetch-depth: 0` | Clone repo with full git history needed to traverse commits |
 | Checkout previous commit | `git checkout HEAD~1` | Roll back to the commit before the current `main` HEAD |
 | Setup Terraform | `hashicorp/setup-terraform@v3` with `1.10.5` | Install pinned TF version |
-| Rollback Part A (plan) | `terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback` | Plan the rollback for Azure infra (Part A) |
+| Rollback Part A (plan) | `terraform init -input=false -migrate-state && terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback` | Init with state migration to handle backend config changes, then plan the rollback for Azure infra |
 | Rollback Part A (apply) | `terraform apply -auto-approve -input=false tfplan_rollback` | Execute the rollback for Azure infra |
-| Rollback Part B (plan) | `terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback` | Plan the rollback for Databricks (Part B) |
+| Rollback Part B (plan) | `terraform init -input=false -migrate-state && terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback` | Init with state migration, then plan the rollback for Databricks (uses PAT + secrets) |
 | Rollback Part B (apply) | `terraform apply -auto-approve -input=false tfplan_rollback` | Execute the rollback for Databricks |
 
 > **Note:** The rollback is a **terraform-only** operation. After rollback, a manual smoke test is required to verify the system is operational. dbt models and Airflow DAGs are **not** automatically reverted — the previous commit's Terraform state is applied but the DAG files and dbt state remain at the current version. A complete rollback may require manually redeploying the prior commit's DAGs and dbt state.
@@ -496,6 +526,7 @@ Manual `workflow_dispatch` on the `cd.yml` workflow — must be triggered by a u
 | Terraform-managed Azure infra | ✅ Yes | Terraform reverts to prior state |
 | Terraform-managed Databricks resources | ✅ Yes | Terraform reverts to prior state |
 | dbt models in Azure SQL | ❌ No | dbt state is not versioned; manual `dbt run` with prior code needed |
+| dbt Docs on GitHub Pages | ❌ No | Pages deployment is not reverted; manual re-deploy of prior docs needed |
 | Airflow DAGs on ADLS | ❌ No | DAG sync is not reversed; manual re-sync with prior DAG code needed |
 | Data in Azure SQL | ❌ No | Data is not reverted; rollback only affects infrastructure |
 | Smoke test | ❌ Manual | Must be run manually after rollback to verify system health |
