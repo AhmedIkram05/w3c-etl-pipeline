@@ -30,9 +30,9 @@
 
 > **Pre-commit hooks moved to [CI/CD & Pre-commit Hooks Reference](./ci-cd-reference.md#pre-commit-hooks).**
 
-## 3. Python Unit Tests (pytest — 305 total, 275 in CI)
+## 2. Python Unit Tests (pytest — 305 total, 275 in CI)
 
-### 3.1. Framework & Configuration
+### 2.1. Framework & Configuration
 
 - **pytest** with `pytest-cov` for coverage
 - **conftest.py** provides a shared `spark` fixture (local PySpark `SparkSession` with Delta Lake support)
@@ -55,7 +55,7 @@
 - **Parametrized tests**: `test_terraform_part_a.py` (5 `@parametrize` decorators) and `test_terraform_part_b.py` (4) multiply individual test functions across multiple input combinations, increasing coverage without code duplication.
 - Coverage uploaded to **Codecov** on every CI run (`fail_ci_if_error: false` — non-blocking; coverage trends visible to the team)
 
-### 3.2. Test Breakdown by File
+### 2.2. Test Breakdown by File
 
 | File | Tests | Classes | Layer | What It Validates |
 |------|-------|---------|-------|-------------------|
@@ -77,7 +77,7 @@
 | `test_03_export_warehouse.py` | 15 | 4 | Warehouse Export | Airflow DAG task: export dimensions to warehouse, tracking table |
 | `test_terraform_part_a.py` | 14 | 5 | Terraform A | Mock-based Terraform config validation for Part A (Azure infra: VNet, ADLS, SQL Server) |
 
-### 3.3. CI Test Command
+### 2.3. CI Test Command
 
 ```bash
 # Run everything except Docker-dependent and dbt-compile tests
@@ -89,7 +89,7 @@ pytest tests/ -v --tb=short \
   --cov=airflow --cov-report=xml --cov-report=term-missing
 ```
 
-### 3.4. Local / Full Test Command
+### 2.4. Local / Full Test Command
 
 ```bash
 # Run everything (requires Docker for integration tests, dbt compile for dbt_compile tests)
@@ -103,7 +103,7 @@ pytest tests/ -v --tb=short -m dag_integrity
 
 ---
 
-## 4. Static Analysis & Linting (CI: `lint` job)
+## 3. Static Analysis & Linting (CI: `lint` job)
 
 | Tool | Scope | What It Catches | Config |
 |------|-------|-----------------|--------|
@@ -117,9 +117,9 @@ All run in CI on every push to any branch.
 
 ---
 
-## 5. dbt Data Tests (YAML-defined — 118 tests)
+## 4. dbt Data Tests (YAML-defined — 118 tests)
 
-### 5.1. Test Categories
+### 4.1. Test Categories
 
 | Type | Count | Files | Purpose |
 |------|-------|-------|---------|
@@ -129,7 +129,7 @@ All run in CI on every push to any branch.
 | `relationships` | 10 | schema.yml (10) | Referential integrity: fact→dimension FK paths are valid |
 | `dbt_utils.expression_is_true` | 24 | schema.yml (24) | Business logic invariants (e.g. `response_time_ms >= 0`, `bytes_sent >= 0`, `request_count > 0`) |
 
-### 5.2. Models with Tests
+### 4.2. Models with Tests
 
 | Model | Tests | Coverage Focus |
 |-------|-------|----------------|
@@ -142,7 +142,7 @@ All run in CI on every push to any branch.
 | `dim_method` | 3 | SK uniqueness, `not_null` on http_method, accepted values for method types |
 | ... plus 9 more dimension/mart models |
 
-### 5.3. CI Command
+### 4.3. CI Command
 
 ```bash
 # Compile (PostgreSQL + Azure SQL/T-SQL)
@@ -154,9 +154,9 @@ dbt test --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3c_
 
 ---
 
-## 6. Terraform Infrastructure Tests (9 HCL assertions)
+## 5. Terraform Infrastructure Tests (9 HCL assertions)
 
-### 6.1. Part A — Azure Infrastructure (3 assertions)
+### 5.1. Part A — Azure Infrastructure (3 assertions)
 
 ```
 terraform/part_a/tests/default.tftest.hcl
@@ -170,7 +170,7 @@ terraform/part_a/tests/default.tftest.hcl
   - Required resource names (storage_account, sql_server) are non-empty
   - Alert email addresses (critical/warning/info) are configured
 
-### 6.2. Part B — Databricks Configuration (6 assertions)
+### 5.2. Part B — Databricks Configuration (6 assertions)
 
 ```
 terraform/part_b/tests/default.tftest.hcl
@@ -186,7 +186,7 @@ terraform/part_b/tests/default.tftest.hcl
   - `databricks_secret_scope.w3c_etl` exists
   - Expected outputs (bronze_pipeline_id, silver_pipeline_id, workflow_job_id, workflow_job_url) are defined
 
-### 6.3. CI Pipeline
+### 5.3. CI Pipeline
 
 ```yaml
 # Runs on every push via _reusable-terraform.yml
@@ -200,15 +200,15 @@ Runs in parallel across both `terraform/part_a` and `terraform/part_b`.
 
 ---
 
-## 7. Security Scanning
+## 6. Security Scanning
 
-### 7.1. Static Analysis (CI: `lint` job)
+### 6.1. Static Analysis (CI: `lint` job)
 
 | Tool | Scope | What It Finds |
 |------|-------|---------------|
 | **bandit** | `airflow/` source code | Hardcoded passwords, SQL injection, shell injection, unsafe `yaml.load`, etc. |
 
-### 7.2. SAST (CI: `codeql` job — weekly)
+### 6.2. SAST (CI: `codeql` job — weekly)
 
 | Language | Build Mode | Schedule |
 |----------|------------|----------|
@@ -217,7 +217,7 @@ Runs in parallel across both `terraform/part_a` and `terraform/part_b`.
 
 Results reported as GitHub code scanning alerts in the Security tab.
 
-### 7.3. Secret Scanning (External)
+### 6.3. Secret Scanning (External)
 
 - **GitGuardian** enabled at the GitHub organization level — automatically scans every push with alert/block configured by org policy.
 
@@ -225,7 +225,7 @@ Results reported as GitHub code scanning alerts in the Security tab.
 
 > **CI/CD pipeline details moved to [CI/CD & Pre-commit Hooks Reference](./ci-cd-reference.md).**
 
-## 9. How Recruiters Should Interpret This
+## 7. How Recruiters Should Interpret This
 
 | Signal | What It Demonstrates |
 |--------|----------------------|
@@ -241,7 +241,7 @@ Results reported as GitHub code scanning alerts in the Security tab.
 
 ---
 
-## 10. Running Locally
+## 8. Running Locally
 
 ```bash
 # Python tests (requires Docker for integration tests)
@@ -279,7 +279,7 @@ pytest tests/ -v --tb=short -m integration
 
 ---
 
-## 11. Architecture Deep Dive: conftest.py
+## 9. Architecture Deep Dive: conftest.py
 
 The `tests/conftest.py` is worth highlighting because it solves a subtle Python packaging challenge common in Airflow projects:
 
@@ -293,7 +293,7 @@ This demonstrates deep familiarity with both Airflow's packaging quirks and PySp
 
 ---
 
-## 12. Quick Stats Summary
+## 10. Quick Stats Summary
 
 | Metric | Value |
 |--------|-------|
