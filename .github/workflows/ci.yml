@@ -39,19 +39,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      sqlserver:
-        image: mcr.microsoft.com/mssql/server:2022-latest
-        env:
-          ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: "dbtCI_P@ssword123!"
-        ports:
-          - 1433:1433
-        options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'dbtCI_P@ssword123!' -C -Q 'SELECT 1'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-          --health-start-period 30s
     env:
       W3C_DB_HOST: localhost
       W3C_DB_PORT: "5432"
@@ -88,6 +75,23 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 mssql-tools18
+      - name: Start SQL Server container
+        run: |
+          docker run -d --name sqlserver \
+            -e ACCEPT_EULA=Y \
+            -e MSSQL_SA_PASSWORD="dbtCI_P@ssword123!" \
+            -p 1433:1433 \
+            mcr.microsoft.com/mssql/server:2022-latest
+          echo "Waiting for SQL Server to be ready..."
+          for i in $(seq 1 30); do
+            if docker exec sqlserver /opt/mssql-tools18/bin/sqlcmd \
+              -S localhost -U sa -P 'dbtCI_P@ssword123!' -C -Q 'SELECT 1' 2>/dev/null; then
+              echo "SQL Server is ready!"
+              break
+            fi
+            echo "Attempt $i/30 — waiting..."
+            sleep 3
+          done
       - name: Create database in local SQL Server
         run: |
           /opt/mssql-tools18/bin/sqlcmd \
