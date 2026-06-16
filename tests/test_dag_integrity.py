@@ -304,7 +304,7 @@ class TestSparkIngestionAzureDAG:
     """Verify the ``w3c_spark_ingestion_azure`` DAG (bronze/silver JDBC → export)."""
 
     def test_azure_dag_imports(self):
-        """Verify spark_ingestion_azure DAG imports and parses with 2 tasks."""
+        """Verify spark_ingestion_azure DAG imports and parses with 3 tasks."""
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
@@ -312,8 +312,8 @@ class TestSparkIngestionAzureDAG:
         assert dag is not None, (
             "w3c_spark_ingestion_azure DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
         )
-        assert len(dag.tasks) == 2, (
-            f"Expected 2 tasks (bronze_silver_jdbc_pipeline, export_dimensions), "
+        assert len(dag.tasks) == 3, (
+            f"Expected 3 tasks (bronze_silver_jdbc_pipeline, export_dimensions, create_indexes), "
             f"got {len(dag.tasks)}: {[t.task_id for t in dag.tasks]}"
         )
 
@@ -329,6 +329,7 @@ class TestSparkIngestionAzureDAG:
         expected = {
             "bronze_silver_jdbc_pipeline",
             "export_dimensions",
+            "create_indexes",
         }
         missing = expected - task_ids
         extra = task_ids - expected
@@ -336,7 +337,7 @@ class TestSparkIngestionAzureDAG:
         assert not extra, f"Unexpected task(s): {extra}"
 
     def test_azure_dag_linear_dependency(self):
-        """Verify tasks form: bronze_silver_jdbc_pipeline >> export_dimensions."""
+        """Verify tasks form: bronze_silver_jdbc_pipeline >> export_dimensions >> create_indexes."""
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
@@ -348,7 +349,8 @@ class TestSparkIngestionAzureDAG:
             downstream_map[task.task_id] = {t.task_id for t in task.downstream_list}
 
         assert downstream_map["bronze_silver_jdbc_pipeline"] == {"export_dimensions"}
-        assert downstream_map["export_dimensions"] == set()
+        assert downstream_map["export_dimensions"] == {"create_indexes"}
+        assert downstream_map["create_indexes"] == set()
 
     def test_azure_dag_has_dataset_outlet(self):
         """Verify the spark_ingestion_azure DAG emits Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")."""
@@ -358,15 +360,15 @@ class TestSparkIngestionAzureDAG:
         dag = dag_bag.dags.get("w3c_spark_ingestion_azure")
         assert dag is not None
 
-        export_dim_task = None
+        create_idx_task = None
         for task in dag.tasks:
-            if task.task_id == "export_dimensions":
-                export_dim_task = task
+            if task.task_id == "create_indexes":
+                create_idx_task = task
                 break
 
-        assert export_dim_task is not None, "export_dimensions task not found"
-        outlets = getattr(export_dim_task, "outlets", [])
-        assert len(outlets) > 0, "export_dimensions task has no outlets"
+        assert create_idx_task is not None, "create_indexes task not found"
+        outlets = getattr(create_idx_task, "outlets", [])
+        assert len(outlets) > 0, "create_indexes task has no outlets"
 
         from airflow.datasets import Dataset
 
