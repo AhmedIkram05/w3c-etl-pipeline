@@ -1358,24 +1358,6 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 12741,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,0,585.0,585.0,585,0,0.0,1
 12742,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,0,1126.0,1126.0,1126,0,0.0,1
 12743,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,0,2283.0,2283.0,2283,0,0.0,1
-1846,/Darwin/ImageCache/cache_04o8FIK_2439.jpeg,Image,1,1,0,0.0,0,827.0,827.0,827,0,0.0,1
-1862,/Darwin/ImageCache/cache_0Ijy2pc_2446.jpeg,Image,1,1,0,0.0,0,1054.0,1054.0,1054,0,0.0,1
-1873,/Darwin/ImageCache/cache_0PdzJBw_1491.jpeg,Image,1,1,0,0.0,0,561.0,561.0,561,0,0.0,1
-1875,/Darwin/ImageCache/cache_0rfm65D_4330.jpeg,Image,1,1,0,0.0,0,168.0,168.0,168,0,0.0,1
-1879,/Darwin/ImageCache/cache_0rNDRbx_2836.jpeg,Image,1,1,0,0.0,0,1248.0,1248.0,1248,0,0.0,1
-1890,/Darwin/ImageCache/cache_0wTT626_2585.jpeg,Image,1,1,0,0.0,0,977.0,977.0,977,0,0.0,1
-1896,/Darwin/ImageCache/cache_16W9G6G_2764.jpeg,Image,1,1,0,0.0,0,577.0,577.0,577,0,0.0,1
-1898,/Darwin/ImageCache/cache_18Rm2OV_1456.jpeg,Image,1,1,0,0.0,0,480.0,480.0,480,0,0.0,1
-1902,/Darwin/ImageCache/cache_1ckerxE_3411.jpeg,Image,1,1,0,0.0,0,169.0,169.0,169,0,0.0,1
-1906,/Darwin/ImageCache/cache_1hKbuo8_2983.jpeg,Image,1,1,0,0.0,0,270.0,270.0,270,0,0.0,1
-1909,/Darwin/ImageCache/cache_1KrV1Vd_1441.jpeg,Image,1,1,0,0.0,0,207.0,207.0,207,0,0.0,1
-1915,/Darwin/ImageCache/cache_1PE0PXf_2457.jpeg,Image,1,1,0,0.0,0,445.0,445.0,445,0,0.0,1
-1918,/Darwin/ImageCache/cache_1rPcip4_1965.jpeg,Image,1,1,0,0.0,0,378.0,378.0,378,0,0.0,1
-1921,/Darwin/ImageCache/cache_1TJMfb4_2007.jpeg,Image,1,1,0,0.0,0,163.0,163.0,163,0,0.0,1
-1923,/Darwin/ImageCache/cache_1uKl3IN_2109.jpeg,Image,1,1,0,0.0,0,1239.0,1239.0,1239,0,0.0,1
-1926,/Darwin/ImageCache/cache_1VQSBWN_3463.jpeg,Image,1,1,0,0.0,0,479.0,479.0,479,0,0.0,1
-1927,/Darwin/ImageCache/cache_1w0Tbvk_3474.jpeg,Image,1,1,0,0.0,0,310.0,310.0,310,0,0.0,1
-1932,/Darwin/ImageCache/cache_1ZXvV8I_3547.jpeg,Image,1,1,0,0.0,0,344.0,344.0,344,0,0.0,1
 1952,/Darwin/ImageCache/cache_2iLlxff_4681.jpeg,Image,1,1,0,0.0,0,164.0,164.0,164,0,0.0,1
 1954,/Darwin/ImageCache/cache_2jA8iVm_1876.jpeg,Image,1,1,0,0.0,0,262.0,262.0,262,0,0.0,1
 1982,/Darwin/ImageCache/cache_2zdvQ6B_1871.jpeg,Image,1,1,0,0.0,0,118.0,118.0,118,0,0.0,1
@@ -1747,77 +1729,26 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 4760,/Darwin/ImageCache/cache_zV8SyrM_3192.jpeg,Image,1,1,0,0.0,0,174.0,174.0,174,0,0.0,1
 4766,/Darwin/ImageCache/cache_zwIkeV0_3061.jpeg,Image,1,1,0,0.0,0,328.0,328.0,328,0,0.0,1
 4771,/Darwin/ImageCache/cache_ZX2Mfwn_4120.jpeg,Image,1,1,0,0.0,0,424.0,424.0,424,0,0.0,1
-2,/,Directory,1,1,0,0.0,0,93.0,93.0,93,0,0.0,1
+1846,/Darwin/ImageCache/cache_04o8FIK_2439.jpeg,Image,1,1,0,0.0,0,827.0,827.0,827,0,0.0,1
+1862,/Darwin/ImageCache/cache_0Ijy2pc_2446.jpeg,Image,1,1,0,0.0,0,1054.0,1054.0,1054,0,0.0,1
+1873,/Darwin/ImageCache/cache_0PdzJBw_1491.jpeg,Image,1,1,0,0.0,0,561.0,561.0,561,0,0.0,1
+1875,/Darwin/ImageCache/cache_0rfm65D_4330.jpeg,Image,1,1,0,0.0,0,168.0,168.0,168,0,0.0,1
+1879,/Darwin/ImageCache/cache_0rNDRbx_2836.jpeg,Image,1,1,0,0.0,0,1248.0,1248.0,1248,0,0.0,1
+1890,/Darwin/ImageCache/cache_0wTT626_2585.jpeg,Image,1,1,0,0.0,0,977.0,977.0,977,0,0.0,1
+1896,/Darwin/ImageCache/cache_16W9G6G_2764.jpeg,Image,1,1,0,0.0,0,577.0,577.0,577,0,0.0,1
+1898,/Darwin/ImageCache/cache_18Rm2OV_1456.jpeg,Image,1,1,0,0.0,0,480.0,480.0,480,0,0.0,1
+1902,/Darwin/ImageCache/cache_1ckerxE_3411.jpeg,Image,1,1,0,0.0,0,169.0,169.0,169,0,0.0,1
+1906,/Darwin/ImageCache/cache_1hKbuo8_2983.jpeg,Image,1,1,0,0.0,0,270.0,270.0,270,0,0.0,1
+1909,/Darwin/ImageCache/cache_1KrV1Vd_1441.jpeg,Image,1,1,0,0.0,0,207.0,207.0,207,0,0.0,1
+1915,/Darwin/ImageCache/cache_1PE0PXf_2457.jpeg,Image,1,1,0,0.0,0,445.0,445.0,445,0,0.0,1
+1918,/Darwin/ImageCache/cache_1rPcip4_1965.jpeg,Image,1,1,0,0.0,0,378.0,378.0,378,0,0.0,1
+1921,/Darwin/ImageCache/cache_1TJMfb4_2007.jpeg,Image,1,1,0,0.0,0,163.0,163.0,163,0,0.0,1
+1923,/Darwin/ImageCache/cache_1uKl3IN_2109.jpeg,Image,1,1,0,0.0,0,1239.0,1239.0,1239,0,0.0,1
+1926,/Darwin/ImageCache/cache_1VQSBWN_3463.jpeg,Image,1,1,0,0.0,0,479.0,479.0,479,0,0.0,1
+1927,/Darwin/ImageCache/cache_1w0Tbvk_3474.jpeg,Image,1,1,0,0.0,0,310.0,310.0,310,0,0.0,1
+1932,/Darwin/ImageCache/cache_1ZXvV8I_3547.jpeg,Image,1,1,0,0.0,0,344.0,344.0,344,0,0.0,1
 12759,/index.html,Static Page,1,1,0,0.0,0,240.0,240.0,240,0,0.0,1
-22,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,168.0,168.0,168,0,0.0,1
-24,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,41.0,41.0,41,0,0.0,1
-26,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,40.0,40.0,40,0,0.0,1
-28,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,41.0,41.0,41,0,0.0,1
-29,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,69.0,69.0,69,0,0.0,1
-31,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,83.0,83.0,83,0,0.0,1
-33,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,43.0,43.0,43,0,0.0,1
-35,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,80.0,80.0,80,0,0.0,1
-39,/CMSShared/Document.aspx,Dynamic Page,1,1,0,0.0,0,1282.0,1282.0,1282,0,0.0,1
-41,/cmsshared/document.aspx,Dynamic Page,1,1,0,0.0,0,689.0,689.0,689,0,0.0,1
-55,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,25.0,25.0,25,0,0.0,1
-56,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,24.0,24.0,24,0,0.0,1
-62,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,620.0,620.0,620,0,0.0,1
-63,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,702.0,702.0,702,0,0.0,1
-64,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,334.0,334.0,334,0,0.0,1
-65,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,609.0,609.0,609,0,0.0,1
-66,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,728.0,728.0,728,0,0.0,1
-67,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,498.0,498.0,498,0,0.0,1
-70,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,87.0,87.0,87,0,0.0,1
-71,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,57.0,57.0,57,0,0.0,1
-72,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,75.0,75.0,75,0,0.0,1
-73,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,59.0,59.0,59,0,0.0,1
-74,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,63.0,63.0,63,0,0.0,1
-75,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,75.0,75.0,75,0,0.0,1
-77,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,105.0,105.0,105,0,0.0,1
-79,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,222.0,222.0,222,0,0.0,1
-80,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,86.0,86.0,86,0,0.0,1
-81,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,103.0,103.0,103,0,0.0,1
-82,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,106.0,106.0,106,0,0.0,1
-83,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,117.0,117.0,117,0,0.0,1
-84,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,85.0,85.0,85,0,0.0,1
-85,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,71.0,71.0,71,0,0.0,1
-86,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,131.0,131.0,131,0,0.0,1
-87,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,88.0,88.0,88,0,0.0,1
-88,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,129.0,129.0,129,0,0.0,1
-89,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,136.0,136.0,136,0,0.0,1
-90,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,247.0,247.0,247,0,0.0,1
-91,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,72.0,72.0,72,0,0.0,1
-92,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,122.0,122.0,122,0,0.0,1
-93,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,118.0,118.0,118,0,0.0,1
-94,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,112.0,112.0,112,0,0.0,1
-95,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,129.0,129.0,129,0,0.0,1
-96,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,86.0,86.0,86,0,0.0,1
-97,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,118.0,118.0,118,0,0.0,1
-98,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,135.0,135.0,135,0,0.0,1
-99,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,113.0,113.0,113,0,0.0,1
-100,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,429.0,429.0,429,0,0.0,1
-103,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,129.0,129.0,129,0,0.0,1
-104,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,72.0,72.0,72,0,0.0,1
-105,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,123.0,123.0,123,0,0.0,1
-106,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,134.0,134.0,134,0,0.0,1
-107,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,72.0,72.0,72,0,0.0,1
-109,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,206.0,206.0,206,0,0.0,1
-110,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,520.0,520.0,520,0,0.0,1
-111,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,332.0,332.0,332,0,0.0,1
-112,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,248.0,248.0,248,0,0.0,1
-113,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,270.0,270.0,270,0,0.0,1
-114,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,183.0,183.0,183,0,0.0,1
-115,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,314.0,314.0,314,0,0.0,1
-117,/CMSShared/Weblink.aspx,Dynamic Page,1,1,0,0.0,0,104.0,104.0,104,0,0.0,1
-120,/CMSShared/Weblink.aspx,Dynamic Page,1,1,0,0.0,0,108.0,108.0,108,0,0.0,1
-121,/CMSShared/Weblink.aspx,Dynamic Page,1,1,0,0.0,0,111.0,111.0,111,0,0.0,1
-147,/Darwin/About.aspx,Dynamic Page,1,1,0,0.0,0,102.0,102.0,102,0,0.0,1
-176,/Darwin/Herbarium.aspx,Dynamic Page,1,1,0,0.0,0,117.0,117.0,117,0,0.0,1
-182,/Darwin/Herbarium.aspx,Dynamic Page,1,1,0,0.0,0,245.0,245.0,245,0,0.0,1
-188,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,0,119.0,119.0,119,0,0.0,1
-189,/darwin/home.aspx,Dynamic Page,1,1,0,0.0,0,2051.0,2051.0,2051,0,0.0,1
-196,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,0,619.0,619.0,619,0,0.0,1
-208,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,0,336.0,336.0,336,0,0.0,1
+2,/,Directory,1,1,0,0.0,0,93.0,93.0,93,0,0.0,1
 4785,/darwin/myaccount.aspx,Dynamic Page,1,1,0,0.0,0,715.0,715.0,715,0,0.0,1
 4786,/darwin/myaccount.aspx,Dynamic Page,1,1,0,0.0,0,708.0,708.0,708,0,0.0,1
 4788,/darwin/myaccount.aspx,Dynamic Page,1,1,0,0.0,0,710.0,710.0,710,0,0.0,1
@@ -1890,6 +1821,75 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 10785,/Darwin/TopSpecies.aspx,Dynamic Page,1,1,0,0.0,0,198.0,198.0,198,0,0.0,1
 10786,/Darwin/TopSpecies.aspx,Dynamic Page,1,1,0,0.0,0,183.0,183.0,183,0,0.0,1
 10787,/Darwin/TopSpecies.aspx,Dynamic Page,1,1,0,0.0,0,158.0,158.0,158,0,0.0,1
+22,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,168.0,168.0,168,0,0.0,1
+24,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,41.0,41.0,41,0,0.0,1
+26,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,40.0,40.0,40,0,0.0,1
+28,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,41.0,41.0,41,0,0.0,1
+29,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,69.0,69.0,69,0,0.0,1
+31,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,83.0,83.0,83,0,0.0,1
+33,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,43.0,43.0,43,0,0.0,1
+35,/CMSShared/Chooser.aspx,Dynamic Page,1,1,0,0.0,0,80.0,80.0,80,0,0.0,1
+39,/CMSShared/Document.aspx,Dynamic Page,1,1,0,0.0,0,1282.0,1282.0,1282,0,0.0,1
+41,/cmsshared/document.aspx,Dynamic Page,1,1,0,0.0,0,689.0,689.0,689,0,0.0,1
+55,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,25.0,25.0,25,0,0.0,1
+56,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,24.0,24.0,24,0,0.0,1
+62,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,620.0,620.0,620,0,0.0,1
+63,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,702.0,702.0,702,0,0.0,1
+64,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,334.0,334.0,334,0,0.0,1
+65,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,609.0,609.0,609,0,0.0,1
+66,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,728.0,728.0,728,0,0.0,1
+67,/CMSShared/Download.aspx,Dynamic Page,1,1,0,0.0,0,498.0,498.0,498,0,0.0,1
+70,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,87.0,87.0,87,0,0.0,1
+71,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,57.0,57.0,57,0,0.0,1
+72,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,75.0,75.0,75,0,0.0,1
+73,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,59.0,59.0,59,0,0.0,1
+74,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,63.0,63.0,63,0,0.0,1
+75,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,75.0,75.0,75,0,0.0,1
+77,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,105.0,105.0,105,0,0.0,1
+79,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,222.0,222.0,222,0,0.0,1
+80,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,86.0,86.0,86,0,0.0,1
+81,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,103.0,103.0,103,0,0.0,1
+82,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,106.0,106.0,106,0,0.0,1
+83,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,117.0,117.0,117,0,0.0,1
+84,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,85.0,85.0,85,0,0.0,1
+85,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,71.0,71.0,71,0,0.0,1
+86,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,131.0,131.0,131,0,0.0,1
+87,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,88.0,88.0,88,0,0.0,1
+88,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,129.0,129.0,129,0,0.0,1
+89,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,136.0,136.0,136,0,0.0,1
+90,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,247.0,247.0,247,0,0.0,1
+91,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,72.0,72.0,72,0,0.0,1
+92,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,122.0,122.0,122,0,0.0,1
+93,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,118.0,118.0,118,0,0.0,1
+94,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,112.0,112.0,112,0,0.0,1
+95,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,129.0,129.0,129,0,0.0,1
+96,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,86.0,86.0,86,0,0.0,1
+97,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,118.0,118.0,118,0,0.0,1
+98,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,135.0,135.0,135,0,0.0,1
+99,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,113.0,113.0,113,0,0.0,1
+100,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,429.0,429.0,429,0,0.0,1
+103,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,129.0,129.0,129,0,0.0,1
+104,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,72.0,72.0,72,0,0.0,1
+105,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,123.0,123.0,123,0,0.0,1
+106,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,134.0,134.0,134,0,0.0,1
+107,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,72.0,72.0,72,0,0.0,1
+109,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,206.0,206.0,206,0,0.0,1
+110,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,520.0,520.0,520,0,0.0,1
+111,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,332.0,332.0,332,0,0.0,1
+112,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,248.0,248.0,248,0,0.0,1
+113,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,270.0,270.0,270,0,0.0,1
+114,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,183.0,183.0,183,0,0.0,1
+115,/CMSShared/Image.aspx,Dynamic Page,1,1,0,0.0,0,314.0,314.0,314,0,0.0,1
+117,/CMSShared/Weblink.aspx,Dynamic Page,1,1,0,0.0,0,104.0,104.0,104,0,0.0,1
+120,/CMSShared/Weblink.aspx,Dynamic Page,1,1,0,0.0,0,108.0,108.0,108,0,0.0,1
+121,/CMSShared/Weblink.aspx,Dynamic Page,1,1,0,0.0,0,111.0,111.0,111,0,0.0,1
+147,/Darwin/About.aspx,Dynamic Page,1,1,0,0.0,0,102.0,102.0,102,0,0.0,1
+176,/Darwin/Herbarium.aspx,Dynamic Page,1,1,0,0.0,0,117.0,117.0,117,0,0.0,1
+182,/Darwin/Herbarium.aspx,Dynamic Page,1,1,0,0.0,0,245.0,245.0,245,0,0.0,1
+188,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,0,119.0,119.0,119,0,0.0,1
+189,/darwin/home.aspx,Dynamic Page,1,1,0,0.0,0,2051.0,2051.0,2051,0,0.0,1
+196,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,0,619.0,619.0,619,0,0.0,1
+208,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,0,336.0,336.0,336,0,0.0,1
 10028,/Darwin/PlantIndex.aspx,Dynamic Page,1,1,0,0.0,0,326.0,326.0,326,0,0.0,1
 10029,/Darwin/PlantIndex.aspx,Dynamic Page,1,1,0,0.0,0,2476.0,2476.0,2476,0,0.0,1
 10031,/Darwin/PlantIndex.aspx,Dynamic Page,1,1,0,0.0,0,198.0,198.0,198,0,0.0,1
@@ -3562,36 +3562,6 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 1836,/Darwin/Image.aspx,Dynamic Page,1,1,0,0.0,0,376.0,376.0,376,0,0.0,1
 1838,/Darwin/Image.aspx,Dynamic Page,1,1,0,0.0,0,446.0,446.0,446,0,0.0,1
 1843,/Darwin/Image.aspx,Dynamic Page,1,1,0,0.0,0,218.0,218.0,218,0,0.0,1
-5,/_vti_bin/owssvr.dll,Other,1,1,1,100.0,0,59.0,59.0,59,0,0.0,1
-6,/abc.php,Other,1,1,1,100.0,0,92.0,92.0,92,0,0.0,1
-10,/admin/main.php,Other,1,1,1,100.0,0,208.0,208.0,208,0,0.0,1
-15,/bin/README,Other,1,1,1,100.0,0,141.0,141.0,141,0,0.0,1
-125,/config/config.inc.php,Other,1,1,1,100.0,0,144.0,144.0,144,0,0.0,1
-139,/Darwin/(null),Other,1,1,1,100.0,0,217.0,217.0,217,0,0.0,1
-140,"/Darwin/,-12.11467,96.89951],[",Other,1,1,1,100.0,0,181.0,181.0,181,0,0.0,1
-141,"/Darwin/,-50.0167,-68.5167],[",Other,1,1,1,100.0,0,181.0,181.0,181,0,0.0,1
-142,"/Darwin/,-51.52855,-58.12831],[",Other,1,1,1,100.0,0,299.0,299.0,299,0,0.0,1
-144,/darwin/«+back,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
-145,/darwin/a+walk+in+henslow's+garden,Other,1,1,1,100.0,0,319.0,319.0,319,0,0.0,1
-150,/darwin/about+darwin,Other,1,1,1,100.0,0,329.0,329.0,329,0,0.0,1
-151,/darwin/about+henslow,Other,1,1,1,100.0,0,404.0,404.0,404,0,0.0,1
-152,/darwin/about+the+herbarium,Other,1,1,1,100.0,0,335.0,335.0,335,0,0.0,1
-153,/darwin/about+the+voyage,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
-154,/darwin/about+this+project,Other,1,1,1,100.0,0,322.0,322.0,322,0,0.0,1
-155,/darwin/abrolhos,Other,1,1,1,100.0,0,332.0,332.0,332,0,0.0,1
-156,/darwin/archipiélago+de+colón,Other,1,1,1,100.0,0,338.0,338.0,338,0,0.0,1
-157,/darwin/archipiélago+de+los+chonos,Other,1,1,1,100.0,0,358.0,358.0,358,0,0.0,1
-158,/darwin/bahia+blanca,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
-159,/darwin/biodiversity+library,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
-161,/darwin/cabo+tres+montes,Other,1,1,1,100.0,0,319.0,319.0,319,0,0.0,1
-162,/darwin/cambridge+university+dept.+of+plant+sciences,Other,1,1,1,100.0,0,319.0,319.0,319,0,0.0,1
-165,/darwin/chiloé,Other,1,1,1,100.0,0,363.0,363.0,363,0,0.0,1
-168,/darwin/darwin+correspondence+online,Other,1,1,1,100.0,0,349.0,349.0,349,0,0.0,1
-169,/darwin/darwin+manuscripts+project,Other,1,1,1,100.0,0,444.0,444.0,444,0,0.0,1
-170,/darwin/darwin's+plants,Other,1,1,1,100.0,0,390.0,390.0,390,0,0.0,1
-171,/darwin/department+of+plant+sciences,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
-172,/darwin/falkland+islands,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
-184,/darwin/home,Other,1,1,1,100.0,0,334.0,334.0,334,0,0.0,1
 4781,/darwin/microsoft+research,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
 5797,/darwin/new+search,Other,1,1,1,100.0,0,358.0,358.0,358,0,0.0,1
 6024,/Darwin/Place.aspx?p=25&ix=16&pid=0&prcid=0&ppid=0,Other,1,1,1,100.0,0,94.0,94.0,94,0,0.0,1
@@ -3645,6 +3615,36 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13723,/welcome.html,Static Page,1,1,1,100.0,0,235.0,235.0,235,0,0.0,1
 13725,/wordtrans/index.html,Static Page,1,1,1,100.0,0,135.0,135.0,135,0,0.0,1
 13726,/wordtrans/index.php,Other,1,1,1,100.0,0,135.0,135.0,135,0,0.0,1
+5,/_vti_bin/owssvr.dll,Other,1,1,1,100.0,0,59.0,59.0,59,0,0.0,1
+6,/abc.php,Other,1,1,1,100.0,0,92.0,92.0,92,0,0.0,1
+10,/admin/main.php,Other,1,1,1,100.0,0,208.0,208.0,208,0,0.0,1
+15,/bin/README,Other,1,1,1,100.0,0,141.0,141.0,141,0,0.0,1
+125,/config/config.inc.php,Other,1,1,1,100.0,0,144.0,144.0,144,0,0.0,1
+139,/Darwin/(null),Other,1,1,1,100.0,0,217.0,217.0,217,0,0.0,1
+140,"/Darwin/,-12.11467,96.89951],[",Other,1,1,1,100.0,0,181.0,181.0,181,0,0.0,1
+141,"/Darwin/,-50.0167,-68.5167],[",Other,1,1,1,100.0,0,181.0,181.0,181,0,0.0,1
+142,"/Darwin/,-51.52855,-58.12831],[",Other,1,1,1,100.0,0,299.0,299.0,299,0,0.0,1
+144,/darwin/«+back,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
+145,/darwin/a+walk+in+henslow's+garden,Other,1,1,1,100.0,0,319.0,319.0,319,0,0.0,1
+150,/darwin/about+darwin,Other,1,1,1,100.0,0,329.0,329.0,329,0,0.0,1
+151,/darwin/about+henslow,Other,1,1,1,100.0,0,404.0,404.0,404,0,0.0,1
+152,/darwin/about+the+herbarium,Other,1,1,1,100.0,0,335.0,335.0,335,0,0.0,1
+153,/darwin/about+the+voyage,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
+154,/darwin/about+this+project,Other,1,1,1,100.0,0,322.0,322.0,322,0,0.0,1
+155,/darwin/abrolhos,Other,1,1,1,100.0,0,332.0,332.0,332,0,0.0,1
+156,/darwin/archipiélago+de+colón,Other,1,1,1,100.0,0,338.0,338.0,338,0,0.0,1
+157,/darwin/archipiélago+de+los+chonos,Other,1,1,1,100.0,0,358.0,358.0,358,0,0.0,1
+158,/darwin/bahia+blanca,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
+159,/darwin/biodiversity+library,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
+161,/darwin/cabo+tres+montes,Other,1,1,1,100.0,0,319.0,319.0,319,0,0.0,1
+162,/darwin/cambridge+university+dept.+of+plant+sciences,Other,1,1,1,100.0,0,319.0,319.0,319,0,0.0,1
+165,/darwin/chiloé,Other,1,1,1,100.0,0,363.0,363.0,363,0,0.0,1
+168,/darwin/darwin+correspondence+online,Other,1,1,1,100.0,0,349.0,349.0,349,0,0.0,1
+169,/darwin/darwin+manuscripts+project,Other,1,1,1,100.0,0,444.0,444.0,444,0,0.0,1
+170,/darwin/darwin's+plants,Other,1,1,1,100.0,0,390.0,390.0,390,0,0.0,1
+171,/darwin/department+of+plant+sciences,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
+172,/darwin/falkland+islands,Other,1,1,1,100.0,0,318.0,318.0,318,0,0.0,1
+184,/darwin/home,Other,1,1,1,100.0,0,334.0,334.0,334,0,0.0,1
 10802,/dbadmin/main.php,Other,2,1,2,100.0,0,211.0,211.0,211,0,0.0,2
 12791,/mysql/main.php,Other,2,1,2,100.0,0,212.0,213.85,214,0,0.0,2
 12826,/php-my-admin/main.php,Other,2,1,2,100.0,0,210.0,210.9,211,0,0.0,2
@@ -3944,6 +3944,14 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 9895,/Darwin/Plant.aspx,Dynamic Page,2,1,0,0.0,0,485.0,586.75,598,0,0.0,2
 9909,/Darwin/Plant.aspx,Dynamic Page,2,1,0,0.0,0,394.0,565.0,584,0,0.0,2
 9958,/Darwin/Plant.aspx,Dynamic Page,2,1,0,0.0,0,589.0,600.7,602,0,0.0,2
+2405,/Darwin/ImageCache/cache_B4HGGPp_1095.jpeg,Image,2,1,0,0.0,0,169.0,249.15,258,0,0.0,1
+2481,/Darwin/ImageCache/cache_buto3bj_2051.jpeg,Image,2,1,0,0.0,0,164.0,164.0,164,0,0.0,1
+2741,/Darwin/ImageCache/cache_EizrRoS_3914.jpeg,Image,2,1,0,0.0,0,924.0,924.0,924,0,0.0,1
+2985,/Darwin/ImageCache/cache_Gv3X4br_4884.jpeg,Image,2,1,0,0.0,0,99.0,116.1,118,0,0.0,1
+3400,/Darwin/ImageCache/cache_lcTWzIV_4646.jpeg,Image,2,1,0,0.0,0,497.0,497.0,497,0,0.0,1
+3543,/Darwin/ImageCache/cache_mqEMyV4_4647.jpeg,Image,2,1,0,0.0,0,338.0,338.0,338,0,0.0,1
+3771,/Darwin/ImageCache/cache_PcAcDQR_1138.jpeg,Image,2,1,0,0.0,0,136.0,202.65,210,0,0.0,1
+4684,/Darwin/ImageCache/cache_yyseCYl_4649.jpeg,Image,2,1,0,0.0,0,163.0,163.0,163,0,0.0,1
 128,/Darwin/,Other,2,1,0,0.0,0,203.0,212.05,213,0,0.0,1
 129,/Darwin/,Other,2,1,0,0.0,0,243.0,281.75,286,0,0.0,1
 130,/Darwin/,Other,2,1,0,0.0,0,232.0,265.3,269,0,0.0,1
@@ -3954,33 +3962,6 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 135,/Darwin/,Other,2,1,0,0.0,0,203.0,210.25,211,0,0.0,1
 136,/Darwin/,Other,2,1,0,0.0,0,382.0,547.6,566,0,0.0,1
 137,/Darwin/,Other,2,1,0,0.0,0,197.0,201.55,202,0,0.0,1
-2405,/Darwin/ImageCache/cache_B4HGGPp_1095.jpeg,Image,2,1,0,0.0,0,169.0,249.15,258,0,0.0,1
-2481,/Darwin/ImageCache/cache_buto3bj_2051.jpeg,Image,2,1,0,0.0,0,164.0,164.0,164,0,0.0,1
-2741,/Darwin/ImageCache/cache_EizrRoS_3914.jpeg,Image,2,1,0,0.0,0,924.0,924.0,924,0,0.0,1
-2985,/Darwin/ImageCache/cache_Gv3X4br_4884.jpeg,Image,2,1,0,0.0,0,99.0,116.1,118,0,0.0,1
-3400,/Darwin/ImageCache/cache_lcTWzIV_4646.jpeg,Image,2,1,0,0.0,0,497.0,497.0,497,0,0.0,1
-3543,/Darwin/ImageCache/cache_mqEMyV4_4647.jpeg,Image,2,1,0,0.0,0,338.0,338.0,338,0,0.0,1
-3771,/Darwin/ImageCache/cache_PcAcDQR_1138.jpeg,Image,2,1,0,0.0,0,136.0,202.65,210,0,0.0,1
-4684,/Darwin/ImageCache/cache_yyseCYl_4649.jpeg,Image,2,1,0,0.0,0,163.0,163.0,163,0,0.0,1
-76,/CMSShared/Image.aspx,Dynamic Page,2,1,0,0.0,0,76.0,76.9,77,0,0.0,1
-78,/CMSShared/Image.aspx,Dynamic Page,2,1,0,0.0,0,309.0,453.95,470,0,0.0,1
-101,/CMSShared/Image.aspx,Dynamic Page,2,1,0,0.0,0,81.0,82.85,83,0,0.0,1
-108,/CMSShared/Image.aspx,Dynamic Page,2,1,0,0.0,0,141.0,187.85,193,0,0.0,1
-118,/CMSShared/Weblink.aspx,Dynamic Page,2,1,0,0.0,0,92.0,100.1,101,0,0.0,1
-119,/CMSShared/Weblink.aspx,Dynamic Page,2,1,0,0.0,0,70.0,73.6,74,0,0.0,1
-123,/CMSShared/Weblink.aspx,Dynamic Page,2,1,0,0.0,0,155.0,164.05,165,0,0.0,1
-124,/CMSShared/Weblink.aspx,Dynamic Page,2,1,0,0.0,0,84.0,102.95,105,0,0.0,1
-148,/Darwin/About.aspx,Dynamic Page,2,1,0,0.0,0,414.0,631.8,656,0,0.0,1
-190,/Darwin/Home.aspx,Dynamic Page,2,1,0,0.0,0,266.0,304.7,309,0,0.0,1
-240,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,213.0,216.6,217,0,0.0,1
-317,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,183.0,199.25,201,0,0.0,1
-635,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,373.0,382.9,384,0,0.0,1
-670,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,368.0,381.55,383,0,0.0,1
-793,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,347.0,590.95,618,0,0.0,1
-841,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,376.0,381.45,382,0,0.0,1
-868,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,211.0,218.2,219,0,0.0,1
-1100,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,219.0,219.9,220,0,0.0,1
-1711,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,377.0,382.45,383,0,0.0,1
 4787,/darwin/myaccount.aspx,Dynamic Page,2,1,0,0.0,0,731.0,748.1,750,0,0.0,1
 5812,/darwin/page.aspx,Dynamic Page,2,1,0,0.0,0,726.0,727.8,728,0,0.0,1
 5813,/darwin/page.aspx,Dynamic Page,2,1,0,0.0,0,787.0,808.65,811,0,0.0,1
@@ -4060,7 +4041,25 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13002,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,1,0,0.0,0,191.0,194.6,195,0,0.0,1
 13248,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,1,0,0.0,0,146.0,159.55,161,0,0.0,1
 13467,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,1,0,0.0,0,83.0,98.3,100,0,0.0,1
-3,/'/Darwin/Place.aspx,Dynamic Page,2,1,2,100.0,0,180.0,232.2,238,0,0.0,1
+76,/CMSShared/Image.aspx,Dynamic Page,2,1,0,0.0,0,76.0,76.9,77,0,0.0,1
+78,/CMSShared/Image.aspx,Dynamic Page,2,1,0,0.0,0,309.0,453.95,470,0,0.0,1
+101,/CMSShared/Image.aspx,Dynamic Page,2,1,0,0.0,0,81.0,82.85,83,0,0.0,1
+108,/CMSShared/Image.aspx,Dynamic Page,2,1,0,0.0,0,141.0,187.85,193,0,0.0,1
+118,/CMSShared/Weblink.aspx,Dynamic Page,2,1,0,0.0,0,92.0,100.1,101,0,0.0,1
+119,/CMSShared/Weblink.aspx,Dynamic Page,2,1,0,0.0,0,70.0,73.6,74,0,0.0,1
+123,/CMSShared/Weblink.aspx,Dynamic Page,2,1,0,0.0,0,155.0,164.05,165,0,0.0,1
+124,/CMSShared/Weblink.aspx,Dynamic Page,2,1,0,0.0,0,84.0,102.95,105,0,0.0,1
+148,/Darwin/About.aspx,Dynamic Page,2,1,0,0.0,0,414.0,631.8,656,0,0.0,1
+190,/Darwin/Home.aspx,Dynamic Page,2,1,0,0.0,0,266.0,304.7,309,0,0.0,1
+240,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,213.0,216.6,217,0,0.0,1
+317,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,183.0,199.25,201,0,0.0,1
+635,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,373.0,382.9,384,0,0.0,1
+670,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,368.0,381.55,383,0,0.0,1
+793,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,347.0,590.95,618,0,0.0,1
+841,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,376.0,381.45,382,0,0.0,1
+868,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,211.0,218.2,219,0,0.0,1
+1100,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,219.0,219.9,220,0,0.0,1
+1711,/Darwin/Image.aspx,Dynamic Page,2,1,0,0.0,0,377.0,382.45,383,0,0.0,1
 12745,/HerbariumSheet.aspx,Dynamic Page,2,1,2,100.0,0,205.0,223.9,226,0,0.0,1
 12752,/iisstart.asp,Dynamic Page,2,1,2,100.0,0,220.0,220.0,220,0,0.0,1
 12803,/Page.aspx,Dynamic Page,2,1,2,100.0,0,275.0,277.75,278,0,0.0,1
@@ -4069,48 +4068,12 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 12950,/phpmyadmin2/config.inc.php,Other,2,1,2,100.0,0,142.0,142.0,142,0,0.0,1
 12960,/PlantIndex.aspx,Dynamic Page,2,1,2,100.0,0,98.0,101.6,102,0,0.0,1
 13702,/sp.txt,Text File,2,1,2,100.0,0,274.0,275.8,276,0,0.0,1
-19,/cgi-bin/textenv.pl,Other,5,1,5,100.0,0,365.0,367.0,367,0,0.0,2
-38,/CMSShared/Darwin/Home.aspx,Dynamic Page,4,1,4,100.0,0,74.0,106.45,109,0,0.0,4
+3,/'/Darwin/Place.aspx,Dynamic Page,2,1,2,100.0,0,180.0,232.2,238,0,0.0,1
 12825,/phpMyAdmin/main.php,Other,5,1,5,100.0,0,201.0,209.0,209,0,0.0,2
 12971,/prx2.php,Other,8,1,8,100.0,0,395.0,461.95,463,0,0.0,5
 12972,/prx2.php,Other,4,1,4,100.0,0,356.0,368.55,369,0,0.0,3
-21,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,130.0,258.9,281,0,0.0,1
-23,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,60.0,81.5,85,0,0.0,1
-25,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,122.0,249.0,271,0,0.0,1
-27,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,59.0,72.8,75,0,0.0,1
-30,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,65.0,80.7,83,0,0.0,1
-32,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,74.0,85.7,86,0,0.0,1
-34,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,58.0,73.5,76,0,0.0,1
-36,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,128.0,248.9,270,0,0.0,1
-37,/CMSShared/Chooser.aspx,Dynamic Page,4,1,0,0.0,0,614.0,1497.4,1642,0,0.0,1
-102,/CMSShared/Image.aspx,Dynamic Page,3,1,0,0.0,0,96.0,117.0,119,0,0.0,1
-122,/CMSShared/Weblink.aspx,Dynamic Page,4,1,0,0.0,0,85.0,104.95,106,0,0.0,1
-177,/Darwin/Herbarium.aspx,Dynamic Page,3,1,0,0.0,0,108.0,119.0,119,0,0.0,1
-178,/Darwin/Herbarium.aspx,Dynamic Page,4,1,0,0.0,0,108.0,118.55,119,0,0.0,1
-179,/Darwin/Herbarium.aspx,Dynamic Page,4,1,0,0.0,0,282.0,434.95,448,0,0.0,2
-181,/Darwin/Herbarium.aspx,Dynamic Page,8,1,0,0.0,0,186.0,417.7,550,0,0.0,1
-194,/Darwin/Home.aspx,Dynamic Page,8,1,0,0.0,0,268.0,555.8,658,0,0.0,1
-346,/Darwin/Image.aspx,Dynamic Page,5,1,0,0.0,0,241.0,331.0,356,0,0.0,5
-577,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,271.0,350.1,364,0,0.0,3
-603,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,233.0,248.1,250,0,0.0,3
-661,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,273.0,352.8,365,0,0.0,3
-808,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,331.0,378.4,380,0,0.0,3
-817,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,247.0,351.4,366,0,0.0,3
-884,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,325.0,387.9,388,0,0.0,3
-1017,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,274.0,351.1,363,0,0.0,3
-1151,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,275.0,368.2,382,0,0.0,3
-1265,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,334.0,389.6,392,0,0.0,3
-1286,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,245.0,349.2,364,0,0.0,3
-1409,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,227.0,243.9,246,0,0.0,3
-1501,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,273.0,351.0,363,0,0.0,3
-1506,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,330.0,375.8,377,0,0.0,3
-1580,/Darwin/Image.aspx,Dynamic Page,4,1,0,0.0,0,609.0,673.85,683,0,0.0,2
-1609,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,323.0,373.0,373,0,0.0,2
-1678,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,276.0,352.0,364,0,0.0,3
-1803,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,324.0,381.9,384,0,0.0,3
-1842,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,328.0,380.4,383,0,0.0,3
-1849,/Darwin/ImageCache/cache_0Bo5pMI_4475.jpeg,Image,4,1,0,0.0,0,116.0,120.0,120,0,0.0,1
-1900,/Darwin/ImageCache/cache_1aSh5e4_3370.jpeg,Image,4,1,0,0.0,0,146.0,164.0,164,0,0.0,1
+19,/cgi-bin/textenv.pl,Other,5,1,5,100.0,0,365.0,367.0,367,0,0.0,2
+38,/CMSShared/Darwin/Home.aspx,Dynamic Page,4,1,4,100.0,0,74.0,106.45,109,0,0.0,4
 1961,/Darwin/ImageCache/cache_2kuRUep_4377.jpeg,Image,4,1,0,0.0,0,202.0,291.0,291,0,0.0,1
 1964,/Darwin/ImageCache/cache_2oasVLG_4109.jpeg,Image,4,1,0,0.0,0,197.0,280.0,280,0,0.0,1
 1975,/Darwin/ImageCache/cache_2TQcYRr_3762.jpeg,Image,5,1,0,0.0,0,158.0,248.8,270,0,0.0,5
@@ -4154,6 +4117,43 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13121,/resourcerenderers/ImageIframe.aspx,Dynamic Page,4,1,0,0.0,0,351.0,531.75,540,0,0.0,4
 13582,/resourcerenderers/ImageIframe.aspx,Dynamic Page,4,1,0,0.0,0,88.0,120.45,123,0,0.0,2
 13662,/resourcerenderers/ImageIframe.aspx,Dynamic Page,5,1,0,0.0,0,588.0,978.4,1038,0,0.0,1
+21,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,130.0,258.9,281,0,0.0,1
+23,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,60.0,81.5,85,0,0.0,1
+25,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,122.0,249.0,271,0,0.0,1
+27,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,59.0,72.8,75,0,0.0,1
+30,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,65.0,80.7,83,0,0.0,1
+32,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,74.0,85.7,86,0,0.0,1
+34,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,58.0,73.5,76,0,0.0,1
+36,/CMSShared/Chooser.aspx,Dynamic Page,3,1,0,0.0,0,128.0,248.9,270,0,0.0,1
+37,/CMSShared/Chooser.aspx,Dynamic Page,4,1,0,0.0,0,614.0,1497.4,1642,0,0.0,1
+102,/CMSShared/Image.aspx,Dynamic Page,3,1,0,0.0,0,96.0,117.0,119,0,0.0,1
+122,/CMSShared/Weblink.aspx,Dynamic Page,4,1,0,0.0,0,85.0,104.95,106,0,0.0,1
+177,/Darwin/Herbarium.aspx,Dynamic Page,3,1,0,0.0,0,108.0,119.0,119,0,0.0,1
+178,/Darwin/Herbarium.aspx,Dynamic Page,4,1,0,0.0,0,108.0,118.55,119,0,0.0,1
+179,/Darwin/Herbarium.aspx,Dynamic Page,4,1,0,0.0,0,282.0,434.95,448,0,0.0,2
+181,/Darwin/Herbarium.aspx,Dynamic Page,8,1,0,0.0,0,186.0,417.7,550,0,0.0,1
+194,/Darwin/Home.aspx,Dynamic Page,8,1,0,0.0,0,268.0,555.8,658,0,0.0,1
+346,/Darwin/Image.aspx,Dynamic Page,5,1,0,0.0,0,241.0,331.0,356,0,0.0,5
+577,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,271.0,350.1,364,0,0.0,3
+603,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,233.0,248.1,250,0,0.0,3
+661,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,273.0,352.8,365,0,0.0,3
+808,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,331.0,378.4,380,0,0.0,3
+817,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,247.0,351.4,366,0,0.0,3
+884,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,325.0,387.9,388,0,0.0,3
+1017,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,274.0,351.1,363,0,0.0,3
+1151,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,275.0,368.2,382,0,0.0,3
+1265,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,334.0,389.6,392,0,0.0,3
+1286,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,245.0,349.2,364,0,0.0,3
+1409,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,227.0,243.9,246,0,0.0,3
+1501,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,273.0,351.0,363,0,0.0,3
+1506,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,330.0,375.8,377,0,0.0,3
+1580,/Darwin/Image.aspx,Dynamic Page,4,1,0,0.0,0,609.0,673.85,683,0,0.0,2
+1609,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,323.0,373.0,373,0,0.0,2
+1678,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,276.0,352.0,364,0,0.0,3
+1803,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,324.0,381.9,384,0,0.0,3
+1842,/Darwin/Image.aspx,Dynamic Page,3,1,0,0.0,0,328.0,380.4,383,0,0.0,3
+1849,/Darwin/ImageCache/cache_0Bo5pMI_4475.jpeg,Image,4,1,0,0.0,0,116.0,120.0,120,0,0.0,1
+1900,/Darwin/ImageCache/cache_1aSh5e4_3370.jpeg,Image,4,1,0,0.0,0,146.0,164.0,164,0,0.0,1
 6072,/Darwin/Plant.aspx,Dynamic Page,3,1,0,0.0,0,534.0,606.0,606,0,0.0,2
 6136,/Darwin/Plant.aspx,Dynamic Page,3,1,0,0.0,0,572.0,748.7,767,0,0.0,3
 6140,/Darwin/Plant.aspx,Dynamic Page,4,1,0,0.0,0,485.0,608.85,615,0,0.0,4
@@ -4240,8 +4240,6 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 9762,/Darwin/Plant.aspx,Dynamic Page,3,1,0,0.0,0,418.0,655.4,692,0,0.0,1
 9851,/Darwin/Plant.aspx,Dynamic Page,3,1,0,0.0,0,305.0,524.3,561,0,0.0,3
 9956,/Darwin/Plant.aspx,Dynamic Page,3,1,0,0.0,0,454.0,555.3,571,0,0.0,3
-8,/admin/config/config.inc.php,Other,4,4,4,100.0,0,145.0,199.8,207,0,0.0,4
-173,/Darwin/favicon.ico,Icon,23,3,23,100.0,0,60.0,184.9,186,0,0.0,5
 10801,/dbadmin/config/config.inc.php,Other,4,4,4,100.0,0,149.0,207.45,216,0,0.0,4
 12785,/myadmin/config/config.inc.php,Other,4,4,4,100.0,0,145.0,197.05,205,0,0.0,4
 12790,/mysql/config/config.inc.php,Other,4,4,4,100.0,0,159.0,245.05,262,0,0.0,4
@@ -4249,10 +4247,8 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 12823,/phpmyadmin/config/config.inc.php,Other,12,4,12,100.0,0,155.0,223.8,226,0,0.0,4
 12824,/php-my-admin/config/config.inc.php,Other,4,4,4,100.0,0,143.0,195.55,202,0,0.0,4
 12964,/pma/config/config.inc.php,Other,4,4,4,100.0,0,145.0,207.65,218,0,0.0,4
-1850,/Darwin/ImageCache/cache_0BTSC24_8.jpeg,Image,12,4,0,0.0,0,168.0,364.05,479,0,0.0,2
-1888,/Darwin/ImageCache/cache_0umxdnj_1103.jpeg,Image,7,6,0,0.0,0,416.0,801.5,848,0,0.0,4
-1907,/Darwin/ImageCache/cache_1HSVWC9_38.jpeg,Image,19,4,0,0.0,0,126.0,218.1,354,0,0.0,2
-1930,/Darwin/ImageCache/cache_1ZchsDO_634.jpeg,Image,6,5,0,0.0,0,203.0,343.0,346,0,0.0,4
+8,/admin/config/config.inc.php,Other,4,4,4,100.0,0,145.0,199.8,207,0,0.0,4
+173,/Darwin/favicon.ico,Icon,23,3,23,100.0,0,60.0,184.9,186,0,0.0,5
 2160,/Darwin/ImageCache/cache_6WG23NB_1251.jpeg,Image,4,4,0,0.0,0,570.0,581.85,582,0,0.0,4
 2235,/Darwin/ImageCache/cache_8io3IR3_1886.jpeg,Image,7,4,0,0.0,0,266.0,526.0,616,0,0.0,4
 2279,/Darwin/ImageCache/cache_9djHSu9_127.jpeg,Image,48,28,0,0.0,0,134.0,325.7,392,0,0.0,22
@@ -4312,10 +4308,10 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 12998,/resourcerenderers/ImageIframe.aspx,Dynamic Page,5,4,0,0.0,0,198.0,390.0,416,0,0.0,4
 13363,/resourcerenderers/ImageIframe.aspx,Dynamic Page,4,4,0,0.0,0,709.0,1746.6,1989,0,0.0,4
 13661,/resourcerenderers/ImageIframe.aspx,Dynamic Page,5,5,0,0.0,0,273.0,453.6,458,0,0.0,5
-20,/CMSShared/,Other,6,3,0,0.0,0,51.0,78.75,86,0,0.0,6
-116,/CMSShared/LogOut.aspx,Dynamic Page,25,3,0,0.0,0,61.0,123.0,288,0,0.0,3
-1861,/Darwin/ImageCache/cache_0gvQdAa_871.jpeg,Image,4,3,0,0.0,0,287.0,588.85,616,0,0.0,4
-1872,/Darwin/ImageCache/cache_0oR9YLO_1118.jpeg,Image,6,3,0,0.0,0,144.0,204.5,218,0,0.0,2
+1850,/Darwin/ImageCache/cache_0BTSC24_8.jpeg,Image,12,4,0,0.0,0,168.0,364.05,479,0,0.0,2
+1888,/Darwin/ImageCache/cache_0umxdnj_1103.jpeg,Image,7,6,0,0.0,0,416.0,801.5,848,0,0.0,4
+1907,/Darwin/ImageCache/cache_1HSVWC9_38.jpeg,Image,19,4,0,0.0,0,126.0,218.1,354,0,0.0,2
+1930,/Darwin/ImageCache/cache_1ZchsDO_634.jpeg,Image,6,5,0,0.0,0,203.0,343.0,346,0,0.0,4
 2000,/Darwin/ImageCache/cache_3GIPKu7_3998.jpeg,Image,6,3,0,0.0,0,255.0,713.0,898,0,0.0,3
 2146,/Darwin/ImageCache/cache_6OseZUS_1122.jpeg,Image,3,3,0,0.0,0,60.0,87.4,90,0,0.0,3
 2178,/Darwin/ImageCache/cache_7g7rCXk_1431.jpeg,Image,3,3,0,0.0,0,447.0,798.2,832,0,0.0,3
@@ -4389,9 +4385,10 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13545,/resourcerenderers/ImageIframe.aspx,Dynamic Page,3,3,0,0.0,0,157.0,173.3,176,0,0.0,3
 13632,/resourcerenderers/ImageIframe.aspx,Dynamic Page,3,3,0,0.0,0,558.0,835.2,871,0,0.0,3
 13663,/resourcerenderers/ImageIframe.aspx,Dynamic Page,5,3,0,0.0,0,338.0,443.4,453,0,0.0,3
-1003,/Darwin/Image.aspx,Dynamic Page,2,2,0,0.0,0,162.0,218.7,225,0,0.0,1
-1436,/Darwin/Image.aspx,Dynamic Page,2,2,0,0.0,0,229.0,231.75,232,0,0.0,1
-1755,/Darwin/Image.aspx,Dynamic Page,2,2,0,0.0,0,508.0,643.9,659,0,0.0,1
+20,/CMSShared/,Other,6,3,0,0.0,0,51.0,78.75,86,0,0.0,6
+116,/CMSShared/LogOut.aspx,Dynamic Page,25,3,0,0.0,0,61.0,123.0,288,0,0.0,3
+1861,/Darwin/ImageCache/cache_0gvQdAa_871.jpeg,Image,4,3,0,0.0,0,287.0,588.85,616,0,0.0,4
+1872,/Darwin/ImageCache/cache_0oR9YLO_1118.jpeg,Image,6,3,0,0.0,0,144.0,204.5,218,0,0.0,2
 2433,/Darwin/ImageCache/cache_bdWjVdZ_3371.jpeg,Image,7,2,0,0.0,0,137.0,221.0,221,0,0.0,3
 2471,/Darwin/ImageCache/cache_bT0O5IM_4401.jpeg,Image,5,2,0,0.0,0,196.0,251.0,251,0,0.0,1
 2483,/Darwin/ImageCache/cache_bvInhC4_4158.jpeg,Image,3,2,0,0.0,0,253.0,474.9,510,0,0.0,3
@@ -4476,6 +4473,9 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13330,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,2,0,0.0,0,129.0,147.05,149,0,0.0,1
 13526,/resourcerenderers/ImageIframe.aspx,Dynamic Page,3,2,0,0.0,0,334.0,396.6,407,0,0.0,1
 13645,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,2,0,0.0,0,902.0,1272.85,1314,0,0.0,1
+1003,/Darwin/Image.aspx,Dynamic Page,2,2,0,0.0,0,162.0,218.7,225,0,0.0,1
+1436,/Darwin/Image.aspx,Dynamic Page,2,2,0,0.0,0,229.0,231.75,232,0,0.0,1
+1755,/Darwin/Image.aspx,Dynamic Page,2,2,0,0.0,0,508.0,643.9,659,0,0.0,1
 2177,/Darwin/ImageCache/cache_7FscCtz_2209.jpeg,Image,5,2,0,0.0,0,204.0,313.0,313,0,0.0,2
 2187,/Darwin/ImageCache/cache_7mJfAk1_3005.jpeg,Image,5,2,0,0.0,0,165.0,275.0,275,0,0.0,2
 2259,/Darwin/ImageCache/cache_8V7vPqm_632.jpeg,Image,8,2,0,0.0,0,28.0,79.05,106,0,0.0,2
@@ -4520,7 +4520,6 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13336,/resourcerenderers/ImageIframe.aspx,Dynamic Page,4,2,0,0.0,0,472.0,988.7,1112,0,0.0,2
 13337,/resourcerenderers/ImageIframe.aspx,Dynamic Page,3,2,0,0.0,0,176.0,282.0,299,0,0.0,2
 13401,/resourcerenderers/ImageIframe.aspx,Dynamic Page,3,2,0,0.0,0,193.0,250.4,251,0,0.0,2
-207,/Darwin/Home.aspx,Dynamic Page,2,2,0,0.0,0,860.0,1037.35,1057,0,0.0,2
 2008,/Darwin/ImageCache/cache_3ndcuXM_1120.jpeg,Image,2,2,0,0.0,0,123.0,214.85,225,0,0.0,2
 2011,/Darwin/ImageCache/cache_3ovN3cC_439.jpeg,Image,2,2,0,0.0,0,148.0,267.75,281,0,0.0,2
 2079,/Darwin/ImageCache/cache_4yPQ4Yg_1513.jpeg,Image,2,2,0,0.0,0,1321.0,1565.8,1593,0,0.0,2
@@ -4693,7 +4692,7 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13588,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,2,0,0.0,0,295.0,329.25,333,0,0.0,2
 13594,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,2,0,0.0,0,1915.0,2606.25,2683,0,0.0,2
 13659,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,2,0,0.0,0,276.0,393.05,406,0,0.0,2
-4,/_vti_bin/owssvr.dll,Other,1,1,1,100.0,0,6389.0,6389.0,6389,1,100.0,1
+207,/Darwin/Home.aspx,Dynamic Page,2,2,0,0.0,0,860.0,1037.35,1057,0,0.0,2
 1978,/Darwin/ImageCache/cache_2vHGTKv_3096.jpeg,Image,2,2,0,0.0,0,4375.0,8222.5,8650,1,50.0,2
 2034,/Darwin/ImageCache/cache_46DAdXL_1198.jpeg,Image,5,2,0,0.0,0,1335.0,4669.6,5762,1,20.0,1
 2688,/Darwin/ImageCache/cache_DTGxgm8_4744.jpeg,Image,1,1,0,0.0,0,8387.0,8387.0,8387,1,100.0,1
@@ -4733,23 +4732,11 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 12571,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,0,9120.0,9120.0,9120,1,100.0,1
 12625,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,0,5509.0,5509.0,5509,1,100.0,1
 12979,/resourcerenderers/ImageIframe.aspx,Dynamic Page,1,1,0,0.0,0,16623.0,16623.0,16623,1,100.0,1
-185,/Darwin/Home.aspx,Dynamic Page,2806,434,3,0.11,77503821,1585.0,2895.5,210271,61,2.17,93
+4,/_vti_bin/owssvr.dll,Other,1,1,1,100.0,0,6389.0,6389.0,6389,1,100.0,1
 10185,/Darwin/print.css,Stylesheet,7089,1190,7089,100.0,3585564,188.0,392.6,24007,15,0.21,92
 10815,/favicon.ico,Icon,2542,996,2542,100.0,1706100,252.0,446.8,23934,11,0.43,91
 13689,/robots.txt,Text File,2661,66,2661,100.0,2170005,218.0,307.0,18812,20,0.75,86
-1,/,Directory,4942,209,0,0.0,1309795,412.0,604.95,19489,17,0.34,92
-57,/CMSShared/Download.aspx,Dynamic Page,31,10,0,0.0,194052657,39383.0,128462.0,361370,17,54.84,26
-58,/CMSShared/Download.aspx,Dynamic Page,36,15,0,0.0,4090463,2248.0,5801.5,11261,3,8.33,28
-60,/CMSShared/Download.aspx,Dynamic Page,35,15,0,0.0,5588060,3811.0,9232.6,39674,6,17.14,25
-69,/CMSShared/Download.aspx,Dynamic Page,19,6,0,0.0,6743586,11848.0,30527.0,97226,7,36.84,13
-160,/Darwin/buttongradient.gif,Image,1944,1098,0,0.0,268515,323.0,664.7,17463,5,0.26,91
-163,/Darwin/CGE00271_75px.jpg,Image,2027,1122,0,0.0,2678296,332.0,897.9,19730,7,0.35,91
-164,/Darwin/CGE00271_ImageMap.jpg,Image,169,133,0,0.0,18398178,7450.0,27040.2,260528,42,24.85,72
-166,/Darwin/culogo.gif,Image,2040,1141,0,0.0,2806606,304.0,815.25,12537,7,0.34,92
-174,/Darwin/header.jpg,Image,2033,1133,0,0.0,15357671,785.0,2157.6,109842,34,1.67,92
-175,/Darwin/Herbarium.aspx,Dynamic Page,257,86,0,0.0,1221469,1261.0,1367.0,67457,6,2.33,84
-183,/Darwin/HerbariumSheet.aspx,Dynamic Page,351,150,0,0.0,1632366,878.0,1332.5,57825,4,1.14,88
-186,/Darwin/Home.aspx,Dynamic Page,29,26,0,0.0,1336436,1801.0,5204.4,8381,2,6.9,1
+185,/Darwin/Home.aspx,Dynamic Page,2806,434,3,0.11,77503821,1585.0,2895.5,210271,61,2.17,93
 1967,/Darwin/ImageCache/cache_2P1l6cd_2787.jpeg,Image,3,3,0,0.0,865754,11309.0,21724.0,23020,2,66.67,2
 2275,/Darwin/ImageCache/cache_9BPahzh_118.jpeg,Image,94,61,0,0.0,177547,447.0,442.85,19092,2,2.13,49
 2611,/Darwin/ImageCache/cache_cZMtXM3_508.jpeg,Image,80,55,0,0.0,115726,481.0,412.7,13215,2,2.5,40
@@ -4800,13 +4787,19 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 10797,/Darwin/yellowpixel9.png,Image,659,181,0,0.0,253919,396.0,623.4,28932,6,0.91,81
 10810,/dmsutils.js,Script,3161,1170,0,0.0,6584923,464.0,1111.0,41933,15,0.47,92
 11063,/GetImageEx.aspx,Dynamic Page,2,1,0,0.0,1027,16846.0,16856.8,16858,2,100.0,1
-61,/CMSShared/Download.aspx,Dynamic Page,95,37,0,0.0,2328042,1005.0,2648.9,6016,1,1.05,52
-127,/Darwin/,Other,28,12,0,0.0,414274,1777.0,4558.35,21765,1,3.57,18
-187,/Darwin/Home.aspx,Dynamic Page,51,41,0,0.0,2304400,1911.0,3023.0,21853,1,1.96,1
-191,/Darwin/Home.aspx,Dynamic Page,49,16,0,0.0,1105832,2105.0,2064.6,65412,1,2.04,36
-1854,/Darwin/ImageCache/cache_0dNaPYE_755.jpeg,Image,35,20,0,0.0,60918,529.0,1217.7,9005,1,2.86,18
-1858,/Darwin/ImageCache/cache_0fJ5nB0_4472.jpeg,Image,6,5,0,0.0,46942,1522.0,6092.0,7873,1,16.67,6
-1924,/Darwin/ImageCache/cache_1UY4338_1324.jpeg,Image,8,8,0,0.0,34851,1213.0,3788.2,5079,1,12.5,6
+1,/,Directory,4942,209,0,0.0,1309795,412.0,604.95,19489,17,0.34,92
+57,/CMSShared/Download.aspx,Dynamic Page,31,10,0,0.0,194052657,39383.0,128462.0,361370,17,54.84,26
+58,/CMSShared/Download.aspx,Dynamic Page,36,15,0,0.0,4090463,2248.0,5801.5,11261,3,8.33,28
+60,/CMSShared/Download.aspx,Dynamic Page,35,15,0,0.0,5588060,3811.0,9232.6,39674,6,17.14,25
+69,/CMSShared/Download.aspx,Dynamic Page,19,6,0,0.0,6743586,11848.0,30527.0,97226,7,36.84,13
+160,/Darwin/buttongradient.gif,Image,1944,1098,0,0.0,268515,323.0,664.7,17463,5,0.26,91
+163,/Darwin/CGE00271_75px.jpg,Image,2027,1122,0,0.0,2678296,332.0,897.9,19730,7,0.35,91
+164,/Darwin/CGE00271_ImageMap.jpg,Image,169,133,0,0.0,18398178,7450.0,27040.2,260528,42,24.85,72
+166,/Darwin/culogo.gif,Image,2040,1141,0,0.0,2806606,304.0,815.25,12537,7,0.34,92
+174,/Darwin/header.jpg,Image,2033,1133,0,0.0,15357671,785.0,2157.6,109842,34,1.67,92
+175,/Darwin/Herbarium.aspx,Dynamic Page,257,86,0,0.0,1221469,1261.0,1367.0,67457,6,2.33,84
+183,/Darwin/HerbariumSheet.aspx,Dynamic Page,351,150,0,0.0,1632366,878.0,1332.5,57825,4,1.14,88
+186,/Darwin/Home.aspx,Dynamic Page,29,26,0,0.0,1336436,1801.0,5204.4,8381,2,6.9,1
 1939,/Darwin/ImageCache/cache_29xENd1_697.jpeg,Image,37,20,0,0.0,59864,394.0,729.0,5628,1,2.7,16
 1949,/Darwin/ImageCache/cache_2gboONt_3001.jpeg,Image,3,3,0,0.0,237574,2858.0,4826.7,5032,1,33.33,2
 2003,/Darwin/ImageCache/cache_3j9Ncm9_45.jpeg,Image,120,69,0,0.0,203097,298.0,711.05,5954,1,0.83,51
@@ -5003,19 +4996,13 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 11112,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,1647961,6338.0,6338.0,6338,1,100.0,1
 12566,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,410873,7779.0,7779.0,7779,1,100.0,1
 12978,/resourcerenderers/ajax-loader.gif,Image,366,238,0,0.0,392276,415.0,826.25,25047,1,0.27,83
-7,/admin/,Other,8,3,8,100.0,11392,386.0,591.4,597,0,0.0,3
-9,/admin/index.php,Other,1,1,1,100.0,1424,201.0,201.0,201,0,0.0,1
-12,/admin/phpmyadmin/scripts/setup.php,Other,12,8,12,100.0,16993,282.0,566.65,631,0,0.0,10
-13,/admin/pma/scripts/setup.php,Other,12,8,12,100.0,16993,279.0,542.2,584,0,0.0,10
-14,/admin/scripts/setup.php,Other,13,9,13,100.0,16993,272.0,558.8,638,0,0.0,11
-17,/CACAATss,Other,1,1,1,100.0,1424,63.0,63.0,63,0,0.0,1
-18,/CGE00271_75px.jpg,Image,3,1,3,100.0,4272,365.0,377.7,379,0,0.0,3
-126,/cube/README,Other,2,1,2,100.0,1424,152.0,162.85,164,0,0.0,2
-138,"/Darwin/""+++markerList[i][0]+++""",Other,14,9,14,100.0,14050,271.0,586.45,1020,0,0.0,8
-143,/Darwin/+++document.Form1.location.value+++,Other,2,1,2,100.0,2810,20.0,20.0,20,0,0.0,2
-167,/darwin/darwin/home.aspx,Dynamic Page,18,1,18,100.0,15048,933.0,1874.95,2549,0,0.0,6
-211,/Darwin/Home.aspx+com.othermedia.webkit.exceptions.Resource,Other,1,1,1,100.0,1405,159.0,159.0,159,0,0.0,1
-212,/Darwin/home.aspxl,Other,1,1,1,100.0,1429,30.0,30.0,30,0,0.0,1
+61,/CMSShared/Download.aspx,Dynamic Page,95,37,0,0.0,2328042,1005.0,2648.9,6016,1,1.05,52
+127,/Darwin/,Other,28,12,0,0.0,414274,1777.0,4558.35,21765,1,3.57,18
+187,/Darwin/Home.aspx,Dynamic Page,51,41,0,0.0,2304400,1911.0,3023.0,21853,1,1.96,1
+191,/Darwin/Home.aspx,Dynamic Page,49,16,0,0.0,1105832,2105.0,2064.6,65412,1,2.04,36
+1854,/Darwin/ImageCache/cache_0dNaPYE_755.jpeg,Image,35,20,0,0.0,60918,529.0,1217.7,9005,1,2.86,18
+1858,/Darwin/ImageCache/cache_0fJ5nB0_4472.jpeg,Image,6,5,0,0.0,46942,1522.0,6092.0,7873,1,16.67,6
+1924,/Darwin/ImageCache/cache_1UY4338_1324.jpeg,Image,8,8,0,0.0,34851,1213.0,3788.2,5079,1,12.5,6
 2022,/Darwin/ImageCache/cache_3TR9MXy_1004.jpegamp,Other,1,1,1,100.0,1405,105.0,105.0,105,0,0.0,1
 4782,/Darwin/Minimal.css,Stylesheet,4,2,4,100.0,5639,233.0,283.85,284,0,0.0,1
 10002,/Darwin/Plant.aspx?ix=786&pid=0&prcid=0&ppid=0,Other,1,1,1,100.0,1424,20.0,20.0,20,0,0.0,1
@@ -5067,11 +5054,11 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 12816,/phpmya/,Other,3,1,3,100.0,4272,426.0,556.6,579,0,0.0,1
 12820,/PHPmyadmin,Other,3,1,3,100.0,4272,426.0,546.0,567,0,0.0,1
 12821,/phpmyadmin/,Other,20,4,20,100.0,28480,363.0,581.0,581,0,0.0,5
-12827,/phpmyadmin/scripts/setup.php,Other,59,14,59,100.0,79459,258.0,530.4,794,0,0.0,18
+12827,/phpMyAdmin/scripts/setup.php,Other,59,14,59,100.0,79459,258.0,530.4,794,0,0.0,18
 12828,/php-myadmin/scripts/setup.php,Other,13,9,13,100.0,18417,268.0,570.8,662,0,0.0,11
 12829,/php-my-admin/scripts/setup.php,Other,20,9,20,100.0,28385,258.0,519.45,604,0,0.0,11
 12830,/phpmy-admin/scripts/setup.php,Other,13,9,13,100.0,18417,281.0,620.2,784,0,0.0,11
-12831,/phpmyadmin1/scripts/setup.php,Other,15,10,15,100.0,21265,254.0,582.5,747,0,0.0,13
+12831,/phpMyAdmin1/scripts/setup.php,Other,15,10,15,100.0,21265,254.0,582.5,747,0,0.0,13
 12843,/phpMyAdmin-2.2.3/scripts/setup.php,Other,11,7,11,100.0,15569,485.0,1508.5,2401,0,0.0,9
 12844,/phpMyAdmin-2.2.6/scripts/setup.php,Other,11,7,11,100.0,15569,319.0,553.0,588,0,0.0,9
 12866,/phpMyAdmin-2.5.1/scripts/setup.php,Other,11,7,11,100.0,15569,305.0,590.5,670,0,0.0,9
@@ -5131,7 +5118,7 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 12938,/phpMyAdmin-2.8.1/scripts/setup.php,Other,12,8,12,100.0,16993,303.0,621.85,761,0,0.0,10
 12939,/phpMyAdmin-2.8.1-rc1/scripts/setup.php,Other,12,8,12,100.0,16993,305.0,612.65,743,0,0.0,10
 12940,/phpMyAdmin-2.8.2/scripts/setup.php,Other,11,7,11,100.0,15569,294.0,633.5,752,0,0.0,9
-12951,/phpmyadmin2/scripts/setup.php,Other,18,9,18,100.0,25442,312.0,760.3,762,0,0.0,11
+12951,/phpMyAdmin2/scripts/setup.php,Other,18,9,18,100.0,25442,312.0,760.3,762,0,0.0,11
 12952,/phpMyAdmin-2/scripts/setup.php,Other,12,8,12,100.0,16993,296.0,627.95,766,0,0.0,10
 12957,/phppgadmin/,Other,3,1,3,100.0,4272,425.0,547.6,569,0,0.0,1
 12959,/phpScheduleIt/,Other,2,1,2,100.0,2848,105.0,136.55,140,0,0.0,1
@@ -5176,7 +5163,19 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13724,/wm/README,Other,2,1,2,100.0,1424,152.0,163.7,165,0,0.0,2
 13727,/wp-content/uploads/2008/05/wall2.jpg,Image,1,1,1,100.0,1368,52.0,52.0,52,0,0.0,1
 13728,/xampp/phpmyadmin/scripts/setup.php,Other,8,7,8,100.0,11392,207.0,508.2,511,0,0.0,7
-11,/admin/mysql/scripts/setup.php,Other,5,3,5,100.0,7025,354.0,577.6,607,0,0.0,4
+7,/admin/,Other,8,3,8,100.0,11392,386.0,591.4,597,0,0.0,3
+9,/admin/index.php,Other,1,1,1,100.0,1424,201.0,201.0,201,0,0.0,1
+12,/admin/phpmyadmin/scripts/setup.php,Other,12,8,12,100.0,16993,282.0,566.65,631,0,0.0,10
+13,/admin/pma/scripts/setup.php,Other,12,8,12,100.0,16993,279.0,542.2,584,0,0.0,10
+14,/admin/scripts/setup.php,Other,13,9,13,100.0,16993,272.0,558.8,638,0,0.0,11
+17,/CACAATss,Other,1,1,1,100.0,1424,63.0,63.0,63,0,0.0,1
+18,/CGE00271_75px.jpg,Image,3,1,3,100.0,4272,365.0,377.7,379,0,0.0,3
+126,/cube/README,Other,2,1,2,100.0,1424,152.0,162.85,164,0,0.0,2
+138,"/Darwin/""+++markerList[i][0]+++""",Other,14,9,14,100.0,14050,271.0,586.45,1020,0,0.0,8
+143,/Darwin/+++document.Form1.location.value+++,Other,2,1,2,100.0,2810,20.0,20.0,20,0,0.0,2
+167,/darwin/darwin/home.aspx,Dynamic Page,18,1,18,100.0,15048,933.0,1874.95,2549,0,0.0,6
+211,/Darwin/Home.aspx+com.othermedia.webkit.exceptions.Resource,Other,1,1,1,100.0,1405,159.0,159.0,159,0,0.0,1
+212,/Darwin/home.aspxl,Other,1,1,1,100.0,1429,30.0,30.0,30,0,0.0,1
 12800,/noxdir/nosuichfile.php,Other,5,3,5,100.0,7025,372.0,565.0,588,0,0.0,4
 12812,/phpm/scripts/setup.php,Other,5,3,5,100.0,7025,378.0,677.2,728,0,0.0,4
 12817,/phpMyA/scripts/setup.php,Other,5,3,5,100.0,7025,378.0,592.0,621,0,0.0,4
@@ -5247,39 +5246,12 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 12956,/phpmyad-sys/scripts/setup.php,Other,5,3,5,100.0,7025,427.0,719.4,781,0,0.0,4
 13704,/sqladmin/scripts/setup.php,Other,5,3,5,100.0,7025,415.0,712.0,771,0,0.0,4
 13711,/vhcs2/tools/pma/scripts/setup.php,Other,5,3,5,100.0,7025,509.0,835.6,840,0,0.0,4
+11,/admin/mysql/scripts/setup.php,Other,5,3,5,100.0,7025,354.0,577.6,607,0,0.0,4
+10809,/dmsutils.js,Script,5,2,0,0.0,26197,280.0,379.0,380,0,0.0,5
 16,/browser.js,Script,394,241,0,0.0,122497,254.0,528.45,1630,0,0.0,85
 209,/Darwin/Home.aspx/,Other,59,2,0,0.0,554989,873.0,1788.9,3348,0,0.0,57
-10809,/dmsutils.js,Script,5,2,0,0.0,26197,280.0,379.0,380,0,0.0,5
-42,/CMSShared/Document.aspx,Dynamic Page,18,6,0,0.0,39225,300.0,442.2,517,0,0.0,17
-43,/CMSShared/Document.aspx,Dynamic Page,18,8,0,0.0,26035,310.0,575.6,664,0,0.0,17
-44,/CMSShared/Document.aspx,Dynamic Page,18,5,0,0.0,52195,278.0,431.65,458,0,0.0,16
-45,/CMSShared/Document.aspx,Dynamic Page,18,7,0,0.0,34726,298.0,435.05,441,0,0.0,16
-46,/CMSShared/Document.aspx,Dynamic Page,21,10,0,0.0,39183,384.0,717.0,879,0,0.0,20
-47,/CMSShared/Document.aspx,Dynamic Page,38,18,0,0.0,87728,371.0,727.1,866,0,0.0,29
-48,/CMSShared/Document.aspx,Dynamic Page,3,3,0,0.0,13161,216.0,429.9,466,0,0.0,2
-49,/CMSShared/Document.aspx,Dynamic Page,26,11,0,0.0,39022,283.0,421.0,670,0,0.0,21
-50,/CMSShared/Document.aspx,Dynamic Page,2,2,0,0.0,8350,480.0,603.3,617,0,0.0,2
-51,/CMSShared/Document.aspx,Dynamic Page,31,16,0,0.0,37670,309.0,579.5,789,0,0.0,23
-52,/CMSShared/Document.aspx,Dynamic Page,5,3,0,0.0,23048,277.0,436.6,442,0,0.0,3
-53,/CMSShared/Document.aspx,Dynamic Page,36,15,0,0.0,45366,311.0,700.75,1216,0,0.0,27
-54,/CMSShared/Document.aspx,Dynamic Page,15,3,0,0.0,34031,361.0,476.0,476,0,0.0,14
-59,/CMSShared/Download.aspx,Dynamic Page,24,12,0,0.0,4090906,1804.0,3244.15,3728,0,0.0,19
-146,/Darwin/About.aspx,Dynamic Page,240,67,0,0.0,854696,340.0,747.15,999,0,0.0,84
-149,/Darwin/About.aspx,Dynamic Page,15,6,0,0.0,62421,523.0,1015.2,1732,0,0.0,14
-180,/Darwin/Herbarium.aspx,Dynamic Page,22,8,0,0.0,82641,416.0,998.6,1091,0,0.0,15
-193,/Darwin/Home.aspx,Dynamic Page,81,20,0,0.0,1431853,687.0,1141.0,2214,0,0.0,56
-195,/Darwin/Home.aspx,Dynamic Page,9,4,0,0.0,232671,870.0,2282.6,2411,0,0.0,9
-197,/Darwin/Home.aspx,Dynamic Page,4,2,0,0.0,140259,467.0,852.95,905,0,0.0,4
-199,/Darwin/Home.aspx,Dynamic Page,2,2,0,0.0,47717,390.0,591.6,614,0,0.0,2
-201,/Darwin/Home.aspx,Dynamic Page,2,2,0,0.0,95434,259.0,334.6,343,0,0.0,2
-204,/Darwin/Home.aspx,Dynamic Page,4,2,0,0.0,140259,393.0,602.0,611,0,0.0,4
-205,/Darwin/Home.aspx,Dynamic Page,8,3,0,0.0,235693,389.0,606.6,615,0,0.0,7
-261,/Darwin/Image.aspx,Dynamic Page,4,2,0,0.0,9698,283.0,657.8,743,0,0.0,4
-306,/Darwin/Image.aspx,Dynamic Page,2,2,0,0.0,4462,583.0,880.9,914,0,0.0,2
-1441,/Darwin/Image.aspx,Dynamic Page,5,3,0,0.0,17068,672.0,1626.4,1936,0,0.0,3
-1442,/Darwin/Image.aspx,Dynamic Page,2,2,0,0.0,8490,233.0,237.55,238,0,0.0,1
 5798,/Darwin/Page.aspx,Dynamic Page,3,3,0,0.0,13957,252.0,307.6,314,0,0.0,3
-5811,/Darwin/Page.aspx,Dynamic Page,3,2,0,0.0,7054,603.0,888.4,907,0,0.0,2
+5811,/darwin/page.aspx,Dynamic Page,3,2,0,0.0,7054,603.0,888.4,907,0,0.0,2
 5816,/Darwin/Page.aspx,Dynamic Page,44,12,0,0.0,188068,384.0,634.05,1038,0,0.0,32
 5825,/Darwin/Page.aspx,Dynamic Page,13,7,0,0.0,107469,619.0,1304.4,1641,0,0.0,12
 5831,/Darwin/Page.aspx,Dynamic Page,154,62,0,0.0,691732,485.0,1073.0,3035,0,0.0,66
@@ -5393,6 +5365,34 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 10703,/Darwin/Top.aspx,Dynamic Page,3,2,0,0.0,219,203.0,219.1,220,0,0.0,2
 10752,/Darwin/Top.aspx,Dynamic Page,2,2,0,0.0,544,417.0,532.2,545,0,0.0,2
 10795,/Darwin/Website.aspx,Dynamic Page,15,6,0,0.0,95523,668.0,1091.1,1131,0,0.0,13
+42,/CMSShared/Document.aspx,Dynamic Page,18,6,0,0.0,39225,300.0,442.2,517,0,0.0,17
+43,/CMSShared/Document.aspx,Dynamic Page,18,8,0,0.0,26035,310.0,575.6,664,0,0.0,17
+44,/CMSShared/Document.aspx,Dynamic Page,18,5,0,0.0,52195,278.0,431.65,458,0,0.0,16
+45,/CMSShared/Document.aspx,Dynamic Page,18,7,0,0.0,34726,298.0,435.05,441,0,0.0,16
+46,/CMSShared/Document.aspx,Dynamic Page,21,10,0,0.0,39183,384.0,717.0,879,0,0.0,20
+47,/CMSShared/Document.aspx,Dynamic Page,38,18,0,0.0,87728,371.0,727.1,866,0,0.0,29
+48,/CMSShared/Document.aspx,Dynamic Page,3,3,0,0.0,13161,216.0,429.9,466,0,0.0,2
+49,/CMSShared/Document.aspx,Dynamic Page,26,11,0,0.0,39022,283.0,421.0,670,0,0.0,21
+50,/CMSShared/Document.aspx,Dynamic Page,2,2,0,0.0,8350,480.0,603.3,617,0,0.0,2
+51,/CMSShared/Document.aspx,Dynamic Page,31,16,0,0.0,37670,309.0,579.5,789,0,0.0,23
+52,/CMSShared/Document.aspx,Dynamic Page,5,3,0,0.0,23048,277.0,436.6,442,0,0.0,3
+53,/CMSShared/Document.aspx,Dynamic Page,36,15,0,0.0,45366,311.0,700.75,1216,0,0.0,27
+54,/CMSShared/Document.aspx,Dynamic Page,15,3,0,0.0,34031,361.0,476.0,476,0,0.0,14
+59,/CMSShared/Download.aspx,Dynamic Page,24,12,0,0.0,4090906,1804.0,3244.15,3728,0,0.0,19
+146,/Darwin/About.aspx,Dynamic Page,240,67,0,0.0,854696,340.0,747.15,999,0,0.0,84
+149,/Darwin/About.aspx,Dynamic Page,15,6,0,0.0,62421,523.0,1015.2,1732,0,0.0,14
+180,/Darwin/Herbarium.aspx,Dynamic Page,22,8,0,0.0,82641,416.0,998.6,1091,0,0.0,15
+193,/Darwin/Home.aspx,Dynamic Page,81,20,0,0.0,1431853,687.0,1141.0,2214,0,0.0,56
+195,/Darwin/Home.aspx,Dynamic Page,9,4,0,0.0,232671,870.0,2282.6,2411,0,0.0,9
+197,/Darwin/Home.aspx,Dynamic Page,4,2,0,0.0,140259,467.0,852.95,905,0,0.0,4
+199,/Darwin/Home.aspx,Dynamic Page,2,2,0,0.0,47717,390.0,591.6,614,0,0.0,2
+201,/Darwin/Home.aspx,Dynamic Page,2,2,0,0.0,95434,259.0,334.6,343,0,0.0,2
+204,/Darwin/Home.aspx,Dynamic Page,4,2,0,0.0,140259,393.0,602.0,611,0,0.0,4
+205,/Darwin/Home.aspx,Dynamic Page,8,3,0,0.0,235693,389.0,606.6,615,0,0.0,7
+261,/Darwin/Image.aspx,Dynamic Page,4,2,0,0.0,9698,283.0,657.8,743,0,0.0,4
+306,/Darwin/Image.aspx,Dynamic Page,2,2,0,0.0,4462,583.0,880.9,914,0,0.0,2
+1441,/Darwin/Image.aspx,Dynamic Page,5,3,0,0.0,17068,672.0,1626.4,1936,0,0.0,3
+1442,/Darwin/Image.aspx,Dynamic Page,2,2,0,0.0,8490,233.0,237.55,238,0,0.0,1
 12980,/resourcerenderers/ImageIframe.aspx,Dynamic Page,34,22,0,0.0,236985,276.0,598.65,1067,0,0.0,23
 12982,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,2,0,0.0,24920,386.0,600.2,624,0,0.0,2
 12984,/resourcerenderers/ImageIframe.aspx,Dynamic Page,5,5,0,0.0,12460,191.0,280.8,300,0,0.0,5
@@ -5526,32 +5526,6 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13669,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,2,0,0.0,12448,1198.0,2142.15,2247,0,0.0,2
 13673,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,2,0,0.0,12448,113.0,148.15,152,0,0.0,2
 13682,/resourcerenderers/ImageIframe.aspx,Dynamic Page,3,3,0,0.0,12509,450.0,571.6,587,0,0.0,3
-1847,/Darwin/ImageCache/cache_05z6FC8_7188.jpeg,Image,34,26,0,0.0,107368,407.0,867.7,4858,0,0.0,19
-1848,/Darwin/ImageCache/cache_0BnX4rX_185.jpeg,Image,29,17,0,0.0,30222,165.0,335.4,399,0,0.0,20
-1856,/Darwin/ImageCache/cache_0EqeZ8R_480.jpeg,Image,23,16,0,0.0,51491,209.0,657.4,698,0,0.0,19
-1859,/Darwin/ImageCache/cache_0gHLVVv_568.jpeg,Image,41,28,0,0.0,71961,224.0,462.0,835,0,0.0,25
-1863,/Darwin/ImageCache/cache_0JGwEoE_7194.jpeg,Image,10,8,0,0.0,49492,324.0,1122.15,1470,0,0.0,8
-1865,/Darwin/ImageCache/cache_0LcIVND_7196.jpeg,Image,17,12,0,0.0,43758,262.0,417.0,485,0,0.0,11
-1866,/Darwin/ImageCache/cache_0lfGSCx_736.jpeg,Image,24,16,0,0.0,55435,286.0,797.9,2028,0,0.0,19
-1868,/Darwin/ImageCache/cache_0mAMdNa_899.jpeg,Image,38,26,0,0.0,109161,249.0,920.7,1586,0,0.0,24
-1874,/Darwin/ImageCache/cache_0q0yV4Z_909.jpeg,Image,35,21,0,0.0,59464,191.0,400.3,583,0,0.0,27
-1881,/Darwin/ImageCache/cache_0RvwYel_910.jpeg,Image,33,22,0,0.0,23442,210.0,474.8,937,0,0.0,17
-1882,/Darwin/ImageCache/cache_0ta52Dd_364.jpeg,Image,32,20,0,0.0,57408,230.0,425.0,3095,0,0.0,24
-1884,/Darwin/ImageCache/cache_0tpk0t8_361.jpeg,Image,34,20,0,0.0,49141,155.0,407.1,477,0,0.0,26
-1887,/Darwin/ImageCache/cache_0uLYVCE_780.jpeg,Image,44,27,0,0.0,84533,231.0,513.75,2098,0,0.0,27
-1889,/Darwin/ImageCache/cache_0uUEKo6_723.jpeg,Image,19,12,0,0.0,29316,540.0,3501.3,4971,0,0.0,12
-1891,/Darwin/ImageCache/cache_0x3bbvT_2021.jpeg,Image,23,18,0,0.0,161028,643.0,1207.9,1587,0,0.0,18
-1894,/Darwin/ImageCache/cache_14CzoFI_969.jpeg,Image,28,17,0,0.0,55690,182.0,463.25,1566,0,0.0,20
-1897,/Darwin/ImageCache/cache_18EMKOO_100.jpeg,Image,85,50,0,0.0,107873,156.0,440.6,919,0,0.0,41
-1901,/Darwin/ImageCache/cache_1CaZLvD_1074.jpeg,Image,26,20,0,0.0,68719,431.0,1945.25,2451,0,0.0,14
-1905,/Darwin/ImageCache/cache_1eMfy16_547.jpeg,Image,25,13,0,0.0,27014,174.0,385.2,453,0,0.0,17
-1910,/Darwin/ImageCache/cache_1l0rlWe_268.jpeg,Image,32,20,0,0.0,78370,350.0,1300.65,3836,0,0.0,26
-1914,/Darwin/ImageCache/cache_1pDKPcA_1152.jpeg,Image,10,6,0,0.0,21087,447.0,1404.9,1908,0,0.0,9
-1919,/Darwin/ImageCache/cache_1rSoUH8_816.jpeg,Image,32,20,0,0.0,63700,261.0,802.75,1308,0,0.0,18
-1922,/Darwin/ImageCache/cache_1trtuCf_930.jpeg,Image,32,18,0,0.0,54624,179.0,350.7,872,0,0.0,23
-1928,/Darwin/ImageCache/cache_1xvVpsm_447.jpeg,Image,35,18,0,0.0,69091,306.0,592.2,1169,0,0.0,14
-1935,/Darwin/ImageCache/cache_26r0IT8_117.jpeg,Image,94,57,0,0.0,137390,145.0,366.9,561,0,0.0,45
-1936,/Darwin/ImageCache/cache_27J0vEl_214.jpeg,Image,11,8,0,0.0,15783,164.0,361.5,373,0,0.0,9
 1937,/Darwin/ImageCache/cache_28tdGTn_748.jpeg,Image,23,17,0,0.0,58759,241.0,764.6,850,0,0.0,18
 1941,/Darwin/ImageCache/cache_2cJDGZG_892.jpeg,Image,26,20,0,0.0,18762,208.0,405.0,410,0,0.0,19
 1944,/Darwin/ImageCache/cache_2e1LuF3_75.jpeg,Image,107,65,0,0.0,182682,193.0,442.6,960,0,0.0,48
@@ -6371,8 +6345,32 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 4778,/Darwin/ImageCache/cache_ZZXp7xb_107.jpeg,Image,86,51,0,0.0,134255,172.0,412.5,1580,0,0.0,43
 4779,/Darwin/leaf.gif,Image,628,322,0,0.0,69909,149.0,398.9,2609,0,0.0,89
 10190,/Darwin/searchbutton.gif,Image,631,325,0,0.0,81105,226.0,467.0,1844,0,0.0,89
-1860,/Darwin/ImageCache/cache_0gKpu4N_7143.jpeg,Image,5,5,0,0.0,19205,224.0,321.4,332,0,0.0,5
-1876,/Darwin/ImageCache/cache_0rJP3ff_813.jpeg,Image,6,5,0,0.0,5587,233.0,720.75,826,0,0.0,6
+1847,/Darwin/ImageCache/cache_05z6FC8_7188.jpeg,Image,34,26,0,0.0,107368,407.0,867.7,4858,0,0.0,19
+1848,/Darwin/ImageCache/cache_0BnX4rX_185.jpeg,Image,29,17,0,0.0,30222,165.0,335.4,399,0,0.0,20
+1856,/Darwin/ImageCache/cache_0EqeZ8R_480.jpeg,Image,23,16,0,0.0,51491,209.0,657.4,698,0,0.0,19
+1859,/Darwin/ImageCache/cache_0gHLVVv_568.jpeg,Image,41,28,0,0.0,71961,224.0,462.0,835,0,0.0,25
+1863,/Darwin/ImageCache/cache_0JGwEoE_7194.jpeg,Image,10,8,0,0.0,49492,324.0,1122.15,1470,0,0.0,8
+1865,/Darwin/ImageCache/cache_0LcIVND_7196.jpeg,Image,17,12,0,0.0,43758,262.0,417.0,485,0,0.0,11
+1866,/Darwin/ImageCache/cache_0lfGSCx_736.jpeg,Image,24,16,0,0.0,55435,286.0,797.9,2028,0,0.0,19
+1868,/Darwin/ImageCache/cache_0mAMdNa_899.jpeg,Image,38,26,0,0.0,109161,249.0,920.7,1586,0,0.0,24
+1874,/Darwin/ImageCache/cache_0q0yV4Z_909.jpeg,Image,35,21,0,0.0,59464,191.0,400.3,583,0,0.0,27
+1881,/Darwin/ImageCache/cache_0RvwYel_910.jpeg,Image,33,22,0,0.0,23442,210.0,474.8,937,0,0.0,17
+1882,/Darwin/ImageCache/cache_0ta52Dd_364.jpeg,Image,32,20,0,0.0,57408,230.0,425.0,3095,0,0.0,24
+1884,/Darwin/ImageCache/cache_0tpk0t8_361.jpeg,Image,34,20,0,0.0,49141,155.0,407.1,477,0,0.0,26
+1887,/Darwin/ImageCache/cache_0uLYVCE_780.jpeg,Image,44,27,0,0.0,84533,231.0,513.75,2098,0,0.0,27
+1889,/Darwin/ImageCache/cache_0uUEKo6_723.jpeg,Image,19,12,0,0.0,29316,540.0,3501.3,4971,0,0.0,12
+1891,/Darwin/ImageCache/cache_0x3bbvT_2021.jpeg,Image,23,18,0,0.0,161028,643.0,1207.9,1587,0,0.0,18
+1894,/Darwin/ImageCache/cache_14CzoFI_969.jpeg,Image,28,17,0,0.0,55690,182.0,463.25,1566,0,0.0,20
+1897,/Darwin/ImageCache/cache_18EMKOO_100.jpeg,Image,85,50,0,0.0,107873,156.0,440.6,919,0,0.0,41
+1901,/Darwin/ImageCache/cache_1CaZLvD_1074.jpeg,Image,26,20,0,0.0,68719,431.0,1945.25,2451,0,0.0,14
+1905,/Darwin/ImageCache/cache_1eMfy16_547.jpeg,Image,25,13,0,0.0,27014,174.0,385.2,453,0,0.0,17
+1910,/Darwin/ImageCache/cache_1l0rlWe_268.jpeg,Image,32,20,0,0.0,78370,350.0,1300.65,3836,0,0.0,26
+1914,/Darwin/ImageCache/cache_1pDKPcA_1152.jpeg,Image,10,6,0,0.0,21087,447.0,1404.9,1908,0,0.0,9
+1919,/Darwin/ImageCache/cache_1rSoUH8_816.jpeg,Image,32,20,0,0.0,63700,261.0,802.75,1308,0,0.0,18
+1922,/Darwin/ImageCache/cache_1trtuCf_930.jpeg,Image,32,18,0,0.0,54624,179.0,350.7,872,0,0.0,23
+1928,/Darwin/ImageCache/cache_1xvVpsm_447.jpeg,Image,35,18,0,0.0,69091,306.0,592.2,1169,0,0.0,14
+1935,/Darwin/ImageCache/cache_26r0IT8_117.jpeg,Image,94,57,0,0.0,137390,145.0,366.9,561,0,0.0,45
+1936,/Darwin/ImageCache/cache_27J0vEl_214.jpeg,Image,11,8,0,0.0,15783,164.0,361.5,373,0,0.0,9
 1940,/Darwin/ImageCache/cache_2avHf2X_2162.jpeg,Image,9,5,0,0.0,32323,191.0,494.8,652,0,0.0,6
 2023,/Darwin/ImageCache/cache_3UgOg30_1311.jpeg,Image,9,5,0,0.0,37836,494.0,2050.2,3225,0,0.0,9
 2092,/Darwin/ImageCache/cache_5di5VQm_4149.jpeg,Image,8,5,0,0.0,14192,180.0,608.25,869,0,0.0,8
@@ -6442,11 +6440,8 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 4663,/Darwin/ImageCache/cache_ysdSvPs_4042.jpeg,Image,6,5,0,0.0,24533,628.0,1690.5,1832,0,0.0,6
 4685,/Darwin/ImageCache/cache_YYtUJ3D_3574.jpeg,Image,6,5,0,0.0,40115,467.0,1075.5,1221,0,0.0,5
 4748,/Darwin/ImageCache/cache_zq16iK4_259.jpeg,Image,6,5,0,0.0,6608,160.0,356.25,362,0,0.0,5
-1853,/Darwin/ImageCache/cache_0dgcbby_607.jpeg,Image,27,19,0,0.0,82687,247.0,744.5,1001,0,0.0,20
-1870,/Darwin/ImageCache/cache_0N7h6rl_666.jpeg,Image,35,19,0,0.0,48650,310.0,684.0,2794,0,0.0,15
-1877,/Darwin/ImageCache/cache_0RLDlxV_711.jpeg,Image,28,19,0,0.0,70880,220.0,591.95,649,0,0.0,20
-1911,/Darwin/ImageCache/cache_1nxmEZa_448.jpeg,Image,38,19,0,0.0,49890,267.0,546.6,1165,0,0.0,15
-1913,/Darwin/ImageCache/cache_1OQkkgd_160.jpeg,Image,34,19,0,0.0,13404,206.0,588.35,690,0,0.0,21
+1860,/Darwin/ImageCache/cache_0gKpu4N_7143.jpeg,Image,5,5,0,0.0,19205,224.0,321.4,332,0,0.0,5
+1876,/Darwin/ImageCache/cache_0rJP3ff_813.jpeg,Image,6,5,0,0.0,5587,233.0,720.75,826,0,0.0,6
 1963,/Darwin/ImageCache/cache_2mvIeV2_386.jpeg,Image,37,19,0,0.0,45589,313.0,622.4,1691,0,0.0,15
 1991,/Darwin/ImageCache/cache_38Q1tXE_605.jpeg,Image,27,19,0,0.0,46979,154.0,446.8,607,0,0.0,21
 2014,/Darwin/ImageCache/cache_3PUb7dm_964.jpeg,Image,30,19,0,0.0,44139,257.0,621.35,1092,0,0.0,15
@@ -6516,10 +6511,11 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 4691,/Darwin/ImageCache/cache_Z2In06G_751.jpeg,Image,23,19,0,0.0,46389,155.0,308.6,460,0,0.0,20
 4738,/Darwin/ImageCache/cache_zOmr47e_277.jpeg,Image,25,19,0,0.0,48737,252.0,775.2,853,0,0.0,21
 4770,/Darwin/ImageCache/cache_zwXkJhq_319.jpeg,Image,27,19,0,0.0,53975,229.0,757.5,777,0,0.0,21
-1892,/Darwin/ImageCache/cache_0Ydc26O_3790.jpeg,Image,5,4,0,0.0,15578,635.0,1244.0,1322,0,0.0,5
-1893,/Darwin/ImageCache/cache_109Hbme_3851.jpeg,Image,10,4,0,0.0,17933,231.0,727.05,1047,0,0.0,6
-1899,/Darwin/ImageCache/cache_1aINeov_4135.jpeg,Image,8,4,0,0.0,20655,159.0,375.2,469,0,0.0,5
-1903,/Darwin/ImageCache/cache_1DcQMFq_4329.jpeg,Image,8,4,0,0.0,60948,359.0,930.35,1196,0,0.0,5
+1853,/Darwin/ImageCache/cache_0dgcbby_607.jpeg,Image,27,19,0,0.0,82687,247.0,744.5,1001,0,0.0,20
+1870,/Darwin/ImageCache/cache_0N7h6rl_666.jpeg,Image,35,19,0,0.0,48650,310.0,684.0,2794,0,0.0,15
+1877,/Darwin/ImageCache/cache_0RLDlxV_711.jpeg,Image,28,19,0,0.0,70880,220.0,591.95,649,0,0.0,20
+1911,/Darwin/ImageCache/cache_1nxmEZa_448.jpeg,Image,38,19,0,0.0,49890,267.0,546.6,1165,0,0.0,15
+1913,/Darwin/ImageCache/cache_1OQkkgd_160.jpeg,Image,34,19,0,0.0,13404,206.0,588.35,690,0,0.0,21
 1946,/Darwin/ImageCache/cache_2fAxeIh_4355.jpeg,Image,4,4,0,0.0,92064,970.0,2007.9,2220,0,0.0,4
 1951,/Darwin/ImageCache/cache_2iHFZo8_4007.jpeg,Image,9,4,0,0.0,210,287.0,522.0,562,0,0.0,6
 1993,/Darwin/ImageCache/cache_3AuAwIs_3932.jpeg,Image,4,4,0,0.0,25484,568.0,1524.8,1739,0,0.0,4
@@ -6637,10 +6633,10 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 4697,/Darwin/ImageCache/cache_z8AqdIo_1883.jpeg,Image,4,4,0,0.0,29916,54.0,78.75,81,0,0.0,3
 4744,/Darwin/ImageCache/cache_zpnuVdM_4288.jpeg,Image,5,4,0,0.0,54177,142.0,258.2,282,0,0.0,4
 4764,/Darwin/ImageCache/cache_ZVKkfQO_3865.jpeg,Image,5,4,0,0.0,52989,1097.0,3402.4,4021,0,0.0,5
-1880,/Darwin/ImageCache/cache_0rt1tvy_4460.jpeg,Image,5,3,0,0.0,17061,341.0,575.8,577,0,0.0,5
-1885,/Darwin/ImageCache/cache_0tpoVsP_4498.jpeg,Image,8,3,0,0.0,37028,229.0,648.9,826,0,0.0,5
-1916,/Darwin/ImageCache/cache_1PteCcO_1031.jpeg,Image,4,3,0,0.0,120678,817.0,1459.45,1594,0,0.0,4
-1925,/Darwin/ImageCache/cache_1vHJ5x4_1942.jpeg,Image,4,3,0,0.0,34264,505.0,641.55,651,0,0.0,4
+1892,/Darwin/ImageCache/cache_0Ydc26O_3790.jpeg,Image,5,4,0,0.0,15578,635.0,1244.0,1322,0,0.0,5
+1893,/Darwin/ImageCache/cache_109Hbme_3851.jpeg,Image,10,4,0,0.0,17933,231.0,727.05,1047,0,0.0,6
+1899,/Darwin/ImageCache/cache_1aINeov_4135.jpeg,Image,8,4,0,0.0,20655,159.0,375.2,469,0,0.0,5
+1903,/Darwin/ImageCache/cache_1DcQMFq_4329.jpeg,Image,8,4,0,0.0,60948,359.0,930.35,1196,0,0.0,5
 1945,/Darwin/ImageCache/cache_2EJf2GN_2602.jpeg,Image,5,3,0,0.0,15705,108.0,202.8,227,0,0.0,5
 1984,/Darwin/ImageCache/cache_2ZYsVOK_2962.jpeg,Image,7,3,0,0.0,21168,316.0,1044.1,1336,0,0.0,4
 2002,/Darwin/ImageCache/cache_3IZOg42_877.jpeg,Image,4,3,0,0.0,209,143.0,436.55,509,0,0.0,4
@@ -6728,8 +6724,10 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 4681,/Darwin/ImageCache/cache_yyi4qR8_4434.jpeg,Image,5,3,0,0.0,54432,797.0,2411.0,2867,0,0.0,4
 4721,/Darwin/ImageCache/cache_zGN27od_3884.jpeg,Image,6,3,0,0.0,26267,91.0,224.0,241,0,0.0,5
 4776,/Darwin/ImageCache/cache_ZYBts32_4092.jpeg,Image,8,3,0,0.0,210,124.0,211.95,255,0,0.0,5
-1857,/Darwin/ImageCache/cache_0FdVE1i_1206.jpeg,Image,3,3,0,0.0,22194,329.0,658.3,714,0,0.0,3
-1908,/Darwin/ImageCache/cache_1INFz8e_1881.jpeg,Image,3,3,0,0.0,18421,391.0,617.3,636,0,0.0,3
+1880,/Darwin/ImageCache/cache_0rt1tvy_4460.jpeg,Image,5,3,0,0.0,17061,341.0,575.8,577,0,0.0,5
+1885,/Darwin/ImageCache/cache_0tpoVsP_4498.jpeg,Image,8,3,0,0.0,37028,229.0,648.9,826,0,0.0,5
+1916,/Darwin/ImageCache/cache_1PteCcO_1031.jpeg,Image,4,3,0,0.0,120678,817.0,1459.45,1594,0,0.0,4
+1925,/Darwin/ImageCache/cache_1vHJ5x4_1942.jpeg,Image,4,3,0,0.0,34264,505.0,641.55,651,0,0.0,4
 1943,/Darwin/ImageCache/cache_2DVQgRD_4011.jpeg,Image,6,3,0,0.0,21934,369.0,1112.0,1386,0,0.0,3
 1950,/Darwin/ImageCache/cache_2gp2yDP_4457.jpeg,Image,3,3,0,0.0,210,855.0,1920.8,2102,0,0.0,3
 1955,/Darwin/ImageCache/cache_2jahvBc_3780.jpeg,Image,5,3,0,0.0,16213,263.0,516.4,525,0,0.0,3
@@ -6819,7 +6817,8 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 4655,/Darwin/ImageCache/cache_Yqg5o28_4235.jpeg,Image,6,3,0,0.0,26631,198.0,513.5,639,0,0.0,3
 4702,/Darwin/ImageCache/cache_ZBQkOjb_4171.jpeg,Image,4,3,0,0.0,422,90.0,228.05,257,0,0.0,3
 4773,/Darwin/ImageCache/cache_zxNGFuG_4015.jpeg,Image,6,3,0,0.0,13797,169.0,195.0,197,0,0.0,3
-1931,/Darwin/ImageCache/cache_1znGSK5_4208.jpeg,Image,4,2,0,0.0,13959,145.0,233.65,244,0,0.0,4
+1857,/Darwin/ImageCache/cache_0FdVE1i_1206.jpeg,Image,3,3,0,0.0,22194,329.0,658.3,714,0,0.0,3
+1908,/Darwin/ImageCache/cache_1INFz8e_1881.jpeg,Image,3,3,0,0.0,18421,391.0,617.3,636,0,0.0,3
 1960,/Darwin/ImageCache/cache_2krU87e_1194.jpeg,Image,5,2,0,0.0,26712,146.0,244.8,258,0,0.0,5
 1974,/Darwin/ImageCache/cache_2sZcchO_4128.jpeg,Image,3,2,0,0.0,210,100.0,135.7,141,0,0.0,3
 1994,/Darwin/ImageCache/cache_3bjVg0v_4068.jpeg,Image,3,2,0,0.0,25155,194.0,295.9,305,0,0.0,3
@@ -6922,15 +6921,11 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 4706,/Darwin/ImageCache/cache_zCyqz3g_4270.jpeg,Image,3,2,0,0.0,37925,264.0,449.8,466,0,0.0,3
 4714,/Darwin/ImageCache/cache_zEV4DLb_1868.jpeg,Image,3,2,0,0.0,15187,55.0,86.1,90,0,0.0,3
 4716,/Darwin/ImageCache/cache_ZfhZf6Z_1181.jpeg,Image,3,2,0,0.0,13436,109.0,200.8,216,0,0.0,3
+1931,/Darwin/ImageCache/cache_1znGSK5_4208.jpeg,Image,4,2,0,0.0,13959,145.0,233.65,244,0,0.0,4
 2745,/Darwin/ImageCache/cache_EJV2TDq_4126.jpeg,Image,2,2,0,0.0,26776,136.0,235.0,246,0,0.0,1
 2764,/Darwin/ImageCache/cache_eQMBaIq_3867.jpeg,Image,2,2,0,0.0,17242,492.0,915.05,962,0,0.0,1
 3761,/Darwin/ImageCache/cache_P6lL9cW_4027.jpeg,Image,2,2,0,0.0,14592,175.0,274.9,286,0,0.0,1
 4314,/Darwin/ImageCache/cache_V8pc0Ka_5006.jpeg,Image,2,2,0,0.0,20841,442.0,815.55,857,0,0.0,1
-1844,/Darwin/ImageCache/cache_0150U3w_4317.jpeg,Image,2,2,0,0.0,42262,212.0,303.85,314,0,0.0,2
-1855,/Darwin/ImageCache/cache_0EeyOAT_4084.jpeg,Image,2,2,0,0.0,210,289.0,493.35,516,0,0.0,2
-1904,/Darwin/ImageCache/cache_1DmafPX_7489.jpeg,Image,2,2,0,0.0,20167,543.0,1002.05,1053,0,0.0,2
-1912,/Darwin/ImageCache/cache_1oE7sPs_4347.jpeg,Image,2,2,0,0.0,150191,1894.0,3524.85,3706,0,0.0,2
-1929,/Darwin/ImageCache/cache_1yz8WZB_5440.jpeg,Image,2,2,0,0.0,262484,1010.0,1109.0,1120,0,0.0,2
 1989,/Darwin/ImageCache/cache_36ZEYef_3976.jpeg,Image,2,2,0,0.0,422,106.0,126.7,129,0,0.0,2
 2026,/Darwin/ImageCache/cache_3YBi5qX_4508.jpeg,Image,2,2,0,0.0,23759,251.0,262.7,264,0,0.0,2
 2080,/Darwin/ImageCache/cache_4yYt6XN_3537.jpeg,Image,2,2,0,0.0,107818,532.0,648.15,661,0,0.0,2
@@ -7047,10 +7042,11 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 4711,/Darwin/ImageCache/cache_zdzUBQi_2025.jpeg,Image,2,2,0,0.0,35122,873.0,1441.8,1505,0,0.0,2
 4749,/Darwin/ImageCache/cache_Zq96csW_5243.jpeg,Image,2,2,0,0.0,94782,771.0,1052.7,1084,0,0.0,2
 4774,/Darwin/ImageCache/cache_ZxNKY5j_4536.jpeg,Image,2,2,0,0.0,42585,648.0,1018.8,1060,0,0.0,2
-1852,/Darwin/ImageCache/cache_0cPWEz7_2060.jpeg,Image,6,2,0,0.0,211,172.0,310.0,310,0,0.0,3
-1878,/Darwin/ImageCache/cache_0RLpRkj_4008.jpeg,Image,6,3,0,0.0,211,119.0,164.0,164,0,0.0,2
-1886,/Darwin/ImageCache/cache_0u1mRZr_4257.jpeg,Image,3,2,0,0.0,211,219.0,422.3,457,0,0.0,3
-1920,/Darwin/ImageCache/cache_1ry8Fmq_3571.jpeg,Image,3,3,0,0.0,211,407.0,825.5,882,0,0.0,3
+1844,/Darwin/ImageCache/cache_0150U3w_4317.jpeg,Image,2,2,0,0.0,42262,212.0,303.85,314,0,0.0,2
+1855,/Darwin/ImageCache/cache_0EeyOAT_4084.jpeg,Image,2,2,0,0.0,210,289.0,493.35,516,0,0.0,2
+1904,/Darwin/ImageCache/cache_1DmafPX_7489.jpeg,Image,2,2,0,0.0,20167,543.0,1002.05,1053,0,0.0,2
+1912,/Darwin/ImageCache/cache_1oE7sPs_4347.jpeg,Image,2,2,0,0.0,150191,1894.0,3524.85,3706,0,0.0,2
+1929,/Darwin/ImageCache/cache_1yz8WZB_5440.jpeg,Image,2,2,0,0.0,262484,1010.0,1109.0,1120,0,0.0,2
 1942,/Darwin/ImageCache/cache_2CToGgh_2011.jpeg,Image,2,2,0,0.0,211,151.0,267.15,280,0,0.0,2
 1980,/Darwin/ImageCache/cache_2wNx4ki_4100.jpeg,Image,6,3,0,0.0,211,98.0,128.0,128,0,0.0,2
 2019,/Darwin/ImageCache/cache_3tHbkK5_1895.jpeg,Image,2,2,0,0.0,211,122.0,134.65,136,0,0.0,2
@@ -7135,6 +7131,10 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 4747,/Darwin/ImageCache/cache_ZPt1jih_4461.jpeg,Image,6,2,0,0.0,211,101.0,133.0,133,0,0.0,3
 4753,/Darwin/ImageCache/cache_zrS85p3_4479.jpeg,Image,3,2,0,0.0,211,140.0,283.8,305,0,0.0,3
 4775,/Darwin/ImageCache/cache_zy4pz4Y_4424.jpeg,Image,2,2,0,0.0,211,222.0,363.3,379,0,0.0,2
+1852,/Darwin/ImageCache/cache_0cPWEz7_2060.jpeg,Image,6,2,0,0.0,211,172.0,310.0,310,0,0.0,3
+1878,/Darwin/ImageCache/cache_0RLpRkj_4008.jpeg,Image,6,3,0,0.0,211,119.0,164.0,164,0,0.0,2
+1886,/Darwin/ImageCache/cache_0u1mRZr_4257.jpeg,Image,3,2,0,0.0,211,219.0,422.3,457,0,0.0,3
+1920,/Darwin/ImageCache/cache_1ry8Fmq_3571.jpeg,Image,3,3,0,0.0,211,407.0,825.5,882,0,0.0,3
 4793,/Darwin/MyAccount.aspx,Dynamic Page,26,6,0,0.0,72807,277.0,428.25,436,0,0.0,24
 4794,/Darwin/MyAccount.aspx,Dynamic Page,24,7,0,0.0,72858,355.0,450.0,738,0,0.0,21
 4799,/Darwin/MyAccount.aspx,Dynamic Page,57,30,0,0.0,138213,343.0,727.6,1283,0,0.0,38
@@ -9246,8 +9246,6 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 12734,/GetImageEx.aspx,Dynamic Page,3,1,0,0.0,1544,25.0,25.9,26,0,0.0,3
 13130,/resourcerenderers/ImageIframe.aspx,Dynamic Page,3,1,0,0.0,25044,303.0,502.8,526,0,0.0,3
 13178,/resourcerenderers/ImageIframe.aspx,Dynamic Page,3,1,0,0.0,12522,322.0,327.7,328,0,0.0,3
-68,/CMSShared/Download.aspx,Dynamic Page,2,1,0,0.0,654,347.0,391.15,396,0,0.0,1
-1871,/Darwin/ImageCache/cache_0nntURp_4790.jpeg,Image,2,1,0,0.0,900338,4066.0,4137.15,4145,0,0.0,1
 2083,/Darwin/ImageCache/cache_55WWh13_7366.jpeg,Image,2,1,0,0.0,4150,69.0,93.35,96,0,0.0,1
 2183,/Darwin/ImageCache/cache_7JpEgmA_1306.jpeg,Image,2,1,0,0.0,25420,321.0,384.95,392,0,0.0,1
 2528,/Darwin/ImageCache/cache_CDPCXEf_5797.jpeg,Image,2,1,0,0.0,475190,1656.0,2877.3,3013,0,0.0,1
@@ -9287,9 +9285,8 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13267,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,1,0,0.0,24900,163.0,193.6,197,0,0.0,1
 13492,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,1,0,0.0,24900,253.0,266.55,268,0,0.0,1
 13514,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,1,0,0.0,24900,132.0,172.55,177,0,0.0,1
-202,/Darwin/Home.aspx,Dynamic Page,2,1,0,0.0,47717,590.0,612.5,615,0,0.0,2
-1845,/Darwin/ImageCache/cache_02z2mla_3904.jpeg,Image,2,1,0,0.0,211,96.0,102.35,103,0,0.0,2
-1869,/Darwin/ImageCache/cache_0mRgfdC_3184.jpeg,Image,2,1,0,0.0,211,126.0,162.05,166,0,0.0,2
+68,/CMSShared/Download.aspx,Dynamic Page,2,1,0,0.0,654,347.0,391.15,396,0,0.0,1
+1871,/Darwin/ImageCache/cache_0nntURp_4790.jpeg,Image,2,1,0,0.0,900338,4066.0,4137.15,4145,0,0.0,1
 1965,/Darwin/ImageCache/cache_2oCcZ32_2429.jpeg,Image,2,1,0,0.0,1243323,800.0,1088.9,1121,0,0.0,2
 1977,/Darwin/ImageCache/cache_2vezKyn_3948.jpeg,Image,2,1,0,0.0,210,76.0,105.7,109,0,0.0,2
 1979,/Darwin/ImageCache/cache_2vzVNsG_4337.jpeg,Image,2,1,0,0.0,211,133.0,162.75,166,0,0.0,2
@@ -9357,9 +9354,9 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 5439,/Darwin/MyAccount.aspx,Dynamic Page,2,1,0,0.0,6614,338.0,416.3,425,0,0.0,2
 5649,/Darwin/MyAccount.aspx,Dynamic Page,2,1,0,0.0,13224,388.0,389.8,390,0,0.0,2
 5699,/Darwin/MyAccount.aspx,Dynamic Page,2,1,0,0.0,6694,193.0,226.3,230,0,0.0,2
-5803,/Darwin/Page.aspx,Dynamic Page,2,1,0,0.0,24218,866.0,1171.1,1205,0,0.0,2
-5805,/Darwin/Page.aspx,Dynamic Page,2,1,0,0.0,24762,546.0,561.35,563,0,0.0,2
-5807,/Darwin/Page.aspx,Dynamic Page,2,1,0,0.0,32406,1055.0,1495.15,1544,0,0.0,2
+5803,/darwin/Page.aspx,Dynamic Page,2,1,0,0.0,24218,866.0,1171.1,1205,0,0.0,2
+5805,/darwin/Page.aspx,Dynamic Page,2,1,0,0.0,24762,546.0,561.35,563,0,0.0,2
+5807,/darwin/Page.aspx,Dynamic Page,2,1,0,0.0,32406,1055.0,1495.15,1544,0,0.0,2
 5855,/Darwin/Place.aspx,Dynamic Page,2,1,0,0.0,147219,1784.0,2056.75,2087,0,0.0,2
 5883,/Darwin/Place.aspx,Dynamic Page,2,1,0,0.0,9286,68.0,68.95,69,0,0.0,2
 5896,/Darwin/Place.aspx,Dynamic Page,2,1,0,0.0,9286,70.0,71.8,72,0,0.0,2
@@ -9471,14 +9468,10 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13622,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,1,0,0.0,12618,326.0,327.85,328,0,0.0,2
 13657,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,1,0,0.0,12522,247.0,349.6,361,0,0.0,2
 13667,/resourcerenderers/ImageIframe.aspx,Dynamic Page,2,1,0,0.0,12522,239.0,320.9,330,0,0.0,2
+202,/Darwin/Home.aspx,Dynamic Page,2,1,0,0.0,47717,590.0,612.5,615,0,0.0,2
+1845,/Darwin/ImageCache/cache_02z2mla_3904.jpeg,Image,2,1,0,0.0,211,96.0,102.35,103,0,0.0,2
+1869,/Darwin/ImageCache/cache_0mRgfdC_3184.jpeg,Image,2,1,0,0.0,211,126.0,162.05,166,0,0.0,2
 12744,/google867648e3a5958e0e.html,Static Page,1,1,0,0.0,299,45.0,45.0,45,0,0.0,1
-40,/CMSShared/Document.aspx,Dynamic Page,1,1,0,0.0,2866,2148.0,2148.0,2148,0,0.0,1
-192,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,46179,660.0,660.0,660,0,0.0,1
-198,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,47717,180.0,180.0,180,0,0.0,1
-200,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,47717,178.0,178.0,178,0,0.0,1
-203,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,47717,178.0,178.0,178,0,0.0,1
-206,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,46138,204.0,204.0,204,0,0.0,1
-210,/Darwin/Home.aspx/MyAccount.aspx,Dynamic Page,1,1,0,0.0,19703,251.0,251.0,251,0,0.0,1
 4783,/Darwin/MyAccount.aspx,Dynamic Page,1,1,0,0.0,6246,352.0,352.0,352,0,0.0,1
 4784,/darwin/MyAccount.aspx,Dynamic Page,1,1,0,0.0,6327,1899.0,1899.0,1899,0,0.0,1
 4792,/Darwin/MyAccount.aspx,Dynamic Page,1,1,0,0.0,6532,127.0,127.0,127,0,0.0,1
@@ -9630,6 +9623,13 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 12564,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,35493,2073.0,2073.0,2073,0,0.0,1
 12565,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,113630,2729.0,2729.0,2729,0,0.0,1
 12629,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,38386,859.0,859.0,859,0,0.0,1
+40,/CMSShared/Document.aspx,Dynamic Page,1,1,0,0.0,2866,2148.0,2148.0,2148,0,0.0,1
+192,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,46179,660.0,660.0,660,0,0.0,1
+198,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,47717,180.0,180.0,180,0,0.0,1
+200,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,47717,178.0,178.0,178,0,0.0,1
+203,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,47717,178.0,178.0,178,0,0.0,1
+206,/Darwin/Home.aspx,Dynamic Page,1,1,0,0.0,46138,204.0,204.0,204,0,0.0,1
+210,/Darwin/Home.aspx/MyAccount.aspx,Dynamic Page,1,1,0,0.0,19703,251.0,251.0,251,0,0.0,1
 13004,/resourcerenderers/ImageIframe.aspx,Dynamic Page,1,1,0,0.0,12606,449.0,449.0,449,0,0.0,1
 13005,/resourcerenderers/ImageIframe.aspx,Dynamic Page,1,1,0,0.0,12460,92.0,92.0,92,0,0.0,1
 13006,/resourcerenderers/ImageIframe.aspx,Dynamic Page,1,1,0,0.0,12531,100.0,100.0,100,0,0.0,1
@@ -9703,14 +9703,6 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 13619,/resourcerenderers/ImageIframe.aspx,Dynamic Page,1,1,0,0.0,12524,334.0,334.0,334,0,0.0,1
 13624,/resourcerenderers/ImageIframe.aspx,Dynamic Page,1,1,0,0.0,12450,970.0,970.0,970,0,0.0,1
 13637,/resourcerenderers/ImageIframe.aspx,Dynamic Page,1,1,0,0.0,12524,147.0,147.0,147,0,0.0,1
-1851,/Darwin/ImageCache/cache_0cIrgeF_2778.jpeg,Image,1,1,0,0.0,18359,281.0,281.0,281,0,0.0,1
-1864,/Darwin/ImageCache/cache_0kLkkPa_3415.jpeg,Image,1,1,0,0.0,1840754,788.0,788.0,788,0,0.0,1
-1867,/Darwin/ImageCache/cache_0m37mp9_4966.jpeg,Image,1,1,0,0.0,1486112,4744.0,4744.0,4744,0,0.0,1
-1883,/Darwin/ImageCache/cache_0tmcaiN_2484.jpeg,Image,1,1,0,0.0,1086709,506.0,506.0,506,0,0.0,1
-1895,/Darwin/ImageCache/cache_15v8hWw_4905.jpeg,Image,1,1,0,0.0,102756,130.0,130.0,130,0,0.0,1
-1917,/Darwin/ImageCache/cache_1R92Obz_3330.jpeg,Image,1,1,0,0.0,527118,413.0,413.0,413,0,0.0,1
-1933,/Darwin/ImageCache/cache_21wBJBV_1195.jpeg,Image,1,1,0,0.0,93249,522.0,522.0,522,0,0.0,1
-1934,/Darwin/ImageCache/cache_23UkXGG_3008.jpeg,Image,1,1,0,0.0,89973,362.0,362.0,362,0,0.0,1
 1938,/Darwin/ImageCache/cache_29P0rTS_5990.jpeg,Image,1,1,0,0.0,1397733,4589.0,4589.0,4589,0,0.0,1
 1948,/Darwin/ImageCache/cache_2G7QSWS_2328.jpeg,Image,1,1,0,0.0,14471,118.0,118.0,118,0,0.0,1
 1962,/Darwin/ImageCache/cache_2M7yOsZ_4163.jpeg,Image,1,1,0,0.0,18527,81.0,81.0,81,0,0.0,1
@@ -10108,6 +10100,14 @@ page_sk,page_path,page_category,total_requests,unique_hosts,total_404,pct_404,to
 4759,/Darwin/ImageCache/cache_zuKID4I_5190.jpeg,Image,1,1,0,0.0,84511,873.0,873.0,873,0,0.0,1
 4762,/Darwin/ImageCache/cache_ZvGDK6P_6523.jpeg,Image,1,1,0,0.0,102149,581.0,581.0,581,0,0.0,1
 4768,/Darwin/ImageCache/cache_zWRbDMh_6360.jpeg,Image,1,1,0,0.0,110265,4719.0,4719.0,4719,0,0.0,1
+1851,/Darwin/ImageCache/cache_0cIrgeF_2778.jpeg,Image,1,1,0,0.0,18359,281.0,281.0,281,0,0.0,1
+1864,/Darwin/ImageCache/cache_0kLkkPa_3415.jpeg,Image,1,1,0,0.0,1840754,788.0,788.0,788,0,0.0,1
+1867,/Darwin/ImageCache/cache_0m37mp9_4966.jpeg,Image,1,1,0,0.0,1486112,4744.0,4744.0,4744,0,0.0,1
+1883,/Darwin/ImageCache/cache_0tmcaiN_2484.jpeg,Image,1,1,0,0.0,1086709,506.0,506.0,506,0,0.0,1
+1895,/Darwin/ImageCache/cache_15v8hWw_4905.jpeg,Image,1,1,0,0.0,102756,130.0,130.0,130,0,0.0,1
+1917,/Darwin/ImageCache/cache_1R92Obz_3330.jpeg,Image,1,1,0,0.0,527118,413.0,413.0,413,0,0.0,1
+1933,/Darwin/ImageCache/cache_21wBJBV_1195.jpeg,Image,1,1,0,0.0,93249,522.0,522.0,522,0,0.0,1
+1934,/Darwin/ImageCache/cache_23UkXGG_3008.jpeg,Image,1,1,0,0.0,89973,362.0,362.0,362,0,0.0,1
 11106,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,772,175.0,175.0,175,0,0.0,1
 11107,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,772,174.0,174.0,174,0,0.0,1
 11123,/GetImageEx.aspx,Dynamic Page,1,1,0,0.0,772,91.0,91.0,91,0,0.0,1
