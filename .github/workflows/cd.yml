@@ -216,10 +216,11 @@ jobs:
 
       - name: Sync DAGs to ADLS Gen2
         run: |
-          az storage fs upload \
+          az storage fs directory upload \
             -f airflow-dags \
             -s airflow/dags/ \
             --account-name ${{ vars.STORAGE_ACCOUNT_NAME }} \
+            --auth-mode login \
             --recursive
 
       - name: DAG file sync complete — smoke test will trigger ingestion
