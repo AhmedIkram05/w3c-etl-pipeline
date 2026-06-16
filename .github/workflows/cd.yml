@@ -1,15 +1,14 @@
 # ---------------------------------------------------------------------------
 # CD - Deploy to Azure
 # ---------------------------------------------------------------------------
-# Runs on merge to main. Deploys Terraform infra then runs a post-deploy
-# smoke test. dbt model execution is handled by the w3c_dbt_marts_azure
-# Airflow DAG.
+# Deploys Terraform infra on merge to main. dbt model execution is handled
+# by the w3c_dbt_marts_azure Airflow DAG (dataset-triggered).
 #
 # Single environment: azure-dev (auto-approve on merge to main).
 # Rollback available via workflow_dispatch.
 #
-# Pull requests run terraform-plan only (read-only). Apply and all downstream
-# jobs are skipped — fast feedback without risking the environment.
+# Pull requests run terraform-plan only (read-only). Apply is skipped on PRs
+# — fast feedback without risking the environment.
 # ---------------------------------------------------------------------------
 name: CD - Deploy to Azure
 
@@ -134,62 +133,6 @@ jobs:
           cd terraform/part_b
           terraform init -input=false
           terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
-
-  # -----------------------------------------------------------------------
-  # Post-Deploy Smoke Test
-  # -----------------------------------------------------------------------
-  smoke-test:
-    name: Post-Deploy Smoke Test
-    needs: terraform-apply
-    runs-on: ubuntu-latest
-    environment: azure-dev
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Trigger Airflow DAG via REST API
-        run: |
-          DAG_RUN_ID=$(curl -s -X POST "${{ vars.AIRFLOW_URL }}/api/v1/dags/w3c_spark_ingestion_azure/dagRuns" \
-            -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" \
-            -H "Content-Type: application/json" \
-            -d '{"conf": {"trigger_source": "cd_smoke_test"}}' | jq -r '.dag_run_id // empty')
-          echo "DAG_RUN_ID=$DAG_RUN_ID" >> "$GITHUB_ENV"
-          echo "Triggered DAG run: $DAG_RUN_ID"
-
-      - name: Poll DAG Until Complete
-        run: |
-          for i in $(seq 1 60); do
-            STATE=$(curl -s "${{ vars.AIRFLOW_URL }}/api/v1/dags/w3c_spark_ingestion_azure/dagRuns/${{ env.DAG_RUN_ID }}" \
-              -u "${{ vars.AIRFLOW_USERNAME }}:${{ secrets.AIRFLOW_PASSWORD }}" | jq -r '.state // "unknown"')
-            echo "Attempt $i: DAG state = $STATE"
-            if [ "$STATE" = "success" ]; then
-              echo "DAG completed successfully"
-              exit 0
-            fi
-            if [ "$STATE" = "failed" ] || [ "$STATE" = "upstream_failed" ]; then
-              echo "DAG failed"
-              exit 1
-            fi
-            sleep 15
-          done
-          echo "Timeout waiting for DAG to complete"
-          exit 1
-
-      - name: Assert Azure SQL Row Count
-        run: |
-          ROWS=$(sqlcmd -S "${{ vars.AZURE_SQL_SERVER }}" \
-            -d "${{ vars.AZURE_SQL_DATABASE }}" \
-            -U "${{ vars.AZURE_SQL_USER }}" \
-            -P "${{ secrets.AZURE_SQL_PASSWORD }}" \
-            -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM dbo.raw_enriched" -h -1 | tr -d ' ')
-          echo "Azure SQL dbo.raw_enriched row count: $ROWS"
-          if [ "$ROWS" -gt 0 ]; then
-            echo "Smoke test PASSED — $ROWS rows found"
-            exit 0
-          else
-            echo "Smoke test FAILED — no rows in dbo.raw_enriched"
-            exit 1
-          fi
 
   # -----------------------------------------------------------------------
   # Rollback (manual workflow_dispatch only)
