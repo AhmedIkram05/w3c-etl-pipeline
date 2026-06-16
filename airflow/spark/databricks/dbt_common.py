@@ -186,10 +186,7 @@ def run_dbt_command(
         print(result.stderr)
 
     if result.returncode != 0:
-        raise RuntimeError(
-            f"dbt {command_name} failed (rc={result.returncode})\n"
-            f"{result.stdout}\n{result.stderr}"
-        )
+        raise RuntimeError(f"dbt {command_name} failed (rc={result.returncode})\n{result.stdout}\n{result.stderr}")
 
     print(f":: [{command_name}] Completed (rc={result.returncode})")
     return result
