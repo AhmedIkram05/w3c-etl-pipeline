@@ -171,12 +171,27 @@ def run_dbt_command(
         profiles_dir,
     ]
     print(f"Running dbt {command_name}...")
-    result = subprocess.run(full_cmd, capture_output=True, text=True)
-    print(result.stdout)
+    sys.stdout.flush()
+
+    result = subprocess.run(
+        full_cmd,
+        capture_output=True,
+        text=True,
+    )
+
+    # Print stdout and stderr so the Databricks notebook output shows it
+    if result.stdout:
+        print(result.stdout)
     if result.stderr:
         print(result.stderr)
+
     if result.returncode != 0:
-        raise RuntimeError(f"dbt {command_name} failed (rc={result.returncode})\n{result.stdout}\n{result.stderr}")
+        raise RuntimeError(
+            f"dbt {command_name} failed (rc={result.returncode})\n"
+            f"{result.stdout}\n{result.stderr}"
+        )
+
+    print(f":: [{command_name}] Completed (rc={result.returncode})")
     return result
 
 

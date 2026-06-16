@@ -78,7 +78,7 @@ def export_csv_azure(**context) -> None:
         Azure SQL password.
     """
     server = os.environ.get("AZURE_SQL_SERVER", "")
-    database = os.environ.get("AZURE_SQL_DATABASE", "w3c-etl-db")
+    database = os.environ.get("AZURE_SQL_DATABASE") or os.environ.get("AZURE_SQL_DB", "w3c-etl-db")
     username = os.environ.get("AZURE_SQL_USER", "")
     password = os.environ.get("AZURE_SQL_PASS", "")
 

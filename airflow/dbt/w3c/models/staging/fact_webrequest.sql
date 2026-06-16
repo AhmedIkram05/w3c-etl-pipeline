@@ -22,9 +22,6 @@ WITH enriched_input AS (
         {% endif %}
         1 AS request_count
     FROM {{ source('w3c', 'raw_enriched') }}
-    {% if is_incremental() %}
-    WHERE source_file NOT IN (SELECT DISTINCT source_file FROM {{ this }})
-    {% endif %}
 ),
 
 page_map AS (
@@ -124,15 +121,24 @@ geo_lookup AS (
     FROM computed c
     WHERE c.country IS NOT NULL
 ),
+{% else %}
+geo_lookup AS (
+    SELECT DISTINCT
+        c.client_ip,
+        g.geolocation_sk
+    FROM computed c
+    LEFT JOIN {{ source('w3c', 'dim_geolocation') }} g ON g.ip = c.client_ip
+    WHERE c.country IS NOT NULL
+),
+{% endif %}
 ua_lookup AS (
     SELECT DISTINCT
         c.user_agent,
         ua.user_agent_sk
     FROM computed c
-    LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua ON ua.user_agent = c.user_agent
+    LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua ON ua.user_agent = LEFT(c.user_agent, 1000)
     WHERE c.user_agent IS NOT NULL AND c.user_agent != '-'
 )
-{% endif %}
 
 SELECT
     c.raw_log_id,
@@ -147,8 +153,8 @@ SELECT
         COALESCE(g.geolocation_sk, -1) AS geolocation_sk,
         COALESCE(ua.user_agent_sk, -1) AS user_agent_sk,
     {% else %}
-        -1 AS geolocation_sk,
-        -1 AS user_agent_sk,
+        COALESCE(gl.geolocation_sk, -1) AS geolocation_sk,
+        COALESCE(ua.user_agent_sk, -1) AS user_agent_sk,
     {% endif %}
     v.visitor_sk,
     vb.visit_bucket_sk,
@@ -164,7 +170,10 @@ SELECT
     c.page_category,
     c.referrer_domain,
     c.traffic_type,
-    t.time_band
+    t.time_band,
+    d.is_weekend,
+    d.day_of_week,
+    t.hour AS request_hour
 FROM (
     SELECT * FROM (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY raw_log_id ORDER BY response_time_ms DESC) AS rn
@@ -187,8 +196,8 @@ INNER JOIN referrer_map rf ON rf.referrer_url = c.referrer_url
 INNER JOIN {{ ref('dim_visitortype') }} v ON v.visitor_sk = c.visitor_key
 INNER JOIN ip_visit_buckets ib ON ib.client_ip = c.client_ip
 INNER JOIN {{ ref('dim_visit_buckets') }} vb ON vb.visit_bucket = ib.visit_bucket_name
-{% if target.type == 'sqlserver' %}
 LEFT JOIN geo_lookup gl ON gl.client_ip = c.client_ip
+{% if target.type == 'sqlserver' %}
 LEFT JOIN {{ source('w3c', 'dim_geolocation') }} g ON g.geo_hash = gl.geo_hash
-LEFT JOIN ua_lookup ua ON ua.user_agent = c.user_agent
 {% endif %}
+LEFT JOIN ua_lookup ua ON ua.user_agent = c.user_agent
