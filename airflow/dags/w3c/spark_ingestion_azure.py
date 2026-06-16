@@ -95,7 +95,7 @@ def _export_dimensions(**context) -> None:
         Azure SQL password.
     """
     server = os.environ.get("AZURE_SQL_SERVER", "")
-    database = os.environ.get("AZURE_SQL_DATABASE", "w3c-etl-db")
+    database = os.environ.get("AZURE_SQL_DATABASE") or os.environ.get("AZURE_SQL_DB", "w3c-etl-db")
     username = os.environ.get("AZURE_SQL_USER", "")
     password = os.environ.get("AZURE_SQL_PASS", "")
 
@@ -312,6 +312,124 @@ def _export_dimensions(**context) -> None:
         raise
 
 
+def _create_indexes(**context) -> None:
+    """Create indexes on Azure SQL tables to speed up dbt queries.
+
+    Runs after dimensions are built and before the Dataset fires to trigger
+    the downstream ``dbt_marts_azure`` DAG.
+
+    Indexes created:
+      - ``ix_raw_enriched_cx``: Clustered index on ``dbo.raw_enriched(source_file, log_time)``
+        speeds up full scans (heap → clustered) and the incremental WHERE clause.
+      - ``ix_raw_enriched_client_ip``: Non-clustered index on client_ip speeds up
+        the ``ip_visit_buckets`` CTE in ``fact_webrequest.sql``.
+
+    All index creation uses ``IF NOT EXISTS`` checks for idempotent re-runs.
+
+    Environment variables
+    ---------------------
+    Same as ``_export_dimensions`` — ``AZURE_SQL_SERVER``, ``AZURE_SQL_DATABASE``,
+    ``AZURE_SQL_USER``, ``AZURE_SQL_PASS``.
+    """
+    server = os.environ.get("AZURE_SQL_SERVER", "")
+    database = os.environ.get("AZURE_SQL_DATABASE") or os.environ.get("AZURE_SQL_DB", "w3c-etl-db")
+    username = os.environ.get("AZURE_SQL_USER", "")
+    password = os.environ.get("AZURE_SQL_PASS", "")
+
+    if not all([server, username, password]):
+        logger.warning("Azure SQL credentials not configured. Skipping index creation.")
+        return
+
+    try:
+        import pyodbc
+
+        conn_str = (
+            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+            f"SERVER={server};"
+            f"DATABASE={database};"
+            f"UID={username};"
+            f"PWD={password};"
+            f"Encrypt=yes;TrustServerCertificate=no;"
+        )
+
+        with pyodbc.connect(conn_str, autocommit=True) as conn:
+            cursor = conn.cursor()
+
+            # Clustered index on raw_enriched (source_file, log_time)
+            cursor.execute("""
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE name = 'ix_raw_enriched_cx'
+                      AND object_id = OBJECT_ID('dbo.raw_enriched')
+                )
+                BEGIN
+                    CREATE CLUSTERED INDEX ix_raw_enriched_cx
+                    ON dbo.raw_enriched(source_file, log_time);
+                    PRINT 'Created ix_raw_enriched_cx';
+                END
+                ELSE
+                    PRINT 'ix_raw_enriched_cx already exists';
+            """)
+            logger.info("Clustered index ix_raw_enriched_cx created (or already exists)")
+
+            # Non-clustered index on raw_enriched(client_ip)
+            cursor.execute("""
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE name = 'ix_raw_enriched_client_ip'
+                      AND object_id = OBJECT_ID('dbo.raw_enriched')
+                )
+                BEGIN
+                    CREATE INDEX ix_raw_enriched_client_ip
+                    ON dbo.raw_enriched(client_ip);
+                    PRINT 'Created ix_raw_enriched_client_ip';
+                END
+                ELSE
+                    PRINT 'ix_raw_enriched_client_ip already exists';
+            """)
+            logger.info("Index ix_raw_enriched_client_ip created (or already exists)")
+
+            # Index on dim_geolocation(geo_hash) for efficient lookups
+            cursor.execute("""
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE name = 'ix_dim_geolocation_geo_hash'
+                      AND object_id = OBJECT_ID('dbo.dim_geolocation')
+                )
+                BEGIN
+                    CREATE INDEX ix_dim_geolocation_geo_hash
+                    ON dbo.dim_geolocation(geo_hash);
+                    PRINT 'Created ix_dim_geolocation_geo_hash';
+                END
+                ELSE
+                    PRINT 'ix_dim_geolocation_geo_hash already exists';
+            """)
+
+            # Index on dim_useragent(user_agent) for efficient lookups
+            cursor.execute("""
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE name = 'ix_dim_useragent_user_agent'
+                      AND object_id = OBJECT_ID('dbo.dim_useragent')
+                )
+                BEGIN
+                    CREATE INDEX ix_dim_useragent_user_agent
+                    ON dbo.dim_useragent(user_agent);
+                    PRINT 'Created ix_dim_useragent_user_agent';
+                END
+                ELSE
+                    PRINT 'ix_dim_useragent_user_agent already exists';
+            """)
+
+            conn.commit()
+
+        logger.info("Azure SQL indexes created successfully.")
+
+    except Exception as e:
+        logger.exception(f"Error while creating indexes: {e}")
+        raise
+
+
 # ── DAG definition ─────────────────────────────────────────────────────────
 dag = DAG(
     dag_id="w3c_spark_ingestion_azure",
@@ -342,6 +460,16 @@ bronze_silver_jdbc_pipeline = DatabricksRunNowOperator(
 export_dimensions = PythonOperator(
     task_id="export_dimensions",
     python_callable=_export_dimensions,
+    dag=dag,
+)
+
+# ════════════════════════════════════════════════════════════════════════════
+# TASK 3: Create Indexes for dbt Performance
+# ════════════════════════════════════════════════════════════════════════════
+
+create_indexes = PythonOperator(
+    task_id="create_indexes",
+    python_callable=_create_indexes,
     outlets=[AZURE_WAREHOUSE_LOADED],
     dag=dag,
 )
@@ -350,4 +478,4 @@ export_dimensions = PythonOperator(
 # Dependencies
 # ════════════════════════════════════════════════════════════════════════════
 
-bronze_silver_jdbc_pipeline >> export_dimensions
+bronze_silver_jdbc_pipeline >> export_dimensions >> create_indexes
