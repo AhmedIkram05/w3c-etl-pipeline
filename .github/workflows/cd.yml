@@ -121,7 +121,7 @@ jobs:
         run: |
           cd terraform/part_a
           terraform init -input=false -migrate-state
-          terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
+          terraform apply -auto-approve -input=false -lock-timeout=300s -var-file=environments/dev/terraform.tfvars
 
       - name: Terraform Apply (Part B)
         env:
@@ -132,7 +132,7 @@ jobs:
         run: |
           cd terraform/part_b
           terraform init -input=false
-          terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
+          terraform apply -auto-approve -input=false -lock-timeout=300s -var-file=environments/dev/terraform.tfvars
 
   # -----------------------------------------------------------------------
   # Rollback (manual workflow_dispatch only)
@@ -172,7 +172,7 @@ jobs:
       - name: Terraform Rollback — Part A (apply)
         run: |
           cd terraform/part_a
-          terraform apply -auto-approve -input=false tfplan_rollback
+          terraform apply -auto-approve -input=false -lock-timeout=300s tfplan_rollback
 
       - name: Terraform Rollback — Part B (plan)
         env:
@@ -194,6 +194,6 @@ jobs:
         run: |
           cd terraform/part_b
           terraform init -input=false
-          terraform apply -auto-approve -input=false tfplan_rollback
+          terraform apply -auto-approve -input=false -lock-timeout=300s tfplan_rollback
 
 
