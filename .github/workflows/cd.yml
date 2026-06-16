@@ -1,9 +1,9 @@
 # ---------------------------------------------------------------------------
 # CD - Deploy to Azure
 # ---------------------------------------------------------------------------
-# Runs on merge to main. Deploys Terraform infra and Airflow DAGs,
-# then runs a post-deploy smoke test.
-# dbt model execution is handled by the w3c_dbt_marts_azure Airflow DAG.
+# Runs on merge to main. Deploys Terraform infra then runs a post-deploy
+# smoke test. dbt model execution is handled by the w3c_dbt_marts_azure
+# Airflow DAG.
 #
 # Single environment: azure-dev (auto-approve on merge to main).
 # Rollback available via workflow_dispatch.
@@ -136,46 +136,11 @@ jobs:
           terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
 
   # -----------------------------------------------------------------------
-  # Sync Airflow DAGs to ADLS
-  # -----------------------------------------------------------------------
-  sync-airflow:
-    name: Sync Airflow DAGs
-    needs: terraform-apply
-    runs-on: ubuntu-latest
-    environment: azure-dev
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Install ADLS extension
-        run: az extension add --name storage-preview -y
-
-      - name: Sync DAGs to ADLS Gen2
-        run: |
-          az storage fs directory upload \
-            -f airflow-dags \
-            -s airflow/dags/ \
-            --account-name ${{ vars.STORAGE_ACCOUNT_NAME }} \
-            --auth-mode login \
-            --recursive
-
-      - name: DAG file sync complete — smoke test will trigger ingestion
-        run: echo "DAGs synced to ADLS; smoke test will trigger the ingestion DAG"
-
-  # -----------------------------------------------------------------------
   # Post-Deploy Smoke Test
   # -----------------------------------------------------------------------
   smoke-test:
     name: Post-Deploy Smoke Test
-    needs: sync-airflow
+    needs: terraform-apply
     runs-on: ubuntu-latest
     environment: azure-dev
     timeout-minutes: 20
