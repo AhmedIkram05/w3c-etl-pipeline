@@ -160,7 +160,7 @@ class TestExportWarehouse:
             "operating_system",
             "device_type",
         }
-        assert len(columns) == 24, f"Expected 24 columns in dbt_staging.fact_webrequest, got {len(columns)}: {columns}"
+        assert len(columns) == 27, f"Expected 27 columns in dbt_staging.fact_webrequest, got {len(columns)}: {columns}"
         assert dead_cols.isdisjoint(columns), f"Dead columns still present: {dead_cols & set(columns)}"
 
 
