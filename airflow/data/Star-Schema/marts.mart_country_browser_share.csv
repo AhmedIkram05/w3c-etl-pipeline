@@ -1469,7 +1469,7 @@ date_sk,date,country,top_browser,top_browser_requests,top_browser_share_pct
 20110205,2011-02-05,New Zealand,Other,6,100.0
 20110411,2011-04-11,France,topyx-crawler,2,100.0
 20110424,2011-04-24,Romania,Java,1,100.0
-20091024,2009-10-24,Canada,Unknown,5,50.0
+20091024,2009-10-24,Canada,Other,5,50.0
 20100112,2010-01-12,Canada,Unknown,3488,92.84
 20100113,2010-01-13,France,Other,25,89.29
 20100322,2010-03-22,United Kingdom,Unknown,279,99.64
