@@ -1,8 +1,9 @@
 # ---------------------------------------------------------------------------
 # CD - Deploy to Azure
 # ---------------------------------------------------------------------------
-# Runs on merge to main. Deploys Terraform infra, dbt models, Airflow DAGs,
+# Runs on merge to main. Deploys Terraform infra and Airflow DAGs,
 # then runs a post-deploy smoke test.
+# dbt model execution is handled by the w3c_dbt_marts_azure Airflow DAG.
 #
 # Single environment: azure-dev (auto-approve on merge to main).
 # Rollback available via workflow_dispatch.
@@ -135,63 +136,6 @@ jobs:
           terraform apply -auto-approve -input=false -var-file=environments/dev/terraform.tfvars
 
   # -----------------------------------------------------------------------
-  # Deploy dbt Models
-  # -----------------------------------------------------------------------
-  deploy-dbt:
-    name: Deploy dbt Models
-    needs: terraform-apply
-    runs-on: ubuntu-latest
-    environment: azure-dev
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install dbt
-        run: pip install "dbt-sqlserver==1.8.7" "dbt-core==1.8.9" "dbt-common==1.27.1" "protobuf>=5.27,<6"
-
-      - name: Install ODBC Driver 18 for SQL Server
-        run: |
-          sudo apt-get update && sudo apt-get install -y curl gnupg2
-          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
-          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-          sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 mssql-tools18
-
-      - name: dbt deps
-        run: dbt deps --project-dir airflow/dbt/w3c
-
-      - name: dbt run (--defer --state, with first-deploy fallback)
-        env:
-          AZURE_SQL_SERVER: ${{ vars.AZURE_SQL_SERVER }}
-          AZURE_SQL_DB: ${{ vars.AZURE_SQL_DATABASE }}
-          AZURE_SQL_USER: ${{ vars.AZURE_SQL_USER }}
-          AZURE_SQL_PASSWORD: ${{ secrets.AZURE_SQL_PASSWORD }}
-        run: |
-          cd airflow/dbt/w3c
-          if [ -f "./target-prod/manifest.json" ]; then
-            echo "Found production state — running with --defer"
-            dbt run --profile w3c_azure --profiles-dir ../ --defer --state ./target-prod
-          else
-            echo "No production state found — running without --defer (first deploy)"
-            dbt run --profile w3c_azure --profiles-dir ../
-          fi
-
-      - name: dbt test
-        env:
-          AZURE_SQL_SERVER: ${{ vars.AZURE_SQL_SERVER }}
-          AZURE_SQL_DB: ${{ vars.AZURE_SQL_DATABASE }}
-          AZURE_SQL_USER: ${{ vars.AZURE_SQL_USER }}
-          AZURE_SQL_PASSWORD: ${{ secrets.AZURE_SQL_PASSWORD }}
-        run: |
-          cd airflow/dbt/w3c
-          dbt test --profile w3c_azure --profiles-dir ../
-
-  # -----------------------------------------------------------------------
   # Sync Airflow DAGs to ADLS
   # -----------------------------------------------------------------------
   sync-airflow:
@@ -231,7 +175,7 @@ jobs:
   # -----------------------------------------------------------------------
   smoke-test:
     name: Post-Deploy Smoke Test
-    needs: [deploy-dbt, sync-airflow]
+    needs: sync-airflow
     runs-on: ubuntu-latest
     environment: azure-dev
     timeout-minutes: 20
@@ -281,77 +225,6 @@ jobs:
             echo "Smoke test FAILED — no rows in dbo.raw_enriched"
             exit 1
           fi
-
-  # -----------------------------------------------------------------------
-  # Deploy dbt Docs to GitHub Pages
-  # -----------------------------------------------------------------------
-  deploy-dbt-docs:
-    name: Deploy dbt Docs
-    if: github.event_name != 'pull_request'
-    needs: deploy-dbt
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    services:
-      postgres:
-        image: postgres:13
-        env:
-          POSTGRES_USER: airflow
-          POSTGRES_PASSWORD: airflow
-          POSTGRES_DB: w3c_warehouse
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U airflow -d w3c_warehouse"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      W3C_DB_HOST: localhost
-      W3C_DB_PORT: "5432"
-      W3C_DB_NAME: w3c_warehouse
-      W3C_DB_USER: airflow
-      W3C_DB_PASS: airflow
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install dbt
-        run: pip install "dbt-postgres==1.8.2" "dbt-core==1.8.9"
-
-      - name: Install dbt packages
-        run: dbt deps --project-dir airflow/dbt/w3c
-
-      - name: Generate dbt docs
-        run: >-
-          dbt docs generate
-          --project-dir airflow/dbt/w3c
-          --profiles-dir airflow/dbt
-
-      - name: Setup GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: airflow/dbt/w3c/target
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
 
   # -----------------------------------------------------------------------
   # Rollback (manual workflow_dispatch only)

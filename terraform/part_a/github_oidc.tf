@@ -76,3 +76,19 @@ resource "azurerm_role_assignment" "github_actions" {
   skip_service_principal_aad_check = true
 }
 
+# ---------------------------------------------------------------------------
+# Role Assignment — Storage Blob Data Contributor (data-plane)
+# ---------------------------------------------------------------------------
+# Required for ADLS Gen2 file operations (e.g., sync-airflow job uploads
+# DAGs to the airflow-dags container).
+# Contributor (above) only covers control-plane — blob operations need
+# a built-in Storage Blob Data role.
+# ---------------------------------------------------------------------------
+resource "azurerm_role_assignment" "github_actions_blob" {
+  count                            = var.github_oidc_enabled ? 1 : 0
+  scope                            = module.datalake.storage_account_id
+  role_definition_name             = "Storage Blob Data Contributor"
+  principal_id                     = azuread_service_principal.github_actions[0].object_id
+  skip_service_principal_aad_check = true
+}
+
