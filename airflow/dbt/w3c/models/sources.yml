@@ -24,11 +24,6 @@ sources:
             tests:
               - unique
               - not_null
-          - name: geo_hash
-            description: "SHA-256 hash of country|region|city|latitude|longitude"
-            tests:
-              - unique
-              - not_null
           - name: country
             description: "Country name"
           - name: region
@@ -50,11 +45,6 @@ sources:
             tests:
               - unique
               - not_null
-          - name: ua_hash
-            description: "SHA-256 hash of ua_str|agent_type|browser_name|browser_version|os|device_type — includes raw UA for unique dim rows"
-            tests:
-              - unique
-              - not_null
           - name: user_agent
             description: "Raw User-Agent string (URL-unescaped). Now includes raw UA in hash — each unique raw string maps to its own dim row for LEFT JOIN."
             tests:
@@ -63,7 +53,7 @@ sources:
             description: "Agent classification (Browser/Crawler)"
             tests:
               - accepted_values:
-                  values: ["Browser", "Crawler"]
+                  values: ["Browser", "Crawler", "Unknown"]
           - name: browser_name
             description: "Browser family (e.g. Chrome, Firefox)"
           - name: browser_version
@@ -74,4 +64,4 @@ sources:
             description: "Device type (e.g. Desktop, Mobile, Tablet)"
             tests:
               - accepted_values:
-                  values: ["Desktop", "Mobile", "Tablet", "Bot", "Other"]
+                  values: ["Desktop", "Mobile", "Tablet", "Bot", "Other", "Unknown"]

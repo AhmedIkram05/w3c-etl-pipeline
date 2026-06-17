@@ -134,7 +134,7 @@ geo_lookup AS (
         g.geolocation_sk
     FROM computed c
     LEFT JOIN {{ source('w3c', 'dim_geolocation') }} g ON g.ip = c.client_ip
-    WHERE c.country IS NOT NULL
+    WHERE g.geolocation_sk IS NOT NULL
 ),
 {% endif %}
 ua_lookup AS (

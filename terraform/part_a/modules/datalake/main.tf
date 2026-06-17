@@ -13,9 +13,6 @@ resource "azurerm_storage_account" "this" {
     virtual_network_subnet_ids = [var.databricks_subnet_id]
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "azurerm_storage_container" "this" {

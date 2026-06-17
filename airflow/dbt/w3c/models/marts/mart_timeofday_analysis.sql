@@ -21,6 +21,7 @@ WITH hourly_stats AS (
     GROUP BY fw.date_sk, dd.date, dd.day_name, dt.hour, dt.time_band
 ),
 p95_cte AS (
+    {% if target.type == 'sqlserver' %}
     SELECT DISTINCT
         fw.date_sk,
         dt.hour,
@@ -30,6 +31,15 @@ p95_cte AS (
         ) }} AS p95_response_time_ms
     FROM {{ ref('fact_webrequest') }} fw
     JOIN {{ ref('dim_time') }} dt ON dt.time_sk = fw.time_sk
+    {% else %}
+    SELECT
+        fw.date_sk,
+        dt.hour,
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2) AS p95_response_time_ms
+    FROM {{ ref('fact_webrequest') }} fw
+    JOIN {{ ref('dim_time') }} dt ON dt.time_sk = fw.time_sk
+    GROUP BY fw.date_sk, dt.hour
+    {% endif %}
 )
 
 SELECT
