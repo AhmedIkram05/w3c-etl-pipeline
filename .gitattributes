@@ -1,2 +1,4 @@
+# Mark dbt docs HTML as generated — exclude from GitHub language stats
+*.html linguist-generated=true
 pipeline/data/LogFiles/*.log filter=lfs diff=lfs merge=lfs -text
 pipeline/data/Star-Schema/*.csv filter=lfs diff=lfs merge=lfs -text
