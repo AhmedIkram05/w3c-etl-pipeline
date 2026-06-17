@@ -19,8 +19,8 @@ airflow.cfg
 airflow-webserver.pid
 standalone_admin_password.txt
 
-# Generated data — not committed
-/data/dbt-docs/
+# dbt docs source files (copied from target/ then synced to docs/dbt/ for GH Pages)
+# GH Pages served from: airflow/data/dbt-docs/ → docs/dbt/
 
 # MaxMind GeoLite2 databases — too large, download manually per Phase 0
 /data/geoip/
