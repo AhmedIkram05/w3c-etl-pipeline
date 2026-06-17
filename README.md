@@ -176,8 +176,8 @@ flowchart LR
 | **Serverless DLT** | All Databricks compute runs on serverless - no VMs, no clusters, auto-scales to zero when idle. | **Zero infrastructure management.** The pipeline costs ~$0 when idle and never requires cluster tuning. |
 | **GeoIP Enrichment** | 7 MaxMind fields (country → ISP) from a single consolidated struct UDF using `maxminddb` pure Python. 3.5× faster than 7 separate UDFs. | **Serverless DLT can't install compiled C libraries.** Pure Python `maxminddb` side-steps this limitation while a lazy singleton pattern avoids PicklingError in distributed execution. |
 | **45-Second JDBC Export** | 153,377 rows from Silver to Azure SQL in 45 seconds - 8–9× faster than the initial 413s implementation. | **Databricks serverless only supports JDBC reads, not writes.** Pure Python `pymssql` + `tuple(row)` (not `asDict()`) + Spark-side pre-filter before `collect()` were the breakthrough optimisations. |
-| **T-SQL Dual-Dialect dbt** | All 16 models compile against both PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline `{% if target.type == 'sqlserver' %}` branches - no separate `_azure.sql` files. | **One model, two databases.** 18 macros + 2 dispatch overrides abstract PostgreSQL syntax (`::casts`, `EXTRACT`, `SPLIT_PART`, `ILIKE`, `MD5`) behind Jinja wrappers. |
-| **121 dbt Data Tests** | 48 `not_null` · 18 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` - enforcing business invariants across all 16 models. | **Production-grade data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
+| **T-SQL Dual-Dialect dbt** | All 16 models compile against both PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%}" }}` branches - no separate `_azure.sql` files. | **One model, two databases.** 18 macros + 2 dispatch overrides abstract PostgreSQL syntax (`::casts`, `EXTRACT`, `SPLIT_PART`, `ILIKE`, `MD5`) behind Jinja wrappers. |
+| **121 dbt Data Tests** | 46 `not_null` · 16 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` · 4 custom singular tests - enforcing business invariants across all 16 models. | **Production-grade data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
 | **Terraform with OIDC** | Part A (4 modules: networking, datalake, databricks, warehouse) + Part B (24 resources: DLT pipelines, Workflows, UC schemas, secrets). Full OIDC Workload Identity Federation - no static Azure credentials. | **Zero touch deployment.** One `terraform apply` provisions the entire Azure estate including the GitHub→Azure auth chain. The CI/CD pipeline authenticates via token exchange, not client secrets. |
 | **3 Grafana Dashboards** | 23 panels across Airflow ETL Overview (7), Container System Metrics (6), and Pipeline Health (10) - with 8 Prometheus alert rules, 2 Azure Monitor alerts, and 3 action groups (P1/P2/P3). | **Observability from day one.** Airflow StatsD → Prometheus → Grafana pipeline means every DAG run, task duration, and data freshness metric is tracked. |
 
@@ -196,9 +196,9 @@ flowchart LR
 | **Warehouse** | Azure SQL database | GP_S_Gen5 serverless, 1 vCore, auto-pause 60 min |
 | **dbt models** | Total | **16** (10 staging + 6 marts) |
 | **dbt macros** | T-SQL compatibility | **18** macros + **2** dispatch overrides |
-| **dbt data tests** | All models | **121** (48 not_null + 18 unique + 21 accepted_values + 10 relationships + 24 expression_is_true) |
-| **pytest** | Total / CI | **305 tests** / **275 in CI** (17 files, 81+ classes) |
-| **Terraform** | HCL assertions | **9** (3 Part A + 6 Part B) + **39** Python tests |
+| **dbt data tests** | All models | **121** (46 not_null + 16 unique + 21 accepted_values + 10 relationships + 24 expression_is_true + 4 singular) |
+| **pytest** | Total / CI | **613 tests** / **583 in CI** (468 unit + 92 terraform + 23 DAG integrity + 18 integration + 12 dbt_compile) |
+| **Terraform** | HCL assertions | **9** (3 Part A + 6 Part B) + **92** Python tests |
 | **CI/CD** | Workflow files | **7** (4 CI + 1 CD + 1 CodeQL + 1 auto-merge) |
 | **CI/CD** | Job stages | **9 CI + 3 CD** |
 | **IaC** | Terraform modules | **4** (networking, datalake, databricks, warehouse) |
@@ -487,8 +487,9 @@ dbt owns **all SQL transformations** - nothing else writes to the star schema. T
 
 **The Dual-Dialect Strategy:**
 
-Every model file uses inline `{% if target.type == 'sqlserver' %}...{% else %}...{% endif %}` branches. There are **no separate `_azure.sql` files** - dbt would parse both as independent models.
+Every model file uses inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%}" }}...{{ "{%" }} else {{ "%}" }}...{{ "{%" }} endif {{ "%}" }}` branches. There are **no separate `_azure.sql` files** - dbt would parse both as independent models.
 
+{% raw %}
 ```sql
 -- Real example from a dbt model (simplified):
 SELECT
@@ -499,6 +500,7 @@ SELECT
     {% endif %}
 FROM {{ source('w3c', 'raw_enriched') }}
 ```
+{% endraw %}
 
 **18 T-SQL Compatibility Macros + 2 Dispatch Overrides:**
 
@@ -919,7 +921,7 @@ flowchart TD
 | Job | What It Validates |
 |---|---|
 | **lint** | ruff lint + format (PEP8), mypy type checking (19 files), bandit security scan, SQLFluff dbt SQL lint |
-| **test** | 275 pytest unit tests across all pipeline layers (DLT, JDBC, dimensions, W3C parser, DAG integrity, Terraform) with Codecov coverage |
+| **test** | 583 pytest tests across all pipeline layers (base + DAG integrity + Terraform) with Codecov coverage |
 | **dbt-compile** | dbt compile against PostgreSQL + T-SQL/Azure SQL in dual-service CI containers (PostgreSQL 13 + SQL Server 2022 side-by-side), plus 12 T-SQL output validators |
 | **terraform** | `fmt --check`, `init`, `validate`, `terraform test` (9 HCL assertions) across both Part A + Part B matrix |
 
@@ -1046,10 +1048,10 @@ The probe queries each layer on a configurable interval (default 30s), caches re
 **5 layers of testing across 6 frameworks:**
 
 | Layer | Framework | Count | Runs In |
-|---|---|---|---|
-| **Unit tests** | pytest | **305** (275 in CI) | Every push |
-| **Data tests** | dbt test | **121** (48 not_null, 18 unique, 21 accepted_values, 10 relationships, 24 expression_is_true) | Merge to main (CD) |
-| **IaC validation** | Terraform HCL + Python | **9** assertions + **39** pytest tests | Every push |
+|---|---|---|---|---|
+| **All tests** | pytest | **613** (583 in CI) | Every push |
+| **Data tests** | dbt test | **121** (46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular) | Merge to main (CD) |
+| **IaC validation** | Terraform HCL + Python | **9** assertions + **92** pytest tests | Every push |
 | **Static analysis** | ruff, mypy, bandit, SQLFluff | - | Every push (CI `lint`) |
 | **Security SAST** | CodeQL, GitGuardian | - | Every push + weekly |
 
@@ -1058,22 +1060,22 @@ The probe queries each layer on a configurable interval (default 30s), caches re
 The pipeline validates across **6 distinct test suites**, each targeting a different layer of the stack. Below the image is a breakdown of what each suite covers - all passing with zero failures:
 
 ![All Tests Passing - clean output, zero failures](docs/media/tests-all-passing.png)
-*W3C ETL Pipeline — 490 passed, 123 skipped, 0 failed across pytest + dbt data tests*
-*Skipped tests: 115 deselected by marker (Terraform, Integration, Silver enrichment require cloud/Databricks); 12 additional skipped due to dependencies. All tests pass in CI and full cloud environments.* 
+*W3C ETL Pipeline — 734 total tests (613 pytest + 121 dbt), all passing in CI on every push* 
 
 **Suite breakdown:**
 
 | Suite | Tool | Tests | What It Validates |
-|---|---|---|---|
-| **Unit tests** | pytest | 305 (17 files) | Bronze/Silver ingestion, JDBC export, dbt T-SQL macros, dimension export, UA parsing, Terraform config |
+|---|---|---|---|---|
+| **Unit tests** | pytest | 468 | Bronze/Silver ingestion, JDBC export, dbt T-SQL macros, dimension export, UA parsing, general pipeline logic |
+| **Terraform** | pytest + HCL | 92 + 9 | Part A (Azure infra) + Part B (Databricks) via mocks; 9 native HCL assertions for resources + outputs |
 | **DAG integrity** | pytest | 23 | All 4 DAG files load, task graphs match, required args pass, import paths resolve |
-| **Terraform** | pytest + HCL | 39 + 6 | Part A (Azure infra) + Part B (Databricks) via mocks; 6 native HCL assertions for resources + outputs |
 | **Integration** | pytest | 18 | Cross-layer E2E: Spark → PostgreSQL → dbt, real file I/O and database writes in Docker |
-| **dbt data tests** | dbt test | 121 | 48 not_null, 18 unique, 21 accepted_values, 10 relationships, 24 expression_is_true |
+| **dbt T-SQL validators** | pytest | 12 | Compiled T-SQL output validation against dbt-sqlserver adapter |
+| **dbt data tests** | dbt test | 121 | 46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular |
 
 **Key Test Design Decisions:**
 
-- **Marker-based filtering:** Tests are tagged (`@integration`, `@dbt_compile`, `@dag_integrity`, `@terraform`) so CI runs only environment-appropriate tests. CI runs **275 tests** (excludes 18 integration + 12 dbt-compile - expected environment gaps).
+- **Marker-based filtering:** Tests are tagged (`@integration`, `@dbt_compile`, `@dag_integrity`, `@terraform`) so CI runs only environment-appropriate tests. CI runs **583 tests** (excludes 18 integration + 12 dbt-compile which run in separate CI jobs).
 - **conftest.py** solves PEP 420 namespace shadowing (Airflow's missing `__init__.py`) by surgically adding only specific subdirectories to `sys.path`. Also builds `utils.zip` for PySpark worker serialization - mirroring the production `py_files` pattern.
 - **Dual-dialect dbt compile:** CI validates both PostgreSQL + T-SQL compilation in a single job using side-by-side PostgreSQL 13 + SQL Server 2022 containers.
 - **Mock-based Terraform testing:** Tests use `unittest.mock` to simulate Databricks/Terraform provider responses - validating config structure and resource attributes without real cloud credentials or network calls.
@@ -1086,7 +1088,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 |---|---|---|
 | **Serverless DLT over classic clusters** | Classic job clusters with fixed VMs | Zero infrastructure management. Serverless auto-scales to zero when idle - costs $0 between runs. No cluster tuning or VM sizing needed. |
 | **`maxminddb` pure Python over `geoip2`** | `geoip2==5.0.1` with compiled `libmaxminddb` | Serverless DLT cannot install compiled C extensions. `maxminddb` is pure Python and works as a simple `environment.dependencies` entry. |
-| **Inline `{% if target.type == 'sqlserver' %}` over `_azure.sql` files** | Separate model files per dialect | dbt would parse both `dim_date.sql` and `dim_date_azure.sql` as independent models, creating duplicate DAG entries. Inline branches keep one source of truth. |
+| **Inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%}" }}` over `_azure.sql` files** | Separate model files per dialect | dbt would parse both `dim_date.sql` and `dim_date_azure.sql` as independent models, creating duplicate DAG entries. Inline branches keep one source of truth. |
 | **dbt runs on Databricks serverless, not Airflow** | Run dbt inside Airflow container with ODBC | Airflow container lacks ODBC 18 driver for Azure SQL. Running dbt on Databricks serverless via `DatabricksSubmitRunOperator` keeps Azure SQL traffic in the Databricks runtime. |
 | **pymssql over `df.write.jdbc`** | Spark JDBC writer | Databricks serverless only supports JDBC reads, not writes. `pymssql` is pure Python with no JVM dependencies. |
 | **OIDC over static secrets** | `ARM_CLIENT_SECRET`, long-lived PAT tokens | Zero static Azure credentials. The runner never stores or retrieves secrets - it assumes an Azure AD identity via token exchange at runtime. |
