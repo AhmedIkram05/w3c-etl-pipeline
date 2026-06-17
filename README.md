@@ -26,12 +26,14 @@
   <a href="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/ci.yml"><img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/cd.yml/badge.svg" alt="CD">
   <a href="https://codecov.io/gh/AhmedIkram05/w3c-etl-pipeline"><img src="https://codecov.io/gh/AhmedIkram05/w3c-etl-pipeline/branch/main/graph/badge.svg" alt="Codecov"></a>
-  <img src="https://img.shields.io/badge/tests-305%20pytest%20%7C%20121%20dbt%20%7C%2048%20terraform-0A9EDC" alt="Tests">
-  <a href="https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019"><img src="https://custom-icon-badges.demolab.com/badge/Power%20BI-F1C912?logo=power-bi&logoColor=fff" alt=Live-Power-BI-Reports></a>
 </p>
 
-<p>
-    <iframe title="W3C ETL Dashboard" width="1140" height="541.25" src="https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019" frameborder="0" allowFullScreen="true"></iframe>
+<p align="center">
+  <a href="https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019">
+    <img src="docs/media/summary.png" alt="W3C ETL Dashboard" width="800"/>
+  </a>
+  <br/>
+  <em>Click the preview above to open the live 7-page Power BI dashboard</em>
 </p>
 
 ---
