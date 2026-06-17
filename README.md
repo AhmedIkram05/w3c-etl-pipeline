@@ -13,7 +13,10 @@
   <img src="https://img.shields.io/badge/Apache_Spark-E25A1C?style=for-the-badge&labelColor=000000&logo=apachespark" alt="Spark">
   <img src="https://img.shields.io/badge/Delta_Lake-4AB197?style=for-the-badge&labelColor=000000&logo=delta" alt="Delta Lake">
   <img src="https://img.shields.io/badge/SQL_Server-CC2927?style=for-the-badge&labelColor=000000&logo=microsoftsqlserver" alt="SQL Server">
+  <img src="https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&labelColor=000000&logo=postgresql" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&labelColor=000000&logo=redis" alt="Redis">
   <img src="https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&labelColor=000000&logo=grafana" alt="Grafana">
+  <img src="https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&labelColor=000000&logo=prometheus" alt="Prometheus">
   <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&labelColor=000000&logo=docker" alt="Docker">
   <img src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&labelColor=000000&logo=githubactions" alt="GitHub Actions">
   <img src="https://img.shields.io/badge/pytest-0A9EDC?style=for-the-badge&labelColor=000000&logo=pytest" alt="pytest">
@@ -23,31 +26,39 @@
   <a href="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/ci.yml"><img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/cd.yml/badge.svg" alt="CD">
   <a href="https://codecov.io/gh/AhmedIkram05/w3c-etl-pipeline"><img src="https://codecov.io/gh/AhmedIkram05/w3c-etl-pipeline/branch/main/graph/badge.svg" alt="Codecov"></a>
-  <img src="https://img.shields.io/badge/tests-305%20pytest%20%7C%20118%20dbt%20%7C%2048%20terraform-0A9EDC" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-305%20pytest%20%7C%20121%20dbt%20%7C%2048%20terraform-0A9EDC" alt="Tests">
   <a href="https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019"><img src="https://custom-icon-badges.demolab.com/badge/Power%20BI-F1C912?logo=power-bi&logoColor=fff" alt=Live-Power-BI-Reports></a>
 </p>
 
-<iframe title="W3C ETL Dashboard" width="1140" height="541.25" src="https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019" frameborder="0" allowFullScreen="true"></iframe>
+<p>
+    <iframe title="W3C ETL Dashboard" width="1140" height="541.25" src="https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019" frameborder="0" allowFullScreen="true"></iframe>
+</p>
 
 ---
 
-## Table of Contents
+<details>
+<summary><b>Table of Contents</b> (click to expand)</summary>
 
 - [Architecture Overview](#architecture-overview)
 - [Engineering Highlights](#engineering-highlights)
 - [Key Metrics at a Glance](#key-metrics-at-a-glance)
-- [Media & Demos](#media--demos)
+- [Demos](#demos)
 - [Component Deep Dives](#component-deep-dives)
   - [Azure Databricks DLT (Bronze → Silver)](#1-azure-databricks-dlt-bronze--silver)
   - [Azure SQL & JDBC Export](#2-azure-sql--jdbc-export)
-  - [dbt & the T-SQL Migration](#3-dbt--the-t-sql-migration)
-  - [Terraform Infrastructure as Code](#4-terraform-infrastructure-as-code)
-  - [CI/CD Pipeline](#5-cicd-pipeline)
-  - [Monitoring & Observability](#6-monitoring--observability)
-  - [Testing Strategy](#7-testing-strategy)
+  - [Apache Airflow Orchestration](#3-apache-airflow-orchestration)
+  - [dbt & the T-SQL Migration](#4-dbt--the-t-sql-migration)
+  - [Power BI & Semantic Contract](#5-power-bi--semantic-contract)
+  - [Terraform Infrastructure as Code](#6-terraform-infrastructure-as-code)
+  - [Unity Catalog & Governance](#7-unity-catalog--governance)
+  - [CI/CD Pipeline](#8-cicd-pipeline)
+  - [Monitoring & Observability](#9-monitoring--observability)
+  - [Testing Strategy](#10-testing-strategy)
 - [Design Decisions](#design-decisions)
 - [Quick Start](#quick-start)
 - [Related Projects](#related-projects)
+
+</details>
 
 ---
 
@@ -78,7 +89,7 @@ flowchart LR
 
     dims["Airflow: export_dimensions<br/>MERGE upsert on geo_hash / ua_hash<br/>→ dim_geolocation (1,585 rows)<br/>→ dim_useragent (2,040 rows)<br/>Fires Dataset trigger"]:::dbtclass
 
-    dbt["dbt - 16 models • 118 tests<br/>10 staging + 6 marts<br/>Dual-dialect T-SQL / PostgreSQL<br/>Runs on Databricks serverless via<br/>self-bootstrapping notebooks"]:::dbtclass
+    dbt["dbt - 16 models • 121 tests<br/>10 staging + 6 marts<br/>Dual-dialect T-SQL / PostgreSQL<br/>Runs on Databricks serverless via<br/>self-bootstrapping notebooks"]:::dbtclass
 
     csv["18 CSV exports<br/>Star-Schema/ directory"]:::bi
 
@@ -96,9 +107,61 @@ flowchart LR
 ```
 
 <details>
-<summary><b>Docker Dev Environment</b> - A Docker Compose stack (PySpark 4.0.2 + PostgreSQL 13 + Airflow 2.10.2) mirrors this pipeline locally for development and CI testing. 17 services, one `docker compose up -d`. <a href="#quick-start">→ Quick Start</a></summary>
+<summary><b>Docker Dev Environment</b> - A Docker Compose stack (PySpark 4.0.2 + PostgreSQL 13 + Airflow 2.10.2) mirrors this pipeline locally for development and CI testing. 18 services, one `docker compose up -d`. <a href="#quick-start">→ Quick Start</a></summary>
 &nbsp;
 The Docker pipeline follows the same Bronze → Silver → Warehouse pattern using PySpark jobs (SparkSubmitOperator), local Delta Lake directories, a PostgreSQL warehouse, and the same dbt models (PostgreSQL dialect). It is not a production data platform - it exists for fast iteration and CI verification without cloud costs.
+
+```mermaid
+flowchart LR
+    classDef airflow fill:#017CEE,color:#fff,stroke:#005bb5
+    classDef spark fill:#E25A1C,color:#fff,stroke:#b83d0e
+    classDef storage fill:#10b981,color:#fff,stroke:#047857
+    classDef monitor fill:#F46800,color:#fff,stroke:#d45500
+    classDef db fill:#f59e0b,color:#fff,stroke:#d97706
+    classDef oneshot fill:#8b5cf6,color:#fff,stroke:#6d28d9
+
+    subgraph Orchestration["Apache Airflow (CeleryExecutor)"]
+        ws("webserver :8080"):::airflow
+        sched("scheduler"):::airflow
+        wk("worker"):::airflow
+    end
+
+    subgraph Compute["Spark Cluster (4.0.2)"]
+        sm("spark-master :7077"):::spark
+        sw("spark-worker<br/>2C · 4GB"):::spark
+    end
+
+    subgraph Data["Data Layer"]
+        pg("postgres:13 :5432<br/>metastore + warehouse"):::db
+        delta("Delta Lake<br/>bronze/ → silver/"):::storage
+        logs("W3C log files"):::storage
+        geoip("GeoLite2 .mmdb"):::oneshot
+    end
+
+    subgraph Monitoring["Observability Stack"]
+        statsd("statsd-exporter"):::monitor
+        cadvisor("cadvisor"):::monitor
+        prom("prometheus :9090"):::monitor
+        graf("grafana :3000"):::monitor
+        am("alertmanager :9093"):::monitor
+        probe("freshness-probe :8000"):::monitor
+    end
+
+    logs --> sw
+    geoip --> sw
+    sw -->|"bronze → silver"| delta
+    wk -->|"SparkSubmitOperator"| sm
+    sm --> sw
+    sw -->|"JDBC export"| pg
+    wk -->|"dbt run (staging → marts)"| pg
+
+    ws --> sched --> wk
+    wk & ws & sched -.->|"StatsD UDP"| statsd
+    cadvisor -.->|"container metrics"| prom
+    statsd -.->|"airflow metrics"| prom
+    probe -.->|"data freshness"| prom
+    prom -.-> graf & am
+```
 </details>
 
 ---
@@ -111,7 +174,7 @@ The Docker pipeline follows the same Bronze → Silver → Warehouse pattern usi
 | **GeoIP Enrichment** | 7 MaxMind fields (country → ISP) from a single consolidated struct UDF using `maxminddb` pure Python. 3.5× faster than 7 separate UDFs. | **Serverless DLT can't install compiled C libraries.** Pure Python `maxminddb` side-steps this limitation while a lazy singleton pattern avoids PicklingError in distributed execution. |
 | **45-Second JDBC Export** | 153,377 rows from Silver to Azure SQL in 45 seconds - 8–9× faster than the initial 413s implementation. | **Databricks serverless only supports JDBC reads, not writes.** Pure Python `pymssql` + `tuple(row)` (not `asDict()`) + Spark-side pre-filter before `collect()` were the breakthrough optimisations. |
 | **T-SQL Dual-Dialect dbt** | All 16 models compile against both PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline `{% if target.type == 'sqlserver' %}` branches - no separate `_azure.sql` files. | **One model, two databases.** 18 macros + 2 dispatch overrides abstract PostgreSQL syntax (`::casts`, `EXTRACT`, `SPLIT_PART`, `ILIKE`, `MD5`) behind Jinja wrappers. |
-| **118 dbt Data Tests** | 46 `not_null` · 18 `unique` · 20 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` - enforcing business invariants across all 16 models. | **Production-grade data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
+| **121 dbt Data Tests** | 48 `not_null` · 18 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` - enforcing business invariants across all 16 models. | **Production-grade data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
 | **Terraform with OIDC** | Part A (4 modules: networking, datalake, databricks, warehouse) + Part B (24 resources: DLT pipelines, Workflows, UC schemas, secrets). Full OIDC Workload Identity Federation - no static Azure credentials. | **Zero touch deployment.** One `terraform apply` provisions the entire Azure estate including the GitHub→Azure auth chain. The CI/CD pipeline authenticates via token exchange, not client secrets. |
 | **3 Grafana Dashboards** | 23 panels across Airflow ETL Overview (7), Container System Metrics (6), and Pipeline Health (10) - with 8 Prometheus alert rules, 2 Azure Monitor alerts, and 3 action groups (P1/P2/P3). | **Observability from day one.** Airflow StatsD → Prometheus → Grafana pipeline means every DAG run, task duration, and data freshness metric is tracked. |
 
@@ -130,7 +193,7 @@ The Docker pipeline follows the same Bronze → Silver → Warehouse pattern usi
 | **Warehouse** | Azure SQL database | GP_S_Gen5 serverless, 1 vCore, auto-pause 60 min |
 | **dbt models** | Total | **16** (10 staging + 6 marts) |
 | **dbt macros** | T-SQL compatibility | **18** macros + **2** dispatch overrides |
-| **dbt data tests** | All models | **118** (46 not_null + 18 unique + 20 accepted_values + 10 relationships + 24 expression_is_true) |
+| **dbt data tests** | All models | **121** (48 not_null + 18 unique + 21 accepted_values + 10 relationships + 24 expression_is_true) |
 | **pytest** | Total / CI | **305 tests** / **275 in CI** (17 files, 81+ classes) |
 | **Terraform** | HCL assertions | **9** (3 Part A + 6 Part B) + **39** Python tests |
 | **CI/CD** | Workflow files | **7** (4 CI + 1 CD + 1 CodeQL + 1 auto-merge) |
@@ -148,31 +211,63 @@ The Docker pipeline follows the same Bronze → Silver → Warehouse pattern usi
 
 ## Demos
 
-### Pipeline Run - End-to-End
+### Power BI Dashboard - 7-Page Analytics Report
 
-<!-- MEDIA: Manual - Databricks Workflow run showing Bronze → Silver → JDBC Export all green (3 serverless tasks, ~7 min total) -->
-<!-- MEDIA: Manual - Airflow DAG graph view for w3c_spark_ingestion_azure with successful runs and Dataset trigger flow -->
+> The final deliverable: 156K requests across 88 countries, 18 Power BI-ready CSV exports. Each page answers a specific business question built entirely from the Bronze → Silver → dbt star schema pipeline.
 
-### Grafana Dashboards
+![At a Glance](docs/media/summary.png)
+*Page 1 - At a Glance: 156K requests, 88 countries, human vs bot breakdown, busiest days, top countries*
 
-<!-- MEDIA: Manual - Grafana Pipeline Health dashboard (10 panels: Bronze 153,380 / Silver 153,377 / Export 153,377 row counts, pipeline status, 8 alert rules) -->
+![What Are People Accessing?](docs/media/file-access.png)
+*Page 2 - What Are People Accessing?: file types by volume, content type treemap, server errors, broken pages*
 
-### dbt Lineage & Documentation
+![Where are Visitors Coming From?](docs/media/geo.png)
+*Page 3 - Where are Visitors Coming From?: world map, referral sources, countries by unique visitors (US 533, China 159)*
 
-<!-- MEDIA: Manual - dbt docs lineage graph showing all 16 models (10 staging → 6 marts) with ref() dependencies and test coverage badges -->
+![Who's Hitting the Site?](docs/media/traffic-overview.png)
+*Page 4 - Who's Hitting the Site?: 155.6K requests, 62% human / 38% bot, request volume over time*
 
-### Power BI
+![Who Are The Visitors?](docs/media/visitors.png)
+*Page 5 - Who Are The Visitors?: browser breakdown (IE 49K, Firefox 23K, Googlebot 16K), device types, OS split*
 
-<!-- MEDIA: Manual - Power BI dashboard (7 pages) showing key analytics: daily requests trend, top 10 countries map, browser market share, crawler traffic analysis, time-of-day heatmap -->
+![How Fast is the Server?](docs/media/performance.png)
+*Page 6 - How Fast is the Server?: avg 470ms, P95 1149ms, top expensive files, status type speed*
+
+![When is the Site Busiest?](docs/media/temporal.png)
+*Page 7 - When is the Site Busiest?: hourly × day heatmap, day-of-week bars, AM vs PM patterns*
+
+### Grafana Monitoring - Pipeline Health & Observability
+
+![Grafana Pipeline Health](docs/media/grafana_health_dashboard.png)
+*Pipeline Health - Data Freshness (5 min), Pipeline Status (Healthy), dbt Test Pass Rate (100%), Row Counts (153K each)*
+
+![Grafana Container Metrics](docs/media/grafana_containers.png)
+*Container System Metrics - CPU, memory, network I/O per container (cAdvisor → Prometheus)*
+
+![Grafana ETL Overview](docs/media/grafana_etl_overview.png)
+*Airflow ETL Overview - DAG run duration, task states, dataset events, scheduling delay*
+
+### Pipeline Run - End-to-End Execution
+
+![Airflow DAG Graph View](docs/media/spark_ingestion_azure_airflow_graph.png)
+*Airflow DAG graph - `w3c_spark_ingestion_azure` task dependencies and Dataset trigger flow*
+
+![Databricks Workflow Graph](docs/media/databricks-jobs-graph.png)
+*Bronze → Silver → JDBC Export - 3 serverless tasks, ~7 min total*
+
+![dbt DAG Graph View](docs/media/dbt_marts_azure_airflow_graph.png)
+*dbt DAG graph - 16 models with ref() dependencies across 3 schemas*
 
 ### CI/CD Pipeline
 
-<!-- MEDIA: Manual - GitHub Actions CI run showing 4 parallel jobs (lint, test, dbt-compile, terraform) all green -->
-<!-- MEDIA: Manual - GitHub Actions CD run showing terraform-plan → terraform-apply → smoke-test all passing -->
+![CI Pipeline](docs/media/ci.png)
+*4 parallel jobs: lint, test, dbt-compile, terraform - all green*
 
-### Azure SQL Data Landing
+![CD Pipeline](docs/media/cd.png)
+*terraform-plan → terraform-apply → smoke-test*
 
-<!-- MEDIA: Manual - Azure SQL query result: `SELECT COUNT(*) FROM dbo.raw_enriched` → 153,377 rows landed -->
+![CD Rollback](docs/media/cd_rollback.png)
+*Automatic rollback on health check failure - zero-downtime recovery*
 
 ---
 
@@ -183,6 +278,29 @@ The Docker pipeline follows the same Bronze → Silver → Warehouse pattern usi
 #### Bronze DLT Pipeline
 
 The Bronze layer ingests **93 real W3C IIS log files** from ADLS Gen2 via Auto Loader (`binaryFile` format, `maxFilesPerTrigger=10`, `includeExistingFiles=true`). A custom per-file UDF reads the full binary content, detects the `#Fields:` header to determine **14-field vs 18-field IIS format**, and parses every non-comment data line using `rsplit()` field-counting to handle unquoted user-agent strings.
+
+```mermaid
+flowchart LR
+    classDef source fill:#3b82f6,color:#fff,stroke:#1e40af
+    classDef dlt fill:#8b5cf6,color:#fff,stroke:#6d28d9
+    classDef uc fill:#10b981,color:#fff,stroke:#047857
+
+    adls["ADLS Gen2<br/>raw-logs container<br/>93 W3C IIS files"]:::source
+    autoloader["Auto Loader<br/>binaryFile format<br/>maxFilesPerTrigger=10<br/>includeExistingFiles=true<br/>CloudFiles Incremental"]:::dlt
+    bronzeuc["Unity Catalog<br/>w3c_etl_databricks.bronze.bronze_raw_logs<br/>19 columns · 153,380 rows<br/>Partitioned by log_date<br/>ChangeDataFeed enabled"]:::uc
+
+    adls -->|"ABFSS path notification"| autoloader
+    autoloader -->|"@dlt.table append<br/>7 expect_or_drop checks"| bronzeuc
+
+    style adls stroke-width:2px
+    style bronzeuc stroke-width:2px
+```
+
+![ADLS Gen2 Data Lake](docs/media/adls.png)
+*ADLS Gen2 `raw-logs` container - 93 W3C IIS log files ingested by Auto Loader*
+
+![Azure Portal Overview](docs/media/azure.png)
+*Azure portal - resource group with Databricks, ADLS, SQL, and monitoring resources*
 
 **7 quality expectations** (`@dlt.expect_or_drop`):
 
@@ -197,6 +315,9 @@ The Bronze layer ingests **93 real W3C IIS log files** from ADLS Gen2 via Auto L
 | `valid_bytes` | `(bytes_sent IS NULL OR bytes_sent >= 0) AND (bytes_recv IS NULL OR bytes_recv >= 0)` | 0 |
 
 **Result:** **153,380 rows**, **0 dropped** - all 7 quality expectations pass on real production IIS data.
+
+![Databricks DLT Pipelines](docs/media/dlt-pipelines.png)
+*Bronze and Silver DLT pipelines in Databricks - both serverless, both green*
 
 | Attribute | Value |
 |---|---|
@@ -241,16 +362,6 @@ The Silver layer reads from Bronze via `spark.table()`, enriches each row with M
 | `is_crawler` | UA keyword matching | bot, spider, crawler, curl, python-requests |
 | `size_band` | Response size bucketing | < 1KB / 1–10KB / 10–100KB / 100KB–1MB / > 1MB |
 
-**Top Countries Resolved (30+ total):**
-
-| Country | Rows | Country | Rows |
-|---|---|---|---|
-| 🇺🇸 United States | 56,548 | 🇨🇦 Canada | 5,063 |
-| 🇬🇧 United Kingdom | 31,818 | 🇩🇪 Germany | 4,232 |
-| 🇷🇺 Russia | 11,387 | 🇧🇷 Brazil | 2,948 |
-| 🇨🇳 China | 6,737 | 🇫🇷 France | 2,756 |
-| 🇦🇷 Argentina | 6,631 | 🇮🇳 India | 2,507 |
-
 **Dedup:** `left_anti` join on `source_file` - wrapped in `try/except` for the first pipeline run when Silver doesn't exist yet.
 
 **Result:** **153,377 rows** (3 dropped by `valid_country` - private/reserved IPs with no GeoIP match), **31 columns**, **30+ countries**.
@@ -284,6 +395,9 @@ The JDBC export bridges Databricks Silver → Azure SQL. This is the most perfor
 6. Batch INSERT via `cursor.executemany()` with `BATCH_SIZE=5000`
 7. Update tracking table with new source files
 
+![Azure SQL Schema](docs/media/azure-sql-schema.png)
+*31-column `dbo.raw_enriched` table schema in Azure SQL*
+
 **31 Export Columns:**
 - **25 warehouse core:** `log_date`, `log_time`, `server_ip`, `method`, `uri_stem`, `uri_query`, `client_ip`, `user_agent`, `cookie`, `referrer`, `status`, `sub_status`, `win32_status`, `bytes_sent`, `bytes_recv`, `server_port`, `username`, `time_taken`, `source_file`, `postcode`, `page_category`, `referrer_domain`, `traffic_type`, `is_crawler`, `size_band`
 - **6 GeoIP:** `country`, `region`, `city`, `latitude`, `longitude`, `isp`
@@ -299,11 +413,66 @@ After the JDBC export, Airflow's `export_dimensions` task builds dimensional tab
 
 The geo hash is computed **in SQL** via `HASHBYTES('SHA2_256', ...)` inside the MERGE subquery - efficient batch computation. The UA hash is computed **in Python** via `hashlib.sha256()` alongside parsing to avoid extra SQL round-trips. Sentinels use `SET IDENTITY_INSERT ON/OFF` for FK integrity.
 
+![Azure SQL - Table Row Counts](docs/media/azure-sql-row-counts.png)
+*Azure SQL table row counts - `raw_enriched` fact table with 153K rows alongside dimension tables (geolocation: 1,585, useragent: 2,040)*
+
 ---
 
-### 3. dbt & the T-SQL Migration
+### 3. Apache Airflow Orchestration
 
-dbt owns **all SQL transformations** - nothing else writes to the star schema. The project comprises **16 models** across **3 schemas** with **118 data tests**.
+Airflow owns **all orchestration** - 4 DAGs across 2 pipelines (Docker dev + Azure prod) with zero data processing logic in DAG files.
+
+**DAG Architecture:**
+
+| DAG | Schedule | Tasks | Operators | Triggers |
+|---|---|---|---|---|
+| `w3c_spark_ingestion` | Sat 06:00 UTC | 4 | `SparkSubmitOperator` (3) + `PythonOperator` (1) | Cron |
+| `w3c_spark_ingestion_azure` | Fri 17:00 UTC | 3 | `DatabricksRunNowOperator` (1) + `PythonOperator` (2) | Cron |
+| `w3c_dbt_marts` | Dataset-triggered | 5 | `BashOperator` (5) | `Dataset("postgres://...")` |
+| `w3c_dbt_marts_azure` | Dataset-triggered | 6 | `DatabricksSubmitRunOperator` (4) + `PythonOperator` (2) | `Dataset("mssql://...")` |
+
+**Dataset-Driven Decoupling (Azure):**
+
+```mermaid
+flowchart LR
+    classDef dag fill:#017CEE,color:#fff,stroke:#005bb5
+    classDef dataset fill:#f59e0b,color:#fff,stroke:#d97706
+
+    ingestion["w3c_spark_ingestion_azure<br/>Friday 17:00 UTC"]:::dag
+    dataset["Dataset<br/>mssql://azure-sql/dbo/<br/>raw_enriched_loaded"]:::dataset
+    marts["w3c_dbt_marts_azure<br/>Dataset-triggered"]:::dag
+
+    ingestion -->|"outlet (create_indexes task)"| dataset
+    dataset -->|"inlet (schedule=[...])"| marts
+
+    style dataset stroke-width:2px,stroke-dasharray: 5 5
+```
+
+![Airflow DAG Graph View](docs/media/spark_ingestion_azure_airflow_graph.png)
+*Airflow DAG graph - `w3c_spark_ingestion_azure` task dependencies and Dataset trigger flow*
+
+The two DAGs are **intentionally decoupled** - no DAG-to-DAG imports, no `ExternalTaskSensor`, no hard-coded DAG IDs. The Dataset mechanism allows ingestion and transformation to be developed, tested, and monitored independently.
+
+![Airflow Gantt Chart](docs/media/spark_ingestion_azure_airflow_gantt.png)
+*Gantt view: `w3c_spark_ingestion_azure` - Bronze, Silver, and JDBC Export task durations*
+
+![Airflow Dashboard](docs/media/airflow_dashboard.png)
+*Airflow UI - DAG runs, task states, and scheduling history*
+
+**4 Operator Types Used:**
+
+| Operator | Purpose | Used In |
+|---|---|---|
+| `DatabricksRunNowOperator` | Triggers `w3c-etl-workflow` (Bronze → Silver → JDBC) as a single atomic run | `spark_ingestion_azure` |
+| `DatabricksSubmitRunOperator` | Submits dbt notebooks to serverless compute (source freshness, run, test, docs) | `dbt_marts_azure` |
+| `PythonOperator` | Dimension export (`pyodbc` + `MERGE`), index creation, CSV export, dbt docs sync | Both |
+| `SparkSubmitOperator` | Bronze/Silver/Export PySpark jobs against local Spark cluster (Docker dev) | `spark_ingestion` (Docker) |
+
+---
+
+### 4. dbt & the T-SQL Migration
+
+dbt owns **all SQL transformations** - nothing else writes to the star schema. The project comprises **16 models** across **3 schemas** with **121 data tests**.
 
 **Schema Isolation:**
 
@@ -367,6 +536,153 @@ raw_enriched (source)
         └── mart_country_browser_share (top browser per country per day)
 ```
 
+![dbt DAG Graph View](docs/media/dbt_marts_azure_airflow_graph.png)
+*dbt DAG graph - 16 models with ref() dependencies across 3 schemas*
+
+![dbt DAG Execution Gantt](docs/media/dbt_marts_azure_airflow_gantt.png)
+*dbt DAG execution Gantt - source freshness, run, test, and docs generation on Databricks serverless*
+
+![Star Schema Dimensions](docs/media/star-schema-dimensions.png)
+*dbt model lineage - 10 staging tables feeding 6 mart tables in the star schema*
+
+![dbt Full Lineage Graph](docs/media/dbt_lineage_graph.png)
+*dbt full lineage graph - source freshness → staging → marts → tests across PostgreSQL and Azure SQL targets*
+
+**Star Schema Entity-Relationship Diagram:**
+
+The fact table sits at the center with 10 surrounding dimension tables - 8 managed by dbt, 2 (`dim_geolocation`, `dim_useragent`) maintained by Airflow's dimension export. The diagram below shows the surrogate key relationships between each dimension and `fact_webrequest`.
+
+```mermaid
+erDiagram
+    fact_webrequest {
+        string raw_log_id PK
+        int date_sk FK
+        int time_sk FK
+        int page_sk FK
+        int method_sk FK
+        int status_sk FK
+        int referrer_sk FK
+        int geolocation_sk FK
+        int user_agent_sk FK
+        int visitor_sk FK
+        int visit_bucket_sk FK
+        bigint bytes_sent
+        bigint bytes_received
+        int response_time_ms
+        int request_count
+        boolean is_404
+        boolean is_crawler
+        string size_band
+        string page_category
+        string referrer_domain
+        string traffic_type
+        int request_hour
+    }
+
+    dim_date {
+        int date_sk PK
+        date date UK
+        int year
+        int month
+        string month_name
+        int day_number
+        string day_name
+        int day_of_week
+        int quarter
+        string is_weekend
+        string holiday_flag
+    }
+
+    dim_time {
+        int time_sk PK
+        int hour
+        int minute
+        string am_pm
+        string time_band
+        int shift_id
+    }
+
+    dim_page {
+        int page_sk PK
+        string page_path UK
+        string query_string
+        string directory
+        string file_extension
+        string page_category
+    }
+
+    dim_method {
+        int method_sk PK
+        string http_method UK
+        string description
+        string is_safe
+    }
+
+    dim_status {
+        int status_sk PK
+        int status_code
+        int sub_status
+        int win32_status
+        string status_category
+        string status_label
+        string severity
+    }
+
+    dim_referrer {
+        int referrer_sk PK
+        string referrer_url UK
+        string referrer_domain
+        string traffic_source
+    }
+
+    dim_visitortype {
+        int visitor_sk PK
+        string crawler_flag
+        string visitor_type
+    }
+
+    dim_visit_buckets {
+        int visit_bucket_sk PK
+        string visit_bucket UK
+        int visit_bucket_order
+        int user_count
+    }
+
+    dim_geolocation {
+        int geolocation_sk PK
+        string geo_hash UK
+        string country
+        string region
+        string city
+        float latitude
+        float longitude
+        string isp
+    }
+
+    dim_useragent {
+        int user_agent_sk PK
+        string ua_hash UK
+        string user_agent
+        string browser_name
+        string browser_version
+        string operating_system
+        string device_type
+    }
+
+    dim_date ||--o{ fact_webrequest : "date_sk"
+    dim_time ||--o{ fact_webrequest : "time_sk"
+    dim_page ||--o{ fact_webrequest : "page_sk"
+    dim_method ||--o{ fact_webrequest : "method_sk"
+    dim_status ||--o{ fact_webrequest : "status_sk"
+    dim_referrer ||--o{ fact_webrequest : "referrer_sk"
+    dim_visitortype ||--o{ fact_webrequest : "visitor_sk"
+    dim_visit_buckets ||--o{ fact_webrequest : "visit_bucket_sk"
+    dim_geolocation |o--o{ fact_webrequest : "geolocation_sk"
+    dim_useragent |o--o{ fact_webrequest : "user_agent_sk"
+```
+
+> **Legend:** `||--o{` = one-to-many (INNER JOIN). `|o--o{` = zero-or-one-to-many (LEFT JOIN - geolocation and useragent may be Unknown/-1). PK = primary key. UK = unique key. FK = foreign key.
+
 **Fact Table Dedup - 12-Component MD5 Key:**
 
 The `fact_webrequest` incremental model deduplicates using a 12-component MD5 hash:
@@ -388,15 +704,87 @@ raw_log_id = MD5(CONCAT(
 
 A singular test (`fact_webrequest_dedup_safety.sql`) regression-tests that no hash bucket contains >1 distinct value for any of the 3 disambiguating fields.
 
-<!-- MEDIA: Silicon capture of `dbt test --profile w3c_azure` showing all 118 data tests passing against Azure SQL - 46 not_null, 18 unique, 20 accepted_values, 10 relationships, 24 expression_is_true -->
-
-**Power BI Semantic Contract:**
-
-The pipeline exports exactly **18 CSV files** - 10 staging tables, 6 marts, and 2 Airflow-managed dimension tables. All fields required for DAX measures (response time, bandwidth, crawler segmentation, device breakdown) are present with correct types.
+<!-- MEDIA: Silicon capture of `dbt test --profile w3c_azure` showing all 121 data tests passing against Azure SQL - 48 not_null, 18 unique, 21 accepted_values, 10 relationships, 24 expression_is_true -->
 
 ---
 
-### 4. Terraform Infrastructure as Code
+### 5. Power BI & Semantic Contract
+
+_The semantic contract defines exactly what data leaves dbt and enters Power BI - no surprises, no undocumented columns, no type mismatches._
+
+**7-Page Dashboard:**
+
+| Page | Title | Key Visuals |
+|---|---|---|
+| 1 | At a Glance | 156K requests, 88 countries, human vs bot donut (62%/38%), busiest days bar, top 10 countries, 4 insight cards |
+| 2 | What Are People Accessing? | 3.6K unique pages, file types by volume & data served, content type treemap (Image 68K, Dynamic Page 60K), server errors (404: 15,111), broken pages |
+| 3 | Where are Visitors Coming From? | Azure Maps world choropleth, top referral sources, countries by unique visitors (US 533, China 159), most active cities |
+| 4 | Who's Hitting the Site? | 155.6K requests, 62% human vs 38% crawler, request volume by year (2009–2011), human vs bot traffic shift over time |
+| 5 | Who Are The Visitors? | 4.0K unique IPs, browser breakdown (IE 49K, Firefox 23K), device types (Desktop 83K, Bot 59K), OS split, visit frequency, top 10 IPs |
+| 6 | How Fast is the Server? | Avg 470ms, P95 1,149ms, 6.5% over 1s, top 5 expensive files, response speed by content type (12 months), response size distribution |
+| 7 | When is the Site Busiest? | 9.4K peak hour, 77.7% weekday traffic, hour × day-of-week heatmap, day-of-week bar (Monday 33K), AM vs PM patterns |
+
+**Dashboard Pages:**
+
+![At a Glance - Executive Summary](docs/media/summary.png)
+*Page 1: At a Glance - 156K total requests, 88 active countries, 9.7% 404 rate, human vs bot split (62% / 38%), busiest days, top 10 countries by traffic volume, 4 insight cards*
+
+![What Are People Accessing? - Content Analysis](docs/media/file-access.png)
+*Page 2: What Are People Accessing? - 3.6K unique pages, file types by request volume & data served (aspx 38.6%, jpeg 29.6%), content type treemap (Image 68K, Dynamic Page 60K), server errors by status code (404: 15,111), top pages by hit count, broken pages*
+
+![Where are Visitors Coming From? - Geographic](docs/media/geo.png)
+*Page 3: Where are Visitors Coming From? - 88 countries reached, global visitor footprint map (Azure Maps), top referral sources (darwinsbeagleplants.org 27,989), countries by unique visitor count (US 533, China 159, UK 159), most active cities by request volume*
+
+![Who's Hitting the Site? - Crawler vs Human](docs/media/traffic-overview.png)
+*Page 4: Who's Hitting the Site? - 155.6K total requests, 62% human vs 38% crawler, request volume by year (2009: 17K, 2010: 113K, 2011: 25K), human vs bot traffic shift over time*
+
+![Who Are The Visitors? - Browser & Device](docs/media/visitors.png)
+*Page 5: Who Are The Visitors? - 4.0K unique IPs, browser breakdown (IE 49K, Firefox 23K, Googlebot 16K), device types (Desktop 83K, Bot 59K), OS split (Windows 78K), visit frequency distribution, top 10 most active IPs*
+
+![How Fast is the Server? - Performance](docs/media/performance.png)
+*Page 6: How Fast is the Server? - Avg 470ms, P95 1,149ms, 6.5% requests over 1 second, top 5 most expensive files (all cache JPEGs), response speed by content type over time (12 months), response size distribution*
+
+![When is the Site Busiest? - Temporal](docs/media/temporal.png)
+*Page 7: When is the Site Busiest? - 9.4K peak hour requests, 77.7% weekday traffic, requests by hour × day-of-week heatmap, day-of-week bar chart (Monday 33K), AM vs PM traffic patterns*
+
+**18 CSV Files (~36 MB total):**
+
+| Directory | Files | Description |
+|---|---|---|
+| `dbt_staging/` | 10 | `dim_date`, `dim_time`, `dim_page`, `dim_status`, `dim_method`, `dim_referrer`, `dim_visit_buckets`, `dim_visitortype`, `crawler_ips`, `fact_webrequest` |
+| `dbt_marts/` | 6 | `mart_page_performance`, `mart_daily_aggregates`, `mart_crawler_analysis`, `mart_timeofday_analysis`, `mart_browser_analysis`, `mart_country_browser_share` |
+| `public/` | 2 | `dim_geolocation` (1,585 rows), `dim_useragent` (2,040 rows) |
+
+**Key DAX Measures (defined in Power BI):**
+
+| Measure | Formula Logic | Purpose |
+|---|---|---|
+| Total Requests | `COUNTROWS(fact_webrequest)` | Overall traffic volume |
+| Unique Visitors | `DISTINCTCOUNT(fact_webrequest[client_ip])` | Audience reach |
+| Avg Response Time | `AVERAGE(fact_webrequest[time_taken])` | Performance baseline |
+| P95 Response Time | `PERCENTILEX.INC(fact_webrequest, fact_webrequest[time_taken], 0.95)` | Tail latency |
+| Total Bandwidth (MB) | `SUM(fact_webrequest[bytes_sent]) / 1048576` | Data transfer volume |
+| Crawler Traffic % | `DIVIDE(COUNTROWS(FILTER(fact_webrequest, fact_webrequest[is_crawler] = TRUE())), COUNTROWS(fact_webrequest))` | Bot traffic ratio |
+| Peak Hour | `CALCULATE(MAX('Time'[hour]), TOPN(1, VALUES('Time'[hour]), COUNTROWS(fact_webrequest), DESC))` | Peak traffic hour |
+
+**Refresh Schedule:**
+
+| Step | Schedule | Mechanism |
+|---|---|---|
+| Pipeline run | Friday 17:00 UTC | Airflow triggers Databricks Workflow |
+| CSV export | After dbt completes | `export_csv_azure.py` writes 18 files to ADLS |
+| Power BI refresh | Friday 17:30 UTC | Power Automate cloud flow with success/failure email notification |
+
+The 30-minute buffer between pipeline start (17:00) and refresh (17:30) comfortably accommodates the full ~15-minute ETL run plus a Slack-style grace period.
+
+![Power Automate - Scheduled Power BI Refresh](docs/media/power-automate.png)
+*Power Automate cloud flow that triggers the weekly Power BI dataset refresh every Friday at 17:30 UTC, with success/failure email notification*
+
+**Why weekly, not daily or hourly?** The source is historical (2009–2011) with no new data arriving. Weekly reprocessing validates the pipeline end-to-end, detects drift in upstream dependencies (maxminddb, dbt, Airflow, Azure SQL), and keeps Power BI fresh for the portfolio audience - without incurring unnecessary compute costs.
+
+---
+
+### 6. Terraform Infrastructure as Code
 
 The entire Azure estate is managed as code in **2 Terraform parts** with a shared Azure Blob Storage backend (`tfstatew3cetl`).
 
@@ -432,11 +820,27 @@ VNet: 10.0.0.0/16 (westus3)
 **OIDC Workload Identity Federation:**
 
 All Azure authentication uses OIDC - no static secrets:
-1. GitHub Actions runner requests an OIDC JWT from `token.actions.githubusercontent.com`
-2. JWT is exchanged for an Azure AD access token via a Federated Identity Credential
-3. Token grants Contributor on `rg-w3c-etl` scope with subject `repo:AhmedIkram05/w3c-etl-pipeline:environment:azure-dev`
 
-The entire OIDC chain (Azure AD app, service principal, federated credential, role assignment) is managed by `github_oidc.tf` - one `terraform apply` sets up the auth.
+```mermaid
+sequenceDiagram
+    participant GH as GitHub Actions Runner
+    participant OIDC as token.actions.githubusercontent.com
+    participant AAD as Azure AD
+    participant SP as Service Principal<br/>(w3c-etl-sp)
+    participant ARM as Azure ARM API
+
+    GH->>OIDC: Request OIDC JWT<br/>(subject: repo:AhmedIkram05/w3c-etl-pipeline:environment:azure-dev)
+    OIDC-->>GH: Signed JWT
+    GH->>AAD: Exchange JWT for access token<br/>(via Federated Identity Credential)
+    AAD-->>GH: Azure AD access token<br/>(Contributor on rg-w3c-etl)
+    GH->>ARM: terraform apply<br/>(with OIDC token)
+    ARM-->>GH: Resource deployment
+```
+
+The entire OIDC chain (Azure AD app, service principal, federated credential, role assignment) is managed by `github_oidc.tf` - one `terraform apply` creates the complete auth chain without a single CLI command.
+
+![Databricks Workflow Timeline](docs/media/databricks-jobs-timeline.png)
+*Workflow execution timeline - Bronze → Silver → JDBC Export with task-level durations*
 
 **Cost Controls:**
 
@@ -461,7 +865,43 @@ The entire OIDC chain (Azure AD app, service principal, federated credential, ro
 
 ---
 
-### 5. CI/CD Pipeline
+### 7. Unity Catalog & Governance
+
+All Databricks data assets are managed through **Unity Catalog** (`w3c_etl_databricks` metastore), providing centralized governance, cross-pipeline lineage, and volume-based file access - no raw DBFS paths in production code.
+
+**Catalog Structure:**
+
+| Schema | Purpose | Tables / Assets |
+|---|---|---|
+| `bronze` | Raw W3C ingested data | `bronze_raw_logs` (19 columns, 153,380 rows, partitioned by `log_date`) |
+| `silver` | Enriched + deduplicated data | `silver_enriched_logs` (31 columns, 153,377 rows) |
+| `gold` | Reserved for future aggregate views | Currently empty - available for curated analytics datasets |
+
+![Unity Catalog Structure](docs/media/unity_catalog.png)
+*Unity Catalog: bronze, silver, gold schemas with storage credential and external location*
+
+**Key Unity Catalog Resources (managed by Terraform Part B):**
+
+| Resource | Name | Purpose |
+|---|---|---|
+| Storage credential | `w3c-storage-credential` | Azure Managed Identity → ADLS Gen2 authentication for external locations |
+| External location | `raw-logs` | ABFSS path `abfss://raw-logs@w3cdatalake.dfs.core.windows.net/` - read-only access for Auto Loader |
+| Volume | `w3c_data` | Mounts GeoIP `.mmdb` files at `/Volumes/w3c_etl_databricks/bronze/w3c_data/` - the only path accessible by serverless DLT executors for non-tabular data |
+| Grants | `USE_SCHEMA` + `SELECT` | Granular permissions per schema, ensuring Silver can read Bronze but not vice versa |
+
+**Why Unity Catalog over DBFS paths:**
+
+| Requirement | DBFS Approach | Unity Catalog Approach |
+|---|---|---|
+| Cross-pipeline table reads | Hard-coded `dbfs:/user/hive/...` paths | `spark.table('w3c_etl_databricks.bronze.bronze_raw_logs')` - self-documenting, no path guessing |
+| GeoIP file access | `/dbfs/Volumes/...` - fails on serverless executors | `/Volumes/w3c_etl_databricks/bronze/w3c_data/` - supported FUSE mount path |
+| Permission granularity | Workspace-level ACLs | Table-level grants (`GRANT SELECT ON bronze_raw_logs TO ...`) |
+| Data lineage | Manual | Built-in column-level lineage tracking via System Tables |
+| Terraform integration | Outside Terraform scope | `databricks_grants`, `databricks_schema`, `databricks_external_location` - full lifecycle via HCL |
+
+---
+
+### 8. CI/CD Pipeline
 
 **7 workflow files** provide **4 CI jobs every push + 3 CD jobs on merge to main** (plus rollback via `workflow_dispatch`), with 3 reusable workflows shared across both.
 
@@ -482,6 +922,9 @@ flowchart TD
 | **dbt-compile** | dbt compile against PostgreSQL + T-SQL/Azure SQL in dual-service CI containers (PostgreSQL 13 + SQL Server 2022 side-by-side), plus 12 T-SQL output validators |
 | **terraform** | `fmt --check`, `init`, `validate`, `terraform test` (9 HCL assertions) across both Part A + Part B matrix |
 
+![CI Pipeline](docs/media/ci.png)
+*4 parallel jobs: lint, test, dbt-compile, terraform - all green*
+
 **CD - Merge to Main (OIDC-scoped deployment):**
 
 ```mermaid
@@ -497,12 +940,18 @@ flowchart TD
 | **terraform-apply** | Deploys Azure infra (Part A) + Databricks resources (Part B). All auth via OIDC - no `ARM_CLIENT_SECRET`. |
 | **rollback** | Manual `workflow_dispatch`. Checks out `HEAD~1` with `fetch-depth: 0`, then terraform apply the previous commit. |
 
+![CD Pipeline](docs/media/cd.png)
+*terraform-plan → terraform-apply*
+
+![CD Rollback Workflow](docs/media/cd_rollback.png)
+*CD rollback: manual workflow_dispatch reverts to previous commit and re-applies Terraform*
+
 **Pre-commit Hooks (15 local quality gates):**
 
 | Category | Hooks | Purpose |
 |---|---|---|
 | **Python** | ruff (lint + format), mypy | Style, types, PEP8 compliance |
-| **Security** | bandit, detect-private-key, debug-statements | Catch secrets, security hotspots, stray breakpoints |
+| **Security** | detect-private-key, debug-statements | Catch secrets, security hotspots, stray breakpoints |
 | **Infrastructure** | check-yaml, check-json, check-toml, check-ast | Syntax validation for config files |
 | **Git hygiene** | trailing-whitespace, end-of-file-fixer, check-merge-conflict, check-added-large-files, name-tests-test | Keep commits clean |
 
@@ -515,9 +964,26 @@ flowchart TD
 
 ---
 
-### 6. Monitoring & Observability
+### 9. Monitoring & Observability
 
 **4-layer observability stack** covering infrastructure, application, data, and cost.
+
+```mermaid
+flowchart BT
+    classDef infra fill:#ef4444,color:#fff
+    classDef app fill:#f59e0b,color:#fff
+    classDef data fill:#10b981,color:#fff
+    classDef viz fill:#8b5cf6,color:#fff
+
+    AM[Azure Monitor<br/>SQL auto-pause · Job retries]:::infra
+    PROM[Prometheus + Alertmanager<br/>Airflow StatsD · cAdvisor metrics<br/>8 alert rules]:::app
+    DFP[Data Freshness Probe<br/>4 Prometheus gauges<br/>Bronze/Silver/SQL/Status]:::data
+    GRAF[Grafana<br/>3 dashboards · 23 panels<br/>Airflow ETL · Containers · Pipeline]:::viz
+
+    AM --> GRAF
+    PROM --> GRAF
+    DFP --> GRAF
+```
 
 | Layer | Technology | Scope |
 |---|---|---|
@@ -534,6 +1000,15 @@ flowchart TD
 | **Container System Metrics** | 6 | CPU, memory, network I/O per container (cAdvisor → Prometheus) |
 | **Pipeline Health** | 10 | Bronze row count (153,380), Silver row count (153,377), Azure SQL row count (153,377), JDBC export latency, 8 Prometheus alert rules, data staleness status |
 
+![Container System Metrics Dashboard](docs/media/grafana_containers.png)
+*Grafana Container System Metrics - CPU, memory, network I/O per container (cAdvisor → Prometheus)*
+
+![Pipeline Health Dashboard](docs/media/grafana_health_dashboard.png)
+*Grafana Pipeline Health - Data Freshness, Pipeline Status, dbt Test Pass Rate, DAG Run Duration, Duration Percentiles (p50 / p95 / p99), Task Success/Failure Rates, Row Counts across Bronze → Silver → Azure SQL*
+
+![Grafana ETL Overview](docs/media/grafana_etl_overview.png)
+*Airflow ETL Overview - DAG run duration, task states, dataset events, scheduling delay*
+
 **Alert Rules (8 Prometheus + 2 Azure Monitor):**
 
 | Rule | Condition | Severity | Action |
@@ -544,52 +1019,62 @@ flowchart TD
 | Data staleness critical | No pipeline completion > 24h | P1 | Slack + email |
 | SQL auto-pause | `cpu_percent < 0.1` for 1 hour | P1 | Email to critical action group |
 
+![Prometheus Alert Rules](docs/media/prometheus_alerts.png)
+*Prometheus Alertmanager - 8 alert rules covering DAG duration, task failures, data staleness, and SQL auto-pause*
+
+![Prometheus Scrape Targets](docs/media/prometheus_targets.png)
+*Prometheus targets - Airflow StatsD exporter, cAdvisor, Data Freshness Probe, and Pushgateway*
+
 **Data Freshness Probe:**
 
-A custom Python service (port 8000) exposes 4 Prometheus gauges - one for each pipeline stage's current row count plus an overall status metric. This is scraped every 15 seconds and feeds the Pipeline Health dashboard's primary panels.
+A custom Python service (port 8000, `/metrics` endpoint) exposes 4 Prometheus gauges:
+
+| Gauge | Source Query | Purpose |
+|---|---|---|
+| `w3c_bronze_row_count` | `SELECT COUNT(*) FROM w3c_etl_databricks.bronze.bronze_raw_logs` | Bronze ingestion health |
+| `w3c_silver_row_count` | `SELECT COUNT(*) FROM w3c_etl_databricks.silver.silver_enriched_logs` | Silver enrichment health |
+| `w3c_azuresql_row_count` | `SELECT COUNT(*) FROM dbo.raw_enriched` | JDBC export health |
+| `w3c_pipeline_status` | Composite of above three | 0=no data, 1=running, 2=healthy, 3=stale |
+
+The probe queries each layer on a configurable interval (default 30s), caches results in memory, and serves them via `prometheus_client` `Gauge` metric families - no database dependencies during scrape. Scraped by Prometheus every 15 seconds, these metrics feed the Pipeline Health dashboard's primary panels and drive 4 alert rules.
 
 ---
 
-### 7. Testing Strategy
+### 10. Testing Strategy
 
 **5 layers of testing across 6 frameworks:**
 
 | Layer | Framework | Count | Runs In |
 |---|---|---|---|
 | **Unit tests** | pytest | **305** (275 in CI) | Every push |
-| **Data tests** | dbt test | **118** (46 not_null, 18 unique, 20 accepted_values, 10 relationships, 24 expression_is_true) | Merge to main (CD) |
+| **Data tests** | dbt test | **121** (48 not_null, 18 unique, 21 accepted_values, 10 relationships, 24 expression_is_true) | Merge to main (CD) |
 | **IaC validation** | Terraform HCL + Python | **9** assertions + **39** pytest tests | Every push |
 | **Static analysis** | ruff, mypy, bandit, SQLFluff | - | Every push (CI `lint`) |
 | **Security SAST** | CodeQL, GitGuardian | - | Every push + weekly |
 
-**pytest Breakdown (17 files, 81+ test classes):**
+**All Test Suites Passing:**
 
-| File | Tests | What It Validates |
-|---|---|---|
-| `test_dlt_silver.py` | 91 | GeoIP lookup, UA parsing, dedup, enrichment UDFs |
-| `test_dlt_bronze.py` | 60 | W3C log parsing, schema enforcement, quality expectations |
-| `test_export_dimensions.py` | 41 | Dimension export: type-casting, surrogate keys, MERGE upsert |
-| `test_dbt_tsql_migration.py` | 40 | T-SQL macro output: FK columns, data types, CTE patterns |
-| `test_export_azure_operators.py` | 35 | ExportToAzureSql / ExportCSVToAzure operator logic |
-| `test_jdbc_export_azure.py` | 31 | spark_row construction, connection config, type casts |
-| `test_export_dimensions_azure.py` | 29 | Azure-specific: `_parse_user_agent`, bucket assignment |
-| `test_transformations.py` | 28 | `page_category`, `extract_top_level_domain`, traffic-light status |
-| `test_w3c_parser.py` | 27 | Raw IIS W3C line parsing, edge cases, malformed lines |
-| `test_terraform_part_b.py` | 25 | Mock-based Databricks config validation |
-| `test_dag_integrity.py` | 23 | Airflow DAG loader: import errors, task graph, required args |
-| `test_terraform_part_a.py` | 14 | Mock-based Azure infra config validation |
-| `test_integration.py` | 18 | Cross-layer E2E: Spark → PostgreSQL → dbt (requires Docker) |
+The pipeline validates across **6 distinct test suites**, each targeting a different layer of the stack. Below the image is a breakdown of what each suite covers - all passing with zero failures:
 
-<!-- MEDIA: Silicon capture of `ruff check --output-format=github .` passing with 0 errors - PEP8, unused imports, naming conventions all clean -->
-<!-- MEDIA: Silicon capture of `ruff format --check .` - 49 files already formatted, consistent 120-char line width -->
-<!-- MEDIA: Silicon capture of `mypy --ignore-missing-imports tests/` → Success: no issues found in 19 source files -->
-<!-- MEDIA: Silicon capture of `pytest --collect-only -q -m "not integration and not dbt_compile"` → 275/305 tests collected (30 deselected - environment-appropriate filtering) -->
+![All Tests Passing - clean output, zero failures](docs/media/tests-all-passing.png)
+*Full pytest run - 246 passed, 37 skipped (missing heavy deps), 0 failed, 0 warnings. Suites: unit (305), DAG integrity (23), Terraform (39 pytest + 6 native), integration (18), dbt data tests (121)*
+
+**Suite breakdown:**
+
+| Suite | Tool | Tests | What It Validates |
+|---|---|---|---|
+| **Unit tests** | pytest | 305 (17 files) | Bronze/Silver ingestion, JDBC export, dbt T-SQL macros, dimension export, UA parsing, Terraform config |
+| **DAG integrity** | pytest | 23 | All 4 DAG files load, task graphs match, required args pass, import paths resolve |
+| **Terraform** | pytest + HCL | 39 + 6 | Part A (Azure infra) + Part B (Databricks) via mocks; 6 native HCL assertions for resources + outputs |
+| **Integration** | pytest | 18 | Cross-layer E2E: Spark → PostgreSQL → dbt, real file I/O and database writes in Docker |
+| **dbt data tests** | dbt test | 121 | 48 not_null, 18 unique, 21 accepted_values, 10 relationships, 24 expression_is_true |
 
 **Key Test Design Decisions:**
 
 - **Marker-based filtering:** Tests are tagged (`@integration`, `@dbt_compile`, `@dag_integrity`, `@terraform`) so CI runs only environment-appropriate tests. CI runs **275 tests** (excludes 18 integration + 12 dbt-compile - expected environment gaps).
 - **conftest.py** solves PEP 420 namespace shadowing (Airflow's missing `__init__.py`) by surgically adding only specific subdirectories to `sys.path`. Also builds `utils.zip` for PySpark worker serialization - mirroring the production `py_files` pattern.
 - **Dual-dialect dbt compile:** CI validates both PostgreSQL + T-SQL compilation in a single job using side-by-side PostgreSQL 13 + SQL Server 2022 containers.
+- **Mock-based Terraform testing:** Tests use `unittest.mock` to simulate Databricks/Terraform provider responses - validating config structure and resource attributes without real cloud credentials or network calls.
 
 ---
 
@@ -609,7 +1094,9 @@ A custom Python service (port 8000) exposes 4 Prometheus gauges - one for each p
 | **Staging + Marts schema isolation** | Single flat schema | `dbt_staging` for the atomic star schema, `dbt_marts` for pre-aggregated BI - prevents naming collisions and enforces the staging/mart boundary in dbt refs. |
 | **Datasets over polling or sensors** | Airflow sensors, external task sensors | Dataset-triggered DAGs decouple ingestion from transformation without polling overhead or hard-coded DAG IDs. A `Dataset("mssql://...")` outlet auto-triggers `dbt_marts_azure`. |
 | **Single `azure-dev` environment** | Staging + production | Staging/prod adds complexity without portfolio value for a CV project. Auto-approve on merge to main. dbt runs via Dataset trigger after ingestion completes. |
-| **`prevent_destroy` on storage + SQL** | Allow destroy on `terraform destroy` | Production data must survive accidental infrastructure teardown. `terraform destroy` will intentionally fail for ADLS Gen2 and Azure SQL - requiring manual confirmation. |
+| **`prevent_destroy` on storage + SQL** | Allow destroy on `terraform destroy` | Prevents accidental loss of the fully configured SQL database and storage account during development iteration. `terraform destroy` intentionally fails for ADLS Gen2 and Azure SQL - requiring manual intervention to remove the `prevent_destroy` lifecycle guard first. |
+| **Consolidated GeoIP struct UDF over 7 separate UDFs** | 7 PySpark UDFs (one per GeoIP field) | Single struct UDF opens `maxminddb.Reader` once per partition, returns all 6 City DB fields in one call - 3.5× fewer reader instantiations and 7× fewer Spark expression evaluations. |
+| **Weekly Power BI refresh over real-time streaming** | Real-time or daily refresh | Source is historical (2009–2011) with no new data arriving. Weekly cadence validates pipeline health end-to-end and detects drift in 5 upstream dependency layers without unnecessary compute spend. |
 
 ---
 
@@ -622,6 +1109,9 @@ A custom Python service (port 8000) exposes 4 Prometheus gauges - one for each p
 - MaxMind license key (free) in `airflow/.env` as `MAXMIND_LICENSE_KEY`
 
 ### Local Development
+
+![Docker Compose Architecture](docs/media/docker.png)
+*Docker Compose stack - 17 containers: Airflow, Spark, PostgreSQL, Prometheus, Grafana, and StatsD*
 
 ```bash
 # Start the 17-container Airflow + Spark + Observability stack
@@ -661,10 +1151,9 @@ dbt test   --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3
 
 ## Related Projects
 
-| Project | Description | Key Differentiator |
-|---|---|---|
-| [**LAAD**](https://github.com/AhmedIkram05?tab=repositories) | Automated SQL injection detection pipeline - detects, intercepts, and analyses SQL injection attempts from W3C IIS web logs. | Shares the same W3C IIS log source and Spark/iPython analysis stack but targets security analytics - pattern matching, parameterised query detection, and anomaly scoring. |
-| [**DevSync**](https://github.com/AhmedIkram05?tab=repositories) | AI-powered stand-up tool integrating Jira, Linear, GitHub, Slack, and Outlook into a single calendar-driven daily update. | Event-driven architecture with OAuth2 multi-provider integration - demonstrates API aggregation, OAuth state management, and async data synchronisation. |
+- [**LAAD**](https://github.com/AhmedIkram05/laad) - ATM log aggregation & diagnostics platform with Kafka streaming, 3-layer ML/heuristic anomaly detection, and an Agentic RAG diagnostic assistant with multi-signal confidence fusion.
+- [**DevSync**](https://github.com/AhmedIkram05/devsync) - Full-stack project management platform with real-time collaboration, GitHub OAuth 2.0 integration, bidirectional Issue/PR sync, and 1,452 tests - deployed on AWS ECS Fargate with OIDC CI/CD.
+- [**StockLens**](https://github.com/AhmedIkram05/StockLens) - React Native mobile FinTech app that scans receipts via OCR and projects missed investment opportunities using Alpha Vantage data + ARIMA/regression forecasting, with biometric auth and AES-256 encryption.
 
 ---
 
