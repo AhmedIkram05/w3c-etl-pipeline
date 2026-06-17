@@ -422,19 +422,19 @@ models:
         description: "Percentage of requests resulting in 404"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "pct_404 >= 0 AND pct_404 <= 100"
+              expression: ">= 0 AND pct_404 <= 100"
       - name: total_bytes_sent
         description: "Total bytes transferred"
       - name: avg_response_time_ms
         description: "Average response time in milliseconds"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "avg_response_time_ms >= 0"
+              expression: ">= 0"
       - name: p95_response_time_ms
         description: "95th percentile response time in milliseconds"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "p95_response_time_ms >= 0"
+              expression: ">= 0"
       - name: max_response_time_ms
         description: "Maximum response time in milliseconds"
       - name: slow_requests
@@ -443,7 +443,7 @@ models:
         description: "Percentage of requests with response time exceeding 5000ms"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "pct_slow_requests >= 0 AND pct_slow_requests <= 100"
+              expression: ">= 0 AND pct_slow_requests <= 100"
       - name: active_days
         description: "Number of distinct days with activity"
 
@@ -490,17 +490,17 @@ models:
         description: "Percentage of 404 responses"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "pct_404 >= 0 AND pct_404 <= 100"
+              expression: ">= 0 AND pct_404 <= 100"
       - name: avg_response_time_ms
         description: "Average response time in milliseconds"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "avg_response_time_ms >= 0"
+              expression: ">= 0"
       - name: p95_response_time_ms
         description: "95th percentile response time in milliseconds"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "p95_response_time_ms >= 0"
+              expression: ">= 0"
       - name: total_bytes_sent
         description: "Total bytes transferred"
       - name: crawler_requests
@@ -521,7 +521,7 @@ models:
         description: "Percentage of the day's total traffic from the #1 browser by request count"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "top_browser_share >= 0 AND top_browser_share <= 100"
+              expression: ">= 0 AND top_browser_share <= 100"
 
   - name: mart_crawler_analysis
     description: "Crawler behavior analysis with error rates, resource usage, and host-level metrics"
@@ -550,7 +550,7 @@ models:
         description: "Average response time for crawler requests"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "avg_response_time_ms >= 0"
+              expression: ">= 0"
       - name: max_response_time_ms
         description: "Maximum response time for crawler requests"
       - name: pages_with_errors
@@ -559,7 +559,7 @@ models:
         description: "Percentage of crawler requests resulting in errors"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "pct_error_responses >= 0 AND pct_error_responses <= 100"
+              expression: ">= 0 AND pct_error_responses <= 100"
 
   - name: mart_timeofday_analysis
     description: "Hourly traffic and performance breakdown showing time-of-day traffic and latency patterns"
@@ -593,17 +593,17 @@ models:
         description: "Percentage of 404 responses"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "pct_404 >= 0 AND pct_404 <= 100"
+              expression: ">= 0 AND pct_404 <= 100"
       - name: avg_response_time_ms
         description: "Average response time in milliseconds"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "avg_response_time_ms >= 0"
+              expression: ">= 0"
       - name: p95_response_time_ms
         description: "95th percentile response time in milliseconds"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "p95_response_time_ms >= 0"
+              expression: ">= 0"
       - name: total_bytes_sent
         description: "Total bytes transferred"
       - name: crawler_requests
@@ -612,14 +612,14 @@ models:
         description: "Percentage of requests from crawlers"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "pct_crawler >= 0 AND pct_crawler <= 100"
+              expression: ">= 0 AND pct_crawler <= 100"
       - name: slow_requests
         description: "Count of requests with response time exceeding 5000ms"
       - name: pct_slow_requests
         description: "Percentage of requests with response time exceeding 5000ms"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "pct_slow_requests >= 0 AND pct_slow_requests <= 100"
+              expression: ">= 0 AND pct_slow_requests <= 100"
 
   - name: mart_browser_analysis
     description: "Daily browser and client analysis with device category, platform breakdown, and traffic share"
@@ -655,12 +655,12 @@ models:
         description: "Percentage of the day's total traffic"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "pct_of_daily_traffic >= 0 AND pct_of_daily_traffic <= 100"
+              expression: ">= 0 AND pct_of_daily_traffic <= 100"
       - name: browser_rank
         description: "Rank of this browser family for the day (1 = most traffic)"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "browser_rank >= 1"
+              expression: ">= 1"
 
   - name: mart_country_browser_share
     description: "Top browser share broken down by country per day, showing the dominant browser and its share of each country's traffic"
