@@ -133,7 +133,7 @@ models:
               values:
                 - "Informational"
                 - "Success"
-                - "Redirection"
+                - "Redirect"
                 - "Client Error"
                 - "Server Error"
                 - "Unknown"
@@ -145,7 +145,7 @@ models:
         description: "Severity level (Info, Warning, Error, Critical)"
         tests:
           - accepted_values:
-              values: ["Info", "Warning", "Error", "Critical"]
+              values: ["Info", "Warning", "Error", "Critical", "Unknown"]
 
   - name: dim_method
     description: "HTTP method dimension aligned with Power BI semantic model"
@@ -343,6 +343,8 @@ models:
                 - "Direct"
                 - "Search Engine"
                 - "Social Media"
+                - "Social"
+                - "Internal"
                 - "Referral"
                 - "Unknown"
       - name: time_band
