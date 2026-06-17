@@ -1,0 +1,2 @@
+# Mark dbt docs HTML as generated — exclude from GitHub language stats
+*.html linguist-generated=true
