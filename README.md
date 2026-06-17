@@ -11,6 +11,7 @@
   <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&labelColor=000000&logo=python" alt="Python">
   <img src="https://img.shields.io/badge/Power_BI-F2C811?style=for-the-badge&labelColor=000000&logo=powerbi" alt="Power BI">
   <img src="https://img.shields.io/badge/Apache_Spark-E25A1C?style=for-the-badge&labelColor=000000&logo=apachespark" alt="Spark">
+  <img src="https://img.shields.io/badge/PySpark-FFD43B?style=for-the-badge&labelColor=000000&logo=python" alt="PySpark">
   <img src="https://img.shields.io/badge/Delta_Lake-4AB197?style=for-the-badge&labelColor=000000&logo=delta" alt="Delta Lake">
   <img src="https://img.shields.io/badge/SQL_Server-CC2927?style=for-the-badge&labelColor=000000&logo=microsoftsqlserver" alt="SQL Server">
   <img src="https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&labelColor=000000&logo=postgresql" alt="PostgreSQL">
