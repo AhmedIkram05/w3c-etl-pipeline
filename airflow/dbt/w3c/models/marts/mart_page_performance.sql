@@ -18,6 +18,7 @@ WITH page_stats AS (
     GROUP BY dp.page_sk, dp.page_path, dp.page_category
 ),
 p95_cte AS (
+    {% if target.type == 'sqlserver' %}
     SELECT DISTINCT
         fw.page_sk,
         {{ tsql_cast(
@@ -25,6 +26,13 @@ p95_cte AS (
             'NUMERIC(10,2)'
         ) }} AS p95_response_time_ms
     FROM {{ ref('fact_webrequest') }} fw
+    {% else %}
+    SELECT
+        fw.page_sk,
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2) AS p95_response_time_ms
+    FROM {{ ref('fact_webrequest') }} fw
+    GROUP BY fw.page_sk
+    {% endif %}
 )
 
 SELECT

@@ -32,6 +32,7 @@ WITH daily_stats AS (
     GROUP BY fw.date_sk, dd.date, dd.day_name, dd.is_weekend, dd.holiday_flag, dd.year, dd.month
 ),
 p95_cte AS (
+    {% if target.type == 'sqlserver' %}
     SELECT DISTINCT
         fw.date_sk,
         {{ tsql_cast(
@@ -39,6 +40,13 @@ p95_cte AS (
             'NUMERIC(10,2)'
         ) }} AS p95_response_time_ms
     FROM {{ ref('fact_webrequest') }} fw
+    {% else %}
+    SELECT
+        fw.date_sk,
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY fw.response_time_ms)::NUMERIC(10,2) AS p95_response_time_ms
+    FROM {{ ref('fact_webrequest') }} fw
+    GROUP BY fw.date_sk
+    {% endif %}
 ),
 peak_hour AS (
     SELECT
