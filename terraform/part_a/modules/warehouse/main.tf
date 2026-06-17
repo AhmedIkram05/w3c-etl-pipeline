@@ -33,9 +33,6 @@ resource "azurerm_mssql_database" "this" {
   auto_pause_delay_in_minutes = 60
   min_capacity                = 1
 
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 # Firewall rule removed - access controlled via NSG on SQL subnet (see networking module)
