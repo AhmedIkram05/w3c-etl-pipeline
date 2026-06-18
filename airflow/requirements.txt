@@ -17,4 +17,4 @@ dbt-common==1.27.1
 
 # Data freshness probe dependencies
 prometheus-client>=0.21.0,<1.0
-pymssql>=2.3.0,<3.0
+pymssql>=2.3.13,<3.0
