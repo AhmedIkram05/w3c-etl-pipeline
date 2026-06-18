@@ -1000,10 +1000,10 @@ The probe queries each layer on a configurable interval (default 30s), caches re
 **5 layers of testing across 6 frameworks:**
 
 | Layer | Framework | Count | Runs In |
-|---|---|---|---|---|
-| **All tests** | pytest | **613** (583 in CI) | Every push |
-| **Data tests** | dbt test | **121** (46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular) | Merge to main (CD) |
-| **IaC validation** | Terraform HCL + Python | **9** assertions + **92** pytest tests | Every push |
+|---|---|---|---|
+| **All tests** | pytest | 613 (583 in CI) | Every push |
+| **Data tests** | dbt test | 121 (46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular) | Merge to main (CD) |
+| **IaC validation** | Terraform HCL + Python | 9 assertions + 92 pytest tests | Every push |
 | **Static analysis** | ruff, mypy, bandit, SQLFluff | - | Every push (CI `lint`) |
 | **Security SAST** | CodeQL, GitGuardian | - | Every push + weekly |
 
