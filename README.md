@@ -25,7 +25,6 @@
 
 <p align="center">
   <a href="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/ci.yml"><img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/cd.yml/badge.svg" alt="CD">
   <a href="https://codecov.io/gh/AhmedIkram05/w3c-etl-pipeline"><img src="https://codecov.io/gh/AhmedIkram05/w3c-etl-pipeline/branch/main/graph/badge.svg" alt="Codecov"></a>
 </p>
 
@@ -70,7 +69,7 @@
 The pipeline follows a **Bronze → Silver → Azure SQL → dbt → Power BI** medallion architecture on Azure, with a Databricks DLT serverless pipeline doing the heavy lifting.
 
 ```mermaid
-flowchart LR
+flowchart TB
     classDef source fill:#3b82f6,color:#fff,stroke:#1e40af
     classDef ingest fill:#10b981,color:#fff,stroke:#047857
     classDef dlt fill:#8b5cf6,color:#fff,stroke:#6d28d9
@@ -176,7 +175,7 @@ flowchart LR
 | **Serverless DLT** | All Databricks compute runs on serverless - no VMs, no clusters, auto-scales to zero when idle. | **Zero infrastructure management.** The pipeline costs ~$0 when idle and never requires cluster tuning. |
 | **GeoIP Enrichment** | 7 MaxMind fields (country → ISP) from a single consolidated struct UDF using `maxminddb` pure Python. 3.5× faster than 7 separate UDFs. | **Serverless DLT can't install compiled C libraries.** Pure Python `maxminddb` side-steps this limitation while a lazy singleton pattern avoids PicklingError in distributed execution. |
 | **45-Second JDBC Export** | 153,377 rows from Silver to Azure SQL in 45 seconds - 8–9× faster than the initial 413s implementation. | **Databricks serverless only supports JDBC reads, not writes.** Pure Python `pymssql` + `tuple(row)` (not `asDict()`) + Spark-side pre-filter before `collect()` were the breakthrough optimisations. |
-| **T-SQL Dual-Dialect dbt** | All 16 models compile against both PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%}" }}` branches - no separate `_azure.sql` files. | **One model, two databases.** 18 macros + 2 dispatch overrides abstract PostgreSQL syntax (`::casts`, `EXTRACT`, `SPLIT_PART`, `ILIKE`, `MD5`) behind Jinja wrappers. |
+| **T-SQL Dual-Dialect dbt** | All 16 models compile against both PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%" }}}` branches - no separate `_azure.sql` files. | **One model, two databases.** 18 macros + 2 dispatch overrides abstract PostgreSQL syntax (`::casts`, `EXTRACT`, `SPLIT_PART`, `ILIKE`, `MD5`) behind Jinja wrappers. |
 | **121 dbt Data Tests** | 46 `not_null` · 16 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` · 4 custom singular tests - enforcing business invariants across all 16 models. | **Production-grade data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
 | **Terraform with OIDC** | Part A (4 modules: networking, datalake, databricks, warehouse) + Part B (24 resources: DLT pipelines, Workflows, UC schemas, secrets). Full OIDC Workload Identity Federation - no static Azure credentials. | **Zero touch deployment.** One `terraform apply` provisions the entire Azure estate including the GitHub→Azure auth chain. The CI/CD pipeline authenticates via token exchange, not client secrets. |
 | **3 Grafana Dashboards** | 23 panels across Airflow ETL Overview (7), Container System Metrics (6), and Pipeline Health (10) - with 8 Prometheus alert rules, 2 Azure Monitor alerts, and 3 action groups (P1/P2/P3). | **Observability from day one.** Airflow StatsD → Prometheus → Grafana pipeline means every DAG run, task duration, and data freshness metric is tracked. |
@@ -451,9 +450,6 @@ flowchart LR
     style dataset stroke-width:2px,stroke-dasharray: 5 5
 ```
 
-![Airflow DAG Graph View](docs/media/spark_ingestion_azure_airflow_graph.png)
-*Airflow DAG graph - `w3c_spark_ingestion_azure` task dependencies and Dataset trigger flow*
-
 The two DAGs are **intentionally decoupled** - no DAG-to-DAG imports, no `ExternalTaskSensor`, no hard-coded DAG IDs. The Dataset mechanism allows ingestion and transformation to be developed, tested, and monitored independently.
 
 ![Airflow Gantt Chart](docs/media/spark_ingestion_azure_airflow_gantt.png)
@@ -487,7 +483,7 @@ dbt owns **all SQL transformations** - nothing else writes to the star schema. T
 
 **The Dual-Dialect Strategy:**
 
-Every model file uses inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%}" }}...{{ "{%" }} else {{ "%}" }}...{{ "{%" }} endif {{ "%}" }}` branches. There are **no separate `_azure.sql` files** - dbt would parse both as independent models.
+Every model file uses inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%" }}}...{{ "{%" }} else {{ "%" }}}...{{ "{%" }} endif {{ "%" }}}` branches. There are **no separate `_azure.sql` files** - dbt would parse both as independent models.
 
 {% raw %}
 ```sql
@@ -540,9 +536,6 @@ raw_enriched (source)
         ├── mart_browser_analysis (browser market share over time)
         └── mart_country_browser_share (top browser per country per day)
 ```
-
-![dbt DAG Graph View](docs/media/dbt_marts_azure_airflow_graph.png)
-*dbt DAG graph - 16 models with ref() dependencies across 3 schemas*
 
 ![dbt DAG Execution Gantt](docs/media/dbt_marts_azure_airflow_gantt.png)
 *dbt DAG execution Gantt - source freshness, run, test, and docs generation on Databricks serverless*
@@ -727,29 +720,6 @@ _The semantic contract defines exactly what data leaves dbt and enters Power BI 
 | 6 | How Fast is the Server? | Avg 470ms, P95 1,149ms, 6.5% over 1s, top 5 expensive files, response speed by content type (12 months), response size distribution |
 | 7 | When is the Site Busiest? | 9.4K peak hour, 77.7% weekday traffic, hour × day-of-week heatmap, day-of-week bar (Monday 33K), AM vs PM patterns |
 
-**Dashboard Pages:**
-
-![At a Glance - Executive Summary](docs/media/summary.png)
-*Page 1: At a Glance - 156K total requests, 88 active countries, 9.7% 404 rate, human vs bot split (62% / 38%), busiest days, top 10 countries by traffic volume, 4 insight cards*
-
-![What Are People Accessing? - Content Analysis](docs/media/file-access.png)
-*Page 2: What Are People Accessing? - 3.6K unique pages, file types by request volume & data served (aspx 38.6%, jpeg 29.6%), content type treemap (Image 68K, Dynamic Page 60K), server errors by status code (404: 15,111), top pages by hit count, broken pages*
-
-![Where are Visitors Coming From? - Geographic](docs/media/geo.png)
-*Page 3: Where are Visitors Coming From? - 88 countries reached, global visitor footprint map (Azure Maps), top referral sources (darwinsbeagleplants.org 27,989), countries by unique visitor count (US 533, China 159, UK 159), most active cities by request volume*
-
-![Who's Hitting the Site? - Crawler vs Human](docs/media/traffic-overview.png)
-*Page 4: Who's Hitting the Site? - 155.6K total requests, 62% human vs 38% crawler, request volume by year (2009: 17K, 2010: 113K, 2011: 25K), human vs bot traffic shift over time*
-
-![Who Are The Visitors? - Browser & Device](docs/media/visitors.png)
-*Page 5: Who Are The Visitors? - 4.0K unique IPs, browser breakdown (IE 49K, Firefox 23K, Googlebot 16K), device types (Desktop 83K, Bot 59K), OS split (Windows 78K), visit frequency distribution, top 10 most active IPs*
-
-![How Fast is the Server? - Performance](docs/media/performance.png)
-*Page 6: How Fast is the Server? - Avg 470ms, P95 1,149ms, 6.5% requests over 1 second, top 5 most expensive files (all cache JPEGs), response speed by content type over time (12 months), response size distribution*
-
-![When is the Site Busiest? - Temporal](docs/media/temporal.png)
-*Page 7: When is the Site Busiest? - 9.4K peak hour requests, 77.7% weekday traffic, requests by hour × day-of-week heatmap, day-of-week bar chart (Monday 33K), AM vs PM traffic patterns*
-
 **18 CSV Files (~36 MB total):**
 
 | Directory | Files | Description |
@@ -925,9 +895,6 @@ flowchart TD
 | **dbt-compile** | dbt compile against PostgreSQL + T-SQL/Azure SQL in dual-service CI containers (PostgreSQL 13 + SQL Server 2022 side-by-side), plus 12 T-SQL output validators |
 | **terraform** | `fmt --check`, `init`, `validate`, `terraform test` (9 HCL assertions) across both Part A + Part B matrix |
 
-![CI Pipeline](docs/media/ci.png)
-*4 parallel jobs: lint, test, dbt-compile, terraform - all green*
-
 **CD - Merge to Main (OIDC-scoped deployment):**
 
 ```mermaid
@@ -942,12 +909,6 @@ flowchart TD
 | **terraform-plan** | Read-only plan. Part A via OIDC. Part B via PAT (skipped for Dependabot). Plan artifacts uploaded for review. |
 | **terraform-apply** | Deploys Azure infra (Part A) + Databricks resources (Part B). All auth via OIDC - no `ARM_CLIENT_SECRET`. |
 | **rollback** | Manual `workflow_dispatch`. Checks out `HEAD~1` with `fetch-depth: 0`, then terraform apply the previous commit. |
-
-![CD Pipeline](docs/media/cd.png)
-*terraform-plan → terraform-apply*
-
-![CD Rollback Workflow](docs/media/cd_rollback.png)
-*CD rollback: manual workflow_dispatch reverts to previous commit and re-applies Terraform*
 
 **Pre-commit Hooks (15 local quality gates):**
 
@@ -1002,15 +963,6 @@ flowchart BT
 | **Airflow ETL Overview** | 7 | DAG run duration, task states, dataset events, scheduling delay |
 | **Container System Metrics** | 6 | CPU, memory, network I/O per container (cAdvisor → Prometheus) |
 | **Pipeline Health** | 10 | Bronze row count (153,380), Silver row count (153,377), Azure SQL row count (153,377), JDBC export latency, 8 Prometheus alert rules, data staleness status |
-
-![Container System Metrics Dashboard](docs/media/grafana_containers.png)
-*Grafana Container System Metrics - CPU, memory, network I/O per container (cAdvisor → Prometheus)*
-
-![Pipeline Health Dashboard](docs/media/grafana_health_dashboard.png)
-*Grafana Pipeline Health - Data Freshness, Pipeline Status, dbt Test Pass Rate, DAG Run Duration, Duration Percentiles (p50 / p95 / p99), Task Success/Failure Rates, Row Counts across Bronze → Silver → Azure SQL*
-
-![Grafana ETL Overview](docs/media/grafana_etl_overview.png)
-*Airflow ETL Overview - DAG run duration, task states, dataset events, scheduling delay*
 
 **Alert Rules (8 Prometheus + 2 Azure Monitor):**
 
@@ -1088,7 +1040,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 |---|---|---|
 | **Serverless DLT over classic clusters** | Classic job clusters with fixed VMs | Zero infrastructure management. Serverless auto-scales to zero when idle - costs $0 between runs. No cluster tuning or VM sizing needed. |
 | **`maxminddb` pure Python over `geoip2`** | `geoip2==5.0.1` with compiled `libmaxminddb` | Serverless DLT cannot install compiled C extensions. `maxminddb` is pure Python and works as a simple `environment.dependencies` entry. |
-| **Inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%}" }}` over `_azure.sql` files** | Separate model files per dialect | dbt would parse both `dim_date.sql` and `dim_date_azure.sql` as independent models, creating duplicate DAG entries. Inline branches keep one source of truth. |
+| **Inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%" }}}` over `_azure.sql` files** | Separate model files per dialect | dbt would parse both `dim_date.sql` and `dim_date_azure.sql` as independent models, creating duplicate DAG entries. Inline branches keep one source of truth. |
 | **dbt runs on Databricks serverless, not Airflow** | Run dbt inside Airflow container with ODBC | Airflow container lacks ODBC 18 driver for Azure SQL. Running dbt on Databricks serverless via `DatabricksSubmitRunOperator` keeps Azure SQL traffic in the Databricks runtime. |
 | **pymssql over `df.write.jdbc`** | Spark JDBC writer | Databricks serverless only supports JDBC reads, not writes. `pymssql` is pure Python with no JVM dependencies. |
 | **OIDC over static secrets** | `ARM_CLIENT_SECRET`, long-lived PAT tokens | Zero static Azure credentials. The runner never stores or retrieves secrets - it assumes an Azure AD identity via token exchange at runtime. |
