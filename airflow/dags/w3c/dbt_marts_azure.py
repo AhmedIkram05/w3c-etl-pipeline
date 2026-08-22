@@ -59,6 +59,15 @@ AZURE_WAREHOUSE_LOADED = Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")
 DBT_DOCS_READY = Dataset("azure://w3c-etl/dbt_docs_ready")
 CSV_EXPORTS_READY = Dataset("azure://w3c-etl/csv_exports_ready")
 
+# ── Lineage datasets (OpenLineage) ─────────────────────────────────────────
+# Declared as task inlets/outlets so apache-airflow-providers-openlineage
+# converts them into OpenLineage input/output datasets — giving Marquez a
+# cross-engine lineage graph (Azure SQL → dbt staging/marts → CSV exports).
+# Schema-level granularity: one node per dbt schema, matching the export_csv
+# contract rather than 16 per-model URIs.
+DBT_STAGING_TABLES = Dataset("mssql://azure-sql/dbt_staging")
+DBT_MARTS_TABLES = Dataset("mssql://azure-sql/dbt_marts")
+
 # ── Repo path (consistent with existing Databricks notebooks) ──────────────
 _REPO_ROOT = "/Repos/w3c-etl-pipeline"
 
@@ -109,6 +118,7 @@ dbt_source_freshness = DatabricksSubmitRunOperator(
     task_id="dbt_source_freshness",
     databricks_conn_id="databricks_default",
     tasks=_build_dbt_task("dbt_source_freshness", "dbt_freshness.py"),
+    inlets=[AZURE_WAREHOUSE_LOADED],
     dag=dag,
 )
 
@@ -119,6 +129,8 @@ dbt_run = DatabricksSubmitRunOperator(
     task_id="dbt_run",
     databricks_conn_id="databricks_default",
     tasks=_build_dbt_task("dbt_run", "dbt_run.py"),
+    inlets=[AZURE_WAREHOUSE_LOADED],
+    outlets=[DBT_STAGING_TABLES, DBT_MARTS_TABLES],
     dag=dag,
 )
 
@@ -158,6 +170,7 @@ export_dbt_docs = PythonOperator(
 export_csv = PythonOperator(
     task_id="export_csv",
     python_callable=export_csv_azure,
+    inlets=[DBT_STAGING_TABLES, DBT_MARTS_TABLES],
     outlets=[CSV_EXPORTS_READY],
     dag=dag,
 )
