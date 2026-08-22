@@ -8,9 +8,7 @@ inside ``emit``), so these run anywhere pytest runs — no Airflow needed.
 import importlib.util
 from pathlib import Path
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[1] / "airflow" / "scripts" / "emit_quality_facet.py"
-)
+_SCRIPT = Path(__file__).resolve().parents[1] / "airflow" / "scripts" / "emit_quality_facet.py"
 _spec = importlib.util.spec_from_file_location("emit_quality_facet", _SCRIPT)
 if _spec is None or _spec.loader is None:
     raise ImportError(f"Cannot load emitter module from {_SCRIPT}")
