@@ -53,3 +53,6 @@ airflow/spark/delta/*
 .pre-commit-cache/
 
 utils.zip
+
+graphify-out
+w3c_etl_pipeline.egg-info
