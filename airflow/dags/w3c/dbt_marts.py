@@ -97,15 +97,25 @@ fi
     dag=dag,
 )
 
+# `dbt-ol` = openlineage-dbt wrapper: identical to `dbt run` but emits
+# model-level OpenLineage events to Marquez (OPENLINEAGE_URL in compose env).
 dbt_run = BashOperator(
     task_id="dbt_run",
-    bash_command=f"dbt run --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROFILES_DIR}",
+    bash_command=f"dbt-ol run --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROFILES_DIR}",
     dag=dag,
 )
 
 dbt_test = BashOperator(
     task_id="dbt_test",
     bash_command=f"dbt test --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROFILES_DIR}",
+    dag=dag,
+)
+
+# Attaches dbt test outcomes to the dbt_run lineage node in Marquez as a
+# custom `w3cDataQuality` run facet (best-effort — never fails the pipeline).
+emit_quality = BashOperator(
+    task_id="emit_quality",
+    bash_command="python /opt/airflow/scripts/emit_quality_facet.py",
     dag=dag,
 )
 
@@ -123,4 +133,4 @@ export_csv = BashOperator(
 )
 
 # ── Dependencies ─────────────────────────────────────────────────────
-dbt_deps >> dbt_run >> dbt_test >> dbt_docs >> export_csv
+dbt_deps >> dbt_run >> dbt_test >> emit_quality >> dbt_docs >> export_csv

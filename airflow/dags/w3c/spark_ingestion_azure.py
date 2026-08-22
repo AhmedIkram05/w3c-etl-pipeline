@@ -53,6 +53,16 @@ logger = logging.getLogger(__name__)
 # ── Dataset outlet — intended to signal downstream dbt_marts_azure DAG ─────
 AZURE_WAREHOUSE_LOADED = Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")
 
+# ── Lineage datasets (OpenLineage) ─────────────────────────────────────────
+# Declared as task inlets/outlets so apache-airflow-providers-openlineage
+# converts them into OpenLineage input/output datasets — giving Marquez a
+# cross-engine lineage graph (Databricks DLT → Azure SQL → dbt). The URIs
+# reuse Airflow Dataset addressing so one definition drives both trigger
+# semantics and lineage edges.
+RAW_ENRICHED = Dataset("mssql://azure-sql/dbo/raw_enriched")
+DIM_GEOLOCATION = Dataset("mssql://azure-sql/dbo/dim_geolocation")
+DIM_USERAGENT = Dataset("mssql://azure-sql/dbo/dim_useragent")
+
 # ── Databricks job ID (from terraform/part_b output.workflow_job_id) ────────
 DATABRICKS_JOB_ID = os.environ.get("DATABRICKS_JOB_ID", "847995192336508")
 
@@ -450,6 +460,7 @@ bronze_silver_jdbc_pipeline = DatabricksRunNowOperator(
     task_id="bronze_silver_jdbc_pipeline",
     databricks_conn_id="databricks_default",
     job_id=DATABRICKS_JOB_ID,
+    outlets=[RAW_ENRICHED],
     dag=dag,
 )
 
@@ -460,6 +471,8 @@ bronze_silver_jdbc_pipeline = DatabricksRunNowOperator(
 export_dimensions = PythonOperator(
     task_id="export_dimensions",
     python_callable=_export_dimensions,
+    inlets=[RAW_ENRICHED],
+    outlets=[DIM_GEOLOCATION, DIM_USERAGENT],
     dag=dag,
 )
 
