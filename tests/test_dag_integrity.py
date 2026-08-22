@@ -133,15 +133,15 @@ class TestDBTMartsDAG:
     """Verify the ``dbt_marts`` DAG (dataset-triggered dbt pipeline)."""
 
     def test_dbt_marts_imports(self):
-        """Verify dbt_marts DAG imports and parses with 5 tasks."""
+        """Verify dbt_marts DAG imports and parses with 6 tasks."""
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
         dag = dag_bag.dags.get("w3c_dbt_marts")
         assert dag is not None, "dbt_marts DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
-        # Expected: dbt_deps, dbt_run, dbt_test, dbt_docs, export_csv
-        assert len(dag.tasks) == 5, (
-            f"Expected 5 tasks (dbt_deps, dbt_run, dbt_test, dbt_docs, export_csv), "
+        # Expected: dbt_deps, dbt_run, dbt_test, emit_quality, dbt_docs, export_csv
+        assert len(dag.tasks) == 6, (
+            f"Expected 6 tasks (dbt_deps, dbt_run, dbt_test, emit_quality, dbt_docs, export_csv), "
             f"got {len(dag.tasks)}: {[t.task_id for t in dag.tasks]}"
         )
 
@@ -154,14 +154,14 @@ class TestDBTMartsDAG:
         assert dag is not None
 
         task_ids = {t.task_id for t in dag.tasks}
-        expected = {"dbt_deps", "dbt_run", "dbt_test", "dbt_docs", "export_csv"}
+        expected = {"dbt_deps", "dbt_run", "dbt_test", "emit_quality", "dbt_docs", "export_csv"}
         missing = expected - task_ids
         extra = task_ids - expected
         assert not missing, f"Missing task(s): {missing}"
         assert not extra, f"Unexpected task(s): {extra}"
 
     def test_dbt_marts_linear_dependency(self):
-        """Verify tasks form: dbt_deps >> dbt_run >> dbt_test >> dbt_docs >> export_csv."""
+        """Verify tasks form: dbt_deps >> dbt_run >> dbt_test >> emit_quality >> dbt_docs >> export_csv."""
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
@@ -174,7 +174,8 @@ class TestDBTMartsDAG:
 
         assert downstream_map["dbt_deps"] == {"dbt_run"}
         assert downstream_map["dbt_run"] == {"dbt_test"}
-        assert downstream_map["dbt_test"] == {"dbt_docs"}
+        assert downstream_map["dbt_test"] == {"emit_quality"}
+        assert downstream_map["emit_quality"] == {"dbt_docs"}
         assert downstream_map["dbt_docs"] == {"export_csv"}
         assert downstream_map["export_csv"] == set()
 
@@ -377,6 +378,30 @@ class TestSparkIngestionAzureDAG:
             f"Expected Dataset('mssql://azure-sql/dbo/raw_enriched_loaded') in outlets, got {outlets}"
         )
 
+    def test_azure_dag_lineage_datasets(self):
+        """Verify OpenLineage inlets/outlets: Databricks → raw_enriched → dimensions."""
+        from airflow.datasets import Dataset
+        from airflow.models import DagBag
+
+        dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
+        dag = dag_bag.dags.get("w3c_spark_ingestion_azure")
+        assert dag is not None
+
+        tasks = {t.task_id: t for t in dag.tasks}
+
+        # bronze_silver_jdbc_pipeline produces dbo.raw_enriched (JDBC export)
+        jdbc_outlets = getattr(tasks["bronze_silver_jdbc_pipeline"], "outlets", [])
+        assert Dataset("mssql://azure-sql/dbo/raw_enriched") in jdbc_outlets, (
+            f"bronze_silver_jdbc_pipeline missing raw_enriched outlet: {jdbc_outlets}"
+        )
+
+        # export_dimensions consumes raw_enriched and produces both dimensions
+        dim_task = tasks["export_dimensions"]
+        assert Dataset("mssql://azure-sql/dbo/raw_enriched") in getattr(dim_task, "inlets", [])
+        dim_outlets = getattr(dim_task, "outlets", [])
+        assert Dataset("mssql://azure-sql/dbo/dim_geolocation") in dim_outlets
+        assert Dataset("mssql://azure-sql/dbo/dim_useragent") in dim_outlets
+
     def test_azure_dag_has_no_import_errors(self):
         """Verify the DAG file has zero import errors in DagBag."""
         from airflow.models import DagBag
@@ -517,6 +542,35 @@ class TestDBTMartsAzureDAG:
         assert Dataset("azure://w3c-etl/csv_exports_ready") in csv_outlets, (
             f"export_csv missing csv_exports_ready outlet: {csv_outlets}"
         )
+
+    def test_azure_dbt_marts_lineage_datasets(self):
+        """Verify OpenLineage inlets/outlets: warehouse → dbt staging/marts → CSV exports."""
+        from airflow.datasets import Dataset
+        from airflow.models import DagBag
+
+        dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
+        dag = dag_bag.dags.get("w3c_dbt_marts_azure")
+        assert dag is not None
+
+        tasks = {t.task_id: t for t in dag.tasks}
+        warehouse_loaded = Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")
+        staging = Dataset("mssql://azure-sql/dbt_staging")
+        marts = Dataset("mssql://azure-sql/dbt_marts")
+
+        # dbt_source_freshness + dbt_run consume the loaded warehouse contract
+        assert warehouse_loaded in getattr(tasks["dbt_source_freshness"], "inlets", [])
+        run_inlets = getattr(tasks["dbt_run"], "inlets", [])
+        assert warehouse_loaded in run_inlets
+
+        # dbt_run produces the two dbt schemas (schema-level lineage nodes)
+        run_outlets = getattr(tasks["dbt_run"], "outlets", [])
+        assert staging in run_outlets and marts in run_outlets, (
+            f"dbt_run missing staging/marts outlets: {run_outlets}"
+        )
+
+        # export_csv consumes both schemas before writing CSVs
+        csv_inlets = getattr(tasks["export_csv"], "inlets", [])
+        assert staging in csv_inlets and marts in csv_inlets
 
     def test_azure_dbt_marts_has_no_import_errors(self):
         """Verify the DAG file has zero import errors in DagBag."""
