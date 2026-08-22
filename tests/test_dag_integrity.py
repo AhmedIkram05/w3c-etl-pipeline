@@ -564,9 +564,7 @@ class TestDBTMartsAzureDAG:
 
         # dbt_run produces the two dbt schemas (schema-level lineage nodes)
         run_outlets = getattr(tasks["dbt_run"], "outlets", [])
-        assert staging in run_outlets and marts in run_outlets, (
-            f"dbt_run missing staging/marts outlets: {run_outlets}"
-        )
+        assert staging in run_outlets and marts in run_outlets, f"dbt_run missing staging/marts outlets: {run_outlets}"
 
         # export_csv consumes both schemas before writing CSVs
         csv_inlets = getattr(tasks["export_csv"], "inlets", [])

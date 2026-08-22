@@ -16,6 +16,7 @@ Failure policy (deliberate): a missing results file or a transport error is a
 WARN + exit 0 — lineage emission must never break the pipeline. A *malformed*
 results file exits 1, because that indicates real dbt breakage upstream.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,13 +46,11 @@ def summarize_run_results(results: dict) -> dict:
             continue  # unknown future status — counted in totalTests, not bucketed
         counts[status] += 1
         if status in ("fail", "error") and len(failures) < MAX_FAILURES:
-            failures.append(
-                {
-                    "unique_id": row.get("unique_id"),
-                    "status": status,
-                    "message": (row.get("message") or "")[:MESSAGE_TRUNCATE],
-                }
-            )
+            failures.append({
+                "unique_id": row.get("unique_id"),
+                "status": status,
+                "message": (row.get("message") or "")[:MESSAGE_TRUNCATE],
+            })
     return {
         "totalTests": len(rows),
         "passed": counts["pass"],
