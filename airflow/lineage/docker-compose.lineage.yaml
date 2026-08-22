@@ -1,7 +1,8 @@
 # Lineage stack — OpenLineage collector (Marquez) for the W3C ETL pipeline.
 #
-# LOCAL DEMONSTRATION ONLY — the Azure platform deployment is torn down;
-# this exists purely to capture pipeline lineage for documentation.
+# Collects lineage from ALL 4 DAGs — the local Docker pipeline and the Azure
+# production DAGs alike (both emit task runs + dataset edges via the
+# apache-airflow-providers-openlineage listener).
 #
 #   Web UI : http://localhost:3100
 #   API    : http://localhost:5000   (admin/healthcheck :5001)
