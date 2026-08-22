@@ -1,0 +1,60 @@
+# Lineage stack — OpenLineage collector (Marquez) for the W3C ETL pipeline.
+#
+# LOCAL DEMONSTRATION ONLY — the Azure platform deployment is torn down;
+# this exists purely to capture pipeline lineage for documentation.
+#
+#   Web UI : http://localhost:3100
+#   API    : http://localhost:5000   (admin/healthcheck :5001)
+#
+# The main Airflow stack (airflow/docker-compose.yaml) emits OpenLineage
+# events to http://host.docker.internal:5000 — Docker Desktop resolves
+# that hostname to the host loopback, landing on the API port below.
+#
+# Services intentionally mirror the upstream Marquez compose project
+# (https://github.com/OpenLineage/OpenLineage/tree/main/chart/docker) so the
+# image-default marquez.yml works untouched: the API discovers its database
+# via the literal hostname `postgres` inside this project's own network.
+# Only deltas vs upstream: container_name, web port remap (Grafana owns 3000),
+# and a named volume for persistence.
+
+---
+services:
+  api:
+    image: marquezproject/marquez:latest
+    container_name: marquez-api
+    environment:
+      - MARQUEZ_CONFIG=/usr/src/app/marquez.yml
+    entrypoint: ["./entrypoint.sh"]
+    ports:
+      - "5000:5000"
+      - "5001:5001"
+    depends_on:
+      - postgres
+
+  web:
+    image: marquezproject/marquez-web:latest
+    container_name: marquez-web
+    ports:
+      - "3100:3000" # host 3000 belongs to Grafana in the main stack
+    stdin_open: true
+    tty: true
+    environment:
+      # Browser-side value: the UI calls the API from the visitor's machine,
+      # so it must use the host-published address, not the internal name.
+      - MARQUEZ_HOST=localhost
+      - MARQUEZ_PORT=5000
+      - WEB_PORT=3000
+    depends_on:
+      - api
+
+  postgres:
+    image: marquezproject/postgres:latest
+    container_name: marquez-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - marquez-db-data:/var/lib/postgresql
+
+volumes:
+  marquez-db-data:
