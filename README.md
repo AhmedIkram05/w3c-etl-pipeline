@@ -1,6 +1,6 @@
 # W3C Web Logs ETL Pipeline
 
-> Serverless Databricks DLT ingests 93 W3C IIS log files through a Bronze → Silver medallion architecture in Unity Catalog, exports 153,377 enriched rows to Azure SQL in 45 seconds, transforms via dbt (16 models, dual-dialect T-SQL/PostgreSQL) into a star schema, and serves 18 Power BI‑ready CSV exports - all orchestrated by Apache Airflow with Terraform‑managed infrastructure, OIDC‑secured CI/CD, and Grafana observability. A Docker Compose stack mirrors the pipeline locally for development and CI.
+> Serverless Databricks DLT ingests 93 W3C IIS log files through a Bronze → Silver medallion architecture in Unity Catalog, exports 153,377 enriched rows to Azure SQL in 45 seconds, transforms via dbt (16 models, dual-dialect T-SQL/PostgreSQL) into a star schema, and serves 18 Power BI‑ready CSV exports - all orchestrated by Apache Airflow with Terraform‑managed infrastructure, OIDC‑secured CI/CD, and Grafana observability. Every DAG - local and Azure alike - emits **OpenLineage events to Marquez**, stitching a cross-engine lineage graph Unity Catalog cannot see. A Docker Compose stack mirrors the pipeline locally for development and CI.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Azure-0078D4?style=for-the-badge&labelColor=000000&logo=microsoftazure" alt="Azure">
@@ -18,6 +18,8 @@
   <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&labelColor=000000&logo=redis" alt="Redis">
   <img src="https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&labelColor=000000&logo=grafana" alt="Grafana">
   <img src="https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&labelColor=000000&logo=prometheus" alt="Prometheus">
+  <img src="https://img.shields.io/badge/OpenLineage-7C3AED?style=for-the-badge&labelColor=000000&logo=openlineage" alt="OpenLineage">
+  <img src="https://img.shields.io/badge/Marquez-1F6FEB?style=for-the-badge&labelColor=000000" alt="Marquez">
   <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&labelColor=000000&logo=docker" alt="Docker">
   <img src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&labelColor=000000&logo=githubactions" alt="GitHub Actions">
   <img src="https://img.shields.io/badge/pytest-0A9EDC?style=for-the-badge&labelColor=000000&logo=pytest" alt="pytest">
@@ -55,7 +57,8 @@
   - [Unity Catalog & Governance](#7-unity-catalog--governance)
   - [CI/CD Pipeline](#8-cicd-pipeline)
   - [Monitoring & Observability](#9-monitoring--observability)
-  - [Testing Strategy](#10-testing-strategy)
+  - [Data Lineage & OpenLineage](#10-data-lineage--openlineage-marquez)
+  - [Testing Strategy](#11-testing-strategy)
 - [Design Decisions](#design-decisions)
 - [Quick Start](#quick-start)
 - [Related Projects](#related-projects)
@@ -66,7 +69,7 @@
 
 ## Architecture Overview
 
-The pipeline follows a **Bronze → Silver → Azure SQL → dbt → Power BI** medallion architecture on Azure, with a Databricks DLT serverless pipeline doing the heavy lifting.
+The pipeline follows a **Bronze → Silver → Azure SQL → dbt → Power BI** medallion architecture on Azure, with a Databricks DLT serverless pipeline doing the heavy lifting - and an OpenLineage → Marquez lineage layer observing every orchestrated stage across both engines.
 
 ```mermaid
 flowchart TB
@@ -76,6 +79,7 @@ flowchart TB
     classDef sql fill:#f59e0b,color:#fff,stroke:#d97706
     classDef dbtclass fill:#ef4444,color:#fff,stroke:#dc2626
     classDef bi fill:#ec4899,color:#fff,stroke:#db2777
+    classDef lineage fill:#7c3aed,color:#fff,stroke:#5b21b6
 
     source["93 W3C IIS log files<br/>2009–2011"]:::source
 
@@ -97,6 +101,8 @@ flowchart TB
 
     powerbi["Power BI<br/>7-page dashboard<br/>Weekly auto-refresh"]:::bi
 
+    marquez["OpenLineage → Marquez<br/>Cross-engine lineage<br/>DAG/task runs · dbt models ·<br/>w3cDataQuality facet"]:::lineage
+
     source -->|"ABFSS path"| adls
     adls -->|"Auto Loader"| bronze
     bronze -->|"spark.table()"| silver
@@ -106,6 +112,9 @@ flowchart TB
     dims -->|"Dataset trigger"| dbt
     dbt --> csv
     csv --> powerbi
+
+    dims -.->|"task events"| marquez
+    dbt -.->|"dbt-ol + quality facet"| marquez
 ```
 
 <details>
@@ -121,6 +130,7 @@ flowchart LR
     classDef monitor fill:#F46800,color:#fff,stroke:#d45500
     classDef db fill:#f59e0b,color:#fff,stroke:#d97706
     classDef oneshot fill:#8b5cf6,color:#fff,stroke:#6d28d9
+    classDef lineage fill:#7c3aed,color:#fff,stroke:#5b21b6
 
     subgraph Orchestration["Apache Airflow (CeleryExecutor)"]
         ws("webserver :8080"):::airflow
@@ -149,6 +159,11 @@ flowchart LR
         probe("freshness-probe :8000"):::monitor
     end
 
+    subgraph Lineage["Lineage Stack (separate compose project)"]
+        mq("marquez api :5000"):::lineage
+        mqw("marquez web :3100"):::lineage
+    end
+
     logs --> sw
     geoip --> sw
     sw -->|"bronze → silver"| delta
@@ -158,6 +173,8 @@ flowchart LR
     wk -->|"dbt run (staging → marts)"| pg
 
     ws --> sched --> wk
+    wk -.->|"OpenLineage events<br/>+ dbt-ol + quality facet"| mq
+    mq --> mqw
     wk & ws & sched -.->|"StatsD UDP"| statsd
     cadvisor -.->|"container metrics"| prom
     statsd -.->|"airflow metrics"| prom
@@ -179,6 +196,7 @@ flowchart LR
 | **121 dbt Data Tests** | 46 `not_null` · 16 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` · 4 custom singular tests - enforcing business invariants across all 16 models. | **Production-grade data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
 | **Terraform with OIDC** | Part A (4 modules: networking, datalake, databricks, warehouse) + Part B (24 resources: DLT pipelines, Workflows, UC schemas, secrets). Full OIDC Workload Identity Federation - no static Azure credentials. | **Zero touch deployment.** One `terraform apply` provisions the entire Azure estate including the GitHub→Azure auth chain. The CI/CD pipeline authenticates via token exchange, not client secrets. |
 | **3 Grafana Dashboards** | 23 panels across Airflow ETL Overview (7), Container System Metrics (6), and Pipeline Health (10) - with 8 Prometheus alert rules, 2 Azure Monitor alerts, and 3 action groups (P1/P2/P3). | **Observability from day one.** Airflow StatsD → Prometheus → Grafana pipeline means every DAG run, task duration, and data freshness metric is tracked. |
+| **Cross-Engine Data Lineage** | Every DAG emits OpenLineage events to Marquez: Airflow task runs via the provider listener, dbt models via `dbt-ol` (column-level where SQL parsing allows), dbt test outcomes via a custom `w3cDataQuality` run facet, and Azure DAG dataset edges via task inlets/outlets. | **Unity Catalog only sees Databricks.** OpenLineage stitches the full cross-engine story - Databricks DLT → Azure SQL → dbt → CSV exports - into one lineage graph. |
 
 ---
 
@@ -196,7 +214,7 @@ flowchart LR
 | **dbt models** | Total | **16** (10 staging + 6 marts) |
 | **dbt macros** | T-SQL compatibility | **18** macros + **2** dispatch overrides |
 | **dbt data tests** | All models | **121** (46 not_null + 16 unique + 21 accepted_values + 10 relationships + 24 expression_is_true + 4 singular) |
-| **pytest** | Total / CI | **613 tests** / **583 in CI** (468 unit + 92 terraform + 23 DAG integrity + 18 integration + 12 dbt_compile) |
+| **pytest** | Total / CI | **620 tests** / **590 in CI** (473 unit + 92 terraform + 25 DAG integrity + 18 integration + 12 dbt_compile) |
 | **Terraform** | HCL assertions | **9** (3 Part A + 6 Part B) + **92** Python tests |
 | **CI/CD** | Workflow files | **7** (4 CI + 1 CD + 1 CodeQL + 1 auto-merge) |
 | **CI/CD** | Job stages | **9 CI + 3 CD** |
@@ -204,6 +222,7 @@ flowchart LR
 | **IaC** | Azure resources managed | **30+** across 2 Terraform parts |
 | **Observability** | Grafana dashboards | **3** (23 panels) |
 | **Observability** | Alert rules | **8** Prometheus + **2** Azure Monitor + **3** action groups |
+| **Lineage** | OpenLineage emitters | **4** (provider listener, dbt-ol, custom quality facet, inlets/outlets dataset edges) |
 | **Cost** | Budget controls | **$50 warning / $100 hard cap** |
 | **Cost** | Monthly estimate | **~$0–100/mo** (serverless auto-scales to zero) |
 | **CSV exports** | Power BI-ready | **18 files** (~36 MB) |
@@ -430,7 +449,7 @@ Airflow owns **all orchestration** - 4 DAGs across 2 pipelines (Docker dev + Azu
 |---|---|---|---|---|
 | `w3c_spark_ingestion` | Sat 06:00 UTC | 4 | `SparkSubmitOperator` (3) + `PythonOperator` (1) | Cron |
 | `w3c_spark_ingestion_azure` | Fri 17:00 UTC | 3 | `DatabricksRunNowOperator` (1) + `PythonOperator` (2) | Cron |
-| `w3c_dbt_marts` | Dataset-triggered | 5 | `BashOperator` (5) | `Dataset("postgres://...")` |
+| `w3c_dbt_marts` | Dataset-triggered | 6 | `BashOperator` (6) | `Dataset("postgres://...")` |
 | `w3c_dbt_marts_azure` | Dataset-triggered | 6 | `DatabricksSubmitRunOperator` (4) + `PythonOperator` (2) | `Dataset("mssql://...")` |
 
 **Dataset-Driven Decoupling (Azure):**
@@ -451,6 +470,8 @@ flowchart LR
 ```
 
 The two DAGs are **intentionally decoupled** - no DAG-to-DAG imports, no `ExternalTaskSensor`, no hard-coded DAG IDs. The Dataset mechanism allows ingestion and transformation to be developed, tested, and monitored independently.
+
+**OpenLineage on every DAG:** all 4 DAGs emit run events to Marquez via the provider listener. The Azure DAGs additionally declare real table URIs as task `inlets`/`outlets` (`mssql://azure-sql/dbo/raw_enriched` → `dbt_staging` → `dbt_marts`), which the OpenLineage provider converts into dataset-level lineage edges - so the Marquez graph shows the cross-engine flow, not just job runs. Details in [Data Lineage & OpenLineage](#10-data-lineage--openlineage-marquez).
 
 ![Airflow Gantt Chart](docs/media/spark_ingestion_azure_airflow_gantt.png)
 *Gantt view: `w3c_spark_ingestion_azure` - Bronze, Silver, and JDBC Export task durations*
@@ -883,7 +904,7 @@ All Databricks data assets are managed through **Unity Catalog** (`w3c_etl_datab
 ```mermaid
 flowchart TD
     ci["Push to any branch or PR to main"] --> lint["lint (reusable)<br/>ruff, mypy, bandit, SQLFluff"]
-    ci --> test["test (reusable)<br/>275 pytest + coverage + Codecov"]
+    ci --> test["test (reusable)<br/>590 pytest + coverage + Codecov"]
     ci --> dbtc["dbt-compile (inline)<br/>PostgreSQL + T-SQL compile<br/>+ 12 output validators"]
     ci --> tf["terraform (reusable, matrix)<br/>Part A + Part B: fmt, init, validate, test"]
 ```
@@ -891,7 +912,7 @@ flowchart TD
 | Job | What It Validates |
 |---|---|
 | **lint** | ruff lint + format (PEP8), mypy type checking (19 files), bandit security scan, SQLFluff dbt SQL lint |
-| **test** | 583 pytest tests across all pipeline layers (base + DAG integrity + Terraform) with Codecov coverage |
+| **test** | 590 pytest tests across all pipeline layers (base + DAG integrity + Terraform) with Codecov coverage |
 | **dbt-compile** | dbt compile against PostgreSQL + T-SQL/Azure SQL in dual-service CI containers (PostgreSQL 13 + SQL Server 2022 side-by-side), plus 12 T-SQL output validators |
 | **terraform** | `fmt --check`, `init`, `validate`, `terraform test` (9 HCL assertions) across both Part A + Part B matrix |
 
@@ -995,13 +1016,54 @@ The probe queries each layer on a configurable interval (default 30s), caches re
 
 ---
 
-### 10. Testing Strategy
+### 10. Data Lineage & OpenLineage (Marquez)
+
+The pipeline emits **OpenLineage events to a self-hosted Marquez collector**, producing a cross-engine lineage graph that spans both pipelines - the local Docker stack *and* the Azure production DAGs (`w3c_spark_ingestion_azure`, `w3c_dbt_marts_azure`), which were tested end-to-end against the live Databricks/Azure SQL estate and emit into the same collector from the same Airflow deployment.
+
+Unity Catalog covers lineage **inside Databricks only** - it cannot see the Airflow orchestration layer or dbt running against Azure SQL/PostgreSQL. OpenLineage stitches the rest of the story into one graph:
+
+```mermaid
+flowchart LR
+    classDef airflow fill:#017CEE,color:#fff,stroke:#005bb5
+    classDef ol fill:#7c3aed,color:#fff,stroke:#5b21b6
+    classDef mq fill:#1F6FEB,color:#fff,stroke:#1a5fd0
+
+    emitters["Emitters<br/>Airflow provider listener (all 4 DAGs)<br/>dbt-ol wrapper (local dbt models)<br/>emit_quality_facet.py (custom facet)<br/>task inlets/outlets (Azure dataset edges)"]:::airflow
+    ol["OpenLineage HTTP transport<br/>api/v1/lineage"]:::ol
+    marq("Marquez API :5000"):::mq
+    web("Marquez Web UI :3100"):::mq
+
+    emitters -->|"RunEvent + facets"| ol
+    ol --> marq
+    marq --> web
+```
+
+**Four emitters feed one collector:**
+
+| Source | Mechanism | Granularity |
+|---|---|---|
+| Airflow tasks (all 4 DAGs) | `apache-airflow-providers-openlineage` listener (auto-instrumented) | DAG/task runs per job |
+| Azure DAG datasets | task `inlets`/`outlets` converted by the provider into OpenLineage inputs/outputs | dataset-level edges: `raw_enriched` → `dbt_staging` → `dbt_marts` |
+| dbt models (local DAG) | `dbt-ol` wrapper (`openlineage-dbt`) in the `w3c_dbt_marts` DAG | model-level lineage, column-level where SQL parsing allows |
+| dbt test outcomes | custom `w3cDataQuality` **run facet** (`scripts/emit_quality_facet.py`) | data quality attached to the producing lineage node |
+
+**Custom run facet - `w3cDataQuality`:**
+
+After `dbt test`, the `emit_quality` task aggregates `run_results.json` (total / passed / failed / skipped / warnings, failures capped at 20 with truncated messages) and emits a `COMPLETE` RunEvent carrying the facet onto the **same job** as the `dbt_run` event (`OPENLINEAGE_DBT_JOB_NAME` pins the identity). In Marquez this surfaces as structured data-quality metadata on the transformation node itself - not buried in logs.
+
+Failure policy is deliberate: missing results file or unreachable Marquez → warn and exit 0 (lineage is best-effort, never breaks the pipeline); malformed JSON → exit 1 (real upstream breakage deserves a red task).
+
+**Resilience:** the lineage stack is a separate Compose project with no `depends_on` coupling - if Marquez is down, events fail with a logged transport error and pipeline execution is unaffected.
+
+<!-- MEDIA: Screenshot of the Marquez UI at :3100 showing the w3c_dbt_marts lineage graph with column-level edges and the w3cDataQuality facet detail view -->
+
+### 11. Testing Strategy
 
 **5 layers of testing across 6 frameworks:**
 
 | Layer | Framework | Count | Runs In |
 |---|---|---|---|
-| **All tests** | pytest | 613 (583 in CI) | Every push |
+| **All tests** | pytest | 620 (590 in CI) | Every push |
 | **Data tests** | dbt test | 121 (46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular) | Merge to main (CD) |
 | **IaC validation** | Terraform HCL + Python | 9 assertions + 92 pytest tests | Every push |
 | **Static analysis** | ruff, mypy, bandit, SQLFluff | - | Every push (CI `lint`) |
@@ -1012,22 +1074,22 @@ The probe queries each layer on a configurable interval (default 30s), caches re
 The pipeline validates across **6 distinct test suites**, each targeting a different layer of the stack. Below the image is a breakdown of what each suite covers - all passing with zero failures:
 
 ![All Tests Passing - clean output, zero failures](docs/media/tests-all-passing.png)
-*W3C ETL Pipeline — 734 total tests (613 pytest + 121 dbt), all passing in CI on every push* 
+*W3C ETL Pipeline — 741 total tests (620 pytest + 121 dbt), all passing in CI on every push* 
 
 **Suite breakdown:**
 
 | Suite | Tool | Tests | What It Validates |
 |---|---|---|---|---|
-| **Unit tests** | pytest | 468 | Bronze/Silver ingestion, JDBC export, dbt T-SQL macros, dimension export, UA parsing, general pipeline logic |
+| **Unit tests** | pytest | 473 | Bronze/Silver ingestion, JDBC export, dbt T-SQL macros, dimension export, UA parsing, general pipeline logic |
 | **Terraform** | pytest + HCL | 92 + 9 | Part A (Azure infra) + Part B (Databricks) via mocks; 9 native HCL assertions for resources + outputs |
-| **DAG integrity** | pytest | 23 | All 4 DAG files load, task graphs match, required args pass, import paths resolve |
+| **DAG integrity** | pytest | 25 | All 4 DAG files load, task graphs match, required args pass, import paths resolve, lineage inlets/outlets wired |
 | **Integration** | pytest | 18 | Cross-layer E2E: Spark → PostgreSQL → dbt, real file I/O and database writes in Docker |
 | **dbt T-SQL validators** | pytest | 12 | Compiled T-SQL output validation against dbt-sqlserver adapter |
 | **dbt data tests** | dbt test | 121 | 46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular |
 
 **Key Test Design Decisions:**
 
-- **Marker-based filtering:** Tests are tagged (`@integration`, `@dbt_compile`, `@dag_integrity`, `@terraform`) so CI runs only environment-appropriate tests. CI runs **583 tests** (excludes 18 integration + 12 dbt-compile which run in separate CI jobs).
+- **Marker-based filtering:** Tests are tagged (`@integration`, `@dbt_compile`, `@dag_integrity`, `@terraform`) so CI runs only environment-appropriate tests. CI runs **590 tests** (excludes 18 integration + 12 dbt-compile which run in separate CI jobs).
 - **conftest.py** solves PEP 420 namespace shadowing (Airflow's missing `__init__.py`) by surgically adding only specific subdirectories to `sys.path`. Also builds `utils.zip` for PySpark worker serialization - mirroring the production `py_files` pattern.
 - **Dual-dialect dbt compile:** CI validates both PostgreSQL + T-SQL compilation in a single job using side-by-side PostgreSQL 13 + SQL Server 2022 containers.
 - **Mock-based Terraform testing:** Tests use `unittest.mock` to simulate Databricks/Terraform provider responses - validating config structure and resource attributes without real cloud credentials or network calls.
@@ -1053,6 +1115,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 | **`prevent_destroy` on storage + SQL** | Allow destroy on `terraform destroy` | Prevents accidental loss of the fully configured SQL database and storage account during development iteration. `terraform destroy` intentionally fails for ADLS Gen2 and Azure SQL - requiring manual intervention to remove the `prevent_destroy` lifecycle guard first. |
 | **Consolidated GeoIP struct UDF over 7 separate UDFs** | 7 PySpark UDFs (one per GeoIP field) | Single struct UDF opens `maxminddb.Reader` once per partition, returns all 6 City DB fields in one call - 3.5× fewer reader instantiations and 7× fewer Spark expression evaluations. |
 | **Weekly Power BI refresh over real-time streaming** | Real-time or daily refresh | Source is historical (2009–2011) with no new data arriving. Weekly cadence validates pipeline health end-to-end and detects drift in 5 upstream dependency layers without unnecessary compute spend. |
+| **Separate Marquez compose project over merging into the main stack** | One big docker-compose file | The API image discovers its DB via a literal `postgres` hostname — keeping Marquez in its own project preserves upstream config untouched, isolates lifecycle, and avoids hostname collisions with the Airflow PostgreSQL. Cross-stack traffic rides `host.docker.internal`. |
 
 ---
 
@@ -1090,6 +1153,23 @@ cd terraform/part_a && terraform init -backend=false && terraform test
 cd terraform/part_b && terraform init -backend=false && terraform test
 ```
 
+### Data Lineage — OpenLineage → Marquez
+
+All 4 DAGs - including the Azure production DAGs - emit OpenLineage events to a self-hosted Marquez collector. Architecture, emitters, and the custom data-quality facet are covered in [Data Lineage & OpenLineage](#10-data-lineage--openlineage-marquez).
+
+```bash
+# 1. Start the lineage stack first (Marquez API :5000, Web UI :3100)
+docker compose -f airflow/lineage/docker-compose.lineage.yaml up -d
+
+# 2. Start the main stack — OpenLineage env vars are already wired
+docker compose -f airflow/docker-compose.yaml up -d
+
+# 3. Trigger w3c_dbt_marts from the Airflow UI (http://localhost:8080),
+#    then open the lineage graph at http://localhost:3100
+```
+
+The transport URL (`AIRFLOW__OPENLINEAGE__TRANSPORT`) points at `host.docker.internal:5000` by default; override it in the environment to point Marquez-aware emitters at any reachable collector. If Marquez is down, events fail with a logged transport error - pipeline execution is deliberately unaffected.
+
 ### Production (Azure)
 
 The production pipeline is deployed via GitHub Actions CD on merge to `main`:
@@ -1102,6 +1182,8 @@ dbt test   --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3
 ```
 
 > **Note:** The full production pipeline (Bronze → Silver → JDBC Export → Dimensions → dbt → CSV) runs on a weekly schedule: Airflow triggers the Databricks Workflow on Fridays at 17:00 UTC. The CD pipeline deploys infrastructure and DAGs only.
+>
+> **Lineage:** the Azure DAGs (`w3c_spark_ingestion_azure`, `w3c_dbt_marts_azure`) emit OpenLineage run events and dataset-level edges (`raw_enriched` → `dbt_staging` → `dbt_marts` → CSV exports) into the same Marquez collector as the local stack - one cross-engine graph for both pipelines.
 
 ---
 
@@ -1114,5 +1196,5 @@ dbt test   --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3
 ---
 
 <p align="center">
-  <sub>Built with Azure, Databricks, dbt, Airflow, Terraform, Python, SQL, and a lot of pain.</sub>
+  <sub>Built with Azure, Databricks, dbt, Airflow, OpenLineage, Terraform, Python, SQL, and a lot of pain.</sub>
 </p>

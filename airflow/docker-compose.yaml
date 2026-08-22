@@ -113,6 +113,22 @@ x-airflow-common:
     AIRFLOW__METRICS__STATSD_HOST: "statsd-exporter"
     AIRFLOW__METRICS__STATSD_PORT: "9125"
     AIRFLOW__METRICS__STATSD_PREFIX: "airflow"
+
+    # ── OpenLineage / Marquez lineage emission ──────────────────────────
+    # Collector stack lives in airflow/lineage/docker-compose.lineage.yaml
+    # (separate project; reached over the host loopback via Docker Desktop's
+    # host.docker.internal). If the collector is down, events fail with a
+    # logged transport error — pipeline execution is unaffected by design.
+    AIRFLOW__OPENLINEAGE__TRANSPORT: '{"type": "http", "url": "http://host.docker.internal:5000", "endpoint": "api/v1/lineage"}'
+    # dbt tasks emit their own model-level events via the `dbt-ol` wrapper;
+    # disable provider extraction for BashOperator to avoid duplicate/conflicting events.
+    AIRFLOW__OPENLINEAGE__DISABLED_FOR_OPERATORS: "BashOperator"
+    # Read directly by `dbt-ol` inside BashOperator tasks.
+    OPENLINEAGE_URL: http://host.docker.internal:5000
+    OPENLINEAGE_NAMESPACE: w3c_etl_local
+    # Pin the dbt-ol job name so the quality emitter (scripts/emit_quality_facet.py)
+    # targets the exact same job identity as the dbt-ol run events in Marquez.
+    OPENLINEAGE_DBT_JOB_NAME: w3c_dbt_marts_dbt_run
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
