@@ -204,6 +204,8 @@ INNER JOIN ip_visit_buckets ib ON ib.client_ip = c.client_ip
 INNER JOIN {{ ref('dim_visit_buckets') }} vb ON vb.visit_bucket = ib.visit_bucket_name
 LEFT JOIN geo_lookup gl ON gl.client_ip = c.client_ip
 {% if target.type == 'sqlserver' %}
-LEFT JOIN {{ source('w3c', 'dim_geolocation') }} g ON g.geo_hash = gl.geo_hash
+-- dim_geolocation is SCD Type 2 (multiple versions per geo_hash): join to the
+-- current version only, otherwise historical rows fan out every fact row.
+LEFT JOIN {{ source('w3c', 'dim_geolocation') }} g ON g.geo_hash = gl.geo_hash AND g.is_current = 1
 {% endif %}
 LEFT JOIN ua_lookup ua ON ua.user_agent = c.user_agent
