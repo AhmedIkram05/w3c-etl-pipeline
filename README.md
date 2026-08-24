@@ -93,7 +93,7 @@ flowchart TB
 
     azsql["Azure SQL (serverless GP_S_Gen5, 1 vCore)<br/>dbo.raw_enriched - 31 columns<br/>Auto-pause 60 min idle"]:::sql
 
-    dims["Airflow: export_dimensions<br/>MERGE upsert on geo_hash / ua_hash<br/>→ dim_geolocation (1,585 rows)<br/>→ dim_useragent (2,040 rows)<br/>Fires Dataset trigger"]:::dbtclass
+    dims["Airflow: export_dimensions<br/>SCD Type 2 dim_geolocation · MERGE upsert dim_useragent<br/>→ dim_geolocation (1,585 current rows + history)<br/>→ dim_useragent (2,040 rows)<br/>Fires Dataset trigger"]:::dbtclass
 
     dbt["dbt - 16 models • 121 tests<br/>10 staging + 6 marts<br/>Dual-dialect T-SQL / PostgreSQL<br/>Runs on Databricks serverless via<br/>self-bootstrapping notebooks"]:::dbtclass
 
@@ -196,6 +196,7 @@ flowchart LR
 | **121 dbt Data Tests** | 46 `not_null` · 16 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` · 4 custom singular tests - enforcing business invariants across all 16 models. | **Production-grade data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
 | **Terraform with OIDC** | Part A (4 modules: networking, datalake, databricks, warehouse) + Part B (24 resources: DLT pipelines, Workflows, UC schemas, secrets). Full OIDC Workload Identity Federation - no static Azure credentials. | **Zero touch deployment.** One `terraform apply` provisions the entire Azure estate including the GitHub→Azure auth chain. The CI/CD pipeline authenticates via token exchange, not client secrets. |
 | **3 Grafana Dashboards** | 23 panels across Airflow ETL Overview (7), Container System Metrics (6), and Pipeline Health (10) - with 8 Prometheus alert rules, 2 Azure Monitor alerts, and 3 action groups (P1/P2/P3). | **Observability from day one.** Airflow StatsD → Prometheus → Grafana pipeline means every DAG run, task duration, and data freshness metric is tracked. |
+| **SCD Type 2 Geolocation** | `dim_geolocation` preserves full attribute history via `valid_from` / `valid_to` / `is_current` - a T-SQL `MERGE ... OUTPUT` pattern expires changed versions and re-inserts new ones, with a filtered unique index enforcing one current row per hash. | **Interview-grade dimensional modelling.** Point-in-time analysis is possible without losing current-state performance, and the `$action OUTPUT` workaround for MERGE's expire-then-insert limitation is the canonical T-SQL SCD2 idiom. |
 | **Cross-Engine Data Lineage** | Every DAG emits OpenLineage events to Marquez: Airflow task runs via the provider listener, dbt models via `dbt-ol` (column-level where SQL parsing allows), dbt test outcomes via a custom `w3cDataQuality` run facet, and Azure DAG dataset edges via task inlets/outlets. | **Unity Catalog only sees Databricks.** OpenLineage stitches the full cross-engine story - Databricks DLT → Azure SQL → dbt → CSV exports - into one lineage graph. |
 
 ---
@@ -214,7 +215,7 @@ flowchart LR
 | **dbt models** | Total | **16** (10 staging + 6 marts) |
 | **dbt macros** | T-SQL compatibility | **18** macros + **2** dispatch overrides |
 | **dbt data tests** | All models | **121** (46 not_null + 16 unique + 21 accepted_values + 10 relationships + 24 expression_is_true + 4 singular) |
-| **pytest** | Total / CI | **620 tests** / **590 in CI** (473 unit + 92 terraform + 25 DAG integrity + 18 integration + 12 dbt_compile) |
+| **pytest** | Total / CI | **627 tests** / **597 in CI** (480 unit + 92 terraform + 25 DAG integrity + 18 integration + 12 dbt_compile) |
 | **Terraform** | HCL assertions | **9** (3 Part A + 6 Part B) + **92** Python tests |
 | **CI/CD** | Workflow files | **7** (4 CI + 1 CD + 1 CodeQL + 1 auto-merge) |
 | **CI/CD** | Job stages | **9 CI + 3 CD** |
@@ -425,12 +426,14 @@ The JDBC export bridges Databricks Silver → Azure SQL. This is the most perfor
 
 **Dimension Export (Airflow PythonOperator):**
 
-After the JDBC export, Airflow's `export_dimensions` task builds dimensional tables using `MERGE` upsert:
+After the JDBC export, Airflow's `export_dimensions` task builds dimensional tables. `dim_geolocation` uses **SCD Type 2** (full attribute history); `dim_useragent` uses a `MERGE` upsert (SCD Type 1):
 
-| Table | Natural Key | Rows | Sentinel |
-|---|---|---|---|
-| `dim_geolocation` | `geo_hash` - SHA-256 of `country\|region\|city\|latitude\|longitude` | **1,585** | `-1`: Unknown |
-| `dim_useragent` | `ua_hash` - SHA-256 of parsed UA fields | **2,040** | `-1`: Unknown |
+| Table | Natural Key | SCD Type | Rows | Sentinel |
+|---|---|---|---|---|
+| `dim_geolocation` | `geo_hash` - SHA-256 of `country\|region\|city\|latitude\|longitude` | **Type 2** - `valid_from` / `valid_to` / `is_current` | **1,585 current** (+ history) | `-1`: Unknown |
+| `dim_useragent` | `ua_hash` - SHA-256 of parsed UA fields | Type 1 (in-place upsert) | **2,040** | `-1`: Unknown |
+
+**SCD Type 2 on `dim_geolocation`:** a T-SQL `MERGE` matches source aggregates against **current rows only** (`ON target.geo_hash = source.geo_hash AND target.is_current = 1`). When the tracked attribute drifts (`MAX(isp)` — location fields are already baked into the hash), the old version is expired (`valid_to = SYSUTCDATETIME()`, `is_current = 0`) and a fresh current version is re-inserted from the `$action OUTPUT` log — one MERGE cannot expire and insert in the same branch. A filtered unique index (`... ON (geo_hash) WHERE is_current = 1`) enforces exactly one current version per hash while allowing unlimited history. Existing SCD1 deployments are migrated in place (`COL_LENGTH` guard: drop the old unique constraint, add validity columns). `fact_webrequest` joins via `AND g.is_current = 1` to prevent historical rows fanning out fact grain.
 
 The geo hash is computed **in SQL** via `HASHBYTES('SHA2_256', ...)` inside the MERGE subquery - efficient batch computation. The UA hash is computed **in Python** via `hashlib.sha256()` alongside parsing to avoid extra SQL round-trips. Sentinels use `SET IDENTITY_INSERT ON/OFF` for FK integrity.
 
@@ -669,13 +672,16 @@ erDiagram
 
     dim_geolocation {
         int geolocation_sk PK
-        string geo_hash UK
+        string geo_hash
         string country
         string region
         string city
         float latitude
         float longitude
         string isp
+        datetime valid_from "SCD2"
+        datetime valid_to "SCD2"
+        bool is_current "SCD2"
     }
 
     dim_useragent {
@@ -1063,7 +1069,7 @@ Failure policy is deliberate: missing results file or unreachable Marquez → wa
 
 | Layer | Framework | Count | Runs In |
 |---|---|---|---|
-| **All tests** | pytest | 620 (590 in CI) | Every push |
+| **All tests** | pytest | 627 (597 in CI) | Every push |
 | **Data tests** | dbt test | 121 (46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular) | Merge to main (CD) |
 | **IaC validation** | Terraform HCL + Python | 9 assertions + 92 pytest tests | Every push |
 | **Static analysis** | ruff, mypy, bandit, SQLFluff | - | Every push (CI `lint`) |
@@ -1074,7 +1080,7 @@ Failure policy is deliberate: missing results file or unreachable Marquez → wa
 The pipeline validates across **6 distinct test suites**, each targeting a different layer of the stack. Below the image is a breakdown of what each suite covers - all passing with zero failures:
 
 ![All Tests Passing - clean output, zero failures](docs/media/tests-all-passing.png)
-*W3C ETL Pipeline — 741 total tests (620 pytest + 121 dbt), all passing in CI on every push* 
+*W3C ETL Pipeline — 748 total tests (627 pytest + 121 dbt), all passing in CI on every push* 
 
 **Suite breakdown:**
 

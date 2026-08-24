@@ -4,10 +4,13 @@ Airflow-managed Azure SQL dimension tables.
 
 The function builds two dimension tables from Azure SQL ``dbo.raw_enriched``:
 
-* ``dim_geolocation``  — MERGE upsert on ``geo_hash`` computed from
-  country/region/city/lat/lon via HASHBYTES.
-* ``dim_useragent``    — Parsed via ``user-agents`` library, hashed with
-  SHA-256, deduplicated via ``seen_hashes``, and MERGE'd in batches of 300.
+* ``dim_geolocation``  — **SCD Type 2**: MERGE against current rows on
+  ``geo_hash`` (country/region/city/lat/lon via HASHBYTES); attribute changes
+  expire the old version (``valid_to`` / ``is_current = 0``) and insert a new
+  current version. History preserved per ``geo_hash``.
+* ``dim_useragent``    — SCD Type 1: parsed via ``user-agents`` library,
+  hashed with SHA-256, deduplicated via ``seen_hashes``, and MERGE'd in
+  batches of 250.
 
 All Azure SQL interactions go through **pyodbc**, which is imported inside the
 function body.  Tests mock ``pyodbc`` via ``sys.modules`` injection and
@@ -334,11 +337,11 @@ class TestGeoDimension:
         assert "ISNULL(country, '')" in merge_sql
 
     def test_geo_merge_has_on_clause(self):
-        """MERGE matches on geo_hash natural key."""
+        """MERGE matches on geo_hash natural key against CURRENT rows only."""
         _, mock_cursor = self._run_with_env()
         merge_sql = self._find_sql(mock_cursor, "MERGE")
         assert merge_sql is not None
-        assert "ON target.geo_hash = source.geo_hash" in merge_sql
+        assert "ON target.geo_hash = source.geo_hash AND target.is_current = 1" in merge_sql
 
     def test_geo_merge_inserts_on_not_matched(self):
         """MERGE inserts rows when hash is new."""
@@ -360,6 +363,117 @@ class TestGeoDimension:
             sql = call_args[0][0]
             if keyword in sql:
                 return sql
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 4b. Geo dimension — SCD Type 2 behaviour
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestGeoDimensionSCD2:
+    """SCD Type 2 specifics for ``dim_geolocation``.
+
+    Contract under test:
+
+    * DDL declares ``valid_from`` / ``valid_to`` / ``is_current``.
+    * No bare UNIQUE constraint on ``geo_hash`` (history needs duplicates);
+      a **filtered** unique index enforces exactly one current version each.
+    * MERGE expires changed current versions (``is_current = 0``) instead of
+      overwriting them; new versions are re-inserted from the ``$action``
+      OUTPUT log — the canonical T-SQL pattern, since one MERGE cannot
+      expire and insert in the same branch.
+    * Pre-SCD2 tables are migrated (constraint dropped, columns added).
+    """
+
+    def _run_with_env(self):
+        with patch.dict(
+            os.environ,
+            {
+                "AZURE_SQL_SERVER": "s",
+                "AZURE_SQL_USER": "u",
+                "AZURE_SQL_PASS": "p",
+            },
+            clear=True,
+        ):
+            with _mock_pyodbc(ua_rows=[]) as (_, mock_conn, mock_cursor):
+                _export_dimensions()
+        return mock_conn, mock_cursor
+
+    def test_ddl_declares_scd2_columns(self):
+        """Fresh CREATE TABLE includes valid_from / valid_to / is_current."""
+        _, mock_cursor = self._run_with_env()
+        geo_ddl = self._find_sql(mock_cursor, "CREATE TABLE dbo.dim_geolocation")
+        assert geo_ddl is not None
+        assert "valid_from" in geo_ddl
+        assert "valid_to" in geo_ddl
+        assert "is_current" in geo_ddl
+
+    def test_ddl_has_no_bare_unique_on_geo_hash(self):
+        """History requires duplicate hashes — no table-level UNIQUE on geo_hash.
+
+        The migration branch still *names* the old constraint (to drop it),
+        so assert on the declaration syntax, not the identifier.
+        """
+        _, mock_cursor = self._run_with_env()
+        geo_ddl = self._find_sql(mock_cursor, "CREATE TABLE dbo.dim_geolocation")
+        assert geo_ddl is not None
+        assert "UNIQUE (geo_hash)" not in geo_ddl
+        assert "uq_dim_geolocation__geo_hash" not in geo_ddl.split("ELSE IF")[0]
+
+    def test_filtered_unique_index_enforces_single_current_row(self):
+        """Filtered unique index: one current version per geo_hash."""
+        _, mock_cursor = self._run_with_env()
+        all_sql = "\n".join(
+            call_args[0][0] for call_args in mock_cursor.execute.call_args_list if call_args[0]
+        )
+        assert "ux_dim_geolocation__current" in all_sql
+        assert "ON dbo.dim_geolocation (geo_hash) WHERE is_current = 1" in all_sql
+
+    def test_merge_expires_changed_versions(self):
+        """WHEN MATCHED + attribute drift → expire (valid_to / is_current = 0)."""
+        _, mock_cursor = self._run_with_env()
+        merge_sql = self._find_sql(mock_cursor, "MERGE dbo.dim_geolocation")
+        assert merge_sql is not None
+        assert "WHEN MATCHED AND" in merge_sql
+        assert "ISNULL(target.isp, '') <> ISNULL(source.isp, '')" in merge_sql
+        assert "is_current = 0" in merge_sql
+        assert "valid_to   = SYSUTCDATETIME()" in merge_sql
+
+    def test_new_version_reinserted_from_output_log(self):
+        """Expired hashes get a fresh current row via $action OUTPUT → INSERT."""
+        _, mock_cursor = self._run_with_env()
+        merge_sql = self._find_sql(mock_cursor, "MERGE dbo.dim_geolocation")
+        assert merge_sql is not None
+        assert "OUTPUT $action, inserted.geo_hash INTO @scd2_log" in merge_sql
+        # Re-insert joins the source aggregate back to expired hashes only
+        assert "WHERE l.merge_action = 'UPDATE' AND l.geo_hash = s.geo_hash" in merge_sql
+
+    def test_migrates_existing_scd1_table(self):
+        """Existing SCD1 deployments get columns added + old constraint dropped."""
+        _, mock_cursor = self._run_with_env()
+        migration_sql = self._find_sql(mock_cursor, "COL_LENGTH('dbo.dim_geolocation', 'valid_from')")
+        assert migration_sql is not None
+        assert "DROP CONSTRAINT uq_dim_geolocation__geo_hash" in migration_sql
+        assert "ALTER TABLE dbo.dim_geolocation ADD" in migration_sql
+
+    def test_sentinel_row_is_current(self):
+        """-1 sentinel inherits SCD2 defaults (current, open-ended validity)."""
+        _, mock_cursor = self._run_with_env()
+        geo_ddl = self._find_sql(mock_cursor, "CREATE TABLE dbo.dim_geolocation")
+        assert geo_ddl is not None
+        assert "DEFAULT '9999-12-31'" in geo_ddl
+        assert "CONSTRAINT df_dim_geolocation__is_current DEFAULT 1" in geo_ddl
+
+    # ── helpers ──
+
+    @staticmethod
+    def _find_sql(mock_cursor, keyword):
+        for call_args in mock_cursor.execute.call_args_list:
+            if call_args[0]:
+                sql = call_args[0][0]
+                if keyword in sql:
+                    return sql
         return None
 
 
