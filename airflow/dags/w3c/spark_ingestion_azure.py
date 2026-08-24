@@ -8,7 +8,8 @@ This DAG orchestrates the cloud-native ETL pipeline on Databricks + Azure SQL:
        - Task 2: DLT Silver pipeline (GeoIP enrichment + computed fields)
        - Task 3: JDBC Export notebook (Silver → Azure SQL ``dbo.raw_enriched``)
   2. Builds Airflow-managed dimension tables (``dim_geolocation``,
-     ``dim_useragent``) from Azure SQL using MERGE upsert.
+     ``dim_useragent``) from Azure SQL - dim_geolocation as SCD Type 2,
+     dim_useragent via MERGE upsert.
 
 The Dataset outlet ``Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")``
 is designed to trigger a downstream ``dbt_marts_azure`` DAG for dbt
@@ -89,6 +90,12 @@ def _export_dimensions(**context) -> None:
 
     Uses ``MERGE`` upsert on natural keys for idempotent incremental loads.
 
+    Slowly Changing Dimension strategy:
+      - ``dim_geolocation`` — **SCD Type 2**: attribute changes expire the
+        current row (``valid_to`` set, ``is_current = 0``) and insert a new
+        version, preserving full history per ``geo_hash``.
+      - ``dim_useragent``   — SCD Type 1 (in-place MERGE upsert).
+
     In local development (where Azure SQL may not be accessible), the task
     logs a warning and exits gracefully — the Databricks Workflow's JDBC
     export already delivers the core data to Azure SQL.
@@ -133,7 +140,7 @@ def _export_dimensions(**context) -> None:
         with pyodbc.connect(conn_str, autocommit=False) as conn:
             cursor = conn.cursor()
 
-            # ── dim_geolocation (MERGE upsert on geo_hash) ──────────
+            # ── dim_geolocation (SCD Type 2 on geo_hash) ────────────
             cursor.execute("""
                 IF OBJECT_ID('dbo.dim_geolocation') IS NULL
                 BEGIN
@@ -146,9 +153,19 @@ def _export_dimensions(**context) -> None:
                         latitude        FLOAT          NULL,
                         longitude       FLOAT          NULL,
                         isp             NVARCHAR(200)  NULL,
-                        CONSTRAINT uq_dim_geolocation__geo_hash
-                            UNIQUE (geo_hash)
+                        -- SCD Type 2 validity columns
+                        valid_from      DATETIME2      NOT NULL
+                            CONSTRAINT df_dim_geolocation__valid_from DEFAULT SYSUTCDATETIME(),
+                        valid_to        DATETIME2      NOT NULL
+                            CONSTRAINT df_dim_geolocation__valid_to DEFAULT '9999-12-31',
+                        is_current      BIT            NOT NULL
+                            CONSTRAINT df_dim_geolocation__is_current DEFAULT 1
                     );
+
+                    -- SCD2: history allowed per geo_hash, but exactly ONE current
+                    -- version each (filtered unique index, not a table constraint).
+                    CREATE UNIQUE INDEX ux_dim_geolocation__current
+                        ON dbo.dim_geolocation (geo_hash) WHERE is_current = 1;
 
                     -- Seed -1 sentinel unknown row for FK integrity
                     SET IDENTITY_INSERT dbo.dim_geolocation ON;
@@ -156,30 +173,91 @@ def _export_dimensions(**context) -> None:
                     VALUES (-1, '0000000000000000000000000000000000000000000000000000000000000000', 'Unknown', 'Unknown', 'Unknown', '-');
                     SET IDENTITY_INSERT dbo.dim_geolocation OFF;
                 END;
+                ELSE IF COL_LENGTH('dbo.dim_geolocation', 'valid_from') IS NULL
+                BEGIN
+                    -- One-time migration of pre-SCD2 deployments:
+                    -- SCD1 unique constraint must go (history needs duplicate hashes),
+                    -- existing rows become the first current version via defaults.
+                    IF EXISTS (
+                        SELECT 1 FROM sys.key_constraints
+                        WHERE name = 'uq_dim_geolocation__geo_hash'
+                          AND parent_object_id = OBJECT_ID('dbo.dim_geolocation')
+                    )
+                        ALTER TABLE dbo.dim_geolocation DROP CONSTRAINT uq_dim_geolocation__geo_hash;
+
+                    ALTER TABLE dbo.dim_geolocation ADD
+                        valid_from DATETIME2 NOT NULL
+                            CONSTRAINT df_dim_geolocation__valid_from DEFAULT SYSUTCDATETIME(),
+                        valid_to   DATETIME2 NOT NULL
+                            CONSTRAINT df_dim_geolocation__valid_to DEFAULT '9999-12-31',
+                        is_current BIT       NOT NULL
+                            CONSTRAINT df_dim_geolocation__is_current DEFAULT 1;
+
+                    CREATE UNIQUE INDEX ux_dim_geolocation__current
+                        ON dbo.dim_geolocation (geo_hash) WHERE is_current = 1;
+                END;
             """)
 
+            # SCD Type 2 load:
+            #   1. Aggregate current attributes per geo_hash into @src.
+            #   2. MERGE against CURRENT rows only (ON ... is_current = 1):
+            #        - new hash          -> insert new current version
+            #        - hash present but
+            #          tracked attr changed -> expire old version (valid_to /
+            #          is_current = 0). T-SQL MERGE cannot expire AND insert in
+            #          one branch, so the $action OUTPUT captures expired hashes
+            #   3. Re-insert a fresh current version for every expired hash.
+            # country/region/city/lat/long are baked into geo_hash; MAX(isp)
+            # is the only tracked attribute outside it, so isp drift alone
+            # triggers a new version.
             cursor.execute("""
+                DECLARE @src TABLE (
+                    geo_hash NVARCHAR(64) NOT NULL PRIMARY KEY,
+                    country  NVARCHAR(100),
+                    region   NVARCHAR(100),
+                    city     NVARCHAR(100),
+                    latitude FLOAT,
+                    longitude FLOAT,
+                    isp      NVARCHAR(200)
+                );
+
+                INSERT INTO @src (geo_hash, country, region, city, latitude, longitude, isp)
+                SELECT
+                    CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',
+                        ISNULL(country, '') + '|'
+                        + ISNULL(region, '') + '|'
+                        + ISNULL(city, '') + '|'
+                        + ISNULL(CAST(latitude AS NVARCHAR), '') + '|'
+                        + ISNULL(CAST(longitude AS NVARCHAR), '')
+                    ), 2)                                               AS geo_hash,
+                    country, region, city, latitude, longitude,
+                    MAX(isp)                                            AS isp
+                FROM dbo.raw_enriched
+                WHERE country IS NOT NULL
+                GROUP BY country, region, city, latitude, longitude;
+
+                DECLARE @scd2_log TABLE (merge_action NVARCHAR(10), geo_hash NVARCHAR(64));
+
                 MERGE dbo.dim_geolocation AS target
-                USING (
-                    SELECT
-                        country, region, city, latitude, longitude,
-                        MAX(isp)                                             AS isp,
-                        CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',
-                            ISNULL(country, '') + '|'
-                            + ISNULL(region, '') + '|'
-                            + ISNULL(city, '') + '|'
-                            + ISNULL(CAST(latitude AS NVARCHAR), '') + '|'
-                            + ISNULL(CAST(longitude AS NVARCHAR), '')
-                        ), 2)                                               AS geo_hash
-                    FROM dbo.raw_enriched
-                    WHERE country IS NOT NULL
-                    GROUP BY country, region, city, latitude, longitude
-                ) AS source
-                ON target.geo_hash = source.geo_hash
+                USING @src AS source
+                ON target.geo_hash = source.geo_hash AND target.is_current = 1
+                WHEN MATCHED AND ISNULL(target.isp, '') <> ISNULL(source.isp, '') THEN
+                    UPDATE SET
+                        valid_to   = SYSUTCDATETIME(),
+                        is_current = 0
                 WHEN NOT MATCHED THEN
                     INSERT (geo_hash, country, region, city, latitude, longitude, isp)
                     VALUES (source.geo_hash, source.country, source.region,
-                            source.city, source.latitude, source.longitude, source.isp);
+                            source.city, source.latitude, source.longitude, source.isp)
+                OUTPUT $action, inserted.geo_hash INTO @scd2_log (merge_action, geo_hash);
+
+                INSERT INTO dbo.dim_geolocation (geo_hash, country, region, city, latitude, longitude, isp)
+                SELECT s.geo_hash, s.country, s.region, s.city, s.latitude, s.longitude, s.isp
+                FROM @src s
+                WHERE EXISTS (
+                    SELECT 1 FROM @scd2_log l
+                    WHERE l.merge_action = 'UPDATE' AND l.geo_hash = s.geo_hash
+                );
             """)
             conn.commit()
 
