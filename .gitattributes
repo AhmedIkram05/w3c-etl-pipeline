@@ -1,2 +1,13 @@
+# Linguist: ensure GitHub tracks real languages correctly
+# dbt SQL contains Jinja ({{ config }} / {{ ref }}) so Bayesian classifier
+# would not detect it as SQL — force it. ponytail: one line beats heuristic misfire
+*.sql linguist-language=SQL
+
 # Mark dbt docs HTML as generated — exclude from GitHub language stats
 *.html linguist-generated=true
+
+# Data / docs are not code — never let them dilute the language bar
+airflow/data/** linguist-detectable=false
+docs/** linguist-documentation=true
+*.csv linguist-detectable=false
+*.log linguist-detectable=false
