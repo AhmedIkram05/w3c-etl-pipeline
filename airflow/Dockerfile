@@ -1,4 +1,4 @@
-FROM apache/airflow:2.10.2
+FROM apache/airflow:3.3.1
 COPY requirements.txt .
 USER root
 RUN apt-get update \
