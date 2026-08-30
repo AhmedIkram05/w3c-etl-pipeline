@@ -6,7 +6,7 @@ dbt-core==1.8.9
 dbt-sqlserver==1.8.7
 psycopg2-binary>=2.9,<3.0
 pyodbc>=5.1,<6.0
-sqlalchemy>=2.0,<3.0
+sqlalchemy>=2.0.50,<3.0
 # Pin protobuf to 5.27+: the `always_print_fields_with_no_presence` kwarg
 # used by dbt-common 1.27.1 (MessageToJson) was added in protobuf 5.27.
 # Airflow 2.10 base image ships protobuf 4.25.9; must be upgraded or
