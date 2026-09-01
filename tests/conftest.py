@@ -157,6 +157,7 @@ def _create_spark_session():
         .appName("W3C_ETL_Test")
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        .config("spark.jars.packages", "io.delta:delta-spark_2.13:4.0.1")
         .config("spark.sql.adaptive.enabled", "false")  # deterministic plans for tests
         .config("spark.ui.enabled", "false")  # no UI overhead
         .getOrCreate()
@@ -168,6 +169,18 @@ def _create_spark_session():
     session.sparkContext.addPyFile(_build_utils_zip())
 
     return session
+
+
+# ── Own the first JVM ────────────────────────────────────────────────
+# ``spark.jars.packages`` is resolved only once per process: when the very
+# first SparkContext launches the JVM.  Some test modules create sessions at
+# module import (e.g. the probe in test_jdbc_export_azure) and ``stop()``
+# does NOT free that JVM, so a delta-less first builder poisons every later
+# getOrCreate() in the run (`ClassNotFoundException: ...DeltaCatalog`).
+# Conftest is imported before every test module, so building our delta
+# configured session here — and never stopping it — guarantees the first
+# JVM is always the right one, no matter which fixture fires first.
+_HOLD_FIRST_SESSION = _create_spark_session()
 
 
 def _spark_session_is_alive(session) -> bool:
