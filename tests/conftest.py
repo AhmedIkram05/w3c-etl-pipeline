@@ -180,7 +180,12 @@ def _create_spark_session():
 # Conftest is imported before every test module, so building our delta
 # configured session here — and never stopping it — guarantees the first
 # JVM is always the right one, no matter which fixture fires first.
-_HOLD_FIRST_SESSION = _create_spark_session()
+try:
+    _HOLD_FIRST_SESSION = _create_spark_session()
+except ImportError:
+    # pyspark isn't installed (e.g. the dbt-compile job only runs pytest) —
+    # nothing to hold, and no spark fixture will be requested there.
+    _HOLD_FIRST_SESSION = None
 
 
 def _spark_session_is_alive(session) -> bool:
