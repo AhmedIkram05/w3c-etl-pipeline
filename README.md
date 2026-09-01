@@ -177,6 +177,7 @@ All 15 decisions, with alternatives and reasoning: [Design Decisions](docs/READM
 
 ```bash
 docker compose -f airflow/docker-compose.yaml up -d   # 18-service Airflow+Spark+PG+Grafana stack
+dbt deps --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
 dbt run  --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
 dbt test --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
 uv run pytest tests/ -m "not integration and not dbt_compile"
