@@ -34,7 +34,7 @@
 
 <p align="center">
   <a href="https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019">
-    <img src="docs/media/summary.png" alt="W3C ETL Dashboard" width="800"/>
+    <img src="media/summary.png" alt="W3C ETL Dashboard" width="800"/>
   </a>
   <br/>
   <em>Click the preview above to open the live 7-page Power BI dashboard</em>
@@ -74,7 +74,7 @@
 The pipeline follows a **Bronze → Silver → Azure SQL → dbt → Power BI** medallion architecture on Azure, with a Databricks DLT serverless pipeline doing the heavy lifting - and an OpenLineage → Marquez lineage layer observing every orchestrated stage across both engines.
 
 ```mermaid
-flowchart TB
+flowchart LR
     classDef source fill:#3b82f6,color:#fff,stroke:#1e40af
     classDef ingest fill:#10b981,color:#fff,stroke:#047857
     classDef dlt fill:#8b5cf6,color:#fff,stroke:#6d28d9
@@ -239,58 +239,58 @@ flowchart LR
 
 > The final deliverable: 155.6K requests across 88 countries, 18 Power BI-ready CSV exports. Each page answers a specific business question built entirely from the Bronze → Silver → dbt star schema pipeline.
 
-![At a Glance](docs/media/summary.png)
+![At a Glance](media/summary.png)
 *Page 1 - At a Glance: 155.6K requests, 88 countries, human vs bot breakdown, busiest days, top countries*
 
-![What Are People Accessing?](docs/media/file-access.png)
+![What Are People Accessing?](media/file-access.png)
 *Page 2 - What Are People Accessing?: file types by volume, content type treemap, server errors, broken pages*
 
-![Where are Visitors Coming From?](docs/media/geo.png)
+![Where are Visitors Coming From?](media/geo.png)
 *Page 3 - Where are Visitors Coming From?: world map, referral sources, countries by unique visitors (US 533, China 159)*
 
-![Who's Hitting the Site?](docs/media/traffic-overview.png)
+![Who's Hitting the Site?](media/traffic-overview.png)
 *Page 4 - Who's Hitting the Site?: 155.6K requests, 62% human / 38% bot, request volume over time*
 
-![Who Are The Visitors?](docs/media/visitors.png)
+![Who Are The Visitors?](media/visitors.png)
 *Page 5 - Who Are The Visitors?: browser breakdown (IE 49K, Firefox 23K, Googlebot 16K), device types, OS split*
 
-![How Fast is the Server?](docs/media/performance.png)
+![How Fast is the Server?](media/performance.png)
 *Page 6 - How Fast is the Server?: avg 470ms, P95 1149ms, top expensive files, status type speed*
 
-![When is the Site Busiest?](docs/media/temporal.png)
+![When is the Site Busiest?](media/temporal.png)
 *Page 7 - When is the Site Busiest?: hourly × day heatmap, day-of-week bars, AM vs PM patterns*
 
 ### Grafana Monitoring - Pipeline Health & Observability
 
-![Grafana Pipeline Health](docs/media/grafana_health_dashboard.png)
+![Grafana Pipeline Health](media/grafana_health_dashboard.png)
 *Pipeline Health - Data Freshness (5 min), Pipeline Status (Healthy), dbt Test Pass Rate (100%), Row Counts (153K each)*
 
-![Grafana Container Metrics](docs/media/grafana_containers.png)
+![Grafana Container Metrics](media/grafana_containers.png)
 *Container System Metrics - CPU, memory, network I/O per container (cAdvisor → Prometheus)*
 
-![Grafana ETL Overview](docs/media/grafana_etl_overview.png)
+![Grafana ETL Overview](media/grafana_etl_overview.png)
 *Airflow ETL Overview - DAG run duration, task states, dataset events, scheduling delay*
 
 ### Pipeline Run - End-to-End Execution
 
-![Airflow DAG Graph View](docs/media/spark_ingestion_azure_airflow_graph.png)
+![Airflow DAG Graph View](media/spark_ingestion_azure_airflow_graph.png)
 *Airflow DAG graph - `w3c_spark_ingestion_azure` task dependencies and Dataset trigger flow*
 
-![Databricks Workflow Graph](docs/media/databricks-jobs-graph.png)
+![Databricks Workflow Graph](media/databricks-jobs-graph.png)
 *Bronze → Silver → JDBC Export - 3 serverless tasks, ~9 min end-to-end*
 
-![dbt DAG Graph View](docs/media/dbt_marts_azure_airflow_graph.png)
+![dbt DAG Graph View](media/dbt_marts_azure_airflow_graph.png)
 *dbt DAG graph - source freshness, run, test, docs, CSV export with dataset wiring*
 
 ### CI/CD Pipeline
 
-![CI Pipeline](docs/media/ci.png)
+![CI Pipeline](media/ci.png)
 *4 parallel jobs: lint, test, dbt-compile, terraform*
 
-![CD Pipeline](docs/media/cd.png)
+![CD Pipeline](media/cd.png)
 *terraform-plan → terraform-apply → smoke-test*
 
-![CD Rollback](docs/media/cd_rollback.png)
+![CD Rollback](media/cd_rollback.png)
 *Automatic rollback on health check failure - zero-downtime recovery*
 
 ---
@@ -320,10 +320,10 @@ flowchart LR
     style bronzeuc stroke-width:2px
 ```
 
-![ADLS Gen2 Data Lake](docs/media/adls.png)
+![ADLS Gen2 Data Lake](media/adls.png)
 *ADLS Gen2 `raw-logs` container - 93 W3C IIS log files ingested by Auto Loader*
 
-![Azure Portal Overview](docs/media/azure.png)
+![Azure Portal Overview](media/azure.png)
 *Azure portal - resource group with Databricks, ADLS, SQL, and monitoring resources*
 
 **7 quality expectations** (`@dlt.expect_or_drop`):
@@ -340,7 +340,7 @@ flowchart LR
 
 **Result:** **153,380 rows**, **0 dropped** - all 7 quality expectations pass on real production IIS data.
 
-![Databricks DLT Pipelines](docs/media/dlt-pipelines.png)
+![Databricks DLT Pipelines](media/dlt-pipelines.png)
 *Bronze and Silver DLT pipelines in Databricks - both serverless, both green*
 
 | Attribute | Value |
@@ -419,7 +419,7 @@ The JDBC export bridges Databricks Silver → Azure SQL. This is the most perfor
 6. Batch INSERT via `cursor.executemany()` with `BATCH_SIZE=5000`
 7. Update tracking table with new source files
 
-![Azure SQL Schema](docs/media/azure-sql-schema.png)
+![Azure SQL Schema](media/azure-sql-schema.png)
 *31-column `dbo.raw_enriched` table schema in Azure SQL*
 
 **31 Export Columns:**
@@ -439,7 +439,7 @@ After the JDBC export, Airflow's `export_dimensions` task builds dimensional tab
 
 The geo hash is computed **in SQL** via `HASHBYTES('SHA2_256', ...)` inside the MERGE subquery - efficient batch computation. The UA hash is computed **in Python** via `hashlib.sha256()` alongside parsing to avoid extra SQL round-trips. Sentinels use `SET IDENTITY_INSERT ON/OFF` for FK integrity.
 
-![Azure SQL - Table Row Counts](docs/media/azure-sql-row-counts.png)
+![Azure SQL - Table Row Counts](media/azure-sql-row-counts.png)
 *Azure SQL table row counts - `raw_enriched` fact table with 153K rows alongside dimension tables (geolocation: 1,586, useragent: 2,041)*
 
 ---
@@ -478,10 +478,10 @@ The two DAGs are **intentionally decoupled** - no DAG-to-DAG imports, no `Extern
 
 **OpenLineage on every DAG:** all 4 DAGs emit run events to Marquez via the provider listener. The Azure DAGs additionally declare real table URIs as task `inlets`/`outlets` (`mssql://azure-sql/dbo/raw_enriched` → `dbt_staging` → `dbt_marts`), which the OpenLineage provider converts into dataset-level lineage edges - so the Marquez graph shows the cross-engine flow, not just job runs. Details in [Data Lineage & OpenLineage](#10-data-lineage--openlineage-marquez).
 
-![Airflow Gantt Chart](docs/media/spark_ingestion_azure_airflow_gantt.png)
+![Airflow Gantt Chart](media/spark_ingestion_azure_airflow_gantt.png)
 *Gantt view: `w3c_spark_ingestion_azure` - Bronze, Silver, and JDBC Export task durations*
 
-![Airflow Dashboard](docs/media/airflow_dashboard.png)
+![Airflow Dashboard](media/airflow_dashboard.png)
 *Airflow UI - DAG runs, task states, and scheduling history*
 
 **4 Operator Types Used:**
@@ -563,13 +563,13 @@ raw_enriched (source)
         └── mart_country_browser_share (top browser per country per day)
 ```
 
-![dbt DAG Execution Gantt](docs/media/dbt_marts_azure_airflow_gantt.png)
+![dbt DAG Execution Gantt](media/dbt_marts_azure_airflow_gantt.png)
 *dbt DAG execution Gantt - source freshness, run, test, and docs generation on Databricks serverless*
 
-![Star Schema Dimensions](docs/media/star-schema-dimensions.png)
+![Star Schema Dimensions](media/star-schema-dimensions.png)
 *dbt model lineage - 10 staging tables feeding 6 mart tables in the star schema*
 
-![dbt Full Lineage Graph](docs/media/dbt_lineage_graph.png)
+![dbt Full Lineage Graph](media/dbt_lineage_graph.png)
 *dbt full lineage graph - source freshness → staging → marts → tests across PostgreSQL and Azure SQL targets*
 
 **Star Schema Entity-Relationship Diagram:**
@@ -779,7 +779,7 @@ _The semantic contract defines exactly what data leaves dbt and enters Power BI 
 
 The 30-minute buffer between pipeline start (17:00) and refresh (17:30) comfortably accommodates the full ~15-minute ETL run plus a Slack-style grace period.
 
-![Power Automate - Scheduled Power BI Refresh](docs/media/power-automate.png)
+![Power Automate - Scheduled Power BI Refresh](media/power-automate.png)
 *Power Automate cloud flow that triggers the weekly Power BI dataset refresh every Friday at 17:30 UTC, with success/failure email notification*
 
 **Why weekly, not daily or hourly?** The source is historical (2009–2011) with no new data arriving. Weekly reprocessing validates the pipeline end-to-end, detects drift in upstream dependencies (maxminddb, dbt, Airflow, Azure SQL), and keeps Power BI fresh for the portfolio audience - without incurring unnecessary compute costs.
@@ -841,7 +841,7 @@ sequenceDiagram
 
 The entire OIDC chain (Azure AD app, service principal, federated credential, role assignment) is managed by `github_oidc.tf` - one `terraform apply` creates the complete auth chain without a single CLI command.
 
-![Databricks Workflow Timeline](docs/media/databricks-jobs-timeline.png)
+![Databricks Workflow Timeline](media/databricks-jobs-timeline.png)
 *Workflow execution timeline - Bronze → Silver → JDBC Export with task-level durations*
 
 **Cost Controls:**
@@ -879,7 +879,7 @@ All Databricks data assets are managed through **Unity Catalog** (`w3c_etl_datab
 | `silver` | Enriched + deduplicated data | `silver_enriched_logs` (31 columns, 153,377 rows) |
 | `gold` | Reserved for future aggregate views | Currently empty - available for curated analytics datasets |
 
-![Unity Catalog Structure](docs/media/unity_catalog.png)
+![Unity Catalog Structure](media/unity_catalog.png)
 *Unity Catalog: bronze, silver, gold schemas with storage credential and external location*
 
 **Key Unity Catalog Resources (managed by Terraform Part B):**
@@ -1003,10 +1003,10 @@ flowchart BT
 | Data staleness critical | No pipeline completion > 24h | P1 | Slack + email |
 | SQL auto-pause | `cpu_percent < 0.1` for 1 hour | P1 | Email to critical action group |
 
-![Prometheus Alert Rules](docs/media/prometheus_alerts.png)
+![Prometheus Alert Rules](media/prometheus_alerts.png)
 *Prometheus Alertmanager - 8 alert rules covering DAG duration, task failures, data staleness, and SQL auto-pause*
 
-![Prometheus Scrape Targets](docs/media/prometheus_targets.png)
+![Prometheus Scrape Targets](media/prometheus_targets.png)
 *Prometheus targets - Airflow StatsD exporter, cAdvisor, Data Freshness Probe, and Prometheus itself*
 
 **Data Freshness Probe:**
@@ -1081,7 +1081,7 @@ Failure policy is deliberate: missing results file or unreachable Marquez → wa
 
 The pipeline validates across **6 distinct test suites**, each targeting a different layer of the stack. Below the image is a breakdown of what each suite covers:
 
-![Test suite output](docs/media/tests-all-passing.png)
+![Test suite output](media/tests-all-passing.png)
 *W3C ETL Pipeline — 121 dbt data tests (120 pass · 1 warn) and the full 627-test pytest suite* 
 
 **Suite breakdown:**
@@ -1137,7 +1137,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 
 ### Local Development
 
-![Docker Compose Architecture](docs/media/docker.png)
+![Docker Compose Architecture](media/docker.png)
 *Docker Compose stack - 17 containers: Airflow, Spark, PostgreSQL, Prometheus, Grafana, and StatsD*
 
 ```bash
