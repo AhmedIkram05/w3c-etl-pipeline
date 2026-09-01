@@ -424,9 +424,7 @@ class TestGeoDimensionSCD2:
     def test_filtered_unique_index_enforces_single_current_row(self):
         """Filtered unique index: one current version per geo_hash."""
         _, mock_cursor = self._run_with_env()
-        all_sql = "\n".join(
-            call_args[0][0] for call_args in mock_cursor.execute.call_args_list if call_args[0]
-        )
+        all_sql = "\n".join(call_args[0][0] for call_args in mock_cursor.execute.call_args_list if call_args[0])
         assert "ux_dim_geolocation__current" in all_sql
         assert "ON dbo.dim_geolocation (geo_hash) WHERE is_current = 1" in all_sql
 
