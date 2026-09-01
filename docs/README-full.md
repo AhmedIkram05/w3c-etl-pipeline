@@ -1131,17 +1131,17 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 
 ### Prerequisites
 
-- Docker Desktop (for local dev - the 17-container stack)
+- Docker Desktop (for local dev - the 16-container stack)
 - `uv` for Python dependency management
 - MaxMind license key (free) in `airflow/.env` as `MAXMIND_LICENSE_KEY`
 
 ### Local Development
 
 ![Docker Compose Architecture](media/docker.png)
-*Docker Compose stack - 17 containers: Airflow, Spark, PostgreSQL, Prometheus, Grafana, and StatsD*
+*Docker Compose stack - 16 containers: Airflow, Spark, PostgreSQL, Prometheus, Grafana, and StatsD*
 
 ```bash
-# Start the 17-container Airflow + Spark + Observability stack
+# Start the 16-container Airflow + Spark + Observability stack
 docker compose -f airflow/docker-compose.yaml up -d
 
 # Run dbt (PostgreSQL dialect - local dev)
@@ -1198,8 +1198,8 @@ dbt test   --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3
 ## Related Projects
 
 - [**LAAD**](https://github.com/AhmedIkram05/laad) - ATM log aggregation & diagnostics platform with Kafka streaming, 3-layer ML/heuristic anomaly detection, and an Agentic RAG diagnostic assistant with multi-signal confidence fusion.
-- [**DevSync**](https://github.com/AhmedIkram05/devsync) - Full-stack project management platform with real-time collaboration, GitHub OAuth 2.0 integration, bidirectional Issue/PR sync, and 1,452 tests - deployed on AWS ECS Fargate with OIDC CI/CD.
-- [**StockLens**](https://github.com/AhmedIkram05/StockLens) - React Native mobile FinTech app that scans receipts via OCR and projects missed investment opportunities using Alpha Vantage data + ARIMA/regression forecasting, with biometric auth and AES-256 encryption.
+- [**DevSync**](https://github.com/AhmedIkram05/DevSync) - full-stack project tracker with real-time collaboration and GitHub OAuth integration
+- [**StockLens**](https://github.com/AhmedIkram05/StockLens) - FinTech mobile app: OCR receipt scanning, portfolio analytics, LSTM forecasting, self-built MCP server
 
 ---
 
