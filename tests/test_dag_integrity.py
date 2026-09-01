@@ -21,15 +21,19 @@ They are marked ``@pytest.mark.dag_integrity`` and are skipped by default:
         python -m pytest tests/test_dag_integrity.py -v --tb=short
 """
 
+import os
+
 import pytest
 
 # Skip the entire module when Airflow is not installed or importable
 # (e.g. in the dbt-compile CI job that does not install apache-airflow).
 pytest.importorskip("airflow.models")
 
-# DAG folder on the Airflow worker (also works when running from project root
-# via ``PYTHONPATH`` pointing at the ``dags`` directory).
-_DAG_FOLDER = "/opt/airflow/dags/w3c"
+# DAG folder on the Airflow worker — resolve portably:
+# inside Docker/CI it is /opt/airflow/dags/w3c; on a bare-metal checkout the
+# dags live under <project-root>/airflow/dags/w3c.
+_LOCAL_DAGS = os.path.join(os.path.dirname(__file__), "..", "airflow", "dags", "w3c")
+_DAG_FOLDER = _LOCAL_DAGS if os.path.isdir(_LOCAL_DAGS) else "/opt/airflow/dags/w3c"
 
 
 @pytest.mark.dag_integrity

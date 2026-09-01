@@ -58,8 +58,10 @@ from airflow import DAG
 # ── Dataset outlet — signals downstream dbt DAG ────────────────────────────
 WAREHOUSE_LOADED = Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")
 
-# ── Paths (inside Airflow worker containers) ───────────────────────────────
+# ── Paths (inside Airflow worker containers; bare-metal fallback) ──────────
 SPARK_JOBS_DIR = "/opt/airflow/spark/jobs"
+if not os.path.isdir(SPARK_JOBS_DIR):
+    SPARK_JOBS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "spark", "jobs"))
 DELTA_DIR = "/opt/spark/delta"
 LOG_FILES_DIR = "/opt/spark/logfiles"
 
