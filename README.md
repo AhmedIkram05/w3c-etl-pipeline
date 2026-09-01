@@ -58,23 +58,23 @@ flowchart LR
 
     adls["ADLS Gen2<br/>raw-logs container"]:::ingest
 
-    bronze["DLT Bronze (serverless)<br/>w3c_etl_databricks.bronze.bronze_raw_logs<br/>Custom W3C parser UDF • 14/18-field detection<br/>7 @dlt.expect_or_drop quality checks<br/>153,380 rows • 0 dropped<br/>Partitioned by log_date"]:::dlt
+    bronze["DLT Bronze (serverless)<br/>parse • validate • partition"]:::dlt
 
-    silver["DLT Silver (serverless)<br/>w3c_etl_databricks.silver.silver_enriched_logs<br/>7 MaxMind GeoIP fields (maxminddb pure Python)<br/>5 computed fields • 31 columns total<br/>153,377 rows • 30+ countries<br/>Dedup: left_anti join on source_file"]:::dlt
+    silver["DLT Silver (serverless)<br/>GeoIP enrichment + dedup"]:::dlt
 
-    jdbc["JDBC Export (notebook_task)<br/>pymssql batch executemany<br/>BATCH_SIZE=5000 • 4-attempt retry<br/>~45s for 153,377 rows"]:::sql
+    jdbc["JDBC Export (notebook_task)<br/>pymssql batch write"]:::sql
 
-    azsql["Azure SQL (serverless GP_S_Gen5, 1 vCore)<br/>dbo.raw_enriched - 31 columns<br/>Auto-pause 60 min idle"]:::sql
+    azsql["Azure SQL Serverless<br/>dbo.raw_enriched"]:::sql
 
-    dims["Airflow: export_dimensions<br/>SCD Type 2 dim_geolocation · MERGE upsert dim_useragent<br/>→ dim_geolocation (1,586 current rows + history)<br/>→ dim_useragent (2,041 rows)<br/>Fires Dataset trigger"]:::dbtclass
+    dims["Airflow: export_dimensions<br/>SCD Type 2 + MERGE dims"]:::dbtclass
 
-    dbt["dbt - 16 models • 121 tests<br/>10 staging + 6 marts<br/>Dual-dialect T-SQL / PostgreSQL<br/>Runs on Databricks serverless via<br/>self-bootstrapping notebooks"]:::dbtclass
+    dbt["dbt - 16 models • 121 tests<br/>dual-dialect T-SQL / PostgreSQL"]:::dbtclass
 
-    csv["18 CSV exports<br/>Star-Schema/ directory"]:::bi
+    csv["18 CSV exports<br/>Star-Schema"]:::bi
 
-    powerbi["Power BI<br/>7-page dashboard<br/>Weekly auto-refresh"]:::bi
+    powerbi["Power BI<br/>7-page dashboard<br/>weekly auto-refresh"]:::bi
 
-    marquez["OpenLineage → Marquez<br/>Cross-engine lineage<br/>DAG/task runs · dbt models ·<br/>w3cDataQuality facet"]:::lineage
+    marquez["OpenLineage → Marquez<br/>cross-engine lineage"]:::lineage
 
     source -->|"ABFSS path"| adls
     adls -->|"Auto Loader"| bronze
@@ -87,7 +87,7 @@ flowchart LR
     csv --> powerbi
 
     dims -.->|"task events"| marquez
-    dbt -.->|"dbt-ol + quality facet"| marquez
+    dbt -.->|"quality facet"| marquez
 ```
 
 **Every piece, in one line:**
@@ -104,7 +104,7 @@ flowchart LR
 | **[CI/CD](docs/README-full.md#8-cicd-pipeline)** | 7 workflows: lint, test, dbt-compile, terraform plan→apply, smoke test |
 | **[Observability](docs/README-full.md#9-monitoring--observability)** | 3 Grafana dashboards, 8 Prometheus alert rules - DAG duration to data freshness |
 | **[OpenLineage → Marquez](docs/README-full.md#10-data-lineage--openlineage-marquez)** | Cross-engine lineage for every run, plus a custom `w3cDataQuality` facet |
-| **[Docker dev stack](docs/README-full.md#quick-start)** | Same 18-service pipeline locally - Airflow on Celery+Redis, Spark, Postgres, Grafana - for fast iteration and CI |
+| **[Docker dev stack](docs/README-full.md#quick-start)** | Same 16-service pipeline locally - Airflow on Celery+Redis, Spark, Postgres, Grafana - for fast iteration and CI |
 
 ---
 
@@ -168,6 +168,9 @@ flowchart LR
 | **Serverless DLT** over classic clusters | Fixed job clusters with VMs | Zero infrastructure management: scales to zero when idle, no cluster tuning ever. |
 | **SCD Type 2** for `dim_geolocation` over append-only/Type 1 | In-place overwrite | Full attribute history plus current-state performance, via a T-SQL `MERGE ... OUTPUT` pattern. |
 | **Thin Power BI reports** - transforms stay in dbt/SQL | Logic embedded in Power BI DAX | The report is a presentation layer over a semantic contract; the warehouse stays the single source of truth. |
+| **OIDC over static secrets** | API keys / client secrets in Azure DevOps | Zero static Azure credentials: federated identity via token exchange, Terraform-managed from repo to role assignment. |
+| **`tuple(row)` over `row.asDict()`** | DataFrames in the JDBC export loop | ~50s saved per export through `SparkRow.__iter__` - the 153K-row list feed to `pymssql` `executemany` runs without dict construction overhead. |
+| **Weekly Power BI refresh** over real-time | Streaming / DirectQuery to the lakehouse | The source is 2009-2011 historical logs - a weekly fact-refresh validates all 5 upstream layers once, without idle compute spend. |
 
 All 15 decisions, with alternatives and reasoning: [Design Decisions](docs/README-full.md#design-decisions).
 
@@ -176,7 +179,7 @@ All 15 decisions, with alternatives and reasoning: [Design Decisions](docs/READM
 ## Quick Start
 
 ```bash
-docker compose -f airflow/docker-compose.yaml up -d   # 18-service Airflow+Spark+PG+Grafana stack
+docker compose -f airflow/docker-compose.yaml up -d   # 16-service Airflow+Spark+PG+Grafana stack
 dbt deps --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
 dbt run  --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
 dbt test --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
@@ -197,8 +200,8 @@ The **complete design document** - all 11 component deep dives, every proof imag
 ## Related Projects
 
 - [**LAAD**](https://github.com/AhmedIkram05/laad) - ATM log aggregation & diagnostics platform with Kafka streaming, 3-layer ML/heuristic anomaly detection, and an Agentic RAG diagnostic assistant with multi-signal confidence fusion.
-- [**DevSync**](https://github.com/AhmedIkram05/devsync) - Full-stack project management platform with real-time collaboration, GitHub OAuth 2.0 integration, bidirectional Issue/PR sync, and 1,452 tests - deployed on AWS ECS Fargate with OIDC CI/CD.
-- [**StockLens**](https://github.com/AhmedIkram05/StockLens) - React Native mobile FinTech app that scans receipts via OCR and projects missed investment opportunities using Alpha Vantage data + ARIMA/regression forecasting, with biometric auth and AES-256 encryption.
+- [**DevSync**](https://github.com/AhmedIkram05/devsync) - full-stack project tracker with real-time collaboration and GitHub OAuth integration
+- [**StockLens**](https://github.com/AhmedIkram05/StockLens) - FinTech mobile app: OCR receipt scanning, portfolio analytics, LSTM forecasting, self-built MCP server
 
 ---
 
