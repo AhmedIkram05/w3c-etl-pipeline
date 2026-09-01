@@ -94,17 +94,17 @@ flowchart LR
 
 | Component | What it does |
 |---|---|
-| **[Azure Databricks DLT](docs/README-full.md#1-azure-databricks-dlt-bronze--silver)** | Serverless Bronze → Silver: custom W3C parser, GeoIP enrichment, dedup — zero cluster management |
+| **[Azure Databricks DLT](docs/README-full.md#1-azure-databricks-dlt-bronze--silver)** | Serverless Bronze → Silver: custom W3C parser, GeoIP enrichment, dedup - zero cluster management |
 | **[Azure SQL](docs/README-full.md#2-azure-sql--jdbc-export)** | Serverless warehouse; JDBC export tuned from 413s → 45s |
-| **[Apache Airflow](docs/README-full.md#3-apache-airflow-orchestration)** | 4 DAGs wired by dataset triggers — ingestion → dimensions → dbt, no polling |
+| **[Apache Airflow](docs/README-full.md#3-apache-airflow-orchestration)** | 4 DAGs wired by dataset triggers - ingestion → dimensions → dbt, no polling |
 | **[dbt](docs/README-full.md#4-dbt--the-t-sql-migration)** | 16 models compiling against both T-SQL and PostgreSQL from one source |
 | **[Power BI](docs/README-full.md#5-power-bi--semantic-contract)** | 7-page live dashboard on a semantic contract: logic in dbt, presentation in BI |
-| **[Terraform](docs/README-full.md#6-terraform-infrastructure-as-code)** | Entire Azure estate as code, GitHub→Azure auth via OIDC — zero static secrets |
+| **[Terraform](docs/README-full.md#6-terraform-infrastructure-as-code)** | Entire Azure estate as code, GitHub→Azure auth via OIDC - zero static secrets |
 | **[Unity Catalog](docs/README-full.md#7-unity-catalog--governance)** | Governed catalogs, schemas, volumes, cross-pipeline `spark.table()` reads |
 | **[CI/CD](docs/README-full.md#8-cicd-pipeline)** | 7 workflows: lint, test, dbt-compile, terraform plan→apply, smoke test |
-| **[Observability](docs/README-full.md#9-monitoring--observability)** | 3 Grafana dashboards, 8 Prometheus alert rules — DAG duration to data freshness |
+| **[Observability](docs/README-full.md#9-monitoring--observability)** | 3 Grafana dashboards, 8 Prometheus alert rules - DAG duration to data freshness |
 | **[OpenLineage → Marquez](docs/README-full.md#10-data-lineage--openlineage-marquez)** | Cross-engine lineage for every run, plus a custom `w3cDataQuality` facet |
-| **[Docker dev stack](docs/README-full.md#quick-start)** | Same 18-service pipeline locally — Airflow on Celery+Redis, Spark, Postgres, Grafana — for fast iteration and CI |
+| **[Docker dev stack](docs/README-full.md#quick-start)** | Same 18-service pipeline locally - Airflow on Celery+Redis, Spark, Postgres, Grafana - for fast iteration and CI |
 
 ---
 
@@ -112,10 +112,10 @@ flowchart LR
 
 | Highlight | Why It Matters |
 |---|---|
-| **45-second export** — 153,377 rows Silver → Azure SQL went from 413s to 45s (8–9× faster). | Databricks serverless only supports JDBC reads, not writes. Pure-Python `pymssql` + `tuple(row)` + Spark-side pre-filter before `collect()` were the breakthrough. [Deep dive](docs/README-full.md#2-azure-sql--jdbc-export) |
-| **Dual-dialect dbt** — all 16 models compile against PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline dialect branches, no duplicate model files. | One model, two databases, one source of truth. [Deep dive](docs/README-full.md#4-dbt--the-t-sql-migration) |
-| **Terraform with OIDC** — two Terraform parts provision the whole estate, including the GitHub→Azure auth chain itself. | Zero static credentials: the runner assumes an Azure AD identity via token exchange, not client secrets. One `terraform apply` from scratch. [Deep dive](docs/README-full.md#6-terraform-infrastructure-as-code) |
-| **4-layer observability** — Grafana dashboards, Prometheus alerting on a StatsD stream, Azure Monitor alerts, and OpenLineage lineage. | DAG durations, container health, data freshness, and pipeline lineage are all tracked from day one. [Deep dive](docs/README-full.md#9-monitoring--observability) |
+| **45-second export** - 153,377 rows Silver → Azure SQL went from 413s to 45s (8–9× faster). | Databricks serverless only supports JDBC reads, not writes. Pure-Python `pymssql` + `tuple(row)` + Spark-side pre-filter before `collect()` were the breakthrough. [Deep dive](docs/README-full.md#2-azure-sql--jdbc-export) |
+| **Dual-dialect dbt** - all 16 models compile against PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline dialect branches, no duplicate model files. | One model, two databases, one source of truth. [Deep dive](docs/README-full.md#4-dbt--the-t-sql-migration) |
+| **Terraform with OIDC** - two Terraform parts provision the whole estate, including the GitHub→Azure auth chain itself. | Zero static credentials: the runner assumes an Azure AD identity via token exchange, not client secrets. One `terraform apply` from scratch. [Deep dive](docs/README-full.md#6-terraform-infrastructure-as-code) |
+| **4-layer observability** - Grafana dashboards, Prometheus alerting on a StatsD stream, Azure Monitor alerts, and OpenLineage lineage. | DAG durations, container health, data freshness, and pipeline lineage are all tracked from day one. [Deep dive](docs/README-full.md#9-monitoring--observability) |
 
 ---
 
@@ -125,14 +125,14 @@ flowchart LR
 |---|---|
 | Requests served | **155.6K** across **88 active countries** (BI) / 30+ GeoIP-resolved (Silver) |
 | Traffic | **62% human / 38% bot**, 9.7% 404 rate |
-| Bronze rows ingested | **153,380** — 0 dropped through 7 quality gates |
+| Bronze rows ingested | **153,380** - 0 dropped through 7 quality gates |
 | Export performance | **~45 seconds** for 153,377 rows (was 413s) |
 | dbt models | **16** (10 staging + 6 marts), dual-dialect T-SQL/PostgreSQL |
 | dbt data tests | **121** (not_null, unique, accepted_values, relationships, expression_is_true, singular) |
 | pytest | **627 total** (597 in CI: 480 unit + 92 terraform + 25 DAG integrity) |
 | Orchestration | **4 Airflow DAGs**, dataset-triggered; **7 GitHub Actions workflows** |
 | Observability | **3 Grafana dashboards** (23 panels), **8 Prometheus + 2 Azure Monitor alerts** |
-| Cost | **~$0–100/mo** — serverless auto-scales to zero, $50 warning / $100 hard cap |
+| Cost | **~$0–100/mo** - serverless auto-scales to zero, $50 warning / $100 hard cap |
 
 ---
 
@@ -140,21 +140,21 @@ flowchart LR
 
 **The 7-page Power BI dashboard** (live report [here](https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019)):
 
-![Power BI dashboard — all 7 pages](docs/media/powerbi.gif)
+![Power BI dashboard - all 7 pages](docs/media/powerbi.gif)
 
-**Orchestration in action** — Airflow DAG graphs and gantts, Databricks workflow + DLT pipeline runs, and the Power Automate refresh schedule:
+**Orchestration in action** - Airflow DAG graphs and gantts, Databricks workflow + DLT pipeline runs, and the Power Automate refresh schedule:
 
 ![Orchestration](docs/media/orchestration.gif)
 
-**The Azure estate** — resource group, ADLS, the Azure SQL schema and table row counts, Unity Catalog:
+**The Azure estate** - resource group, ADLS, the Azure SQL schema and table row counts, Unity Catalog:
 
 ![Azure estate](docs/media/azure-estate.gif)
 
-**Observability** — Grafana dashboards and the Prometheus targets/alert rules behind them:
+**Observability** - Grafana dashboards and the Prometheus targets/alert rules behind them:
 
 ![Observability](docs/media/observability.gif)
 
-**CI/CD** — the 4 parallel CI jobs, terraform plan→apply→smoke-test CD run, and the rollback story:
+**CI/CD** - the 4 parallel CI jobs, terraform plan→apply→smoke-test CD run, and the rollback story:
 
 ![CI/CD](docs/media/cicd.gif)
 
@@ -164,10 +164,10 @@ flowchart LR
 
 | Decision | Alternative | Why This Won |
 |---|---|---|
-| **Dual-dialect dbt:** inline `{% if target.type == 'sqlserver' %}` branches | Per-dialect model files (`_azure.sql`) | dbt would parse both as independent models — duplicate DAG entries. Inline branches keep one source of truth. |
+| **Dual-dialect dbt:** inline `{% if target.type == 'sqlserver' %}` branches | Per-dialect model files (`_azure.sql`) | dbt would parse both as independent models - duplicate DAG entries. Inline branches keep one source of truth. |
 | **Serverless DLT** over classic clusters | Fixed job clusters with VMs | Zero infrastructure management: scales to zero when idle, no cluster tuning ever. |
 | **SCD Type 2** for `dim_geolocation` over append-only/Type 1 | In-place overwrite | Full attribute history plus current-state performance, via a T-SQL `MERGE ... OUTPUT` pattern. |
-| **Thin Power BI reports** — transforms stay in dbt/SQL | Logic embedded in Power BI DAX | The report is a presentation layer over a semantic contract; the warehouse stays the single source of truth. |
+| **Thin Power BI reports** - transforms stay in dbt/SQL | Logic embedded in Power BI DAX | The report is a presentation layer over a semantic contract; the warehouse stays the single source of truth. |
 
 All 15 decisions, with alternatives and reasoning: [Design Decisions](docs/README-full.md#design-decisions).
 
@@ -190,7 +190,7 @@ Full local, lineage, and production (Azure) instructions: [docs/README-full.md](
 
 ## Documentation
 
-The **complete design document** — all 11 component deep dives, every proof image, the full design-decisions table — lives at **[docs/README-full.md](docs/README-full.md)**.
+The **complete design document** - all 11 component deep dives, every proof image, the full design-decisions table - lives at **[docs/README-full.md](docs/README-full.md)**.
 
 ---
 
@@ -203,5 +203,5 @@ The **complete design document** — all 11 component deep dives, every proof im
 ---
 
 <p align="center">
-  <sub>Built with Azure, Databricks, dbt, Airflow, OpenLineage, Terraform, Python, SQL, and a lot of pain.</sub>
+  <sub>Built with Azure, Databricks, dbt, Airflow, OpenLineage, Terraform, Python, and SQL.</sub>
 </p>
