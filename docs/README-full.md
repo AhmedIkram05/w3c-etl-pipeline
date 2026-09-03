@@ -195,7 +195,7 @@ flowchart LR
 | **GeoIP Enrichment** | 7 MaxMind fields (country → ISP) from a single consolidated struct UDF using `maxminddb` pure Python. 3.5× faster than 7 separate UDFs. | **Serverless DLT can't install compiled C libraries.** Pure Python `maxminddb` side-steps this limitation while a lazy singleton pattern avoids PicklingError in distributed execution. |
 | **45-Second JDBC Export** | 153,377 rows from Silver to Azure SQL in 45 seconds - 8–9× faster than the initial 413s implementation. | **Databricks serverless only supports JDBC reads, not writes.** Pure Python `pymssql` + `tuple(row)` (not `asDict()`) + Spark-side pre-filter before `collect()` were the breakthrough optimisations. |
 | **T-SQL Dual-Dialect dbt** | All 16 models compile against both PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%" }}}` branches - no separate `_azure.sql` files. | **One model, two databases.** 18 macros + 2 dispatch overrides abstract PostgreSQL syntax (`::casts`, `EXTRACT`, `SPLIT_PART`, `ILIKE`, `MD5`) behind Jinja wrappers. |
-| **121 dbt Data Tests** | 46 `not_null` · 16 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` · 4 custom singular tests - enforcing business invariants across all 16 models. | **Production-grade data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
+| **121 dbt Data Tests** | 46 `not_null` · 16 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` · 4 custom singular tests - enforcing business invariants across all 16 models. | **Enforced data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
 | **Terraform with OIDC** | Part A (4 modules: networking, datalake, databricks, warehouse) + Part B (24 resources: DLT pipelines, Workflows, UC schemas, secrets). Full OIDC Workload Identity Federation - no static Azure credentials. | **Zero touch deployment.** One `terraform apply` provisions the entire Azure estate including the GitHub→Azure auth chain. The CI/CD pipeline authenticates via token exchange, not client secrets. |
 | **3 Grafana Dashboards** | 23 panels across Airflow ETL Overview (7), Container System Metrics (6), and Pipeline Health (10) - with 8 Prometheus alert rules, 2 Azure Monitor alerts, and 3 action groups (P1/P2/P3). | **Observability from day one.** Airflow StatsD → Prometheus → Grafana pipeline means every DAG run, task duration, and data freshness metric is tracked. |
 | **SCD Type 2 Geolocation** | `dim_geolocation` preserves full attribute history via `valid_from` / `valid_to` / `is_current` - a T-SQL `MERGE ... OUTPUT` pattern expires changed versions and re-inserts new ones, with a filtered unique index enforcing one current row per hash. | **Interview-grade dimensional modelling.** Point-in-time analysis is possible without losing current-state performance, and the `$action OUTPUT` workaround for MERGE's expire-then-insert limitation is the canonical T-SQL SCD2 idiom. |
@@ -338,7 +338,7 @@ flowchart LR
 | `valid_user_agent` | `user_agent IS NOT NULL AND user_agent != '-'` | 0 |
 | `valid_bytes` | `(bytes_sent IS NULL OR bytes_sent >= 0) AND (bytes_recv IS NULL OR bytes_recv >= 0)` | 0 |
 
-**Result:** **153,380 rows**, **0 dropped** - all 7 quality expectations pass on real production IIS data.
+**Result:** **153,380 rows**, **0 dropped** - all 7 quality expectations pass on real IIS data.
 
 ![Databricks DLT Pipelines](media/dlt-pipelines.png)
 *Bronze and Silver DLT pipelines in Databricks - both serverless, both green*
@@ -435,7 +435,7 @@ After the JDBC export, Airflow's `export_dimensions` task builds dimensional tab
 | `dim_geolocation` | `geo_hash` - SHA-256 of `country\|region\|city\|latitude\|longitude` | **Type 2** - `valid_from` / `valid_to` / `is_current` | **1,586 current** (+ history) | `-1`: Unknown |
 | `dim_useragent` | `ua_hash` - SHA-256 of parsed UA fields | Type 1 (in-place upsert) | **2,041** | `-1`: Unknown |
 
-**SCD Type 2 on `dim_geolocation`:** a T-SQL `MERGE` matches source aggregates against **current rows only** (`ON target.geo_hash = source.geo_hash AND target.is_current = 1`). When the tracked attribute drifts (`MAX(isp)` — location fields are already baked into the hash), the old version is expired (`valid_to = SYSUTCDATETIME()`, `is_current = 0`) and a fresh current version is re-inserted from the `$action OUTPUT` log — one MERGE cannot expire and insert in the same branch. A filtered unique index (`... ON (geo_hash) WHERE is_current = 1`) enforces exactly one current version per hash while allowing unlimited history. Existing SCD1 deployments are migrated in place (`COL_LENGTH` guard: drop the old unique constraint, add validity columns). `fact_webrequest` joins via `AND g.is_current = 1` to prevent historical rows fanning out fact grain.
+**SCD Type 2 on `dim_geolocation`:** a T-SQL `MERGE` matches source aggregates against **current rows only** (`ON target.geo_hash = source.geo_hash AND target.is_current = 1`). When the tracked attribute drifts (`MAX(isp)` - location fields are already baked into the hash), the old version is expired (`valid_to = SYSUTCDATETIME()`, `is_current = 0`) and a fresh current version is re-inserted from the `$action OUTPUT` log - one MERGE cannot expire and insert in the same branch. A filtered unique index (`... ON (geo_hash) WHERE is_current = 1`) enforces exactly one current version per hash while allowing unlimited history. Existing SCD1 deployments are migrated in place (`COL_LENGTH` guard: drop the old unique constraint, add validity columns). `fact_webrequest` joins via `AND g.is_current = 1` to prevent historical rows fanning out fact grain.
 
 The geo hash is computed **in SQL** via `HASHBYTES('SHA2_256', ...)` inside the MERGE subquery - efficient batch computation. The UA hash is computed **in Python** via `hashlib.sha256()` alongside parsing to avoid extra SQL round-trips. Sentinels use `SET IDENTITY_INSERT ON/OFF` for FK integrity.
 
@@ -869,7 +869,7 @@ The entire OIDC chain (Azure AD app, service principal, federated credential, ro
 
 ### 7. Unity Catalog & Governance
 
-All Databricks data assets are managed through **Unity Catalog** (`w3c_etl_databricks` metastore), providing centralized governance, cross-pipeline lineage, and volume-based file access - no raw DBFS paths in production code.
+All Databricks data assets are managed through **Unity Catalog** (`w3c_etl_databricks` metastore), providing centralized governance, cross-pipeline lineage, and volume-based file access - no raw DBFS paths in pipeline code.
 
 **Catalog Structure:**
 
@@ -1026,7 +1026,7 @@ The probe queries each layer on a configurable interval (default 30s), caches re
 
 ### 10. Data Lineage & OpenLineage (Marquez)
 
-The pipeline emits **OpenLineage events to a self-hosted Marquez collector**, producing a cross-engine lineage graph that spans both pipelines - the local Docker stack *and* the Azure production DAGs (`w3c_spark_ingestion_azure`, `w3c_dbt_marts_azure`), which were tested end-to-end against the live Databricks/Azure SQL estate and emit into the same collector from the same Airflow deployment.
+The pipeline emits **OpenLineage events to a self-hosted Marquez collector**, producing a cross-engine lineage graph that spans both pipelines - the local Docker stack *and* the Azure DAGs (`w3c_spark_ingestion_azure`, `w3c_dbt_marts_azure`), which were tested end-to-end against the live Databricks/Azure SQL estate and emit into the same collector from the same Airflow deployment.
 
 Unity Catalog covers lineage **inside Databricks only** - it cannot see the Airflow orchestration layer or dbt running against Azure SQL/PostgreSQL. OpenLineage stitches the rest of the story into one graph:
 
@@ -1082,7 +1082,7 @@ Failure policy is deliberate: missing results file or unreachable Marquez → wa
 The pipeline validates across **6 distinct test suites**, each targeting a different layer of the stack. Below the image is a breakdown of what each suite covers:
 
 ![Test suite output](media/tests-all-passing.png)
-*W3C ETL Pipeline — 121 dbt data tests (120 pass · 1 warn) and the full 627-test pytest suite* 
+*W3C ETL Pipeline - 121 dbt data tests (120 pass · 1 warn) and the full 627-test pytest suite*
 
 **Suite breakdown:**
 
@@ -1098,7 +1098,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 **Key Test Design Decisions:**
 
 - **Marker-based filtering:** Tests are tagged (`@integration`, `@dbt_compile`, `@dag_integrity`, `@terraform`) so CI runs only environment-appropriate tests. CI runs **597 tests** (excludes 18 integration + 12 dbt-compile which run in separate CI jobs).
-- **conftest.py** solves PEP 420 namespace shadowing (Airflow's missing `__init__.py`) by surgically adding only specific subdirectories to `sys.path`. Also builds `utils.zip` for PySpark worker serialization - mirroring the production `py_files` pattern.
+- **conftest.py** solves PEP 420 namespace shadowing (Airflow's missing `__init__.py`) by surgically adding only specific subdirectories to `sys.path`. Also builds `utils.zip` for PySpark worker serialization - mirroring the `py_files` pattern.
 - **Dual-dialect dbt compile:** CI validates both PostgreSQL + T-SQL compilation in a single job using side-by-side PostgreSQL 13 + SQL Server 2022 containers.
 - **Mock-based Terraform testing:** Tests use `unittest.mock` to simulate Databricks/Terraform provider responses - validating config structure and resource attributes without real cloud credentials or network calls.
 
@@ -1123,7 +1123,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 | **`prevent_destroy` on storage + SQL** | Allow destroy on `terraform destroy` | Prevents accidental loss of the fully configured SQL database and storage account during development iteration. `terraform destroy` intentionally fails for ADLS Gen2 and Azure SQL - requiring manual intervention to remove the `prevent_destroy` lifecycle guard first. |
 | **Consolidated GeoIP struct UDF over 7 separate UDFs** | 7 PySpark UDFs (one per GeoIP field) | Single struct UDF opens `maxminddb.Reader` once per partition, returns all 6 City DB fields in one call - 3.5× fewer reader instantiations and 7× fewer Spark expression evaluations. |
 | **Weekly Power BI refresh over real-time streaming** | Real-time or daily refresh | Source is historical (2009–2011) with no new data arriving. Weekly cadence validates pipeline health end-to-end and detects drift in 5 upstream dependency layers without unnecessary compute spend. |
-| **Separate Marquez compose project over merging into the main stack** | One big docker-compose file | The API image discovers its DB via a literal `postgres` hostname — keeping Marquez in its own project preserves upstream config untouched, isolates lifecycle, and avoids hostname collisions with the Airflow PostgreSQL. Cross-stack traffic rides `host.docker.internal`. |
+| **Separate Marquez compose project over merging into the main stack** | One big docker-compose file | The API image discovers its DB via a literal `postgres` hostname - keeping Marquez in its own project preserves upstream config untouched, isolates lifecycle, and avoids hostname collisions with the Airflow PostgreSQL. Cross-stack traffic rides `host.docker.internal`. |
 
 ---
 
@@ -1161,15 +1161,15 @@ cd terraform/part_a && terraform init -backend=false && terraform test
 cd terraform/part_b && terraform init -backend=false && terraform test
 ```
 
-### Data Lineage — OpenLineage → Marquez
+### Data Lineage - OpenLineage → Marquez
 
-All 4 DAGs - including the Azure production DAGs - emit OpenLineage events to a self-hosted Marquez collector. Architecture, emitters, and the custom data-quality facet are covered in [Data Lineage & OpenLineage](#10-data-lineage--openlineage-marquez).
+All 4 DAGs - including the Azure DAGs - emit OpenLineage events to a self-hosted Marquez collector. Architecture, emitters, and the custom data-quality facet are covered in [Data Lineage & OpenLineage](#10-data-lineage--openlineage-marquez).
 
 ```bash
 # 1. Start the lineage stack first (Marquez API :5000, Web UI :3100)
 docker compose -f airflow/lineage/docker-compose.lineage.yaml up -d
 
-# 2. Start the main stack — OpenLineage env vars are already wired
+# 2. Start the main stack - OpenLineage env vars are already wired
 docker compose -f airflow/docker-compose.yaml up -d
 
 # 3. Trigger w3c_dbt_marts from the Airflow UI (http://localhost:8080),
@@ -1178,9 +1178,9 @@ docker compose -f airflow/docker-compose.yaml up -d
 
 The transport URL (`AIRFLOW__OPENLINEAGE__TRANSPORT`) points at `host.docker.internal:5000` by default; override it in the environment to point Marquez-aware emitters at any reachable collector. If Marquez is down, events fail with a logged transport error - pipeline execution is deliberately unaffected.
 
-### Production (Azure)
+### Deploy (Azure)
 
-The production pipeline is deployed via GitHub Actions CD on merge to `main`:
+The pipeline is deployed via GitHub Actions CD on merge to `main`:
 
 ```bash
 # dbt against Azure SQL (requires AZURE_SQL_* env vars)
@@ -1189,7 +1189,7 @@ dbt run    --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3
 dbt test   --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3c_azure
 ```
 
-> **Note:** The full production pipeline (Bronze → Silver → JDBC Export → Dimensions → dbt → CSV) runs on a weekly schedule: Airflow triggers the Databricks Workflow on Fridays at 17:00 UTC. The CD pipeline deploys infrastructure and DAGs only.
+> **Note:** The full pipeline (Bronze → Silver → JDBC Export → Dimensions → dbt → CSV) runs on a weekly schedule: Airflow triggers the Databricks Workflow on Fridays at 17:00 UTC. The CD pipeline deploys infrastructure and DAGs only.
 >
 > **Lineage:** the Azure DAGs (`w3c_spark_ingestion_azure`, `w3c_dbt_marts_azure`) emit OpenLineage run events and dataset-level edges (`raw_enriched` → `dbt_staging` → `dbt_marts` → CSV exports) into the same Marquez collector as the local stack - one cross-engine graph for both pipelines.
 
