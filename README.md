@@ -187,7 +187,7 @@ uv run pytest tests/ -m "not integration and not dbt_compile"
 cd terraform/part_a && terraform init -backend=false && terraform test
 ```
 
-Full local, lineage, and production (Azure) instructions: [docs/README-full.md](docs/README-full.md#quick-start).
+Full local, lineage, and Azure instructions: [docs/README-full.md](docs/README-full.md#quick-start).
 
 ---
 
