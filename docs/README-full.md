@@ -2,7 +2,7 @@
 
 > ⚠️ This is the **complete design document** (all 11 component deep dives, the full design-decisions table, and every proof image). For a quick, hiring-manager length overview, see the [main README](../README.md).
 
-> Serverless Databricks DLT ingests 93 W3C IIS log files through a Bronze → Silver medallion architecture in Unity Catalog, exports 153,377 enriched rows to Azure SQL in 45 seconds, transforms via dbt (16 models, dual-dialect T-SQL/PostgreSQL) into a star schema, and serves 18 Power BI‑ready CSV exports - all orchestrated by Apache Airflow with Terraform‑managed infrastructure, OIDC‑secured CI/CD, and Grafana observability. Every DAG - local and Azure alike - emits **OpenLineage events to Marquez**, stitching a cross-engine lineage graph Unity Catalog cannot see. A Docker Compose stack mirrors the pipeline locally for development and CI.
+> Serverless Databricks DLT ingests 93 W3C IIS log files through a Bronze → Silver medallion architecture in Unity Catalog, exports 153,377 enriched rows to Azure SQL, transforms via dbt (16 models, dual-dialect T-SQL/PostgreSQL) into a star schema, and serves 18 Power BI‑ready CSV exports - all orchestrated by Apache Airflow with Terraform‑managed infrastructure, OIDC‑secured CI/CD, and Grafana observability. Every DAG - local and Azure alike - emits **OpenLineage events to Marquez**, stitching a cross-engine lineage graph Unity Catalog cannot see. A Docker Compose stack mirrors the pipeline locally for development and CI.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Azure-0078D4?style=for-the-badge&labelColor=000000&logo=microsoftazure" alt="Azure">
@@ -91,7 +91,7 @@ flowchart LR
 
     silver["DLT Silver (serverless)<br/>w3c_etl_databricks.silver.silver_enriched_logs<br/>7 MaxMind GeoIP fields (maxminddb pure Python)<br/>5 computed fields • 31 columns total<br/>153,377 rows • 30+ countries<br/>Dedup: left_anti join on source_file"]:::dlt
 
-    jdbc["JDBC Export (notebook_task)<br/>pymssql batch executemany<br/>BATCH_SIZE=5000 • 4-attempt retry<br/>~45s for 153,377 rows"]:::sql
+    jdbc["JDBC Export (notebook_task)<br/>pymssql batch executemany<br/>BATCH_SIZE=5000 • 4-attempt retry"]:::sql
 
     azsql["Azure SQL (serverless GP_S_Gen5, 1 vCore)<br/>dbo.raw_enriched - 31 columns<br/>Auto-pause 60 min idle"]:::sql
 
@@ -193,7 +193,7 @@ flowchart LR
 |---|---|---|
 | **Serverless DLT** | All Databricks compute runs on serverless - no VMs, no clusters, auto-scales to zero when idle. | **Zero infrastructure management.** The pipeline costs ~$0 when idle and never requires cluster tuning. |
 | **GeoIP Enrichment** | 7 MaxMind fields (country → ISP) from a single consolidated struct UDF using `maxminddb` pure Python. 3.5× faster than 7 separate UDFs. | **Serverless DLT can't install compiled C libraries.** Pure Python `maxminddb` side-steps this limitation while a lazy singleton pattern avoids PicklingError in distributed execution. |
-| **45-Second JDBC Export** | 153,377 rows from Silver to Azure SQL in 45 seconds - 8–9× faster than the initial 413s implementation. | **Databricks serverless only supports JDBC reads, not writes.** Pure Python `pymssql` + `tuple(row)` (not `asDict()`) + Spark-side pre-filter before `collect()` were the breakthrough optimisations. |
+| **JDBC Export** | Silver → Azure SQL via pymssql with tracking-table idempotency. | **Databricks serverless only supports JDBC reads, not writes.** Export uses pure-Python `pymssql`. |
 | **T-SQL Dual-Dialect dbt** | All 16 models compile against both PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%" }}}` branches - no separate `_azure.sql` files. | **One model, two databases.** 18 macros + 2 dispatch overrides abstract PostgreSQL syntax (`::casts`, `EXTRACT`, `SPLIT_PART`, `ILIKE`, `MD5`) behind Jinja wrappers. |
 | **121 dbt Data Tests** | 46 `not_null` · 16 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` · 4 custom singular tests - enforcing business invariants across all 16 models. | **Enforced data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
 | **Terraform with OIDC** | Part A (4 modules: networking, datalake, databricks, warehouse) + Part B (24 resources: DLT pipelines, Workflows, UC schemas, secrets). Full OIDC Workload Identity Federation - no static Azure credentials. | **Zero touch deployment.** One `terraform apply` provisions the entire Azure estate including the GitHub→Azure auth chain. The CI/CD pipeline authenticates via token exchange, not client secrets. |
@@ -212,7 +212,7 @@ flowchart LR
 | **Silver** | Enriched rows | **153,377** (31 columns, 7 GeoIP + 5 computed) |
 | **GeoIP** | Countries resolved | **30+** across 6 continents |
 | **GeoIP** | Known-country coverage | **99.99%** |
-| **Export** | Silver → Azure SQL | **~45 seconds** (pymssql batch executemany) |
+| **Export** | Silver → Azure SQL | pymssql batch executemany |
 | **Warehouse** | Azure SQL database | GP_S_Gen5 serverless, 1 vCore, auto-pause 60 min |
 | **dbt models** | Total | **16** (10 staging + 6 marts) |
 | **dbt macros** | T-SQL compatibility | **18** macros + **2** dispatch overrides |
@@ -401,14 +401,11 @@ The JDBC export bridges Databricks Silver → Azure SQL. This is the most perfor
 - Works as a job environment dependency on serverless
 - `cursor.executemany()` with `BATCH_SIZE=5000`
 
-**Performance Journey - 413s → 45s (8–9× improvement):**
+**Export notes:**
 
-| # | Issue | Before | After | Impact |
-|---|---|---|---|---|
-| 1 | `.cache()` unsupported on serverless | `new_data_df.cache()` failed with `[NOT_SUPPORTED_WITH_SERVERLESS]` | `collect()` first, then `len(rows)` - removes both `.cache()` and redundant `.count()` scan | Fixed initial crash + saved one full scan |
-| 2 | `collect()` before Spark-side filter | All 153K rows collected to driver, then filtered in Python | Filter `~col("source_file").isin(loaded_files)` **before** `collect()` | On incremental: ~0 rows vs 153K. Prevents OOM. |
-| 3 | Wasteful `export_df.count()` | `total_rows = export_df.count()` scanned entire Silver table | Removed | ~10s saved per run |
-| 4 | `asDict()` serialization | `row.asDict()` - 31 keys × 153K rows = 4.7M dict allocations | `tuple(row)` - no dict overhead | ~50s saved on initial run |
+- `.cache()` is unsupported on serverless (`[NOT_SUPPORTED_WITH_SERVERLESS]`), so the export uses `collect()` then `len(rows)` with no redundant `.count()` scan.
+- Filter `~col("source_file").isin(loaded_files)` runs **before** `collect()` so reruns with no new files collect ~0 rows instead of 153K.
+- Rows feed to `pymssql` via `tuple(row)`, avoiding `row.asDict()` dict construction.
 
 **Architecture:**
 1. Connect to Azure SQL with 4-attempt exponential backoff (`15 × 2ⁿ` - covers serverless cold-start)
@@ -1115,7 +1112,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 | **pymssql over `df.write.jdbc`** | Spark JDBC writer | Databricks serverless only supports JDBC reads, not writes. `pymssql` is pure Python with no JVM dependencies. |
 | **OIDC over static secrets** | `ARM_CLIENT_SECRET`, long-lived PAT tokens | Zero static Azure credentials. The runner never stores or retrieves secrets - it assumes an Azure AD identity via token exchange at runtime. |
 | **Terraform-managed OIDC auth chain** | Manual Azure AD CLI commands | One `terraform apply` creates the Azure AD app, service principal, federated credential, and role assignment - no manual CLI steps. |
-| **`tuple(row)` over `row.asDict()`** | Dictionary serialization for INSERT | `tuple(row)` saves ~50s per 153K-row export (4.7M fewer dict allocations) via Spark `Row.__iter__` with zero overhead. |
+| **`tuple(row)` over `row.asDict()`** | Dictionary serialization for INSERT | `tuple(row)` avoids dict construction overhead (4.7M fewer dict allocations) via Spark `Row.__iter__`. |
 | **Unity Catalog over DBFS paths** | Direct DBFS/ABFSS path references | UC provides governance, cross-catalog reads (`spark.table()` from Bronze → Silver across pipelines), and volume access for GeoIP databases. |
 | **Staging + Marts schema isolation** | Single flat schema | `dbt_staging` for the atomic star schema, `dbt_marts` for pre-aggregated BI - prevents naming collisions and enforces the staging/mart boundary in dbt refs. |
 | **Datasets over polling or sensors** | Airflow sensors, external task sensors | Dataset-triggered DAGs decouple ingestion from transformation without polling overhead or hard-coded DAG IDs. A `Dataset("mssql://...")` outlet auto-triggers `dbt_marts_azure`. |

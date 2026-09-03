@@ -3,26 +3,26 @@
 > W3C web logs, ingested raw → served as a business-ready Power BI datamart, on a fully serverless Azure stack with zero static credentials.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Azure-0078D4?style=for-the-badge&labelColor=000000&logo=microsoftazure" alt="Azure">
-  <img src="https://img.shields.io/badge/Databricks-FF3621?style=for-the-badge&labelColor=000000&logo=databricks" alt="Databricks">
-  <img src="https://img.shields.io/badge/dbt-FF694B?style=for-the-badge&labelColor=000000&logo=dbt" alt="dbt">
-  <img src="https://img.shields.io/badge/Airflow-017CEE?style=for-the-badge&labelColor=000000&logo=apache-airflow" alt="Airflow">
-  <img src="https://img.shields.io/badge/Terraform-7B42BC?style=for-the-badge&labelColor=000000&logo=terraform" alt="Terraform">
-  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&labelColor=000000&logo=python" alt="Python">
-  <img src="https://img.shields.io/badge/Power_BI-F2C811?style=for-the-badge&labelColor=000000&logo=powerbi" alt="Power BI">
-  <img src="https://img.shields.io/badge/Apache_Spark-E25A1C?style=for-the-badge&labelColor=000000&logo=apachespark" alt="Spark">
-  <img src="https://img.shields.io/badge/PySpark-FFD43B?style=for-the-badge&labelColor=000000&logo=python" alt="PySpark">
-  <img src="https://img.shields.io/badge/Delta_Lake-4AB197?style=for-the-badge&labelColor=000000&logo=delta" alt="Delta Lake">
-  <img src="https://img.shields.io/badge/SQL_Server-CC2927?style=for-the-badge&labelColor=000000&logo=microsoftsqlserver" alt="SQL Server">
-  <img src="https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&labelColor=000000&logo=postgresql" alt="PostgreSQL">
-  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&labelColor=000000&logo=redis" alt="Redis">
-  <img src="https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&labelColor=000000&logo=grafana" alt="Grafana">
-  <img src="https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&labelColor=000000&logo=prometheus" alt="Prometheus">
-  <img src="https://img.shields.io/badge/OpenLineage-7C3AED?style=for-the-badge&labelColor=000000&logo=openlineage" alt="OpenLineage">
-  <img src="https://img.shields.io/badge/Marquez-1F6FEB?style=for-the-badge&labelColor=000000" alt="Marquez">
-  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&labelColor=000000&logo=docker" alt="Docker">
-  <img src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&labelColor=000000&logo=githubactions" alt="GitHub Actions">
-  <img src="https://img.shields.io/badge/pytest-0A9EDC?style=for-the-badge&labelColor=000000&logo=pytest" alt="pytest">
+<a href="https://azure.microsoft.com/"><img src="https://img.shields.io/badge/Azure-0078D4?style=for-the-badge&labelColor=000000&logo=microsoftazure"></a>
+<a href="https://www.databricks.com/"><img src="https://img.shields.io/badge/Databricks-FF3621?style=for-the-badge&labelColor=000000&logo=databricks"></a>
+<a href="https://www.getdbt.com/"><img src="https://img.shields.io/badge/dbt-FF694B?style=for-the-badge&labelColor=000000&logo=dbt"></a>
+<a href="https://airflow.apache.org/"><img src="https://img.shields.io/badge/Airflow-017CEE?style=for-the-badge&labelColor=000000&logo=apache-airflow"></a>
+<a href="https://www.terraform.io/"><img src="https://img.shields.io/badge/Terraform-7B42BC?style=for-the-badge&labelColor=000000&logo=terraform"></a>
+<a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&labelColor=000000&logo=python"></a>
+<a href="https://powerbi.microsoft.com/"><img src="https://img.shields.io/badge/Power_BI-F2C811?style=for-the-badge&labelColor=000000&logo=powerbi"></a>
+<a href="https://spark.apache.org/"><img src="https://img.shields.io/badge/Apache_Spark-E25A1C?style=for-the-badge&labelColor=000000&logo=apachespark"></a>
+<a href="https://spark.apache.org/docs/latest/api/python/"><img src="https://img.shields.io/badge/PySpark-FFD43B?style=for-the-badge&labelColor=000000&logo=python"></a>
+<a href="https://delta.io/"><img src="https://img.shields.io/badge/Delta_Lake-4AB197?style=for-the-badge&labelColor=000000&logo=delta"></a>
+<a href="https://www.microsoft.com/sql-server"><img src="https://img.shields.io/badge/SQL_Server-CC2927?style=for-the-badge&labelColor=000000&logo=microsoftsqlserver"></a>
+<a href="https://www.postgresql.org/"><img src="https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&labelColor=000000&logo=postgresql"></a>
+<a href="https://redis.io/"><img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&labelColor=000000&logo=redis"></a>
+<a href="https://grafana.com/"><img src="https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&labelColor=000000&logo=grafana"></a>
+<a href="https://prometheus.io/"><img src="https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&labelColor=000000&logo=prometheus"></a>
+<a href="https://openlineage.io/"><img src="https://img.shields.io/badge/OpenLineage-7C3AED?style=for-the-badge&labelColor=000000&logo=openlineage"></a>
+<a href="https://marquezproject.ai/"><img src="https://img.shields.io/badge/Marquez-1F6FEB?style=for-the-badge&labelColor=000000"></a>
+<a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&labelColor=000000&logo=docker"></a>
+<a href="https://github.com/features/actions"><img src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&labelColor=000000&logo=githubactions"></a>
+<a href="https://docs.pytest.org/"><img src="https://img.shields.io/badge/pytest-0A9EDC?style=for-the-badge&labelColor=000000&logo=pytest"></a>
 </p>
 
 <p align="center">
@@ -95,7 +95,7 @@ flowchart LR
 | Component | What it does |
 |---|---|
 | **[Azure Databricks DLT](docs/README-full.md#1-azure-databricks-dlt-bronze--silver)** | Serverless Bronze → Silver: custom W3C parser, GeoIP enrichment, dedup - zero cluster management |
-| **[Azure SQL](docs/README-full.md#2-azure-sql--jdbc-export)** | Serverless warehouse; JDBC export tuned from 413s → 45s |
+| **[Azure SQL](docs/README-full.md#2-azure-sql--jdbc-export)** | Serverless warehouse; Silver → Azure SQL via pymssql export |
 | **[Apache Airflow](docs/README-full.md#3-apache-airflow-orchestration)** | 4 DAGs wired by dataset triggers - ingestion → dimensions → dbt, no polling |
 | **[dbt](docs/README-full.md#4-dbt--the-t-sql-migration)** | 16 models compiling against both T-SQL and PostgreSQL from one source |
 | **[Power BI](docs/README-full.md#5-power-bi--semantic-contract)** | 7-page live dashboard on a semantic contract: logic in dbt, presentation in BI |
@@ -112,7 +112,7 @@ flowchart LR
 
 | Highlight | Why It Matters |
 |---|---|
-| **45-second export** - 153,377 rows Silver → Azure SQL went from 413s to 45s (8–9× faster). | Databricks serverless only supports JDBC reads, not writes. Pure-Python `pymssql` + `tuple(row)` + Spark-side pre-filter before `collect()` were the breakthrough. [Deep dive](docs/README-full.md#2-azure-sql--jdbc-export) |
+| **JDBC export** - Silver → Azure SQL via pymssql with tracking-table idempotency. | Databricks serverless only supports JDBC reads, not writes, so the export uses pure-Python `pymssql`. [Deep dive](docs/README-full.md#2-azure-sql--jdbc-export) |
 | **Dual-dialect dbt** - all 16 models compile against PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline dialect branches, no duplicate model files. | One model, two databases, one source of truth. [Deep dive](docs/README-full.md#4-dbt--the-t-sql-migration) |
 | **Terraform with OIDC** - two Terraform parts provision the whole estate, including the GitHub→Azure auth chain itself. | Zero static credentials: the runner assumes an Azure AD identity via token exchange, not client secrets. One `terraform apply` from scratch. [Deep dive](docs/README-full.md#6-terraform-infrastructure-as-code) |
 | **4-layer observability** - Grafana dashboards, Prometheus alerting on a StatsD stream, Azure Monitor alerts, and OpenLineage lineage. | DAG durations, container health, data freshness, and pipeline lineage are all tracked from day one. [Deep dive](docs/README-full.md#9-monitoring--observability) |
@@ -126,7 +126,7 @@ flowchart LR
 | Requests served | **155.6K** across **88 active countries** (BI) / 30+ GeoIP-resolved (Silver) |
 | Traffic | **62% human / 38% bot**, 9.7% 404 rate |
 | Bronze rows ingested | **153,380** - 0 dropped through 7 quality gates |
-| Export performance | **~45 seconds** for 153,377 rows (was 413s) |
+| Silver rows exported | **153,377** to Azure SQL via pymssql |
 | dbt models | **16** (10 staging + 6 marts), dual-dialect T-SQL/PostgreSQL |
 | dbt data tests | **121** (not_null, unique, accepted_values, relationships, expression_is_true, singular) |
 | pytest | **627 total** (597 in CI: 480 unit + 92 terraform + 25 DAG integrity) |
@@ -169,7 +169,7 @@ flowchart LR
 | **SCD Type 2** for `dim_geolocation` over append-only/Type 1 | In-place overwrite | Full attribute history plus current-state performance, via a T-SQL `MERGE ... OUTPUT` pattern. |
 | **Thin Power BI reports** - transforms stay in dbt/SQL | Logic embedded in Power BI DAX | The report is a presentation layer over a semantic contract; the warehouse stays the single source of truth. |
 | **OIDC over static secrets** | API keys / client secrets in Azure DevOps | Zero static Azure credentials: federated identity via token exchange, Terraform-managed from repo to role assignment. |
-| **`tuple(row)` over `row.asDict()`** | DataFrames in the JDBC export loop | ~50s saved per export through `SparkRow.__iter__` - the 153K-row list feed to `pymssql` `executemany` runs without dict construction overhead. |
+| **`tuple(row)` over `row.asDict()`** | DataFrames in the JDBC export loop | Avoids dict construction overhead — the 153K-row feed to `pymssql` `executemany` uses `SparkRow.__iter__` directly. |
 | **Weekly Power BI refresh** over real-time | Streaming / DirectQuery to the lakehouse | The source is 2009-2011 historical logs - a weekly fact-refresh validates all 5 upstream layers once, without idle compute spend. |
 
 All 15 decisions, with alternatives and reasoning: [Design Decisions](docs/README-full.md#design-decisions).
