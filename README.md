@@ -10,6 +10,7 @@
 <a href="https://www.terraform.io/"><img src="https://img.shields.io/badge/Terraform-7B42BC?style=for-the-badge&labelColor=000000&logo=terraform"></a>
 <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&labelColor=000000&logo=python"></a>
 <a href="https://powerbi.microsoft.com/"><img src="https://img.shields.io/badge/Power_BI-F2C811?style=for-the-badge&labelColor=000000&logo=powerbi"></a>
+<a href="https://powerautomate.microsoft.com/"><img src="https://img.shields.io/badge/Power_Automate-0066FF?style=for-the-badge&labelColor=000000&logo=powerautomate"></a>
 <a href="https://spark.apache.org/"><img src="https://img.shields.io/badge/Apache_Spark-E25A1C?style=for-the-badge&labelColor=000000&logo=apachespark"></a>
 <a href="https://spark.apache.org/docs/latest/api/python/"><img src="https://img.shields.io/badge/PySpark-FFD43B?style=for-the-badge&labelColor=000000&logo=python"></a>
 <a href="https://delta.io/"><img src="https://img.shields.io/badge/Delta_Lake-4AB197?style=for-the-badge&labelColor=000000&logo=delta"></a>
@@ -157,6 +158,10 @@ flowchart LR
 **CI/CD** - the 4 parallel CI jobs, terraform plan→apply→smoke-test CD run, and the rollback story:
 
 ![CI/CD](docs/media/cicd.gif)
+
+**DBT modeling** - the dbt lineage graph and the star-schema dimension tables behind the Power BI report:
+
+![DBT modeling](docs/media/dbt.gif)
 
 ---
 
