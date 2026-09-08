@@ -43,7 +43,7 @@
 
 ## How It Fits Together
 
-Bronze → Silver → Azure SQL → dbt → Power BI, on Databricks serverless, with OpenLineage → Marquez observing every stage across both engines.
+Bronze → Silver → Azure SQL → dbt → Power BI, on Databricks serverless, with OpenLineage → Marquez observing every orchestrated stage across both engines. Power BI reads the dbt marts directly from Azure SQL - no file exports; the reports do not emit lineage.
 
 ```mermaid
 flowchart LR
@@ -71,9 +71,9 @@ flowchart LR
 
     dbt["dbt - 16 models • 121 tests<br/>dual-dialect T-SQL / PostgreSQL"]:::dbtclass
 
-    csv["18 CSV exports<br/>Star-Schema"]:::bi
+    csv["18 CSV exports<br/>self-serve download"]:::bi
 
-    powerbi["Power BI<br/>7-page dashboard<br/>weekly auto-refresh"]:::bi
+    powerbi["Power BI<br/>7-page dashboard<br/>weekly refresh via Power Automate"]:::bi
 
     marquez["OpenLineage → Marquez<br/>cross-engine lineage"]:::lineage
 
@@ -84,8 +84,8 @@ flowchart LR
     jdbc --> azsql
     azsql --> dims
     dims -->|"Dataset trigger"| dbt
-    dbt --> csv
-    csv --> powerbi
+    dbt -->|"reads marts via Azure SQL"| powerbi
+    dbt -->|"self-serve exports"| csv
 
     dims -.->|"task events"| marquez
     dbt -.->|"quality facet"| marquez
@@ -126,8 +126,9 @@ flowchart LR
 |---|---|
 | Requests served | **155.6K** across **88 active countries** (BI) / 30+ GeoIP-resolved (Silver) |
 | Traffic | **62% human / 38% bot**, 9.7% 404 rate |
-| Bronze rows ingested | **153,380** - 0 dropped through 7 quality gates |
-| Silver rows exported | **153,377** to Azure SQL via pymssql |
+| Bronze rows ingested | **153,380** - 0 dropped at Bronze (7 of 10 DLT quality-gate checks) |
+| Silver rows exported | **153,377** to Azure SQL via pymssql (3 filtered: invalid country) |
+| DLT quality-gate checks | **10** - 7 Bronze + 3 Silver (`@dlt.expect_or_drop`) |
 | dbt models | **16** (10 staging + 6 marts), dual-dialect T-SQL/PostgreSQL |
 | dbt data tests | **121** (not_null, unique, accepted_values, relationships, expression_is_true, singular) |
 | pytest | **627 total** (597 in CI: 480 unit + 92 terraform + 25 DAG integrity) |
@@ -171,11 +172,11 @@ flowchart LR
 |---|---|---|
 | **Dual-dialect dbt:** inline `{% if target.type == 'sqlserver' %}` branches | Per-dialect model files (`_azure.sql`) | dbt would parse both as independent models - duplicate DAG entries. Inline branches keep one source of truth. |
 | **Serverless DLT** over classic clusters | Fixed job clusters with VMs | Zero infrastructure management: scales to zero when idle, no cluster tuning ever. |
-| **SCD Type 2** for `dim_geolocation` over append-only/Type 1 | In-place overwrite | Full attribute history plus current-state performance, via a T-SQL `MERGE ... OUTPUT` pattern. |
+| **SCD Type 2** for `dim_geolocation` over append-only/Type 1 | In-place overwrite | Full attribute history plus current-state performance, via a T-SQL `MERGE ... OUTPUT` pattern in the Azure SQL load (Airflow `export_dimensions`); the local Postgres path stays SCD1-style upserts. |
 | **Thin Power BI reports** - transforms stay in dbt/SQL | Logic embedded in Power BI DAX | The report is a presentation layer over a semantic contract; the warehouse stays the single source of truth. |
 | **OIDC over static secrets** | API keys / client secrets in Azure DevOps | Zero static Azure credentials: federated identity via token exchange, Terraform-managed from repo to role assignment. |
 | **`tuple(row)` over `row.asDict()`** | DataFrames in the JDBC export loop | Avoids dict construction overhead — the 153K-row feed to `pymssql` `executemany` uses `SparkRow.__iter__` directly. |
-| **Weekly Power BI refresh** over real-time | Streaming / DirectQuery to the lakehouse | The source is 2009-2011 historical logs - a weekly fact-refresh validates all 5 upstream layers once, without idle compute spend. |
+| **Weekly Power BI refresh** via a Power Automate cloud flow | Streaming / DirectQuery to the lakehouse | The source is 2009-2011 historical logs - a weekly refresh validates all 5 upstream layers once, without idle compute spend. |
 
 All 15 decisions, with alternatives and reasoning: [Design Decisions](docs/README-full.md#design-decisions).
 
