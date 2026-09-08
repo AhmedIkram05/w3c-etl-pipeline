@@ -2,7 +2,7 @@
 
 > ⚠️ This is the **complete design document** (all 11 component deep dives, the full design-decisions table, and every proof image). For a quick, hiring-manager length overview, see the [main README](../README.md).
 
-> Serverless Databricks DLT ingests 93 W3C IIS log files through a Bronze → Silver medallion architecture in Unity Catalog, exports 153,377 enriched rows to Azure SQL, transforms via dbt (16 models, dual-dialect T-SQL/PostgreSQL) into a star schema, and serves 18 Power BI‑ready CSV exports - all orchestrated by Apache Airflow with Terraform‑managed infrastructure, OIDC‑secured CI/CD, and Grafana observability. Every DAG - local and Azure alike - emits **OpenLineage events to Marquez**, stitching a cross-engine lineage graph Unity Catalog cannot see. A Docker Compose stack mirrors the pipeline locally for development and CI.
+> Serverless Databricks DLT ingests 93 W3C IIS log files through a Bronze → Silver medallion architecture in Unity Catalog, exports 153,377 enriched rows to Azure SQL, transforms via dbt (16 models, dual-dialect T-SQL/PostgreSQL) into a star schema served directly to Power BI from Azure SQL, plus 18 self-serve CSV exports - all orchestrated by Apache Airflow with Terraform‑managed infrastructure, OIDC‑secured CI/CD, and Grafana observability. Every DAG - local and Azure alike - emits **OpenLineage events to Marquez**, stitching a cross-engine lineage graph Unity Catalog cannot see. A Docker Compose stack mirrors the pipeline locally for development and CI.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Azure-0078D4?style=for-the-badge&labelColor=000000&logo=microsoftazure" alt="Azure">
@@ -71,7 +71,7 @@
 
 ## Architecture Overview
 
-The pipeline follows a **Bronze → Silver → Azure SQL → dbt → Power BI** medallion architecture on Azure, with a Databricks DLT serverless pipeline doing the heavy lifting - and an OpenLineage → Marquez lineage layer observing every orchestrated stage across both engines.
+The pipeline follows a **Bronze → Silver → Azure SQL → dbt → Power BI** medallion architecture on Azure, with a Databricks DLT serverless pipeline doing the heavy lifting - and an OpenLineage → Marquez lineage layer observing every orchestrated stage across both engines. Power BI reads the dbt marts directly from Azure SQL (no CSV hop); the reports themselves do not emit lineage. The 18 CSV exports ship alongside as self-serve downloads.
 
 ```mermaid
 flowchart LR
@@ -89,7 +89,7 @@ flowchart LR
 
     bronze["DLT Bronze (serverless)<br/>w3c_etl_databricks.bronze.bronze_raw_logs<br/>Custom W3C parser UDF • 14/18-field detection<br/>7 @dlt.expect_or_drop quality checks<br/>153,380 rows • 0 dropped<br/>Partitioned by log_date"]:::dlt
 
-    silver["DLT Silver (serverless)<br/>w3c_etl_databricks.silver.silver_enriched_logs<br/>7 MaxMind GeoIP fields (maxminddb pure Python)<br/>5 computed fields • 31 columns total<br/>153,377 rows • 30+ countries<br/>Dedup: left_anti join on source_file"]:::dlt
+    silver["DLT Silver (serverless)<br/>w3c_etl_databricks.silver.silver_enriched_logs<br/>7 MaxMind GeoIP fields (maxminddb pure Python)<br/>3 @dlt.expect_or_drop quality checks<br/>5 computed fields • 31 columns total<br/>153,377 rows • 30+ countries<br/>Dedup: left_anti join on source_file"]:::dlt
 
     jdbc["JDBC Export (notebook_task)<br/>pymssql batch executemany<br/>BATCH_SIZE=5000 • 4-attempt retry"]:::sql
 
@@ -99,9 +99,9 @@ flowchart LR
 
     dbt["dbt - 16 models • 121 tests<br/>10 staging + 6 marts<br/>Dual-dialect T-SQL / PostgreSQL<br/>Runs on Databricks serverless via<br/>self-bootstrapping notebooks"]:::dbtclass
 
-    csv["18 CSV exports<br/>Star-Schema/ directory"]:::bi
+    csv["18 CSV exports<br/>self-serve download"]:::bi
 
-    powerbi["Power BI<br/>7-page dashboard<br/>Weekly auto-refresh"]:::bi
+    powerbi["Power BI<br/>7-page dashboard<br/>Weekly refresh via Power Automate"]:::bi
 
     marquez["OpenLineage → Marquez<br/>Cross-engine lineage<br/>DAG/task runs · dbt models ·<br/>w3cDataQuality facet"]:::lineage
 
@@ -112,8 +112,8 @@ flowchart LR
     jdbc --> azsql
     azsql --> dims
     dims -->|"Dataset trigger"| dbt
-    dbt --> csv
-    csv --> powerbi
+    dbt -->|"reads marts via Azure SQL"| powerbi
+    dbt -->|"self-serve exports"| csv
 
     dims -.->|"task events"| marquez
     dbt -.->|"dbt-ol + quality facet"| marquez
@@ -192,7 +192,7 @@ flowchart LR
 | Area | Highlight | Why It Matters |
 |---|---|---|
 | **Serverless DLT** | All Databricks compute runs on serverless - no VMs, no clusters, auto-scales to zero when idle. | **Zero infrastructure management.** The pipeline costs ~$0 when idle and never requires cluster tuning. |
-| **GeoIP Enrichment** | 7 MaxMind fields (country → ISP) from a single consolidated struct UDF using `maxminddb` pure Python. 3.5× faster than 7 separate UDFs. | **Serverless DLT can't install compiled C libraries.** Pure Python `maxminddb` side-steps this limitation while a lazy singleton pattern avoids PicklingError in distributed execution. |
+| **GeoIP Enrichment** | 7 MaxMind fields (country → ISP) from a single consolidated struct UDF using `maxminddb` pure Python - per-row UDF invocations cut 7 → 2 (1 struct + 1 ASN instead of 7 scalar UDFs). | **Serverless DLT can't install compiled C libraries.** Pure Python `maxminddb` side-steps this limitation while a lazy singleton pattern avoids PicklingError in distributed execution. |
 | **JDBC Export** | Silver → Azure SQL via pymssql with tracking-table idempotency. | **Databricks serverless only supports JDBC reads, not writes.** Export uses pure-Python `pymssql`. |
 | **T-SQL Dual-Dialect dbt** | All 16 models compile against both PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%" }}}` branches - no separate `_azure.sql` files. | **One model, two databases.** 18 macros + 2 dispatch overrides abstract PostgreSQL syntax (`::casts`, `EXTRACT`, `SPLIT_PART`, `ILIKE`, `MD5`) behind Jinja wrappers. |
 | **121 dbt Data Tests** | 46 `not_null` · 16 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` · 4 custom singular tests - enforcing business invariants across all 16 models. | **Enforced data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
@@ -208,8 +208,9 @@ flowchart LR
 | Category | Metric | Value |
 |---|---|---|
 | **Source** | W3C IIS log files | **93 files** (2009–2011) |
-| **Bronze** | Rows ingested | **153,380** (7 quality expectations, **0 dropped**) |
-| **Silver** | Enriched rows | **153,377** (31 columns, 7 GeoIP + 5 computed) |
+| **Bronze** | Rows ingested | **153,380** (7 Bronze quality expectations, **0 dropped**) |
+| **Silver** | Enriched rows | **153,377** (31 columns, 7 GeoIP + 5 computed; 3 filtered: invalid country) |
+| **DLT** | Quality-gate checks | **10** (7 Bronze + 3 Silver, `@dlt.expect_or_drop`) |
 | **GeoIP** | Countries resolved | **30+** across 6 continents |
 | **GeoIP** | Known-country coverage | **99.99%** |
 | **Export** | Silver → Azure SQL | pymssql batch executemany |
@@ -228,7 +229,7 @@ flowchart LR
 | **Lineage** | OpenLineage emitters | **4** (provider listener, dbt-ol, custom quality facet, inlets/outlets dataset edges) |
 | **Cost** | Budget controls | **$50 warning / $100 hard cap** |
 | **Cost** | Monthly estimate | **~$0–100/mo** (serverless auto-scales to zero) |
-| **CSV exports** | Power BI-ready | **18 files** (~36 MB) |
+| **CSV exports** | Self-serve download | **18 files** (~36 MB) |
 | **Power Automate** | Refresh schedule | **Friday 17:30** weekly with success/failure email |
 
 ---
@@ -237,7 +238,7 @@ flowchart LR
 
 ### Power BI Dashboard - 7-Page Analytics Report
 
-> The final deliverable: 155.6K requests across 88 countries, 18 Power BI-ready CSV exports. Each page answers a specific business question built entirely from the Bronze → Silver → dbt star schema pipeline.
+> The final deliverable: 155.6K requests across 88 countries, served to Power BI live from the Azure SQL star schema (18 CSV exports ship alongside for self-serve use). Each page answers a specific business question built entirely from the Bronze → Silver → dbt star schema pipeline.
 
 ![At a Glance](media/summary.png)
 *Page 1 - At a Glance: 155.6K requests, 88 countries, human vs bot breakdown, busiest days, top countries*
@@ -326,7 +327,7 @@ flowchart LR
 ![Azure Portal Overview](media/azure.png)
 *Azure portal - resource group with Databricks, ADLS, SQL, and monitoring resources*
 
-**7 quality expectations** (`@dlt.expect_or_drop`):
+**7 Bronze quality expectations** (`@dlt.expect_or_drop`); Silver applies 3 more - **10 gate checks total**:
 
 | Expectation | Expression | Rows Dropped |
 |---|---|---|
@@ -338,7 +339,7 @@ flowchart LR
 | `valid_user_agent` | `user_agent IS NOT NULL AND user_agent != '-'` | 0 |
 | `valid_bytes` | `(bytes_sent IS NULL OR bytes_sent >= 0) AND (bytes_recv IS NULL OR bytes_recv >= 0)` | 0 |
 
-**Result:** **153,380 rows**, **0 dropped** - all 7 quality expectations pass on real IIS data.
+**Result:** **153,380 Bronze rows**, **0 dropped** - all 7 Bronze quality expectations pass on real IIS data.
 
 ![Databricks DLT Pipelines](media/dlt-pipelines.png)
 *Bronze and Silver DLT pipelines in Databricks - both serverless, both green*
@@ -355,12 +356,12 @@ flowchart LR
 
 #### Silver DLT Pipeline
 
-The Silver layer reads from Bronze via `spark.table()`, enriches each row with MaxMind GeoIP data, computes 5 derived fields, and applies quality expectations.
+The Silver layer reads from Bronze via `spark.table()`, enriches each row with MaxMind GeoIP data, computes 5 derived fields, and applies **3 quality expectations** (`@dlt.expect_or_drop`: non-null country, known traffic type, known page category).
 
 **GeoIP Enrichment - Key Decisions:**
 
 - **Library:** `maxminddb==2.8.*` (pure Python) - NOT `geoip2` which requires compiled `libmaxminddb` unavailable on serverless DLT
-- **Performance:** 1 consolidated struct UDF (6 fields from 1 City DB call) + 1 scalar UDF (ISP from ASN DB) - **3.5× faster** than 7 separate UDFs
+- **Performance:** 1 consolidated struct UDF (6 fields from 1 City DB call) + 1 scalar UDF (ISP from ASN DB) - per-row UDF invocations cut **7 → 2** vs 7 separate scalar UDFs
 - **Pattern:** Lazy singleton `_ensure_geo_reader()` to avoid PicklingError - `maxminddb.Reader` is not serialisable, so UDFs reference helper *functions* (serialisable by name), not reader *instances*
 - **Path:** `/Volumes/w3c_etl_databricks/bronze/w3c_data/` - NOT `/dbfs/Volumes/` (FUSE mount inaccessible on serverless executors)
 
@@ -425,7 +426,7 @@ The JDBC export bridges Databricks Silver → Azure SQL. This is the most perfor
 
 **Dimension Export (Airflow PythonOperator):**
 
-After the JDBC export, Airflow's `export_dimensions` task builds dimensional tables. `dim_geolocation` uses **SCD Type 2** (full attribute history); `dim_useragent` uses a `MERGE` upsert (SCD Type 1):
+After the JDBC export, Airflow's `export_dimensions` task builds dimensional tables - a PythonOperator, **not** a dbt model. `dim_geolocation` uses **SCD Type 2** (full attribute history); `dim_useragent` uses a `MERGE` upsert (SCD Type 1). On the local Postgres path the same operator degrades both to SCD1-style `INSERT ... ON CONFLICT DO NOTHING` upserts:
 
 | Table | Natural Key | SCD Type | Rows | Sentinel |
 |---|---|---|---|---|
@@ -494,7 +495,7 @@ The two DAGs are **intentionally decoupled** - no DAG-to-DAG imports, no `Extern
 
 ### 4. dbt & the T-SQL Migration
 
-dbt owns **all SQL transformations** - nothing else writes to the star schema. The project comprises **16 models** across **3 schemas** with **121 data tests**.
+dbt owns **all SQL transformations in `dbt_staging`/`dbt_marts`** - the project comprises **16 models** (SCD Type-1 dimensions) across **3 schemas** with **121 data tests**. The two external dimensions are not dbt models: SCD Type 2 on `dim_geolocation` is a T-SQL `MERGE` in the Azure SQL load (Airflow `export_dimensions`), with the local Postgres path using SCD1-style upserts.
 
 **Schema Isolation:**
 
@@ -732,7 +733,7 @@ A singular test (`fact_webrequest_dedup_safety.sql`) regression-tests that no ha
 
 ### 5. Power BI & Semantic Contract
 
-_The semantic contract defines exactly what data leaves dbt and enters Power BI - no surprises, no undocumented columns, no type mismatches._
+_The semantic contract defines exactly what data leaves dbt and enters Power BI - no surprises, no undocumented columns, no type mismatches._ Power BI connects directly to the dbt star schema in Azure SQL (`dbt_staging`, `dbt_marts`, and the `public` dimension tables) - no file hops. The 18 CSV exports are a side artifact for offline use, not the BI feed.
 
 **7-Page Dashboard:**
 
@@ -746,14 +747,6 @@ _The semantic contract defines exactly what data leaves dbt and enters Power BI 
 | 6 | How Fast is the Server? | Avg 470ms, P95 1,149ms, 6.5% over 1s, top 5 expensive files, response speed by content type (12 months), response size distribution |
 | 7 | When is the Site Busiest? | 9.4K peak hour, 77.7% weekday traffic, hour × day-of-week heatmap, day-of-week bar (Monday 33K), AM vs PM patterns |
 
-**18 CSV Files (~36 MB total):**
-
-| Directory | Files | Description |
-|---|---|---|
-| `dbt_staging/` | 10 | `dim_date`, `dim_time`, `dim_page`, `dim_status`, `dim_method`, `dim_referrer`, `dim_visit_buckets`, `dim_visitortype`, `crawler_ips`, `fact_webrequest` |
-| `dbt_marts/` | 6 | `mart_page_performance`, `mart_daily_aggregates`, `mart_crawler_analysis`, `mart_timeofday_analysis`, `mart_browser_analysis`, `mart_country_browser_share` |
-| `public/` | 2 | `dim_geolocation` (1,586 rows), `dim_useragent` (2,041 rows) |
-
 **Key DAX Measures (defined in Power BI):**
 
 | Measure | Formula Logic | Purpose |
@@ -765,6 +758,14 @@ _The semantic contract defines exactly what data leaves dbt and enters Power BI 
 | Total Bandwidth (MB) | `SUM(fact_webrequest[bytes_sent]) / 1048576` | Data transfer volume |
 | Crawler Traffic % | `DIVIDE(COUNTROWS(FILTER(fact_webrequest, fact_webrequest[is_crawler] = TRUE())), COUNTROWS(fact_webrequest))` | Bot traffic ratio |
 | Peak Hour | `CALCULATE(MAX('Time'[hour]), TOPN(1, VALUES('Time'[hour]), COUNTROWS(fact_webrequest), DESC))` | Peak traffic hour |
+
+**18 CSV Files (~36 MB total)** - ship to ADLS for self-serve download and auditing; Power BI doesn't read them:
+
+| Directory | Files | Description |
+|---|---|---|
+| `dbt_staging/` | 10 | `dim_date`, `dim_time`, `dim_page`, `dim_status`, `dim_method`, `dim_referrer`, `dim_visit_buckets`, `dim_visitortype`, `crawler_ips`, `fact_webrequest` |
+| `dbt_marts/` | 6 | `mart_page_performance`, `mart_daily_aggregates`, `mart_crawler_analysis`, `mart_timeofday_analysis`, `mart_browser_analysis`, `mart_country_browser_share` |
+| `public/` | 2 | `dim_geolocation` (1,586 rows), `dim_useragent` (2,041 rows) |
 
 **Refresh Schedule:**
 
@@ -1118,7 +1119,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 | **Datasets over polling or sensors** | Airflow sensors, external task sensors | Dataset-triggered DAGs decouple ingestion from transformation without polling overhead or hard-coded DAG IDs. A `Dataset("mssql://...")` outlet auto-triggers `dbt_marts_azure`. |
 | **Single `azure-dev` environment** | Staging + production | Staging/prod adds complexity without portfolio value for a CV project. Auto-approve on merge to main. dbt runs via Dataset trigger after ingestion completes. |
 | **`prevent_destroy` on storage + SQL** | Allow destroy on `terraform destroy` | Prevents accidental loss of the fully configured SQL database and storage account during development iteration. `terraform destroy` intentionally fails for ADLS Gen2 and Azure SQL - requiring manual intervention to remove the `prevent_destroy` lifecycle guard first. |
-| **Consolidated GeoIP struct UDF over 7 separate UDFs** | 7 PySpark UDFs (one per GeoIP field) | Single struct UDF opens `maxminddb.Reader` once per partition, returns all 6 City DB fields in one call - 3.5× fewer reader instantiations and 7× fewer Spark expression evaluations. |
+| **Consolidated GeoIP struct UDF over 7 separate UDFs** | 7 PySpark UDFs (one per GeoIP field) | Single struct UDF opens `maxminddb.Reader` once per partition, returns all 6 City DB fields in one call - 2 reader instantiations (City + ASN) instead of 7, and 2 per-row UDF invocations instead of 7. |
 | **Weekly Power BI refresh over real-time streaming** | Real-time or daily refresh | Source is historical (2009–2011) with no new data arriving. Weekly cadence validates pipeline health end-to-end and detects drift in 5 upstream dependency layers without unnecessary compute spend. |
 | **Separate Marquez compose project over merging into the main stack** | One big docker-compose file | The API image discovers its DB via a literal `postgres` hostname - keeping Marquez in its own project preserves upstream config untouched, isolates lifecycle, and avoids hostname collisions with the Airflow PostgreSQL. Cross-stack traffic rides `host.docker.internal`. |
 
@@ -1186,7 +1187,7 @@ dbt run    --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3
 dbt test   --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3c_azure
 ```
 
-> **Note:** The full pipeline (Bronze → Silver → JDBC Export → Dimensions → dbt → CSV) runs on a weekly schedule: Airflow triggers the Databricks Workflow on Fridays at 17:00 UTC. The CD pipeline deploys infrastructure and DAGs only.
+> **Note:** The full pipeline (Bronze → Silver → JDBC Export → Dimensions → dbt → CSV → Power BI refresh) runs on a weekly schedule: Airflow triggers the Databricks Workflow on Fridays at 17:00 UTC, and Power BI refreshes against Azure SQL at 17:30. The CD pipeline deploys infrastructure and DAGs only.
 >
 > **Lineage:** the Azure DAGs (`w3c_spark_ingestion_azure`, `w3c_dbt_marts_azure`) emit OpenLineage run events and dataset-level edges (`raw_enriched` → `dbt_staging` → `dbt_marts` → CSV exports) into the same Marquez collector as the local stack - one cross-engine graph for both pipelines.
 
