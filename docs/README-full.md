@@ -2,7 +2,9 @@
 
 > ⚠️ This is the **complete design document** (all 11 component deep dives, the full design-decisions table, and every proof image). For a quick, hiring-manager length overview, see the [main README](../README.md).
 
-> Serverless Databricks DLT ingests 93 W3C IIS log files through a Bronze → Silver medallion architecture in Unity Catalog, exports 153,377 enriched rows to Azure SQL, transforms via dbt (16 models, dual-dialect T-SQL/PostgreSQL) into a star schema served directly to Power BI from Azure SQL, plus 18 self-serve CSV exports - all orchestrated by Apache Airflow with Terraform‑managed infrastructure, OIDC‑secured CI/CD, and Grafana observability. Every DAG - local and Azure alike - emits **OpenLineage events to Marquez**, stitching a cross-engine lineage graph Unity Catalog cannot see. A Docker Compose stack mirrors the pipeline locally for development and CI.
+> Serverless Databricks DLT ingests 93 W3C IIS log files through a Bronze → Silver medallion architecture in Unity Catalog, exports 153,377 enriched rows to Azure SQL, transforms via dbt (16 models, dual-dialect T-SQL/PostgreSQL) into a star schema served directly to Power BI from Azure SQL, plus 18 self-serve CSV exports - all orchestrated by Apache Airflow with Terraform‑managed infrastructure, OIDC‑secured CI/CD, and Grafana observability. Every DAG - local and Azure alike - emits **OpenLineage events to Marquez**, stitching a cross-engine lineage graph Unity Catalog cannot see.
+
+> **ETL or ELT?** ELT, mostly — load raw into Bronze, transform in-lake into Silver — GeoIP + computed fields, model last via dbt after the Azure SQL load. The repo keeps the **ETL** name: it's what recruiters search for,and the Silver → Azure SQL export leg really is ETL: enriched rows, loaded via pymssql. Same medallion pipeline, either label.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Azure-0078D4?style=for-the-badge&labelColor=000000&logo=microsoftazure" alt="Azure">

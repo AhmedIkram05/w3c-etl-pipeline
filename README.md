@@ -2,6 +2,8 @@
 
 > W3C web logs, ingested raw → served as a business-ready Power BI datamart, on a fully serverless Azure stack with zero static credentials.
 
+> **ETL or ELT?** ELT, mostly. Raw logs land *untouched* in Bronze, get enriched *in-lake* in Silver - GeoIP + computed fields, and dbt models the star schema *after* the load into Azure SQL - the medallion pattern: load raw, transform in place, model last. The name stays **ETL** because that's what recruiters search for - and the Silver → Azure SQL leg really is ETL: enriched before it's exported. Same pipeline, either label.
+
 <p align="center">
 <a href="https://azure.microsoft.com/"><img src="https://img.shields.io/badge/Azure-0078D4?style=for-the-badge&labelColor=000000&logo=microsoftazure"></a>
 <a href="https://www.databricks.com/"><img src="https://img.shields.io/badge/Databricks-FF3621?style=for-the-badge&labelColor=000000&logo=databricks"></a>
@@ -192,6 +194,10 @@ dbt test --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
 uv run pytest tests/ -m "not integration and not dbt_compile"
 cd terraform/part_a && terraform init -backend=false && terraform test
 ```
+
+The 16-service compose stack this spins up:
+
+![Docker Compose architecture - 16-service Airflow+Spark+PG+Grafana stack](docs/media/docker.png)
 
 Full local, lineage, and Azure instructions: [docs/README-full.md](docs/README-full.md#quick-start).
 
