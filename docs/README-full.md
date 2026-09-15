@@ -91,7 +91,7 @@ flowchart LR
 
     bronze["DLT Bronze (serverless)<br/>w3c_etl_databricks.bronze.bronze_raw_logs<br/>Custom W3C parser UDF • 14/18-field detection<br/>7 @dlt.expect_or_drop quality checks<br/>153,380 rows • 0 dropped<br/>Partitioned by log_date"]:::dlt
 
-    silver["DLT Silver (serverless)<br/>w3c_etl_databricks.silver.silver_enriched_logs<br/>7 MaxMind GeoIP fields (maxminddb pure Python)<br/>3 @dlt.expect_or_drop quality checks<br/>5 computed fields • 31 columns total<br/>153,377 rows • 30+ countries<br/>Dedup: left_anti join on source_file"]:::dlt
+    silver["DLT Silver (serverless)<br/>w3c_etl_databricks.silver.silver_enriched_logs<br/>7 MaxMind GeoIP fields (maxminddb pure Python)<br/>3 @dlt.expect_or_drop quality checks<br/>5 computed fields • 31 columns total<br/>153,377 rows • 30+ countries<br/>Bronze CDC: checkpointed readChangeFeed stream"]:::dlt
 
     jdbc["JDBC Export (notebook_task)<br/>pymssql batch executemany<br/>BATCH_SIZE=5000 • 4-attempt retry"]:::sql
 
@@ -109,7 +109,7 @@ flowchart LR
 
     source -->|"ABFSS path"| adls
     adls -->|"Auto Loader"| bronze
-    bronze -->|"spark.table()"| silver
+    bronze -->|"Change Data Feed"| silver
     silver -->|"collect() + pymssql"| jdbc
     jdbc --> azsql
     azsql --> dims
@@ -358,7 +358,7 @@ flowchart LR
 
 #### Silver DLT Pipeline
 
-The Silver layer reads from Bronze via `spark.table()`, enriches each row with MaxMind GeoIP data, computes 5 derived fields, and applies **3 quality expectations** (`@dlt.expect_or_drop`: non-null country, known traffic type, known page category).
+The Silver layer consumes Bronze's Delta **Change Data Feed** via a checkpointed streaming read (`spark.readStream.option("readChangeFeed", "true")`) - each DLT update processes only Bronze rows committed since the last checkpoint. It enriches each row with MaxMind GeoIP data, computes 5 derived fields, and applies **3 quality expectations** (`@dlt.expect_or_drop`: non-null country, known traffic type, known page category).
 
 **GeoIP Enrichment - Key Decisions:**
 
@@ -389,7 +389,7 @@ The Silver layer reads from Bronze via `spark.table()`, enriches each row with M
 | `is_crawler` | UA keyword matching | bot, spider, crawler, curl, python-requests |
 | `size_band` | Response size bucketing | < 1KB / 1–10KB / 10–100KB / 100KB–1MB / > 1MB |
 
-**Dedup:** `left_anti` join on `source_file` - wrapped in `try/except` for the first pipeline run when Silver doesn't exist yet.
+**CDC consumption:** Bronze enables `delta.enableChangeDataFeed = true`; Silver consumes that feed as a checkpointed `readChangeFeed` stream, so each update processes only Bronze changes committed since the last one - no dedupe join needed.
 
 **Result:** **153,377 rows** (3 dropped by `valid_country` - private/reserved IPs with no GeoIP match), **31 columns**, **30+ countries**.
 
@@ -907,7 +907,7 @@ All Databricks data assets are managed through **Unity Catalog** (`w3c_etl_datab
 | Schema | Purpose | Tables / Assets |
 |---|---|---|
 | `bronze` | Raw W3C ingested data | `bronze_raw_logs` (19 columns, 153,380 rows, partitioned by `log_date`) |
-| `silver` | Enriched + deduplicated data | `silver_enriched_logs` (31 columns, 153,377 rows) |
+| `silver` | Enriched data, CDC-consumed from Bronze | `silver_enriched_logs` (31 columns, 153,377 rows) |
 | `gold` | Reserved for future aggregate views | Currently empty - available for curated analytics datasets |
 
 ![Unity Catalog Structure](media/unity_catalog.png)
@@ -1147,7 +1147,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 | **OIDC over static secrets** | `ARM_CLIENT_SECRET`, long-lived PAT tokens | Zero static Azure credentials. The runner never stores or retrieves secrets - it assumes an Azure AD identity via token exchange at runtime. |
 | **Terraform-managed OIDC auth chain** | Manual Azure AD CLI commands | One `terraform apply` creates the Azure AD app, service principal, federated credential, and role assignment - no manual CLI steps. |
 | **`tuple(row)` over `row.asDict()`** | Dictionary serialization for INSERT | `tuple(row)` avoids dict construction overhead (4.7M fewer dict allocations) via Spark `Row.__iter__`. |
-| **Unity Catalog over DBFS paths** | Direct DBFS/ABFSS path references | UC provides governance, cross-catalog reads (`spark.table()` from Bronze → Silver across pipelines), and volume access for GeoIP databases. |
+| **Unity Catalog over DBFS paths** | Direct DBFS/ABFSS path references | UC provides governance, cross-catalog reads (`spark.table()` e.g. Silver → JDBC export), and volume access for GeoIP databases. |
 | **Staging + Marts schema isolation** | Single flat schema | `dbt_staging` for the atomic star schema, `dbt_marts` for pre-aggregated BI - prevents naming collisions and enforces the staging/mart boundary in dbt refs. |
 | **Datasets over polling or sensors** | Airflow sensors, external task sensors | Dataset-triggered DAGs decouple ingestion from transformation without polling overhead or hard-coded DAG IDs. A `Dataset("mssql://...")` outlet auto-triggers `dbt_marts_azure`. |
 | **Single `azure-dev` environment** | Staging + production | Staging/prod adds complexity without portfolio value for a CV project. Auto-approve on merge to main. dbt runs via Dataset trigger after ingestion completes. |

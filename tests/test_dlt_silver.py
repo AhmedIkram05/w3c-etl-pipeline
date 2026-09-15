@@ -744,151 +744,27 @@ class TestGetISPUDF:
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  7. Left-anti deduplication (CRIT-06)
+#  7. Bronze CDC consumption — Silver reads the Change Data Feed
 # ══════════════════════════════════════════════════════════════════════
 
 
-class TestLeftAntiDedup:
-    """Left-anti dedup — prevents duplicate rows on Silver re-runs."""
+class TestCdcConsumption:
+    """Silver must stream Bronze changes via the Delta Change Data Feed (CDC)."""
 
-    @staticmethod
-    def _bronze_schema():
-        from pyspark.sql.types import (
-            DateType,
-            IntegerType,
-            LongType,
-            StringType,
-            StructField,
-            StructType,
-        )
+    def test_bronze_read_via_cdf_stream(self):
+        """Bronze is read as a Change Data Feed streaming source."""
+        import inspect
 
-        return StructType([
-            StructField("source_file", StringType(), True),
-            StructField("log_date", DateType(), True),
-            StructField("client_ip", StringType(), True),
-            StructField("method", StringType(), True),
-            StructField("uri_stem", StringType(), True),
-            StructField("status", IntegerType(), True),
-            StructField("user_agent", StringType(), True),
-            StructField("bytes_sent", LongType(), True),
-            StructField("bytes_recv", LongType(), True),
-        ])
+        source = inspect.getsource(silver_enriched_logs)
+        assert "readStream" in source
+        assert 'option("readChangeFeed", "true")' in source
 
-    def test_left_anti_removes_existing_source_files(self, spark):
-        """Rows from already-processed source_file are excluded."""
-        bronze = spark.createDataFrame(
-            [
-                Row(
-                    source_file="f1.log",
-                    log_date=None,
-                    client_ip="1.1.1.1",
-                    method="GET",
-                    uri_stem="/",
-                    status=200,
-                    user_agent="UA",
-                    bytes_sent=100,
-                    bytes_recv=0,
-                ),
-                Row(
-                    source_file="f2.log",
-                    log_date=None,
-                    client_ip="2.2.2.2",
-                    method="GET",
-                    uri_stem="/",
-                    status=200,
-                    user_agent="UA",
-                    bytes_sent=100,
-                    bytes_recv=0,
-                ),
-                Row(
-                    source_file="f3.log",
-                    log_date=None,
-                    client_ip="3.3.3.3",
-                    method="GET",
-                    uri_stem="/",
-                    status=200,
-                    user_agent="UA",
-                    bytes_sent=100,
-                    bytes_recv=0,
-                ),
-            ],
-            schema=self._bronze_schema(),
-        )
-        existing = spark.createDataFrame([
-            Row(source_file="f1.log"),
-            Row(source_file="f2.log"),
-        ])
+    def test_no_full_refresh_batch_read(self):
+        """Silver must not fall back to a full-refresh batch read of Bronze."""
+        import inspect
 
-        deduped = bronze.join(existing.select("source_file").distinct(), on="source_file", how="left_anti")
-        assert deduped.count() == 1
-        assert deduped.select("source_file").collect()[0][0] == "f3.log"
-
-    def test_no_existing_data_keeps_all(self, spark):
-        """When Silver is empty, all Bronze rows pass through."""
-        from pyspark.sql.types import StringType, StructField, StructType
-
-        bronze = spark.createDataFrame(
-            [
-                Row(
-                    source_file="f1.log",
-                    log_date=None,
-                    client_ip="1.1.1.1",
-                    method="GET",
-                    uri_stem="/",
-                    status=200,
-                    user_agent="UA",
-                    bytes_sent=100,
-                    bytes_recv=0,
-                ),
-                Row(
-                    source_file="f2.log",
-                    log_date=None,
-                    client_ip="2.2.2.2",
-                    method="GET",
-                    uri_stem="/",
-                    status=200,
-                    user_agent="UA",
-                    bytes_sent=100,
-                    bytes_recv=0,
-                ),
-            ],
-            schema=self._bronze_schema(),
-        )
-        # Simulate empty existing Silver with empty DataFrame
-        existing = (
-            spark
-            .createDataFrame([], schema=StructType([StructField("source_file", StringType(), True)]))
-            .select("source_file")
-            .distinct()
-        )
-
-        deduped = bronze.join(existing, on="source_file", how="left_anti")
-        assert deduped.count() == 2
-
-    def test_all_excluded_when_all_processed(self, spark):
-        """When every source_file is already in Silver, no rows pass through."""
-        bronze = spark.createDataFrame(
-            [
-                Row(
-                    source_file="f1.log",
-                    log_date=None,
-                    client_ip="1.1.1.1",
-                    method="GET",
-                    uri_stem="/",
-                    status=200,
-                    user_agent="UA",
-                    bytes_sent=100,
-                    bytes_recv=0,
-                ),
-            ],
-            schema=self._bronze_schema(),
-        )
-        existing = spark.createDataFrame([
-            Row(source_file="f1.log"),
-        ])
-
-        deduped = bronze.join(existing.select("source_file").distinct(), on="source_file", how="left_anti")
-        assert deduped.count() == 0
+        source = inspect.getsource(silver_enriched_logs)
+        assert "spark.table(" not in source
 
 
 # ══════════════════════════════════════════════════════════════════════
