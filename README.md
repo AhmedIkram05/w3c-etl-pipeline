@@ -96,8 +96,9 @@ flowchart LR
 **Every piece, in one line:**
 
 | Component | What it does |
-|---|---|
+| --- | --- |
 | **[Azure Databricks DLT](docs/README-full.md#1-azure-databricks-dlt-bronze--silver)** | Serverless Bronze → Silver: custom W3C parser, GeoIP enrichment, dedup - zero cluster management |
+| **[PySpark jobs](docs/README-full.md#silver-range-backfill)** | Raw Spark beyond DLT: RDD log parser (Bronze), GeoIP/UA UDF enrichment (Silver), skew-resilient range backfill - salt + broadcast + Delta replaceWhere |
 | **[Azure SQL](docs/README-full.md#2-azure-sql--jdbc-export)** | Serverless warehouse; Silver → Azure SQL via pymssql export |
 | **[Apache Airflow](docs/README-full.md#3-apache-airflow-orchestration)** | 4 DAGs wired by dataset triggers - ingestion → dimensions → dbt, no polling |
 | **[dbt](docs/README-full.md#4-dbt--the-t-sql-migration)** | 16 models compiling against both T-SQL and PostgreSQL from one source |
@@ -114,8 +115,9 @@ flowchart LR
 ## Why It's Interesting
 
 | Highlight | Why It Matters |
-|---|---|
+| --- | --- |
 | **JDBC export** - Silver → Azure SQL via pymssql with tracking-table idempotency. | Databricks serverless only supports JDBC reads, not writes, so the export uses pure-Python `pymssql`. [Deep dive](docs/README-full.md#2-azure-sql--jdbc-export) |
+| **Skew-resilient PySpark backfill** - idempotent Delta replaceWhere range rewrite with salted repartition over (log_date, salt) and a broadcast crawler-IP join. | Tested on a 14x hotspot fixture: partition max/min ratio drops 14 → 1.47, plan shows BroadcastHashJoin, rerun converges to identical row counts. [Deep dive](docs/README-full.md#silver-range-backfill) |
 | **Dual-dialect dbt** - all 16 models compile against PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline dialect branches, no duplicate model files. | One model, two databases, one source of truth. [Deep dive](docs/README-full.md#4-dbt--the-t-sql-migration) |
 | **Terraform with OIDC** - two Terraform parts provision the whole estate, including the GitHub→Azure auth chain itself. | Zero static credentials: the runner assumes an Azure AD identity via token exchange, not client secrets. One `terraform apply` from scratch. [Deep dive](docs/README-full.md#6-terraform-infrastructure-as-code) |
 | **4-layer observability** - Grafana dashboards, Prometheus alerting on a StatsD stream, Azure Monitor alerts, and OpenLineage lineage. | DAG durations, container health, data freshness, and pipeline lineage are all tracked from day one. [Deep dive](docs/README-full.md#9-monitoring--observability) |
@@ -125,7 +127,7 @@ flowchart LR
 ## Key Metrics
 
 | Metric | Value |
-|---|---|
+| --- | --- |
 | Requests served | **155.6K** across **88 active countries** (BI) / 30+ GeoIP-resolved (Silver) |
 | Traffic | **62% human / 38% bot**, 9.7% 404 rate |
 | Bronze rows ingested | **153,380** - 0 dropped at Bronze (7 of 10 DLT quality-gate checks) |
@@ -133,7 +135,8 @@ flowchart LR
 | DLT quality-gate checks | **10** - 7 Bronze + 3 Silver (`@dlt.expect_or_drop`) |
 | dbt models | **16** (10 staging + 6 marts), dual-dialect T-SQL/PostgreSQL |
 | dbt data tests | **121** (not_null, unique, accepted_values, relationships, expression_is_true, singular) |
-| pytest | **627 total** (597 in CI: 480 unit + 92 terraform + 25 DAG integrity) |
+| pytest | **630 total** (600 in CI: 483 unit + 92 terraform + 25 DAG integrity) |
+| Partition skew (backfill test) | max/min **14 → 1.47** via salted repartition over (log_date, salt); BroadcastHashJoin verified in plan |
 | Orchestration | **4 Airflow DAGs**, dataset-triggered; **7 GitHub Actions workflows** |
 | Observability | **3 Grafana dashboards** (23 panels), **8 Prometheus + 2 Azure Monitor alerts** |
 | Cost | **~$0–100/mo** - serverless auto-scales to zero, $50 warning / $100 hard cap |
@@ -171,7 +174,7 @@ flowchart LR
 ## Trade-offs That Mattered
 
 | Decision | Alternative | Why This Won |
-|---|---|---|
+| --- | --- | --- |
 | **Dual-dialect dbt:** inline `{% if target.type == 'sqlserver' %}` branches | Per-dialect model files (`_azure.sql`) | dbt would parse both as independent models - duplicate DAG entries. Inline branches keep one source of truth. |
 | **Serverless DLT** over classic clusters | Fixed job clusters with VMs | Zero infrastructure management: scales to zero when idle, no cluster tuning ever. |
 | **SCD Type 2** for `dim_geolocation` over append-only/Type 1 | In-place overwrite | Full attribute history plus current-state performance, via a T-SQL `MERGE ... OUTPUT` pattern in the Azure SQL load (Airflow `export_dimensions`); the local Postgres path stays SCD1-style upserts. |
@@ -192,8 +195,10 @@ dbt deps --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
 dbt run  --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
 dbt test --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
 uv run pytest tests/ -m "not integration and not dbt_compile"
-cd terraform/part_a && terraform init -backend=false && terraform test
+cd terraform/platform && terraform init -backend=false && terraform test
 ```
+
+- Backfilling a date range: `spark-submit airflow/spark/jobs/silver_backfill.py` re-runs full Silver enrichment for a `log_date` range via Delta `replaceWhere` - details: [docs/README-full.md](docs/README-full.md#silver-range-backfill)
 
 The 16-service compose stack this spins up:
 

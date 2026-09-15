@@ -1,20 +1,20 @@
 """
-Terraform Part B validation tests.
+Terraform Databricks stack validation tests.
 
-Verifies that ``terraform/part_b/`` directory structure, HCL files, and
+Verifies that ``terraform/databricks/`` directory structure, HCL files, and
 resource definitions are syntactically correct and match expected patterns.
 
 Running
 -------
 These tests require the ``terraform`` binary on ``PATH`` and a successful
-``terraform init`` in the Part B directory. They are marked
+``terraform init`` in the databricks directory. They are marked
 ``@pytest.mark.terraform`` and are skipped by default:
 
     # Run tests excluding terraform (default):
     pytest tests/ -v
 
     # Run terraform tests explicitly:
-    pytest tests/test_terraform_part_b.py -v -m terraform
+    pytest tests/test_terraform_databricks.py -v -m terraform
 """
 
 import os
@@ -23,7 +23,7 @@ import subprocess
 
 import pytest
 
-_PART_B_DIR = os.path.join(os.path.dirname(__file__), "..", "terraform", "part_b")
+_DATABRICKS_DIR = os.path.join(os.path.dirname(__file__), "..", "terraform", "databricks")
 
 _EXPECTED_FILES = [
     "main.tf",
@@ -75,24 +75,24 @@ def _read_file(path):
 
 
 @pytest.mark.terraform
-class TestTerraformPartBDirectory:
-    """Verify the Part B directory and expected files exist."""
+class TestTerraformDatabricksDirectory:
+    """Verify the databricks directory and expected files exist."""
 
-    def test_part_b_dir_exists(self):
-        """terraform/part_b/ directory exists."""
-        assert os.path.isdir(_PART_B_DIR), f"Expected directory {_PART_B_DIR} not found"
+    def test_databricks_dir_exists(self):
+        """terraform/databricks/ directory exists."""
+        assert os.path.isdir(_DATABRICKS_DIR), f"Expected directory {_DATABRICKS_DIR} not found"
 
     @pytest.mark.parametrize("filename", _EXPECTED_FILES)
     def test_expected_file_exists(self, filename):
         """Expected file {filename} exists."""
-        path = os.path.join(_PART_B_DIR, filename)
+        path = os.path.join(_DATABRICKS_DIR, filename)
         assert os.path.isfile(path), f"Expected file {filename} not found at {path}"
 
     def test_has_terraform_init(self):
         """terraform init has been run (.terraform directory present)."""
         pytest.skip("Skipped in CI — terraform init is validated in the terraform CI job")
-        assert _terraform_inited(_PART_B_DIR), (
-            f"No .terraform directory in {_PART_B_DIR}. Run 'terraform init' in terraform/part_b/ first."
+        assert _terraform_inited(_DATABRICKS_DIR), (
+            f"No .terraform directory in {_DATABRICKS_DIR}. Run 'terraform init' in terraform/databricks/ first."
         )
 
 
@@ -100,11 +100,11 @@ class TestTerraformPartBDirectory:
 
 
 @pytest.mark.terraform
-class TestTerraformPartBResources:
+class TestTerraformDatabricksResources:
     """Verify expected resource definitions exist in main.tf."""
 
     def _main_tf_content(self):
-        content = _read_file(os.path.join(_PART_B_DIR, "main.tf"))
+        content = _read_file(os.path.join(_DATABRICKS_DIR, "main.tf"))
         assert content is not None, "main.tf not found"
         return content
 
@@ -187,18 +187,18 @@ class TestTerraformPartBResources:
 
 
 @pytest.mark.terraform
-class TestTerraformPartBConfig:
+class TestTerraformDatabricksConfig:
     """Verify pipeline configuration details."""
 
     def test_bronze_has_storage_account_name(self):
         """Bronze pipeline config has storage.account_name."""
-        content = _read_file(os.path.join(_PART_B_DIR, "main.tf"))
+        content = _read_file(os.path.join(_DATABRICKS_DIR, "main.tf"))
         assert content is not None
         assert "storage.account_name" in content
 
     def test_silver_has_geoip_paths(self):
         """Silver pipeline config has geoip paths."""
-        content = _read_file(os.path.join(_PART_B_DIR, "main.tf"))
+        content = _read_file(os.path.join(_DATABRICKS_DIR, "main.tf"))
         assert content is not None
         assert "geoip.city_db_path" in content
         assert "geoip.asn_db_path" in content
@@ -207,13 +207,13 @@ class TestTerraformPartBConfig:
 
     def test_silver_has_maxminddb_env(self):
         """Silver pipeline has maxminddb environment dependency."""
-        content = _read_file(os.path.join(_PART_B_DIR, "main.tf"))
+        content = _read_file(os.path.join(_DATABRICKS_DIR, "main.tf"))
         assert content is not None
         assert "maxminddb" in content
 
     def test_both_pipelines_have_catalog_target(self):
         """Both pipelines specify catalog and target."""
-        content = _read_file(os.path.join(_PART_B_DIR, "main.tf"))
+        content = _read_file(os.path.join(_DATABRICKS_DIR, "main.tf"))
         assert content is not None
         # Count catalog/target occurrences
         catalog_count = content.count("catalog")
@@ -223,7 +223,7 @@ class TestTerraformPartBConfig:
 
     def test_conditional_storage_key(self):
         """Storage key uses ternary for conditional injection."""
-        content = _read_file(os.path.join(_PART_B_DIR, "main.tf"))
+        content = _read_file(os.path.join(_DATABRICKS_DIR, "main.tf"))
         assert content is not None
         # Should have a ternary pattern like: var.storage_access_key != "" ? ...
         assert "storage_access_key" in content
@@ -235,7 +235,7 @@ class TestTerraformPartBConfig:
 
 
 @pytest.mark.terraform
-class TestTerraformPartBVariables:
+class TestTerraformDatabricksVariables:
     """Verify variables.tf contains expected inputs."""
 
     _EXPECTED_VARS = [
@@ -252,13 +252,13 @@ class TestTerraformPartBVariables:
 
     def test_variables_file_exists(self):
         """variables.tf exists."""
-        path = os.path.join(_PART_B_DIR, "variables.tf")
+        path = os.path.join(_DATABRICKS_DIR, "variables.tf")
         assert os.path.isfile(path)
 
     @pytest.mark.parametrize("var_name", _EXPECTED_VARS)
     def test_expected_variable_defined(self, var_name):
         """Expected variable {var_name} is defined in variables.tf."""
-        content = _read_file(os.path.join(_PART_B_DIR, "variables.tf"))
+        content = _read_file(os.path.join(_DATABRICKS_DIR, "variables.tf"))
         assert content is not None
         assert f'variable "{var_name}"' in content, f"Variable '{var_name}' not found in variables.tf"
 
@@ -267,7 +267,7 @@ class TestTerraformPartBVariables:
 
 
 @pytest.mark.terraform
-class TestTerraformPartBOutputs:
+class TestTerraformDatabricksOutputs:
     """Verify outputs.tf contains expected values."""
 
     _EXPECTED_OUTPUTS = [
@@ -279,13 +279,13 @@ class TestTerraformPartBOutputs:
 
     def test_outputs_file_exists(self):
         """outputs.tf exists."""
-        path = os.path.join(_PART_B_DIR, "outputs.tf")
+        path = os.path.join(_DATABRICKS_DIR, "outputs.tf")
         assert os.path.isfile(path)
 
     @pytest.mark.parametrize("output_name", _EXPECTED_OUTPUTS)
     def test_expected_output_defined(self, output_name):
         """Expected output {output_name} is defined in outputs.tf."""
-        content = _read_file(os.path.join(_PART_B_DIR, "outputs.tf"))
+        content = _read_file(os.path.join(_DATABRICKS_DIR, "outputs.tf"))
         assert content is not None
         assert f'output "{output_name}"' in content, f"Output '{output_name}' not found in outputs.tf"
 
@@ -303,15 +303,15 @@ class TestTerraformValidate:
         tf_bin = _terraform_binary()
         if tf_bin is None:
             pytest.skip("terraform binary not found on PATH")
-        if not _terraform_inited(_PART_B_DIR):
-            pytest.skip("terraform init not run yet. Run 'terraform init' in terraform/part_b/ first.")
+        if not _terraform_inited(_DATABRICKS_DIR):
+            pytest.skip("terraform init not run yet. Run 'terraform init' in terraform/databricks/ first.")
         return tf_bin
 
     def test_terraform_validate_success(self, terraform_path):
         """``terraform validate`` completes with exit code 0."""
         result = subprocess.run(
             [terraform_path, "validate"],
-            cwd=_PART_B_DIR,
+            cwd=_DATABRICKS_DIR,
             capture_output=True,
             text=True,
             timeout=30,
@@ -323,7 +323,7 @@ class TestTerraformValidate:
         """``terraform fmt --check`` passes (no formatting issues)."""
         result = subprocess.run(
             [terraform_path, "fmt", "--check", "-recursive"],
-            cwd=_PART_B_DIR,
+            cwd=_DATABRICKS_DIR,
             capture_output=True,
             text=True,
             timeout=30,

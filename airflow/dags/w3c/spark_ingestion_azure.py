@@ -64,7 +64,7 @@ RAW_ENRICHED = Dataset("mssql://azure-sql/dbo/raw_enriched")
 DIM_GEOLOCATION = Dataset("mssql://azure-sql/dbo/dim_geolocation")
 DIM_USERAGENT = Dataset("mssql://azure-sql/dbo/dim_useragent")
 
-# ── Databricks job ID (from terraform/part_b output.workflow_job_id) ────────
+# ── Databricks job ID (from terraform/databricks output.workflow_job_id) ─────
 DATABRICKS_JOB_ID = os.environ.get("DATABRICKS_JOB_ID", "847995192336508")
 
 # ── Default arguments ──────────────────────────────────────────────────────
