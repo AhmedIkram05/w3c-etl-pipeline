@@ -63,7 +63,7 @@ flowchart LR
 
     bronze["DLT Bronze (serverless)<br/>parse • validate • partition"]:::dlt
 
-    silver["DLT Silver (serverless)<br/>GeoIP enrichment + dedup"]:::dlt
+    silver["DLT Silver (serverless)<br/>GeoIP enrichment • Bronze CDC feed"]:::dlt
 
     jdbc["JDBC Export (notebook_task)<br/>pymssql batch write"]:::sql
 
@@ -81,7 +81,7 @@ flowchart LR
 
     source -->|"ABFSS path"| adls
     adls -->|"Auto Loader"| bronze
-    bronze -->|"spark.table()"| silver
+    bronze -->|"Change Data Feed"| silver
     silver -->|"collect() + pymssql"| jdbc
     jdbc --> azsql
     azsql --> dims
@@ -97,7 +97,7 @@ flowchart LR
 
 | Component | What it does |
 | --- | --- |
-| **[Azure Databricks DLT](docs/README-full.md#1-azure-databricks-dlt-bronze--silver)** | Serverless Bronze → Silver: custom W3C parser, GeoIP enrichment, dedup - zero cluster management |
+| **[Azure Databricks DLT](docs/README-full.md#1-azure-databricks-dlt-bronze--silver)** | Serverless Bronze → Silver: custom W3C parser, GeoIP enrichment, Bronze Change Data Feed - zero cluster management |
 | **[PySpark jobs](docs/README-full.md#silver-range-backfill)** | Raw Spark beyond DLT: RDD log parser (Bronze), GeoIP/UA UDF enrichment (Silver), skew-resilient range backfill - salt + broadcast + Delta replaceWhere |
 | **[Azure SQL](docs/README-full.md#2-azure-sql--jdbc-export)** | Serverless warehouse; Silver → Azure SQL via pymssql export |
 | **[Apache Airflow](docs/README-full.md#3-apache-airflow-orchestration)** | 4 DAGs wired by dataset triggers - ingestion → dimensions → dbt, no polling |

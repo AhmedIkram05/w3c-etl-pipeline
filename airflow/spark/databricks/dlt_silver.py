@@ -281,24 +281,13 @@ def silver_enriched_logs():
 
     - CRIT-04 fix: GeoIP readers use lazy singleton pattern (no PicklingError)
     - CRIT-05 fix: consolidated get_geo_fields struct UDF (1 lookup → 6 fields)
-    - CRIT-06 fix: left_anti join on source_file for idempotent re-runs
+    - CRIT-06 fix (CDC): consumes Bronze's Delta Change Data Feed as a
+      checkpointed stream — each run processes only Bronze changes since the
+      last checkpoint, replacing the old full-refresh-left_anti dedupe.
     """
-    # Read from Bronze (cross-pipeline via full UC path)
-    bronze_df = spark.table("w3c_etl_databricks.bronze.bronze_raw_logs")  # noqa: F821
-
-    # ── Deduplication against existing Silver data (CRIT-06) ──
-    # Prevent duplicate rows on pipeline re-runs by filtering out
-    # source_file values already processed in the Silver table.
-    try:
-        existing_silver = dlt.read("silver_enriched_logs")
-        bronze_df = bronze_df.join(
-            existing_silver.select("source_file").distinct(),
-            on="source_file",
-            how="left_anti",
-        )
-    except Exception:
-        # First run — Silver table does not exist yet, process all data
-        pass
+    # Read only Bronze *changes* via the Delta Change Data Feed (CDC).
+    # DLT checkpoints the stream, so re-runs never reprocess old commits.
+    bronze_df = spark.readStream.option("readChangeFeed", "true").table("w3c_etl_databricks.bronze.bronze_raw_logs")
 
     # ── GeoIP enrichment (consolidated: 1 UDF → 6 columns) ──
     # Apply consolidated struct UDF, then extract individual fields
