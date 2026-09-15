@@ -51,6 +51,7 @@ import zipfile
 from airflow.datasets import Dataset
 from airflow.operators.python import PythonOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+from airflow.utils.trigger_rule import TriggerRule
 from operators.export_dimensions import export_dimensions as _export_dimensions
 
 from airflow import DAG
@@ -242,6 +243,43 @@ export_dimensions = PythonOperator(
     task_id="export_dimensions",
     python_callable=_export_dimensions,
     outlets=[WAREHOUSE_LOADED],
+    dag=dag,
+)
+
+# ══════════════════════════════════════════════════════════════════════════
+# STANDALONE: Silver Range Backfill (manual-only, NOT in the linear chain)
+# ══════════════════════════════════════════════════════════════════════════
+# Reprocesses an explicit Bronze log_date range into Silver with salted
+# repartition + broadcast crawler join, overwriting only those partitions
+# via Delta replaceWhere. Trigger manually with a dagRun conf:
+#   airflow dags trigger w3c_spark_ingestion \
+#     --conf '{"start_date": "2009-10-24", "end_date": "2009-10-26"}'
+
+silver_backfill = SparkSubmitOperator(
+    task_id="silver_backfill",
+    application=f"{SPARK_JOBS_DIR}/silver_backfill.py",
+    conn_id="spark_default",
+    name="w3c_silver_backfill",
+    verbose=True,
+    driver_memory=_DRIVER_MEMORY,
+    executor_memory=_EXECUTOR_MEMORY,
+    executor_cores=_EXECUTOR_CORES,
+    total_executor_cores=_TOTAL_EXECUTOR_CORES,
+    conf=_SPARK_CONF,
+    py_files=UTILS_PY_FILES,
+    application_args=[
+        "--delta-dir",
+        DELTA_DIR,
+        "--start-date",
+        "{{ dag_run.conf.get('start_date', '') }}",
+        "--end-date",
+        "{{ dag_run.conf.get('end_date', '') }}",
+        "--geolite2-db",
+        os.environ.get("GEOIP_DB_PATH", "/opt/spark/data/GeoLite2-City.mmdb"),
+        "--geolite2-asn-db",
+        os.environ.get("GEOIP_ASN_DB_PATH", "/opt/spark/data/GeoLite2-ASN.mmdb"),
+    ],
+    trigger_rule=TriggerRule.NONE_FAILED,
     dag=dag,
 )
 

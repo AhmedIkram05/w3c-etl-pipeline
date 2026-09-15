@@ -4,7 +4,7 @@ variable "databricks_host" {
 }
 
 variable "storage_account_name" {
-  description = "Storage account name for ADLS Gen2 (from Part A)"
+  description = "Storage account name for ADLS Gen2 (from the platform stack)"
   type        = string
 }
 
@@ -20,7 +20,7 @@ variable "storage_access_key" {
 }
 
 variable "azure_sql_server" {
-  description = "Azure SQL server FQDN (from Part A)"
+  description = "Azure SQL server FQDN (from the platform stack)"
   type        = string
 }
 
@@ -55,7 +55,7 @@ variable "jdbc_export_notebook_path" {
 }
 
 variable "access_connector_id" {
-  description = "Databricks access connector resource ID (from Part A)"
+  description = "Databricks access connector resource ID (from the platform stack)"
   type        = string
 }
 

@@ -39,8 +39,8 @@ jobs:
       id-token: write
       contents: read
     outputs:
-      plan_a_exitcode: ${{ steps.plan_a.outputs.exitcode }}
-      plan_b_exitcode: ${{ steps.plan_b.outputs.exitcode }}
+      plan_platform_exitcode: ${{ steps.plan_platform.outputs.exitcode }}
+      plan_databricks_exitcode: ${{ steps.plan_databricks.outputs.exitcode }}
     env:
       ARM_USE_OIDC: true
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
@@ -53,25 +53,25 @@ jobs:
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
-      - name: Terraform Plan (Part A)
-        id: plan_a
+      - name: Terraform Plan (Platform)
+        id: plan_platform
         run: |
-          cd terraform/part_a
+          cd terraform/platform
           terraform init -input=false
           set -o pipefail
           # -lock=false: safe for read-only plans, avoids state lock contention
           # when a concurrent apply holds the lock.
-          terraform plan -no-color -lock=false -input=false -var-file=environments/dev/terraform.tfvars 2>&1 | tee tfplan_a.log || exitcode=$?
+          terraform plan -no-color -lock=false -input=false -var-file=environments/dev/terraform.tfvars 2>&1 | tee tfplan_platform.log || exitcode=$?
           echo "exitcode=${exitcode:-0}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload Part A Plan
+      - name: Upload Platform Plan
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-part-a
-          path: terraform/part_a/tfplan_a.log
+          name: tfplan-platform
+          path: terraform/platform/tfplan_platform.log
 
-      - name: Terraform Plan (Part B)
-        id: plan_b
+      - name: Terraform Plan (Databricks)
+        id: plan_databricks
         if: github.actor != 'dependabot[bot]'
         env:
           DATABRICKS_AUTH_TYPE: pat
@@ -79,18 +79,18 @@ jobs:
           TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
-          cd terraform/part_b
+          cd terraform/databricks
           terraform init -input=false
           set -o pipefail
-          terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars 2>&1 | tee tfplan_b.log || exitcode=$?
+          terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars 2>&1 | tee tfplan_databricks.log || exitcode=$?
           echo "exitcode=${exitcode:-0}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload Part B Plan
-        if: steps.plan_b.conclusion == 'success'
+      - name: Upload Databricks Plan
+        if: steps.plan_databricks.conclusion == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-part-b
-          path: terraform/part_b/tfplan_b.log
+          name: tfplan-databricks
+          path: terraform/databricks/tfplan_databricks.log
 
   # -----------------------------------------------------------------------
   # Terraform Apply (per environment, gated by GitHub Environments)
@@ -117,20 +117,20 @@ jobs:
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
-      - name: Terraform Apply (Part A)
+      - name: Terraform Apply (Platform)
         run: |
-          cd terraform/part_a
+          cd terraform/platform
           terraform init -input=false -migrate-state
           terraform apply -auto-approve -input=false -lock-timeout=300s -var-file=environments/dev/terraform.tfvars
 
-      - name: Terraform Apply (Part B)
+      - name: Terraform Apply (Databricks)
         env:
           DATABRICKS_AUTH_TYPE: pat
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
-          cd terraform/part_b
+          cd terraform/databricks
           terraform init -input=false
           terraform apply -auto-approve -input=false -lock-timeout=300s -var-file=environments/dev/terraform.tfvars
 
@@ -163,36 +163,36 @@ jobs:
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
-      - name: Terraform Rollback — Part A (plan)
+      - name: Terraform Rollback — Platform (plan)
         run: |
-          cd terraform/part_a
+          cd terraform/platform
           terraform init -input=false -migrate-state
           terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback
 
-      - name: Terraform Rollback — Part A (apply)
+      - name: Terraform Rollback — Platform (apply)
         run: |
-          cd terraform/part_a
+          cd terraform/platform
           terraform apply -auto-approve -input=false -lock-timeout=300s tfplan_rollback
 
-      - name: Terraform Rollback — Part B (plan)
+      - name: Terraform Rollback — Databricks (plan)
         env:
           DATABRICKS_AUTH_TYPE: pat
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
-          cd terraform/part_b
+          cd terraform/databricks
           terraform init -input=false -migrate-state
           terraform plan -no-color -input=false -var-file=environments/dev/terraform.tfvars -out=tfplan_rollback
 
-      - name: Terraform Rollback — Part B (apply)
+      - name: Terraform Rollback — Databricks (apply)
         env:
           DATABRICKS_AUTH_TYPE: pat
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           TF_VAR_azure_sql_password: ${{ secrets.AZURE_SQL_PASSWORD }}
           TF_VAR_storage_access_key: ${{ secrets.STORAGE_ACCESS_KEY }}
         run: |
-          cd terraform/part_b
+          cd terraform/databricks
           terraform init -input=false
           terraform apply -auto-approve -input=false -lock-timeout=300s tfplan_rollback
 

@@ -1,4 +1,4 @@
-# Default test suite for Part A — Azure infrastructure
+# Default test suite for Platform — Azure infrastructure
 #
 # Verifies that: (1) the configuration plans successfully with mock
 # providers, (2) all required variables are provided, and
@@ -7,7 +7,7 @@
 # These tests are run by `terraform test` (Terraform 1.6+).
 # Mock providers allow validation without cloud credentials.
 #
-# NOTE: Part A uses `command = plan` because Azure provider resources
+# NOTE: The platform configuration uses `command = plan` because Azure provider resources
 # validate resource ID formats during apply. With `command = plan`,
 # mock providers generate the resource graph without Azure ID validation.
 # The tests confirm the configuration is parseable, modules are
