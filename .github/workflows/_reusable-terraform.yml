@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        dir: [terraform/part_a, terraform/part_b]
+        dir: [terraform/platform, terraform/databricks]
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3

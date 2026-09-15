@@ -1,4 +1,4 @@
-# Default test suite for Part B — Databricks workspace configuration
+# Default test suite for Databricks — workspace configuration
 #
 # Verifies that: (1) the expected resource types are defined,
 # (2) the DLT pipelines exist, (3) Unity Catalog schemas exist,
