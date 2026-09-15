@@ -79,7 +79,7 @@ resource "databricks_schema" "gold" {
 # Unity Catalog Storage Credential for raw-logs container (Azure Managed Identity)
 # --------------------------------------------------------------------------
 # Uses Azure Managed Identity via access connector for storage access.
-# The access connector is created in Part A and has Storage Blob Data Contributor
+# The access connector is created in the platform stack and has Storage Blob Data Contributor
 # role on the storage account.
 resource "databricks_storage_credential" "raw_logs_credential" {
   name    = "w3c_raw_logs_credential"

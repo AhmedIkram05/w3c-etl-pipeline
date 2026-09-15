@@ -27,6 +27,13 @@ import pytest
 # ── Airflow home (prevents default ~/airflow database path) ────────
 os.environ.setdefault("AIRFLOW_HOME", tempfile.mkdtemp(prefix="af_home_"))
 
+# ── PySpark workers use the test interpreter ─────────────────────────
+# Local-mode workers default to ``python3`` from PATH, which may lack the
+# test env's third-party UDF deps (user_agents, geoip2, pandas). Pinning
+# workers to the driver interpreter keeps worker imports working in any
+# layout. Must precede the first JVM launch below.
+os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
+
 # ── Remove project root from sys.path ────────────────────────────────
 # Pytest auto-adds the project root to sys.path before conftest.py is
 # even loaded.  The project's ``airflow/`` directory has no

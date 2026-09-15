@@ -43,7 +43,7 @@ updates:
 
   # Terraform providers
   - package-ecosystem: "terraform"
-    directory: "/terraform/part_a"
+    directory: "/terraform/platform"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -57,7 +57,7 @@ updates:
       - "ahmedikram"
 
   - package-ecosystem: "terraform"
-    directory: "/terraform/part_b"
+    directory: "/terraform/databricks"
     schedule:
       interval: "weekly"
       day: "monday"

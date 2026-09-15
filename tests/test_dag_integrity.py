@@ -41,16 +41,16 @@ class TestSparkIngestionDAG:
     """Verify the ``w3c_spark_ingestion`` DAG (bronze → silver → export)."""
 
     def test_spark_ingestion_imports(self):
-        """Verify spark_ingestion DAG imports and parses with 4 tasks."""
+        """Verify spark_ingestion DAG imports and parses with 5 tasks."""
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
         dag = dag_bag.dags.get("w3c_spark_ingestion")
         assert dag is not None, "w3c_spark_ingestion DAG not found in DagBag. Import errors: %s" % dag_bag.import_errors
-        # Expected: bronze_ingestion, silver_enrichment, export_warehouse, export_dimensions
-        assert len(dag.tasks) == 4, (
-            f"Expected 4 tasks (bronze_ingestion, silver_enrichment, "
-            f"export_warehouse, export_dimensions), got {len(dag.tasks)}: "
+        # Expected: bronze_ingestion, silver_enrichment, export_warehouse, export_dimensions, silver_backfill
+        assert len(dag.tasks) == 5, (
+            f"Expected 5 tasks (bronze_ingestion, silver_enrichment, "
+            f"export_warehouse, export_dimensions, silver_backfill), got {len(dag.tasks)}: "
             f"{[t.task_id for t in dag.tasks]}"
         )
 
@@ -68,6 +68,7 @@ class TestSparkIngestionDAG:
             "silver_enrichment",
             "export_warehouse",
             "export_dimensions",
+            "silver_backfill",
         }
         missing = expected - task_ids
         extra = task_ids - expected
@@ -87,11 +88,13 @@ class TestSparkIngestionDAG:
         for task in dag.tasks:
             downstream_map[task.task_id] = {t.task_id for t in task.downstream_list}
 
-        # Each task should have exactly one downstream (except the last)
+        # Each task should have exactly one downstream (except the last).
+        # silver_backfill is standalone (manual-only): no upstream/downstream.
         assert downstream_map["bronze_ingestion"] == {"silver_enrichment"}
         assert downstream_map["silver_enrichment"] == {"export_warehouse"}
         assert downstream_map["export_warehouse"] == {"export_dimensions"}
         assert downstream_map["export_dimensions"] == set()
+        assert downstream_map["silver_backfill"] == set()
 
     def test_spark_ingestion_has_dataset_outlet(self):
         """Verify the spark_ingestion DAG emits Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")."""
