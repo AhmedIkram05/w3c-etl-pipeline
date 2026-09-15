@@ -198,7 +198,7 @@ flowchart LR
 | **JDBC Export** | Silver → Azure SQL via pymssql with tracking-table idempotency. | **Databricks serverless only supports JDBC reads, not writes.** Export uses pure-Python `pymssql`. |
 | **T-SQL Dual-Dialect dbt** | All 16 models compile against both PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%" }}}` branches - no separate `_azure.sql` files. | **One model, two databases.** 18 macros + 2 dispatch overrides abstract PostgreSQL syntax (`::casts`, `EXTRACT`, `SPLIT_PART`, `ILIKE`, `MD5`) behind Jinja wrappers. |
 | **121 dbt Data Tests** | 46 `not_null` · 16 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` · 4 custom singular tests - enforcing business invariants across all 16 models. | **Enforced data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
-| **Terraform with OIDC** | Part A (4 modules: networking, datalake, databricks, warehouse) + Part B (24 resources: DLT pipelines, Workflows, UC schemas, secrets). Full OIDC Workload Identity Federation - no static Azure credentials. | **Zero touch deployment.** One `terraform apply` provisions the entire Azure estate including the GitHub→Azure auth chain. The CI/CD pipeline authenticates via token exchange, not client secrets. |
+| **Terraform with OIDC** | Platform stack (4 modules: networking, datalake, databricks, warehouse) + Databricks stack (24 resources: DLT pipelines, Workflows, UC schemas, secrets). Full OIDC Workload Identity Federation - no static Azure credentials. | **Zero touch deployment.** One `terraform apply` provisions the entire Azure estate including the GitHub→Azure auth chain. The CI/CD pipeline authenticates via token exchange, not client secrets. |
 | **3 Grafana Dashboards** | 23 panels across Airflow ETL Overview (7), Container System Metrics (6), and Pipeline Health (10) - with 8 Prometheus alert rules, 2 Azure Monitor alerts, and 3 action groups (P1/P2/P3). | **Observability from day one.** Airflow StatsD → Prometheus → Grafana pipeline means every DAG run, task duration, and data freshness metric is tracked. |
 | **SCD Type 2 Geolocation** | `dim_geolocation` preserves full attribute history via `valid_from` / `valid_to` / `is_current` - a T-SQL `MERGE ... OUTPUT` pattern expires changed versions and re-inserts new ones, with a filtered unique index enforcing one current row per hash. | **Interview-grade dimensional modelling.** Point-in-time analysis is possible without losing current-state performance, and the `$action OUTPUT` workaround for MERGE's expire-then-insert limitation is the canonical T-SQL SCD2 idiom. |
 | **Cross-Engine Data Lineage** | Every DAG emits OpenLineage events to Marquez: Airflow task runs via the provider listener, dbt models via `dbt-ol` (column-level where SQL parsing allows), dbt test outcomes via a custom `w3cDataQuality` run facet, and Azure DAG dataset edges via task inlets/outlets. | **Unity Catalog only sees Databricks.** OpenLineage stitches the full cross-engine story - Databricks DLT → Azure SQL → dbt → CSV exports - into one lineage graph. |
@@ -220,12 +220,12 @@ flowchart LR
 | **dbt models** | Total | **16** (10 staging + 6 marts) |
 | **dbt macros** | T-SQL compatibility | **18** macros + **2** dispatch overrides |
 | **dbt data tests** | All models | **121** (46 not_null + 16 unique + 21 accepted_values + 10 relationships + 24 expression_is_true + 4 singular) |
-| **pytest** | Total / CI | **627 tests** / **597 in CI** (480 unit + 92 terraform + 25 DAG integrity + 18 integration + 12 dbt_compile) |
-| **Terraform** | HCL assertions | **9** (3 Part A + 6 Part B) + **92** Python tests |
+| **pytest** | Total / CI | **630 tests** / **600 in CI** (483 unit + 92 terraform + 25 DAG integrity + 18 integration + 12 dbt_compile) |
+| **Terraform** | HCL assertions | **9** (3 platform + 6 databricks) + **92** Python tests |
 | **CI/CD** | Workflow files | **7** (4 CI + 1 CD + 1 CodeQL + 1 auto-merge) |
 | **CI/CD** | Job stages | **9 CI + 3 CD** |
 | **IaC** | Terraform modules | **4** (networking, datalake, databricks, warehouse) |
-| **IaC** | Azure resources managed | **30+** across 2 Terraform parts |
+| **IaC** | Azure resources managed | **30+** across 2 Terraform stacks |
 | **Observability** | Grafana dashboards | **3** (23 panels) |
 | **Observability** | Alert rules | **8** Prometheus + **2** Azure Monitor + **3** action groups |
 | **Lineage** | OpenLineage emitters | **4** (provider listener, dbt-ol, custom quality facet, inlets/outlets dataset edges) |
@@ -392,6 +392,37 @@ The Silver layer reads from Bronze via `spark.table()`, enriches each row with M
 **Dedup:** `left_anti` join on `source_file` - wrapped in `try/except` for the first pipeline run when Silver doesn't exist yet.
 
 **Result:** **153,377 rows** (3 dropped by `valid_country` - private/reserved IPs with no GeoIP match), **31 columns**, **30+ countries**.
+
+#### Silver range backfill
+
+The scheduled `silver_enrichment` task only appends new `source_file` values. When enrichment logic changes (new GeoIP DB, new UA rules) or a date range needs reprocessing, the standalone `silver_backfill` Spark job (`airflow/spark/jobs/silver_backfill.py`) re-runs the full Silver UDF chain for an explicit `log_date` range and overwrites only those Silver partitions via Delta `replaceWhere` - all other partitions are untouched.
+
+When to use: reprocessing after GeoIP/UA/`transformations` changes, recovering from a bad Silver write, or backfilling dates whose Bronze data arrived late. It is intentionally NOT wired into the linear bronze >> silver chain - trigger it manually with a dagRun conf:
+
+```bash
+spark-submit airflow/spark/jobs/silver_backfill.py \
+  --start-date 2009-10-24 --end-date 2009-10-26 \
+  --delta-dir /opt/spark/delta --salt-buckets 16 --target-partitions 32
+```
+
+Or via the manual-only `silver_backfill` task in the `w3c_spark_ingestion` DAG:
+
+```bash
+airflow dags trigger w3c_spark_ingestion \
+  --conf '{"start_date": "2009-10-24", "end_date": "2009-10-26"}'
+```
+
+Re-running the same range is idempotent: `replaceWhere` swaps exactly those `log_date` partitions, so repeated runs converge to the same row count.
+
+| Knob | Default | Effect |
+|---|---|---|
+| `--salt-buckets` | 16 | `floor(rand() * N)` salt values spreading hot `log_date`s |
+| `--target-partitions` | 32 | Repartition count over `(log_date, salt)` before enrichment |
+| `--broadcast-threshold-mb` | 32 | `autoBroadcastJoinThreshold` so the tiny crawler-IP DF uses `BroadcastHashJoin` |
+| `--repartition-cols` | `log_date,salt` | Columns for the salted repartition |
+| `--dry-run` | off | Compute skew stats without writing Silver |
+
+Metric interpretation: `run()` returns `partitions_before_ratio` (max/min rows per `log_date` - high means skewed input) and `partitions_after_ratio` (max/min rows per salt bucket - near 1.0 means the salt spread the load). `broadcast_used` confirms the crawler-IP join avoided a shuffle. Crawler detection reuses the Bronze `robots.txt` scan, and `source_file` / `log_date` lineage columns are preserved.
 
 ---
 
@@ -788,9 +819,9 @@ The 30-minute buffer between pipeline start (17:00) and refresh (17:30) comforta
 
 ### 6. Terraform Infrastructure as Code
 
-The entire Azure estate is managed as code in **2 Terraform parts** with a shared Azure Blob Storage backend (`tfstatew3cetl`).
+The entire Azure estate is managed as code in **2 Terraform stacks** with a shared Azure Blob Storage backend (`tfstatew3cetl`).
 
-**Part A - Core Azure Infrastructure** (4 modules):
+**`terraform/platform` - Core Azure Infrastructure** (4 modules):
 
 | Module | Resources |
 |---|---|
@@ -799,7 +830,7 @@ The entire Azure estate is managed as code in **2 Terraform parts** with a share
 | **databricks** | Premium Databricks workspace, access connector (SystemAssigned MI), RBAC, 60s propagation wait |
 | **warehouse** | Azure SQL Server (v12.0), serverless database (GP_S_Gen5_1, auto-pause 60 min, `prevent_destroy`), firewall rules |
 
-**Part B - Databricks Resources** (24 resources):
+**`terraform/databricks` - Databricks Resources** (24 resources):
 
 | Category | Resources |
 |---|---|
@@ -863,7 +894,7 @@ The entire OIDC chain (Azure AD app, service principal, federated credential, ro
 | HCL assertions | `terraform test` (9 assertions) | ✅ |
 | Python tests | `pytest -m terraform` (92 tests) | ✅ |
 
-<!-- MEDIA: Silicon of `terraform test` passing for Part A (3 assertions: credentials provided, resource names non-empty, alerts configured) and Part B (6 assertions: pipelines exist, workflow exists, UC schemas exist, secret scope exists, outputs defined) -->
+<!-- MEDIA: Silicon of `terraform test` passing for the platform stack (3 assertions: credentials provided, resource names non-empty, alerts configured) and the databricks stack (6 assertions: pipelines exist, workflow exists, UC schemas exist, secret scope exists, outputs defined) -->
 
 ---
 
@@ -882,7 +913,7 @@ All Databricks data assets are managed through **Unity Catalog** (`w3c_etl_datab
 ![Unity Catalog Structure](media/unity_catalog.png)
 *Unity Catalog: bronze, silver, gold schemas with storage credential and external location*
 
-**Key Unity Catalog Resources (managed by Terraform Part B):**
+**Key Unity Catalog Resources (managed by the `terraform/databricks` stack):**
 
 | Resource | Name | Purpose |
 |---|---|---|
@@ -912,31 +943,31 @@ All Databricks data assets are managed through **Unity Catalog** (`w3c_etl_datab
 ```mermaid
 flowchart TD
     ci["Push to any branch or PR to main"] --> lint["lint (reusable)<br/>ruff, mypy, bandit, SQLFluff"]
-    ci --> test["test (reusable)<br/>597 pytest + coverage + Codecov"]
+    ci --> test["test (reusable)<br/>600 pytest + coverage + Codecov"]
     ci --> dbtc["dbt-compile (inline)<br/>PostgreSQL + T-SQL compile<br/>+ 12 output validators"]
-    ci --> tf["terraform (reusable, matrix)<br/>Part A + Part B: fmt, init, validate, test"]
+    ci --> tf["terraform (reusable, matrix)<br/>platform + databricks: fmt, init, validate, test"]
 ```
 
 | Job | What It Validates |
 |---|---|
 | **lint** | ruff lint + format (PEP8), mypy type checking (19 files), bandit security scan, SQLFluff dbt SQL lint |
-| **test** | 597 pytest tests across all pipeline layers (base + DAG integrity + Terraform) with Codecov coverage |
+| **test** | 600 pytest tests across all pipeline layers (base + DAG integrity + Terraform) with Codecov coverage |
 | **dbt-compile** | dbt compile against PostgreSQL + T-SQL/Azure SQL in dual-service CI containers (PostgreSQL 13 + SQL Server 2022 side-by-side), plus 12 T-SQL output validators |
-| **terraform** | `fmt --check`, `init`, `validate`, `terraform test` (9 HCL assertions) across both Part A + Part B matrix |
+| **terraform** | `fmt --check`, `init`, `validate`, `terraform test` (9 HCL assertions) across both platform + databricks matrix |
 
 **CD - Merge to Main (OIDC-scoped deployment):**
 
 ```mermaid
 flowchart TD
-    cd["Push to main (auto-deploy)"] --> plan["terraform-plan<br/>Part A + Part B<br/>(read-only)"]
-    plan --> apply["terraform-apply<br/>Part A (OIDC) + Part B (OIDC + PAT)"]
+    cd["Push to main (auto-deploy)"] --> plan["terraform-plan<br/>platform + databricks<br/>(read-only)"]
+    plan --> apply["terraform-apply<br/>platform (OIDC) + databricks (OIDC + PAT)"]
     cd -->|"manual workflow_dispatch"| rollback["rollback<br/>Checkout HEAD~1 →<br/>terraform apply previous commit"]
 ```
 
 | CD Job | Key Details |
 |---|---|---|
-| **terraform-plan** | Read-only plan. Part A via OIDC. Part B via PAT (skipped for Dependabot). Plan artifacts uploaded for review. |
-| **terraform-apply** | Deploys Azure infra (Part A) + Databricks resources (Part B). All auth via OIDC - no `ARM_CLIENT_SECRET`. |
+| **terraform-plan** | Read-only plan. Platform via OIDC. Databricks via PAT (skipped for Dependabot). Plan artifacts uploaded for review. |
+| **terraform-apply** | Deploys Azure infra (platform) + Databricks resources (databricks). All auth via OIDC - no `ARM_CLIENT_SECRET`. |
 | **rollback** | Manual `workflow_dispatch`. Checks out `HEAD~1` with `fetch-depth: 0`, then terraform apply the previous commit. |
 
 **Pre-commit Hooks (15 local quality gates):**
@@ -953,7 +984,7 @@ flowchart TD
 - **CodeQL** - Every push + PR + weekly Monday (Python + GitHub Actions)
 - **GitGuardian** - Every push (GitHub org-level)
 
-**Dependabot:** 5 ecosystems (pip, GitHub Actions, Terraform Part A, Terraform Part B, Docker) with patch auto-merge for pip dependencies.
+**Dependabot:** 5 ecosystems (pip, GitHub Actions, Terraform platform, Terraform databricks, Docker) with patch auto-merge for pip dependencies.
 
 ---
 
@@ -1071,7 +1102,7 @@ Failure policy is deliberate: missing results file or unreachable Marquez → wa
 
 | Layer | Framework | Count | Runs In |
 |---|---|---|---|
-| **All tests** | pytest | 627 (597 in CI) | Every push |
+| **All tests** | pytest | 630 (600 in CI) | Every push |
 | **Data tests** | dbt test | 121 (46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular) | Merge to main (CD) |
 | **IaC validation** | Terraform HCL + Python | 9 assertions + 92 pytest tests | Every push |
 | **Static analysis** | ruff, mypy, bandit, SQLFluff | - | Every push (CI `lint`) |
@@ -1082,14 +1113,14 @@ Failure policy is deliberate: missing results file or unreachable Marquez → wa
 The pipeline validates across **6 distinct test suites**, each targeting a different layer of the stack. Below the image is a breakdown of what each suite covers:
 
 ![Test suite output](media/tests-all-passing.png)
-*W3C ETL Pipeline - 121 dbt data tests (120 pass · 1 warn) and the full 627-test pytest suite*
+*W3C ETL Pipeline - 121 dbt data tests (120 pass · 1 warn) and the full 630-test pytest suite*
 
 **Suite breakdown:**
 
 | Suite | Tool | Tests | What It Validates |
 |---|---|---|---|---|
-| **Unit tests** | pytest | 480 | Bronze/Silver ingestion, JDBC export, dbt T-SQL macros, dimension export, UA parsing, general pipeline logic |
-| **Terraform** | pytest + HCL | 92 + 9 | Part A (Azure infra) + Part B (Databricks) via mocks; 9 native HCL assertions for resources + outputs |
+| **Unit tests** | pytest | 483 | Bronze/Silver ingestion, JDBC export, dbt T-SQL macros, dimension export, UA parsing, general pipeline logic |
+| **Terraform** | pytest + HCL | 92 + 9 | Platform (Azure infra) + Databricks (workspace config) via mocks; 9 native HCL assertions for resources + outputs |
 | **DAG integrity** | pytest | 25 | All 4 DAG files load, task graphs match, required args pass, import paths resolve, lineage inlets/outlets wired |
 | **Integration** | pytest | 18 | Cross-layer E2E: Spark → PostgreSQL → dbt, real file I/O and database writes in Docker |
 | **dbt T-SQL validators** | pytest | 12 | Compiled T-SQL output validation against dbt-sqlserver adapter |
@@ -1097,7 +1128,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 
 **Key Test Design Decisions:**
 
-- **Marker-based filtering:** Tests are tagged (`@integration`, `@dbt_compile`, `@dag_integrity`, `@terraform`) so CI runs only environment-appropriate tests. CI runs **597 tests** (excludes 18 integration + 12 dbt-compile which run in separate CI jobs).
+- **Marker-based filtering:** Tests are tagged (`@integration`, `@dbt_compile`, `@dag_integrity`, `@terraform`) so CI runs only environment-appropriate tests. CI runs **600 tests** (excludes 18 integration + 12 dbt-compile which run in separate CI jobs).
 - **conftest.py** solves PEP 420 namespace shadowing (Airflow's missing `__init__.py`) by surgically adding only specific subdirectories to `sys.path`. Also builds `utils.zip` for PySpark worker serialization - mirroring the `py_files` pattern.
 - **Dual-dialect dbt compile:** CI validates both PostgreSQL + T-SQL compilation in a single job using side-by-side PostgreSQL 13 + SQL Server 2022 containers.
 - **Mock-based Terraform testing:** Tests use `unittest.mock` to simulate Databricks/Terraform provider responses - validating config structure and resource attributes without real cloud credentials or network calls.
@@ -1157,8 +1188,8 @@ uv run ruff check --output-format=github .
 uv run mypy --ignore-missing-imports tests/
 
 # Terraform validation (no cloud credentials needed)
-cd terraform/part_a && terraform init -backend=false && terraform test
-cd terraform/part_b && terraform init -backend=false && terraform test
+cd terraform/platform && terraform init -backend=false && terraform test
+cd terraform/databricks && terraform init -backend=false && terraform test
 ```
 
 ### Data Lineage - OpenLineage → Marquez

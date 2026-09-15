@@ -1,20 +1,20 @@
 """
-Terraform Part A validation tests.
+Terraform Platform stack validation tests.
 
-Verifies that ``terraform/part_a/`` directory structure, HCL files, and
+Verifies that ``terraform/platform/`` directory structure, HCL files, and
 module definitions are syntactically correct and match expected patterns.
 
 Running
 -------
 These tests require the ``terraform`` binary on ``PATH`` and a successful
-``terraform init`` in the Part A directory. They are marked
+``terraform init`` in the platform directory. They are marked
 ``@pytest.mark.terraform`` and are skipped by default:
 
     # Run tests excluding terraform (default):
     pytest tests/ -v
 
     # Run terraform tests explicitly:
-    pytest tests/test_terraform_part_a.py -v -m terraform
+    pytest tests/test_terraform_platform.py -v -m terraform
 """
 
 import os
@@ -23,7 +23,7 @@ import subprocess
 
 import pytest
 
-_PART_A_DIR = os.path.join(os.path.dirname(__file__), "..", "terraform", "part_a")
+_PLATFORM_DIR = os.path.join(os.path.dirname(__file__), "..", "terraform", "platform")
 
 _EXPECTED_FILES = [
     "main.tf",
@@ -74,24 +74,24 @@ def _read_file(path):
 
 
 @pytest.mark.terraform
-class TestTerraformPartADirectory:
-    """Verify the Part A directory and expected files exist."""
+class TestTerraformPlatformDirectory:
+    """Verify the platform directory and expected files exist."""
 
-    def test_part_a_dir_exists(self):
-        """terraform/part_a/ directory exists."""
-        assert os.path.isdir(_PART_A_DIR), f"Expected directory {_PART_A_DIR} not found"
+    def test_platform_dir_exists(self):
+        """terraform/platform/ directory exists."""
+        assert os.path.isdir(_PLATFORM_DIR), f"Expected directory {_PLATFORM_DIR} not found"
 
     @pytest.mark.parametrize("filename", _EXPECTED_FILES)
     def test_expected_file_exists(self, filename):
         """Expected file {filename} exists."""
-        path = os.path.join(_PART_A_DIR, filename)
+        path = os.path.join(_PLATFORM_DIR, filename)
         assert os.path.isfile(path), f"Expected file {filename} not found at {path}"
 
     def test_has_terraform_init(self):
         """terraform init has been run (.terraform directory present)."""
         pytest.skip("Skipped in CI — terraform init is validated in the terraform CI job")
-        assert _terraform_inited(_PART_A_DIR), (
-            f"No .terraform directory in {_PART_A_DIR}. Run 'terraform init' in terraform/part_a/ first."
+        assert _terraform_inited(_PLATFORM_DIR), (
+            f"No .terraform directory in {_PLATFORM_DIR}. Run 'terraform init' in terraform/platform/ first."
         )
 
 
@@ -99,13 +99,13 @@ class TestTerraformPartADirectory:
 
 
 @pytest.mark.terraform
-class TestTerraformPartAModules:
+class TestTerraformPlatformModules:
     """Verify expected module directories and definitions exist."""
 
     @pytest.mark.parametrize("module_name", _EXPECTED_MODULES)
     def test_module_directory_exists(self, module_name):
         """Module directory modules/{module_name}/ exists."""
-        path = os.path.join(_PART_A_DIR, "modules", module_name)
+        path = os.path.join(_PLATFORM_DIR, "modules", module_name)
         assert os.path.isdir(path), f"Expected module directory {path} not found"
 
     @pytest.mark.parametrize(
@@ -115,13 +115,13 @@ class TestTerraformPartAModules:
     )
     def test_module_defined_in_main(self, module_name, pattern):
         """Expected module {module_name} is defined in main.tf."""
-        content = _read_file(os.path.join(_PART_A_DIR, "main.tf"))
+        content = _read_file(os.path.join(_PLATFORM_DIR, "main.tf"))
         assert content is not None, "main.tf not found"
         assert re.search(pattern, content), f"Module '{module_name}' not found in main.tf"
 
     def test_four_modules_defined(self):
         """main.tf defines exactly 4 module blocks."""
-        content = _read_file(os.path.join(_PART_A_DIR, "main.tf"))
+        content = _read_file(os.path.join(_PLATFORM_DIR, "main.tf"))
         assert content is not None
         matches = re.findall(r'module\s+"(\w+)"', content)
         assert len(matches) == 4, f"Expected 4 modules, found {len(matches)}: {matches}"
@@ -131,7 +131,7 @@ class TestTerraformPartAModules:
     def test_each_module_has_three_files(self):
         """Each module directory has main.tf, variables.tf, outputs.tf."""
         for mod in _EXPECTED_MODULES:
-            mod_dir = os.path.join(_PART_A_DIR, "modules", mod)
+            mod_dir = os.path.join(_PLATFORM_DIR, "modules", mod)
             for fname in ["main.tf", "variables.tf", "outputs.tf"]:
                 assert os.path.isfile(os.path.join(mod_dir, fname)), f"Module '{mod}' missing {fname}"
 
@@ -140,7 +140,7 @@ class TestTerraformPartAModules:
 
 
 @pytest.mark.terraform
-class TestTerraformPartAVariables:
+class TestTerraformPlatformVariables:
     """Verify variables.tf contains expected inputs."""
 
     _EXPECTED_VARS = [
@@ -163,19 +163,19 @@ class TestTerraformPartAVariables:
 
     def test_variables_file_exists(self):
         """variables.tf exists."""
-        path = os.path.join(_PART_A_DIR, "variables.tf")
+        path = os.path.join(_PLATFORM_DIR, "variables.tf")
         assert os.path.isfile(path)
 
     @pytest.mark.parametrize("var_name", _EXPECTED_VARS)
     def test_expected_variable_defined(self, var_name):
         """Expected variable {var_name} is defined in variables.tf."""
-        content = _read_file(os.path.join(_PART_A_DIR, "variables.tf"))
+        content = _read_file(os.path.join(_PLATFORM_DIR, "variables.tf"))
         assert content is not None
         assert f'variable "{var_name}"' in content, f"Variable '{var_name}' not found in variables.tf"
 
     def test_enable_private_endpoints_is_bool(self):
         """enable_private_endpoints variable has type bool."""
-        content = _read_file(os.path.join(_PART_A_DIR, "variables.tf"))
+        content = _read_file(os.path.join(_PLATFORM_DIR, "variables.tf"))
         assert content is not None
         block = _extract_variable_block(content, "enable_private_endpoints")
         assert block is not None
@@ -193,7 +193,7 @@ def _extract_variable_block(content, var_name):
 
 
 @pytest.mark.terraform
-class TestTerraformPartAOutputs:
+class TestTerraformPlatformOutputs:
     """Verify outputs.tf contains expected values."""
 
     _EXPECTED_OUTPUTS = [
@@ -212,13 +212,13 @@ class TestTerraformPartAOutputs:
 
     def test_outputs_file_exists(self):
         """outputs.tf exists."""
-        path = os.path.join(_PART_A_DIR, "outputs.tf")
+        path = os.path.join(_PLATFORM_DIR, "outputs.tf")
         assert os.path.isfile(path)
 
     @pytest.mark.parametrize("output_name", _EXPECTED_OUTPUTS)
     def test_expected_output_defined(self, output_name):
         """Expected output {output_name} is defined in outputs.tf."""
-        content = _read_file(os.path.join(_PART_A_DIR, "outputs.tf"))
+        content = _read_file(os.path.join(_PLATFORM_DIR, "outputs.tf"))
         assert content is not None
         assert f'output "{output_name}"' in content, f"Output '{output_name}' not found in outputs.tf"
 
@@ -236,15 +236,15 @@ class TestTerraformValidate:
         tf_bin = _terraform_binary()
         if tf_bin is None:
             pytest.skip("terraform binary not found on PATH")
-        if not _terraform_inited(_PART_A_DIR):
-            pytest.skip("terraform init not run yet. Run 'terraform init' in terraform/part_a/ first.")
+        if not _terraform_inited(_PLATFORM_DIR):
+            pytest.skip("terraform init not run yet. Run 'terraform init' in terraform/platform/ first.")
         return tf_bin
 
     def test_terraform_validate_success(self, terraform_path):
         """``terraform validate`` completes with exit code 0."""
         result = subprocess.run(
             [terraform_path, "validate"],
-            cwd=_PART_A_DIR,
+            cwd=_PLATFORM_DIR,
             capture_output=True,
             text=True,
             timeout=30,
@@ -256,7 +256,7 @@ class TestTerraformValidate:
         """``terraform fmt --check`` passes (no formatting issues)."""
         result = subprocess.run(
             [terraform_path, "fmt", "--check", "-recursive"],
-            cwd=_PART_A_DIR,
+            cwd=_PLATFORM_DIR,
             capture_output=True,
             text=True,
             timeout=30,
