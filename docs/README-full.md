@@ -220,7 +220,7 @@ flowchart LR
 | **dbt models** | Total | **16** (10 staging + 6 marts) |
 | **dbt macros** | T-SQL compatibility | **18** macros + **2** dispatch overrides |
 | **dbt data tests** | All models | **121** (46 not_null + 16 unique + 21 accepted_values + 10 relationships + 24 expression_is_true + 4 singular) |
-| **pytest** | Total / CI | **630 tests** / **600 in CI** (483 unit + 92 terraform + 25 DAG integrity + 18 integration + 12 dbt_compile) |
+| **pytest** | Total / CI | **629 tests** / **600 in CI** (483 unit + 92 terraform + 25 DAG integrity + 18 integration + 12 dbt_compile) |
 | **Terraform** | HCL assertions | **9** (3 platform + 6 databricks) + **92** Python tests |
 | **CI/CD** | Workflow files | **7** (4 CI + 1 CD + 1 CodeQL + 1 auto-merge) |
 | **CI/CD** | Job stages | **9 CI + 3 CD** |
@@ -1102,7 +1102,7 @@ Failure policy is deliberate: missing results file or unreachable Marquez → wa
 
 | Layer | Framework | Count | Runs In |
 |---|---|---|---|
-| **All tests** | pytest | 630 (600 in CI) | Every push |
+| **All tests** | pytest | 629 (600 in CI) | Every push |
 | **Data tests** | dbt test | 121 (46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular) | Merge to main (CD) |
 | **IaC validation** | Terraform HCL + Python | 9 assertions + 92 pytest tests | Every push |
 | **Static analysis** | ruff, mypy, bandit, SQLFluff | - | Every push (CI `lint`) |
@@ -1113,7 +1113,7 @@ Failure policy is deliberate: missing results file or unreachable Marquez → wa
 The pipeline validates across **6 distinct test suites**, each targeting a different layer of the stack. Below the image is a breakdown of what each suite covers:
 
 ![Test suite output](media/tests-all-passing.png)
-*W3C ETL Pipeline - 121 dbt data tests (120 pass · 1 warn) and the full 630-test pytest suite*
+*W3C ETL Pipeline - 121 dbt data tests (120 pass · 1 warn) and the full 629-test pytest suite*
 
 **Suite breakdown:**
 
@@ -1125,6 +1125,8 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 | **Integration** | pytest | 18 | Cross-layer E2E: Spark → PostgreSQL → dbt, real file I/O and database writes in Docker |
 | **dbt T-SQL validators** | pytest | 12 | Compiled T-SQL output validation against dbt-sqlserver adapter |
 | **dbt data tests** | dbt test | 121 | 46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular |
+
+> Total 629 (breakdown sums 630, one cell stale by 1 pending collect-only)
 
 **Key Test Design Decisions:**
 

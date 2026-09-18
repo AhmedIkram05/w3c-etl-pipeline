@@ -287,7 +287,7 @@ def silver_enriched_logs():
     """
     # Read only Bronze *changes* via the Delta Change Data Feed (CDC).
     # DLT checkpoints the stream, so re-runs never reprocess old commits.
-    bronze_df = spark.readStream.option("readChangeFeed", "true").table("w3c_etl_databricks.bronze.bronze_raw_logs")
+    bronze_df = spark.readStream.option("readChangeFeed", "true").table("w3c_etl_databricks.bronze.bronze_raw_logs")  # noqa: F821
 
     # ── GeoIP enrichment (consolidated: 1 UDF → 6 columns) ──
     # Apply consolidated struct UDF, then extract individual fields
