@@ -135,7 +135,7 @@ flowchart LR
 | DLT quality-gate checks | **10** - 7 Bronze + 3 Silver (`@dlt.expect_or_drop`) |
 | dbt models | **16** (10 staging + 6 marts), dual-dialect T-SQL/PostgreSQL |
 | dbt data tests | **121** (not_null, unique, accepted_values, relationships, expression_is_true, singular) |
-| pytest | **629 total** (600 in CI: 483 unit + 92 terraform + 25 DAG integrity) |
+| pytest | **629 total** (599 in CI: 482 unit + 92 terraform + 25 DAG integrity) |
 | Partition skew (backfill test) | max/min **14 → 1.47** via salted repartition over (log_date, salt); BroadcastHashJoin verified in plan |
 | Orchestration | **4 Airflow DAGs**, dataset-triggered; **7 GitHub Actions workflows** |
 | Observability | **3 Grafana dashboards** (23 panels), **8 Prometheus + 2 Azure Monitor alerts** |

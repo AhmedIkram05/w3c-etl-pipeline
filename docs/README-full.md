@@ -220,7 +220,7 @@ flowchart LR
 | **dbt models** | Total | **16** (10 staging + 6 marts) |
 | **dbt macros** | T-SQL compatibility | **18** macros + **2** dispatch overrides |
 | **dbt data tests** | All models | **121** (46 not_null + 16 unique + 21 accepted_values + 10 relationships + 24 expression_is_true + 4 singular) |
-| **pytest** | Total / CI | **629 tests** / **600 in CI** (483 unit + 92 terraform + 25 DAG integrity + 18 integration + 12 dbt_compile) |
+| **pytest** | Total / CI | **629 tests** / **599 in CI** (482 unit + 92 terraform + 25 DAG integrity + 18 integration + 12 dbt_compile) |
 | **Terraform** | HCL assertions | **9** (3 platform + 6 databricks) + **92** Python tests |
 | **CI/CD** | Workflow files | **7** (4 CI + 1 CD + 1 CodeQL + 1 auto-merge) |
 | **CI/CD** | Job stages | **9 CI + 3 CD** |
@@ -1102,7 +1102,7 @@ Failure policy is deliberate: missing results file or unreachable Marquez → wa
 
 | Layer | Framework | Count | Runs In |
 |---|---|---|---|
-| **All tests** | pytest | 629 (600 in CI) | Every push |
+| **All tests** | pytest | 629 (599 in CI) | Every push |
 | **Data tests** | dbt test | 121 (46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular) | Merge to main (CD) |
 | **IaC validation** | Terraform HCL + Python | 9 assertions + 92 pytest tests | Every push |
 | **Static analysis** | ruff, mypy, bandit, SQLFluff | - | Every push (CI `lint`) |
@@ -1119,14 +1119,14 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 
 | Suite | Tool | Tests | What It Validates |
 |---|---|---|---|---|
-| **Unit tests** | pytest | 483 | Bronze/Silver ingestion, JDBC export, dbt T-SQL macros, dimension export, UA parsing, general pipeline logic |
+| **Unit tests** | pytest | 482 | Bronze/Silver ingestion, JDBC export, dbt T-SQL macros, dimension export, UA parsing, general pipeline logic |
 | **Terraform** | pytest + HCL | 92 + 9 | Platform (Azure infra) + Databricks (workspace config) via mocks; 9 native HCL assertions for resources + outputs |
 | **DAG integrity** | pytest | 25 | All 4 DAG files load, task graphs match, required args pass, import paths resolve, lineage inlets/outlets wired |
 | **Integration** | pytest | 18 | Cross-layer E2E: Spark → PostgreSQL → dbt, real file I/O and database writes in Docker |
 | **dbt T-SQL validators** | pytest | 12 | Compiled T-SQL output validation against dbt-sqlserver adapter |
 | **dbt data tests** | dbt test | 121 | 46 not_null, 16 unique, 21 accepted_values, 10 relationships, 24 expression_is_true, 4 singular |
 
-> Total 629 (breakdown sums 630, one cell stale by 1 pending collect-only)
+> Total 629 = 482 + 92 + 25 + 18 + 12 (576 test defs + 53 parametrized expansions). CI main job runs 599 (482 + 92 + 25); the dbt-compile job adds the other 12. Unit cell 483→482: the CDC-refactor commit `8cdaeb7` removed one `test_dlt_silver.py` test after the previous census.
 
 **Key Test Design Decisions:**
 
