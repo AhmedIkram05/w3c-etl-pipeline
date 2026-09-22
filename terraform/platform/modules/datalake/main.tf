@@ -16,9 +16,12 @@ resource "azurerm_storage_account" "this" {
 }
 
 resource "azurerm_storage_container" "this" {
-  for_each              = toset(var.containers)
-  name                  = each.value
-  storage_account_name  = azurerm_storage_account.this.name
+  for_each = toset(var.containers)
+  name     = each.value
+  # azurerm 5.x: storage_account_name was removed in favour of the resource ID.
+  # The provider now resolves the account via ARM rather than the name string,
+  # which avoids races during container rename / account recreate.
+  storage_account_id    = azurerm_storage_account.this.id
   container_access_type = "private"
 }
 
