@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
@@ -117,7 +117,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
@@ -163,7 +163,7 @@ jobs:
       - name: Checkout previous commit (rollback)
         run: git checkout HEAD~1
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
