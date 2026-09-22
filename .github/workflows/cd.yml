@@ -33,6 +33,10 @@ jobs:
   # -----------------------------------------------------------------------
   terraform-plan:
     name: Terraform Plan
+    # Dependabot PRs skip the plan entirely: Azure OIDC + state backend are
+    # decommissioned, so any plan step that touches Azure will fail. The
+    # dependabot auto-merge workflow handles terraform PRs (no real CD risk).
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     environment: azure-dev
     permissions:
