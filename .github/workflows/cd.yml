@@ -69,7 +69,7 @@ jobs:
           echo "exitcode=${exitcode:-0}" >> "$GITHUB_OUTPUT"
 
       - name: Upload Platform Plan
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan-platform
           path: terraform/platform/tfplan_platform.log
@@ -91,7 +91,7 @@ jobs:
 
       - name: Upload Databricks Plan
         if: steps.plan_databricks.conclusion == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan-databricks
           path: terraform/databricks/tfplan_databricks.log
