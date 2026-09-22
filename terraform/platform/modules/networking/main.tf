@@ -149,7 +149,13 @@ resource "azurerm_subnet" "databricks" {
   resource_group_name  = azurerm_resource_group.this.name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = ["10.0.1.0/24"]
-  service_endpoints    = ["Microsoft.Storage"]
+  # azurerm 5.x: the `service_endpoints` argument (a list of strings) was
+  # removed in favour of the `service_endpoint` block. The provider maps
+  # this 1:1 to the ARM `properties.serviceEndpoints` collection, with each
+  # block yielding one entry.
+  service_endpoint {
+    service = "Microsoft.Storage"
+  }
   delegation {
     name = "databricks-delegation"
     service_delegation {
@@ -168,7 +174,15 @@ resource "azurerm_subnet" "sql" {
   resource_group_name  = azurerm_resource_group.this.name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = ["10.0.2.0/24"]
-  service_endpoints    = var.enable_private_endpoints ? ["Microsoft.Sql"] : []
+  # azurerm 5.x: `service_endpoints = [...]` (list of strings) became a
+  # nested block. Use a dynamic block so the conditional still works when
+  # private endpoints are disabled (empty list ⇒ no service endpoints).
+  dynamic "service_endpoint" {
+    for_each = var.enable_private_endpoints ? ["Microsoft.Sql"] : []
+    content {
+      service = service_endpoint.value
+    }
+  }
 }
 
 # Associate NSGs with subnets
