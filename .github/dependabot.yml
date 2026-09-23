@@ -25,6 +25,16 @@ updates:
     allow:
       - dependency-type: "direct"
         update-types: ["version-update:semver-patch"]
+    # Stack is pinned to Airflow 2.x (2.10.2): never propose 3.x, and never
+    # propose provider/protobuf majors that require Airflow >=2.11 / break
+    # dbt-common (see airflow/requirements.txt comments).
+    ignore:
+      - dependency-name: "apache-airflow"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "apache-airflow-providers-openlineage"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "protobuf"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -84,3 +94,7 @@ updates:
     open-pull-requests-limit: 3
     reviewers:
       - "ahmedikram"
+    # Stack is pinned to apache/airflow 2.10.2: never propose the 3.x image.
+    ignore:
+      - dependency-name: "apache/airflow"
+        update-types: ["version-update:semver-major"]
