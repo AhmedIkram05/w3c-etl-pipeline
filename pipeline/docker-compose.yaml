@@ -115,7 +115,7 @@ x-airflow-common:
     AIRFLOW__METRICS__STATSD_PREFIX: "airflow"
 
     # ── OpenLineage / Marquez lineage emission ──────────────────────────
-    # Collector stack lives in airflow/lineage/docker-compose.lineage.yaml
+    # Collector stack lives in pipeline/lineage/docker-compose.lineage.yaml
     # (separate project; reached over the host loopback via Docker Desktop's
     # host.docker.internal). If the collector is down, events fail with a
     # logged transport error — pipeline execution is unaffected by design.
@@ -394,8 +394,8 @@ services:
       - -c
       - |
         if [ -z "$${MAXMIND_LICENSE_KEY}" ]; then
-          echo "ERROR: MAXMIND_LICENSE_KEY not set in airflow/.env" >&2
-          echo "Sign up free at https://www.maxmind.com/en/geolite2/signup and add the key to airflow/.env" >&2
+          echo "ERROR: MAXMIND_LICENSE_KEY not set in pipeline/.env" >&2
+          echo "Sign up free at https://www.maxmind.com/en/geolite2/signup and add the key to pipeline/.env" >&2
           exit 1
         fi
         apk add --no-cache curl tar >/dev/null

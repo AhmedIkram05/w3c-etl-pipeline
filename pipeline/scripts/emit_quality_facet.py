@@ -8,7 +8,7 @@ the `dbt-ol run` events — so data-quality results are attached, in Marquez,
 to the lineage node that produced the data rather than living only in Airflow logs.
 
 Identity matching relies on two env vars shared with the DAG tasks
-(see airflow/docker-compose.yaml):
+(see pipeline/docker-compose.yaml):
   - OPENLINEAGE_NAMESPACE   (default: w3c_etl_local)
   - OPENLINEAGE_DBT_JOB_NAME (default: w3c_dbt_marts_dbt_run)
 

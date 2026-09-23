@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-# Path resolution: bare metal puts dbt under <root>/airflow/dbt/ while Docker
+# Path resolution: bare metal puts dbt under <root>/pipeline/dbt/ while Docker
 # volume-mounts it directly at <root>/dbt/.  We check both layouts.
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -27,11 +27,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def _resolve_dbt_path(*subdirs: str) -> Path:
     """Return the first existing path from two possible layouts.
 
-    Tries ``<project_root>/airflow/<subdirs>`` (bare metal) first,
+    Tries ``<project_root>/pipeline/<subdirs>`` (bare metal) first,
     then ``<project_root>/<subdirs>`` (Docker volume mount).
     """
     candidates = [
-        _PROJECT_ROOT / "airflow" / Path(*subdirs),
+        _PROJECT_ROOT / "pipeline" / Path(*subdirs),
         _PROJECT_ROOT / Path(*subdirs),
     ]
     for p in candidates:

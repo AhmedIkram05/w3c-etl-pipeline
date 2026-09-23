@@ -10,11 +10,6 @@ root itself) so test modules can import using fully-qualified names::
     from utils.transformations import page_category
     from plugins.operators.export_dimensions import _parse_user_agent
     from dags.w3c.spark_ingestion import _export_dimensions
-
-Note: ``dag_integrity`` tests are excluded from CI via marker filter
-``not dag_integrity`` because the project's ``airflow/`` directory
-shadows the installed ``apache-airflow`` package (PEP 420 namespace
-package without ``__init__.py``).
 """
 
 import os
@@ -34,62 +29,25 @@ os.environ.setdefault("AIRFLOW_HOME", tempfile.mkdtemp(prefix="af_home_"))
 # layout. Must precede the first JVM launch below.
 os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
 
-# ── Remove project root from sys.path ────────────────────────────────
-# Pytest auto-adds the project root to sys.path before conftest.py is
-# even loaded.  The project's ``airflow/`` directory has no
-# ``__init__.py``, so Python 3.3+ treats it as a PEP 420 namespace
-# package.  If the project root stays on sys.path, ``import airflow``
-# resolves to this namespace package instead of the installed
-# ``apache-airflow`` package, causing:
-#
-#     ModuleNotFoundError: No module named 'airflow.models'; 'airflow'
-#     is not a package
-#
-# We strip the project root here and NEVER add it back.
-
-_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_PROJECT_ROOT_REAL = os.path.realpath(_PROJECT_ROOT)
-
-# Remove ALL sys.path entries that resolve to the project root.
-# Pytest adds the rootdir explicitly; additionally, the empty-string
-# entry '' resolves to the CWD (which is also the project root in CI).
-# Removing just the first hit via break() leaves '' on the path, which
-# still allows Python to discover the local airflow/ namespace.
-# '' and '.' always resolve to CWD, so drop them outright; realpath
-# covers symlinked CWD variants (e.g. /tmp vs /private/tmp on macOS).
-sys.path = [
-    p
-    for p in sys.path
-    if p not in ("", ".") and os.path.abspath(p) != _PROJECT_ROOT and os.path.realpath(p) != _PROJECT_ROOT_REAL
-]
-
-# Purge an already-imported PEP420 airflow namespace (pytest-cov
-# --cov=airflow imports it before conftest runs). A namespace package
-# has __file__ is None, unlike the installed apache-airflow package.
-_cached_airflow = sys.modules.get("airflow")
-if _cached_airflow is not None and getattr(_cached_airflow, "__file__", None) is None:
-    for _mod in [m for m in sys.modules if m == "airflow" or m.startswith("airflow.")]:
-        del sys.modules[_mod]
-
 # ── Add only the specific subdirectories needed for test imports ─────
-# Adding the project root would re-introduce the airflow namespace
-# shadowing, so we never add it back.
+# Adding the project root would re-introduce a directory named like an
+# installed third-party package, so we never add it back.
 #
-# Path resolution note: In Docker the project's ``airflow/`` subdirectories
+# Path resolution note: In Docker the project's pipeline subdirectories
 # (dags/, spark/, dbt/, plugins/) are volume-mounted directly under the
-# project root (/opt/airflow), so there is no ``airflow/`` container dir.
-# On bare metal the ``airflow/`` directory exists.  We check both layouts.
+# project root (/opt/airflow), so there is no ``pipeline/`` container dir.
+# On bare metal the ``pipeline/`` directory exists.  We check both layouts.
 
 
-def _resolve_airflow_path(*subdirs: str) -> str | None:
+def _resolve_pipeline_path(*subdirs: str) -> str | None:
     """Return the first existing path from two possible layouts.
 
-    Tries ``<project_root>/airflow/<subdirs>`` (bare metal) first,
+    Tries ``<project_root>/pipeline/<subdirs>`` (bare metal) first,
     then ``<project_root>/<subdirs>`` (Docker volume mount).
     Returns ``None`` if neither exists.
     """
     for layout in (
-        os.path.join(_PROJECT_ROOT, "airflow", *subdirs),
+        os.path.join(_PROJECT_ROOT, "pipeline", *subdirs),
         os.path.join(_PROJECT_ROOT, *subdirs),
     ):
         if os.path.isdir(layout):
@@ -97,28 +55,29 @@ def _resolve_airflow_path(*subdirs: str) -> str | None:
     return None
 
 
-# Airflow root directory (so "plugins.operators.export_dimensions" resolves).
-# IMPORTANT: In Docker the project root IS the airflow root (since ``airflow/``
-# subdirectories are volume-mounted directly under ``/opt/airflow/``).  Adding
-# the project root back to sys.path would re-introduce the PEP 420 namespace
-# shadowing, so we skip re-adding ``_AIRFLOW_DIR`` when it equals the project
-# root.
-_AIRFLOW_DIR = _resolve_airflow_path()
-if _AIRFLOW_DIR is not None and _AIRFLOW_DIR != _PROJECT_ROOT and _AIRFLOW_DIR not in sys.path:
-    sys.path.insert(0, _AIRFLOW_DIR)
+# Pipeline root directory (so "plugins.operators.export_dimensions" resolves).
+# IMPORTANT: In Docker the project root IS the pipeline root (since the
+# pipeline subdirectories are volume-mounted directly under ``/opt/airflow/``).
+# Adding the project root back to sys.path would re-introduce a directory
+# whose name collides with the installed apache-airflow package, so we skip
+# re-adding ``_PIPELINE_DIR`` when it equals the project root.
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_PIPELINE_DIR = _resolve_pipeline_path()
+if _PIPELINE_DIR is not None and _PIPELINE_DIR != _PROJECT_ROOT and _PIPELINE_DIR not in sys.path:
+    sys.path.insert(0, _PIPELINE_DIR)
 
 # Spark jobs directory (for utils/ module imports)
-_SPARK_JOBS_DIR = _resolve_airflow_path("spark", "jobs")
+_SPARK_JOBS_DIR = _resolve_pipeline_path("spark", "jobs")
 if _SPARK_JOBS_DIR is not None and _SPARK_JOBS_DIR not in sys.path:
     sys.path.insert(0, _SPARK_JOBS_DIR)
 
-# Airflow dags directory (so "dags.w3c.spark_ingestion" resolves)
-_DAGS_DIR = _resolve_airflow_path("dags")
+# Pipeline dags directory (so "dags.w3c.spark_ingestion" resolves)
+_DAGS_DIR = _resolve_pipeline_path("dags")
 if _DAGS_DIR is not None and _DAGS_DIR not in sys.path:
     sys.path.insert(0, _DAGS_DIR)
 
-# Airflow plugins directory (so "operators.export_csv_azure" resolves)
-_PLUGINS_DIR = _resolve_airflow_path("plugins")
+# Pipeline plugins directory (so "operators.export_csv_azure" resolves)
+_PLUGINS_DIR = _resolve_pipeline_path("plugins")
 if _PLUGINS_DIR is not None and _PLUGINS_DIR not in sys.path:
     sys.path.insert(0, _PLUGINS_DIR)
 
@@ -147,7 +106,7 @@ def _build_utils_zip() -> str:
     if _SPARK_JOBS_DIR is None:
         raise FileNotFoundError(
             f"spark/jobs directory not found. Tried:\n"
-            f"  {os.path.join(_PROJECT_ROOT, 'airflow', 'spark', 'jobs')}\n"
+            f"  {os.path.join(_PROJECT_ROOT, 'pipeline', 'spark', 'jobs')}\n"
             f"  {os.path.join(_PROJECT_ROOT, 'spark', 'jobs')}"
         )
     utils_dir = os.path.join(_SPARK_JOBS_DIR, "utils")

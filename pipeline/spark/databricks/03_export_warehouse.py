@@ -4,7 +4,7 @@ Export Warehouse — Databricks Unity Catalog Version
 
 Reads the Silver Delta table from Unity Catalog and writes it to a Gold
 analytics table in Unity Catalog for BI consumption. This is the
-Databricks-equivalent of ``airflow/spark/jobs/export_warehouse.py``.
+Databricks-equivalent of ``pipeline/spark/jobs/export_warehouse.py``.
 
 Unlike the Docker-based version which uses Spark JDBC to write to
 PostgreSQL, the Databricks version writes directly to a Unity Catalog

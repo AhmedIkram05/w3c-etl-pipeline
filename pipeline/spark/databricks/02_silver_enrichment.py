@@ -6,7 +6,7 @@ Reads the Bronze Delta table from Unity Catalog, applies Geo-IP, User-Agent,
 and computed-field enrichment UDFs, and writes the result as a new Silver
 Delta table in Unity Catalog partitioned by ``log_date``.
 
-This is the Databricks-equivalent of ``airflow/spark/jobs/silver_enrichment.py``.
+This is the Databricks-equivalent of ``pipeline/spark/jobs/silver_enrichment.py``.
 It uses Unity Catalog paths instead of local Delta directories.
 
 Usage

@@ -43,11 +43,10 @@ import logging
 import os
 from urllib.parse import unquote_plus
 
+from airflow import DAG
 from airflow.datasets import Dataset
 from airflow.operators.python import PythonOperator
 from airflow.providers.databricks.operators.databricks import DatabricksRunNowOperator
-
-from airflow import DAG
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +262,7 @@ def _export_dimensions(**context) -> None:
 
             # ── dim_useragent (MERGE upsert on ua_hash) ─────────────
             # Parse raw user-agent strings from dbo.raw_enriched using user-agents library
-            # (matching the pattern from the old pipeline's airflow/plugins/operators/export_dimensions.py)
+            # (matching the pattern from pipeline/plugins/operators/export_dimensions.py)
             cursor.execute("""
                 IF OBJECT_ID('dbo.dim_useragent') IS NULL
                 BEGIN

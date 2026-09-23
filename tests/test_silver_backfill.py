@@ -37,7 +37,7 @@ def _sql(self, q, *a, **k):
 SparkSession.sql = _sql
 
 _TEST_DIR = os.path.dirname(os.path.abspath(__file__))
-_JOBS_DIR = os.path.join(_TEST_DIR, "..", "airflow", "spark", "jobs")
+_JOBS_DIR = os.path.join(_TEST_DIR, "..", "pipeline", "spark", "jobs")
 if _JOBS_DIR not in sys.path:
     sys.path.insert(0, _JOBS_DIR)
 

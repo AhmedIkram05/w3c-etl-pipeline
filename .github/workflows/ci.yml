@@ -54,9 +54,9 @@ jobs:
       - name: Install dbt
         run: pip install "dbt-postgres==1.8.2" "dbt-core==1.8.9" "dbt-common==1.27.1" "protobuf>=5.27,<6"
       - name: dbt deps
-        run: dbt deps --project-dir airflow/dbt/w3c
+        run: dbt deps --project-dir pipeline/dbt/w3c
       - name: dbt compile (PostgreSQL)
-        run: dbt compile --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
+        run: dbt compile --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt
       - name: Install dbt-sqlserver
         run: pip install "dbt-sqlserver==1.8.4" "dbt-fabric<1.8.8"
       - name: Install ODBC Driver 18 for SQL Server (required by dbt-sqlserver adapter)
@@ -106,7 +106,7 @@ jobs:
           AZURE_SQL_DB: w3c-etl-db
           AZURE_SQL_USER: sa
           AZURE_SQL_PASSWORD: "dbtCI_P@ssword123!"
-        run: dbt compile --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3c_azure --target azure_sql_ci
+        run: dbt compile --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt --profile w3c_azure --target azure_sql_ci
       - name: Validate compiled T-SQL output
         run: |
           pip install pytest
