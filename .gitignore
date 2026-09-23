@@ -16,11 +16,11 @@ dags/w3c/__pycache__/
 logs/
 airflow.db
 airflow.cfg
-airflow-webserver.pid
+pipeline-webserver.pid
 standalone_admin_password.txt
 
 # dbt docs source files (copied from target/ then synced to docs/dbt/ for GH Pages)
-# GH Pages served from: airflow/data/dbt-docs/ → docs/dbt/
+# GH Pages served from: pipeline/data/dbt-docs/ → docs/dbt/
 
 # MaxMind GeoLite2 databases — too large, download manually per Phase 0
 /data/geoip/
@@ -28,8 +28,8 @@ copilot-instructions.md
 .agents
 
 # dbt — build artifacts
-airflow/dbt/w3c/target/
-airflow/dbt/w3c/dbt_packages/
+pipeline/dbt/w3c/target/
+pipeline/dbt/w3c/dbt_packages/
 
 # Prometheus — runtime data (config is version-controlled separately)
 prometheus/data/
@@ -39,8 +39,8 @@ grafana/data/
 AGENTS.md
 
 # Spark Delta Lake data (generated at runtime)
-airflow/spark/delta/*
-!airflow/spark/delta/.gitkeep
+pipeline/spark/delta/*
+!pipeline/spark/delta/.gitkeep
 
 # Terraform — provider binaries per environment
 **/.terraform/

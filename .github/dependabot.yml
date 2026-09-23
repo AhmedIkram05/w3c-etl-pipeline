@@ -27,7 +27,7 @@ updates:
         update-types: ["version-update:semver-patch"]
     # Stack is pinned to Airflow 2.x (2.10.2): never propose 3.x, and never
     # propose provider/protobuf majors that require Airflow >=2.11 / break
-    # dbt-common (see airflow/requirements.txt comments).
+    # dbt-common (see pipeline/requirements.txt comments).
     ignore:
       - dependency-name: "apache-airflow"
         update-types: ["version-update:semver-major"]
@@ -86,7 +86,7 @@ updates:
 
   # Docker images
   - package-ecosystem: "docker"
-    directory: "/airflow"
+    directory: "/pipeline"
     schedule:
       interval: "weekly"
       day: "monday"

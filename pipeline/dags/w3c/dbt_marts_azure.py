@@ -42,13 +42,12 @@ from __future__ import annotations
 
 import datetime as dt
 
+from airflow import DAG
 from airflow.datasets import Dataset
 from airflow.operators.python import PythonOperator
 from airflow.providers.databricks.operators.databricks import DatabricksSubmitRunOperator
 from operators.export_csv_azure import export_csv_azure
 from operators.export_dbt_docs_azure import export_dbt_docs_to_airflow
-
-from airflow import DAG
 
 # ── Dataset inlet — triggered by spark_ingestion_azure DAG ─────────────────
 # This must match the Dataset outlet fired by spark_ingestion_azure.py's
@@ -93,7 +92,7 @@ def _build_dbt_task(task_key: str, notebook_name: str) -> list[dict]:
         {
             "task_key": task_key,
             "notebook_task": {
-                "notebook_path": f"{_REPO_ROOT}/airflow/spark/databricks/{notebook_name}",
+                "notebook_path": f"{_REPO_ROOT}/pipeline/spark/databricks/{notebook_name}",
             },
         }
     ]

@@ -20,7 +20,7 @@ prometheus-client>=0.26.0,<1.0
 pymssql>=2.4.1,<3.0
 
 # Data lineage — OpenLineage events emitted to self-hosted Marquez
-# (see airflow/lineage/docker-compose.lineage.yaml).
+# (see pipeline/lineage/docker-compose.lineage.yaml).
 # Provider capped <2: 2.x requires apache-airflow>=2.11 but this stack is
 # pinned to 2.10.2 (1.14.0 = newest release supporting 2.8+).
 # openlineage-dbt provides the `dbt-ol` wrapper used by w3c_dbt_marts;

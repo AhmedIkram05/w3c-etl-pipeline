@@ -17,10 +17,9 @@ from __future__ import annotations
 import datetime as dt
 import os
 
+from airflow import DAG
 from airflow.datasets import Dataset
 from airflow.operators.bash import BashOperator
-
-from airflow import DAG
 
 # ── Paths ────────────────────────────────────────────────────────────
 DBT_PROJECT_DIR = "/opt/airflow/dbt/w3c"

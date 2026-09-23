@@ -8,7 +8,7 @@ table in Unity Catalog partitioned by ``log_date``. The job is
 **incremental** — it tracks already-loaded files by their ``source_file``
 value so re-runs only process new files.
 
-This is the Databricks-equivalent of ``airflow/spark/jobs/bronze_ingestion.py``.
+This is the Databricks-equivalent of ``pipeline/spark/jobs/bronze_ingestion.py``.
 It uses Unity Catalog paths instead of local Delta directories.
 
 Usage

@@ -55,7 +55,7 @@ SparkSession.sql = _no_delta_ddl
 _TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.join(_TEST_DIR, "..")
 
-_NESTED_DB = os.path.join(_PROJECT_ROOT, "airflow", "spark", "databricks")
+_NESTED_DB = os.path.join(_PROJECT_ROOT, "pipeline", "spark", "databricks")
 _FLAT_DB = os.path.join(_PROJECT_ROOT, "spark", "databricks")
 
 for _db_path in (_NESTED_DB, _FLAT_DB):
@@ -91,7 +91,7 @@ def spark():
 
     # Add module file so UDF cloudpickle can find it on workers
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    db_dir = os.path.join(script_dir, "..", "airflow", "spark", "databricks")
+    db_dir = os.path.join(script_dir, "..", "pipeline", "spark", "databricks")
     _module_path = os.path.join(db_dir, "02_silver_enrichment.py")
     if os.path.exists(_module_path):
         session.sparkContext.addPyFile(_module_path)

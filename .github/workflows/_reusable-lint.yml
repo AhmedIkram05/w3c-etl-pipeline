@@ -24,9 +24,9 @@ jobs:
       - name: MyPy type check (tests)
         run: mypy --ignore-missing-imports tests/
       - name: MyPy type check (Databricks scripts)
-        run: mypy --ignore-missing-imports airflow/spark/databricks/
+        run: mypy --ignore-missing-imports pipeline/spark/databricks/
       - name: Bandit security scan
-        run: bandit -r airflow/ -c pyproject.toml
+        run: bandit -r pipeline/ -c pyproject.toml
       - name: SQLFluff dbt SQL lint
-        run: sqlfluff lint airflow/dbt/w3c/models/ --dialect postgres
+        run: sqlfluff lint pipeline/dbt/w3c/models/ --dialect postgres
         continue-on-error: true

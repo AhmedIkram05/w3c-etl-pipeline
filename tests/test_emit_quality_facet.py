@@ -1,6 +1,6 @@
 """Unit tests for the OpenLineage data-quality facet emitter.
 
-Covers the pure aggregation logic in airflow/scripts/emit_quality_facet.py.
+Covers the pure aggregation logic in pipeline/scripts/emit_quality_facet.py.
 The module is stdlib-only at import time (openlineage is imported lazily
 inside ``emit``), so these run anywhere pytest runs — no Airflow needed.
 """
@@ -8,7 +8,7 @@ inside ``emit``), so these run anywhere pytest runs — no Airflow needed.
 import importlib.util
 from pathlib import Path
 
-_SCRIPT = Path(__file__).resolve().parents[1] / "airflow" / "scripts" / "emit_quality_facet.py"
+_SCRIPT = Path(__file__).resolve().parents[1] / "pipeline" / "scripts" / "emit_quality_facet.py"
 _spec = importlib.util.spec_from_file_location("emit_quality_facet", _SCRIPT)
 if _spec is None or _spec.loader is None:
     raise ImportError(f"Cannot load emitter module from {_SCRIPT}")

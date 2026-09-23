@@ -1,6 +1,6 @@
 # ──────────────────────────────────────────────────────────────────────
 # Python dependencies for Spark job containers
-# Installed in airflow/spark/docker/Dockerfile.spark
+# Installed in pipeline/spark/docker/Dockerfile.spark
 # ──────────────────────────────────────────────────────────────────────
 
 user-agents==2.2.0       # Browser/OS/device parsing from UA strings

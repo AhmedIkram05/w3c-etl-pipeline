@@ -6,7 +6,7 @@ tables that the warehouse exposes to dbt / Power BI:
 
 * ``dim_geolocation``  — sourced from the **Spark Silver Delta table**
   (single source of truth for client-IP geolocation). The silver writer
-  (``airflow/spark/jobs/silver_enrichment.py``) populates ``country``,
+  (``pipeline/spark/jobs/silver_enrichment.py``) populates ``country``,
   ``region``, ``city``, ``postcode``, ``latitude``, ``longitude`` and
   ``isp`` from local MaxMind GeoLite2 databases (City + ASN), giving us
   in-process enrichment with no external network calls.

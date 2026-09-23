@@ -395,12 +395,12 @@ The Silver layer consumes Bronze's Delta **Change Data Feed** via a checkpointed
 
 #### Silver range backfill
 
-The scheduled `silver_enrichment` task only appends new `source_file` values. When enrichment logic changes (new GeoIP DB, new UA rules) or a date range needs reprocessing, the standalone `silver_backfill` Spark job (`airflow/spark/jobs/silver_backfill.py`) re-runs the full Silver UDF chain for an explicit `log_date` range and overwrites only those Silver partitions via Delta `replaceWhere` - all other partitions are untouched.
+The scheduled `silver_enrichment` task only appends new `source_file` values. When enrichment logic changes (new GeoIP DB, new UA rules) or a date range needs reprocessing, the standalone `silver_backfill` Spark job (`pipeline/spark/jobs/silver_backfill.py`) re-runs the full Silver UDF chain for an explicit `log_date` range and overwrites only those Silver partitions via Delta `replaceWhere` - all other partitions are untouched.
 
 When to use: reprocessing after GeoIP/UA/`transformations` changes, recovering from a bad Silver write, or backfilling dates whose Bronze data arrived late. It is intentionally NOT wired into the linear bronze >> silver chain - trigger it manually with a dagRun conf:
 
 ```bash
-spark-submit airflow/spark/jobs/silver_backfill.py \
+spark-submit pipeline/spark/jobs/silver_backfill.py \
   --start-date 2009-10-24 --end-date 2009-10-26 \
   --delta-dir /opt/spark/delta --salt-buckets 16 --target-partitions 32
 ```
@@ -1166,7 +1166,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 
 - Docker Desktop (for local dev - the 16-container stack)
 - `uv` for Python dependency management
-- MaxMind license key (free) in `airflow/.env` as `MAXMIND_LICENSE_KEY`
+- MaxMind license key (free) in `pipeline/.env` as `MAXMIND_LICENSE_KEY`
 
 ### Local Development
 
@@ -1175,12 +1175,12 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 
 ```bash
 # Start the 16-container Airflow + Spark + Observability stack
-docker compose -f airflow/docker-compose.yaml up -d
+docker compose -f pipeline/docker-compose.yaml up -d
 
 # Run dbt (PostgreSQL dialect - local dev)
-dbt deps --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
-dbt run  --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
-dbt test --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
+dbt deps --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt
+dbt run  --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt
+dbt test --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt
 
 # Run Python tests (without Docker-dependent suites)
 uv run pytest tests/ -v --tb=short -m "not integration and not dbt_compile"
@@ -1200,10 +1200,10 @@ All 4 DAGs - including the Azure DAGs - emit OpenLineage events to a self-hosted
 
 ```bash
 # 1. Start the lineage stack first (Marquez API :5000, Web UI :3100)
-docker compose -f airflow/lineage/docker-compose.lineage.yaml up -d
+docker compose -f pipeline/lineage/docker-compose.lineage.yaml up -d
 
 # 2. Start the main stack - OpenLineage env vars are already wired
-docker compose -f airflow/docker-compose.yaml up -d
+docker compose -f pipeline/docker-compose.yaml up -d
 
 # 3. Trigger w3c_dbt_marts from the Airflow UI (http://localhost:8080),
 #    then open the lineage graph at http://localhost:3100
@@ -1217,9 +1217,9 @@ The pipeline is deployed via GitHub Actions CD on merge to `main`:
 
 ```bash
 # dbt against Azure SQL (requires AZURE_SQL_* env vars)
-dbt compile --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3c_azure
-dbt run    --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3c_azure
-dbt test   --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt --profile w3c_azure
+dbt compile --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt --profile w3c_azure
+dbt run    --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt --profile w3c_azure
+dbt test   --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt --profile w3c_azure
 ```
 
 > **Note:** The full pipeline (Bronze → Silver → JDBC Export → Dimensions → dbt → CSV → Power BI refresh) runs on a weekly schedule: Airflow triggers the Databricks Workflow on Fridays at 17:00 UTC, and Power BI refreshes against Azure SQL at 17:30. The CD pipeline deploys infrastructure and DAGs only.
