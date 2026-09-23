@@ -60,9 +60,7 @@ _PROJECT_ROOT_REAL = os.path.realpath(_PROJECT_ROOT)
 sys.path = [
     p
     for p in sys.path
-    if p not in ("", ".")
-    and os.path.abspath(p) != _PROJECT_ROOT
-    and os.path.realpath(p) != _PROJECT_ROOT_REAL
+    if p not in ("", ".") and os.path.abspath(p) != _PROJECT_ROOT and os.path.realpath(p) != _PROJECT_ROOT_REAL
 ]
 
 # Purge an already-imported PEP420 airflow namespace (pytest-cov
