@@ -33,6 +33,10 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "apache-airflow-providers-openlineage"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "apache-airflow-providers-apache-spark"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "apache-airflow-providers-databricks"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "protobuf"
         update-types: ["version-update:semver-major"]
 
