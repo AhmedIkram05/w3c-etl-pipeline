@@ -55,11 +55,11 @@ except Exception:
     pass
 
 # Paths for AST extraction and module import.
-# The source lives at ``airflow/spark/databricks/jdbc_export_azure.py``.
+# The source lives at ``pipeline/spark/databricks/jdbc_export_azure.py``.
 _TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.join(_TEST_DIR, "..")
 
-_NESTED_DATABRICKS = os.path.join(_PROJECT_ROOT, "airflow", "spark", "databricks")
+_NESTED_DATABRICKS = os.path.join(_PROJECT_ROOT, "pipeline", "spark", "databricks")
 _FLAT_DATABRICKS = os.path.join(_PROJECT_ROOT, "spark", "databricks")
 
 
@@ -69,7 +69,7 @@ def _source_path():
         candidate = os.path.join(base, "jdbc_export_azure.py")
         if os.path.isfile(candidate):
             return candidate
-    raise FileNotFoundError("jdbc_export_azure.py not found under airflow/spark/databricks/")
+    raise FileNotFoundError("jdbc_export_azure.py not found under pipeline/spark/databricks/")
 
 
 def _get_module_constant(name: str) -> str | None:

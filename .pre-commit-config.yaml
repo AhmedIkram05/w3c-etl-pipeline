@@ -12,14 +12,14 @@ repos:
       - id: mypy
         additional_dependencies: [types-requests, types-python-dateutil]
         args: [--ignore-missing-imports]
-        exclude: ^(airflow/dags/w3c/|airflow/spark/jobs/)
+        exclude: ^(pipeline/dags/w3c/|pipeline/spark/jobs/)
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: check-yaml
         args: [--unsafe]
-        exclude: ^airflow/docker-compose.yaml$
+        exclude: ^pipeline/docker-compose.yaml$
       - id: check-json
       - id: check-toml
       - id: check-ast

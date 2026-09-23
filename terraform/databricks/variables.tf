@@ -39,19 +39,19 @@ variable "unity_catalog_name" {
 variable "bronze_notebook_path" {
   description = "Workspace path to the bronze DLT notebook"
   type        = string
-  default     = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_bronze.py"
+  default     = "/Repos/w3c-etl-pipeline/pipeline/spark/databricks/dlt_bronze.py"
 }
 
 variable "silver_notebook_path" {
   description = "Workspace path to the silver DLT notebook"
   type        = string
-  default     = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_silver.py"
+  default     = "/Repos/w3c-etl-pipeline/pipeline/spark/databricks/dlt_silver.py"
 }
 
 variable "jdbc_export_notebook_path" {
   description = "Workspace path to the JDBC export notebook"
   type        = string
-  default     = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/jdbc_export_azure.py"
+  default     = "/Repos/w3c-etl-pipeline/pipeline/spark/databricks/jdbc_export_azure.py"
 }
 
 variable "access_connector_id" {

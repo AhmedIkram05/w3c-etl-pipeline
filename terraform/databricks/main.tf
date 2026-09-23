@@ -272,17 +272,17 @@ resource "databricks_job" "w3c_etl_workflow" {
 # These notebooks are used by the Bronze and Silver DLT pipelines
 # --------------------------------------------------------------------------
 resource "databricks_notebook" "dlt_bronze" {
-  path           = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_bronze.py"
+  path           = "/Repos/w3c-etl-pipeline/pipeline/spark/databricks/dlt_bronze.py"
   language       = "PYTHON"
   format         = "SOURCE"
-  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dlt_bronze.py"))
+  content_base64 = base64encode(file("${path.module}/../../pipeline/spark/databricks/dlt_bronze.py"))
 }
 
 resource "databricks_notebook" "dlt_silver" {
-  path           = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dlt_silver.py"
+  path           = "/Repos/w3c-etl-pipeline/pipeline/spark/databricks/dlt_silver.py"
   language       = "PYTHON"
   format         = "SOURCE"
-  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dlt_silver.py"))
+  content_base64 = base64encode(file("${path.module}/../../pipeline/spark/databricks/dlt_silver.py"))
 }
 
 # --------------------------------------------------------------------------
@@ -290,10 +290,10 @@ resource "databricks_notebook" "dlt_silver" {
 # Used by the Databricks workflow to export Silver data to Azure SQL
 # --------------------------------------------------------------------------
 resource "databricks_notebook" "jdbc_export_azure" {
-  path           = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/jdbc_export_azure.py"
+  path           = "/Repos/w3c-etl-pipeline/pipeline/spark/databricks/jdbc_export_azure.py"
   language       = "PYTHON"
   format         = "SOURCE"
-  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/jdbc_export_azure.py"))
+  content_base64 = base64encode(file("${path.module}/../../pipeline/spark/databricks/jdbc_export_azure.py"))
 }
 
 # --------------------------------------------------------------------------
@@ -301,31 +301,31 @@ resource "databricks_notebook" "jdbc_export_azure" {
 # These notebooks are referenced by the Airflow DAG w3c_dbt_marts_azure
 # --------------------------------------------------------------------------
 resource "databricks_notebook" "dbt_freshness" {
-  path           = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_freshness.py"
+  path           = "/Repos/w3c-etl-pipeline/pipeline/spark/databricks/dbt_freshness.py"
   language       = "PYTHON"
   format         = "SOURCE"
-  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dbt_freshness.py"))
+  content_base64 = base64encode(file("${path.module}/../../pipeline/spark/databricks/dbt_freshness.py"))
 }
 
 resource "databricks_notebook" "dbt_run" {
-  path           = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_run.py"
+  path           = "/Repos/w3c-etl-pipeline/pipeline/spark/databricks/dbt_run.py"
   language       = "PYTHON"
   format         = "SOURCE"
-  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dbt_run.py"))
+  content_base64 = base64encode(file("${path.module}/../../pipeline/spark/databricks/dbt_run.py"))
 }
 
 resource "databricks_notebook" "dbt_test" {
-  path           = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_test.py"
+  path           = "/Repos/w3c-etl-pipeline/pipeline/spark/databricks/dbt_test.py"
   language       = "PYTHON"
   format         = "SOURCE"
-  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dbt_test.py"))
+  content_base64 = base64encode(file("${path.module}/../../pipeline/spark/databricks/dbt_test.py"))
 }
 
 resource "databricks_notebook" "dbt_docs" {
-  path           = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_docs.py"
+  path           = "/Repos/w3c-etl-pipeline/pipeline/spark/databricks/dbt_docs.py"
   language       = "PYTHON"
   format         = "SOURCE"
-  content_base64 = base64encode(file("${path.module}/../../airflow/spark/databricks/dbt_docs.py"))
+  content_base64 = base64encode(file("${path.module}/../../pipeline/spark/databricks/dbt_docs.py"))
 }
 
 # --------------------------------------------------------------------------
@@ -335,8 +335,8 @@ resource "databricks_notebook" "dbt_docs" {
 # databricks_notebook ensures Python's import mechanism can find it.
 # --------------------------------------------------------------------------
 resource "databricks_workspace_file" "dbt_common" {
-  path   = "/Repos/w3c-etl-pipeline/airflow/spark/databricks/dbt_common.py"
-  source = "${path.module}/../../airflow/spark/databricks/dbt_common.py"
+  path   = "/Repos/w3c-etl-pipeline/pipeline/spark/databricks/dbt_common.py"
+  source = "${path.module}/../../pipeline/spark/databricks/dbt_common.py"
 }
 
 # --------------------------------------------------------------------------
@@ -345,5 +345,5 @@ resource "databricks_workspace_file" "dbt_common" {
 # --------------------------------------------------------------------------
 resource "databricks_workspace_file" "dbt_project" {
   path           = "/dbt_project/w3c"
-  content_base64 = filebase64("${path.module}/../../airflow/dbt/w3c.zip")
+  content_base64 = filebase64("${path.module}/../../pipeline/dbt/w3c.zip")
 }

@@ -31,8 +31,8 @@ pytest.importorskip("airflow.models")
 
 # DAG folder on the Airflow worker — resolve portably:
 # inside Docker/CI it is /opt/airflow/dags/w3c; on a bare-metal checkout the
-# dags live under <project-root>/airflow/dags/w3c.
-_LOCAL_DAGS = os.path.join(os.path.dirname(__file__), "..", "airflow", "dags", "w3c")
+# dags live under <project-root>/pipeline/dags/w3c.
+_LOCAL_DAGS = os.path.join(os.path.dirname(__file__), "..", "pipeline", "dags", "w3c")
 _DAG_FOLDER = _LOCAL_DAGS if os.path.isdir(_LOCAL_DAGS) else "/opt/airflow/dags/w3c"
 
 

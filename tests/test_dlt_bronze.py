@@ -53,15 +53,15 @@ _TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.join(_TEST_DIR, "..")  # parent of tests/ = repo root
 
 # Inside Docker: /opt/airflow/tests/  →  /opt/airflow/spark/databricks/
-# On host:      repo/tests/           →  repo/airflow/spark/databricks/
-_NESTED_DATABRICKS = os.path.join(_PROJECT_ROOT, "airflow", "spark", "databricks")
+# On host:      repo/tests/           →  repo/pipeline/spark/databricks/
+_NESTED_DATABRICKS = os.path.join(_PROJECT_ROOT, "pipeline", "spark", "databricks")
 _FLAT_DATABRICKS = os.path.join(_PROJECT_ROOT, "spark", "databricks")
 
 for _db_path in (_NESTED_DATABRICKS, _FLAT_DATABRICKS):
     if os.path.isdir(_db_path) and _db_path not in sys.path:
         sys.path.insert(0, _db_path)
 
-_NESTED_SPARK = os.path.join(_PROJECT_ROOT, "airflow", "spark")
+_NESTED_SPARK = os.path.join(_PROJECT_ROOT, "pipeline", "spark")
 _FLAT_SPARK = os.path.join(_PROJECT_ROOT, "spark")
 
 for _sp_path in (_NESTED_SPARK, _FLAT_SPARK):

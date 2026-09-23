@@ -190,15 +190,15 @@ All 15 decisions, with alternatives and reasoning: [Design Decisions](docs/READM
 ## Quick Start
 
 ```bash
-docker compose -f airflow/docker-compose.yaml up -d   # 16-service Airflow+Spark+PG+Grafana stack
-dbt deps --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
-dbt run  --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
-dbt test --project-dir airflow/dbt/w3c --profiles-dir airflow/dbt
+docker compose -f pipeline/docker-compose.yaml up -d   # 16-service Airflow+Spark+PG+Grafana stack
+dbt deps --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt
+dbt run  --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt
+dbt test --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt
 uv run pytest tests/ -m "not integration and not dbt_compile"
 cd terraform/platform && terraform init -backend=false && terraform test
 ```
 
-- Backfilling a date range: `spark-submit airflow/spark/jobs/silver_backfill.py` re-runs full Silver enrichment for a `log_date` range via Delta `replaceWhere` - details: [docs/README-full.md](docs/README-full.md#silver-range-backfill)
+- Backfilling a date range: `spark-submit pipeline/spark/jobs/silver_backfill.py` re-runs full Silver enrichment for a `log_date` range via Delta `replaceWhere` - details: [docs/README-full.md](docs/README-full.md#silver-range-backfill)
 
 The 16-service compose stack this spins up:
 

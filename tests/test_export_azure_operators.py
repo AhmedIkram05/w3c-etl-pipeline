@@ -33,8 +33,8 @@ import pytest
 # ── Project-relative paths ─────────────────────────────────────────────
 _TEST_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _TEST_DIR.parent
-_AIRFLOW_DIR = _PROJECT_ROOT / "airflow"
-_DATABRICKS_DIR = _AIRFLOW_DIR / "spark" / "databricks"
+_PIPELINE_DIR = _PROJECT_ROOT / "pipeline"
+_DATABRICKS_DIR = _PIPELINE_DIR / "spark" / "databricks"
 
 # Ensure the databricks directory is on sys.path for dbt_common imports.
 if str(_DATABRICKS_DIR) not in sys.path:

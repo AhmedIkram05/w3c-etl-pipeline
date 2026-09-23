@@ -50,7 +50,7 @@ SparkSession.sql = _no_delta_ddl
 _TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.join(_TEST_DIR, "..")
 
-_NESTED_DB = os.path.join(_PROJECT_ROOT, "airflow", "spark", "databricks")
+_NESTED_DB = os.path.join(_PROJECT_ROOT, "pipeline", "spark", "databricks")
 _FLAT_DB = os.path.join(_PROJECT_ROOT, "spark", "databricks")
 
 for _db_path in (_NESTED_DB, _FLAT_DB):

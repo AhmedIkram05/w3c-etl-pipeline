@@ -15,7 +15,7 @@ Usage:
     pytest tests/test_export_warehouse.py -v --tb=short
 
     # With PySpark installed (in Docker or with pyspark>=4.0):
-    PYTHONPATH=airflow/spark/jobs:$PYTHONPATH pytest tests/test_export_warehouse.py -v
+    PYTHONPATH=pipeline/spark/jobs:$PYTHONPATH pytest tests/test_export_warehouse.py -v
 """
 
 import ast
@@ -28,12 +28,8 @@ import pytest
 
 # Path to the source file for AST-based constant extraction
 _EXPORT_WAREHOUSE_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "spark", "jobs", "export_warehouse.py")
+    os.path.join(os.path.dirname(__file__), "..", "pipeline", "spark", "jobs", "export_warehouse.py")
 )
-if not os.path.exists(_EXPORT_WAREHOUSE_PATH):
-    _EXPORT_WAREHOUSE_PATH = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "airflow", "spark", "jobs", "export_warehouse.py")
-    )
 
 
 def _get_module_constant(name: str) -> str | None:

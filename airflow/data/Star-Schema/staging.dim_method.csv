@@ -1,5 +1,0 @@
-method_sk,http_method,description,is_safe
-1,GET,Retrieve a resource,Safe
-2,HEAD,Retrieve headers only,Safe
-3,POST,Submit data to the server,Unsafe
-4,PUT,Upload a resource,Unsafe

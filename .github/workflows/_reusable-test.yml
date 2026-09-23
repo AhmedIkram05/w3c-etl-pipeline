@@ -31,23 +31,23 @@ jobs:
       - name: Create Airflow directory structure
         run: |
           sudo mkdir -p /opt/airflow/dags
-          sudo ln -sf $PWD/airflow/dags/w3c /opt/airflow/dags/w3c
+          sudo ln -sf $PWD/pipeline/dags/w3c /opt/airflow/dags/w3c
           # spark/jobs needed by spark_ingestion.py at module load time
           sudo mkdir -p /opt/airflow/spark/jobs
-          sudo ln -sf $PWD/airflow/spark/jobs/utils /opt/airflow/spark/jobs/utils
+          sudo ln -sf $PWD/pipeline/spark/jobs/utils /opt/airflow/spark/jobs/utils
           sudo mkdir -p /opt/airflow/plugins
-          sudo ln -sf $PWD/airflow/plugins/operators /opt/airflow/plugins/operators
+          sudo ln -sf $PWD/pipeline/plugins/operators /opt/airflow/plugins/operators
       - name: Install dependencies
         run: |
           pip install -r tests/requirements-test.txt
           pip install pytest apache-airflow-providers-databricks==4.6.0
       - name: Run tests with coverage
-        # Run everything except integration tests (need Azure creds),
-        # dbt_compile tests (need dbt compile to have run first),
-        # and dag_integrity tests (need Docker Airflow layout — the local
-        # airflow/ dir shadows the installed apache-airflow package on
-        # bare-metal runners; these run locally via Docker instead).
-        run: pytest tests/ -v --tb=short -m "not integration and not dbt_compile and not dag_integrity" --cov=airflow/spark/jobs --cov=airflow/plugins --cov=airflow/dags --cov-report=xml --cov-report=term-missing
+        # Run everything except integration tests (need Azure creds) and
+        # dbt_compile tests (need dbt compile to have run first). The
+        # dag_integrity tests now run in CI too — the previous local
+        # namespace shadowing was removed when the local directory was
+        # renamed to pipeline/, so no defensive marker exclusion is needed.
+        run: pytest tests/ -v --tb=short -m "not integration and not dbt_compile" --cov=pipeline/spark/jobs --cov=pipeline/plugins --cov=pipeline/dags --cov-report=xml --cov-report=term-missing
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

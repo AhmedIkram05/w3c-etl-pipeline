@@ -6,7 +6,7 @@
 # Mark dbt docs HTML as generated — exclude from GitHub language stats
 *.html linguist-generated=true
 # Data / docs are not code — never let them dilute the language bar
-airflow/data/** linguist-detectable=false
+pipeline/data/** linguist-detectable=false
 docs/** linguist-documentation=true
 *.csv linguist-detectable=false
 *.log linguist-detectable=false
