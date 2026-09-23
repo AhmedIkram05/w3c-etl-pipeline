@@ -48,13 +48,30 @@ os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
 # We strip the project root here and NEVER add it back.
 
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_PROJECT_ROOT_REAL = os.path.realpath(_PROJECT_ROOT)
 
 # Remove ALL sys.path entries that resolve to the project root.
 # Pytest adds the rootdir explicitly; additionally, the empty-string
 # entry '' resolves to the CWD (which is also the project root in CI).
 # Removing just the first hit via break() leaves '' on the path, which
 # still allows Python to discover the local airflow/ namespace.
-sys.path = [p for p in sys.path if os.path.abspath(p) != _PROJECT_ROOT]
+# '' and '.' always resolve to CWD, so drop them outright; realpath
+# covers symlinked CWD variants (e.g. /tmp vs /private/tmp on macOS).
+sys.path = [
+    p
+    for p in sys.path
+    if p not in ("", ".")
+    and os.path.abspath(p) != _PROJECT_ROOT
+    and os.path.realpath(p) != _PROJECT_ROOT_REAL
+]
+
+# Purge an already-imported PEP420 airflow namespace (pytest-cov
+# --cov=airflow imports it before conftest runs). A namespace package
+# has __file__ is None, unlike the installed apache-airflow package.
+_cached_airflow = sys.modules.get("airflow")
+if _cached_airflow is not None and getattr(_cached_airflow, "__file__", None) is None:
+    for _mod in [m for m in sys.modules if m == "airflow" or m.startswith("airflow.")]:
+        del sys.modules[_mod]
 
 # ── Add only the specific subdirectories needed for test imports ─────
 # Adding the project root would re-introduce the airflow namespace
