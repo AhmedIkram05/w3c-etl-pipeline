@@ -2,8 +2,8 @@
 pytest>=9.1.1,<10.0
 pytest-cov>=7.1.0,<8.0
 pyspark>=4.0,<5.0
-apache-airflow>=3.3.1,<4.0
-apache-airflow-providers-apache-spark>=6.3.2,<7.0
+apache-airflow>=2.10.2,<3.0
+apache-airflow-providers-apache-spark>=4.11,<5.0
 # Core dependencies (mirrors spark/requirements_spark.txt)
 user-agents==2.2.0
 geoip2==5.0.1
