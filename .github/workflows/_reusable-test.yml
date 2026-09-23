@@ -42,9 +42,12 @@ jobs:
           pip install -r tests/requirements-test.txt
           pip install pytest apache-airflow-providers-databricks
       - name: Run tests with coverage
-        # Run everything except integration tests (need Azure creds)
-        # and dbt_compile tests (need dbt compile to have run first).
-        run: pytest tests/ -v --tb=short -m "not integration and not dbt_compile" --cov=airflow --cov-report=xml --cov-report=term-missing
+        # Run everything except integration tests (need Azure creds),
+        # dbt_compile tests (need dbt compile to have run first),
+        # and dag_integrity tests (need Docker Airflow layout — the local
+        # airflow/ dir shadows the installed apache-airflow package on
+        # bare-metal runners; these run locally via Docker instead).
+        run: pytest tests/ -v --tb=short -m "not integration and not dbt_compile and not dag_integrity" --cov=airflow/spark/jobs --cov=airflow/plugins --cov=airflow/dags --cov-report=xml --cov-report=term-missing
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
