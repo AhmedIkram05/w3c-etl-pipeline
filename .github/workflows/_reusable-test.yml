@@ -40,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r tests/requirements-test.txt
-          pip install pytest apache-airflow-providers-databricks
+          pip install pytest apache-airflow-providers-databricks==4.6.0
       - name: Run tests with coverage
         # Run everything except integration tests (need Azure creds),
         # dbt_compile tests (need dbt compile to have run first),
