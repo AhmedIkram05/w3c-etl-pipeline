@@ -49,7 +49,7 @@ jobs:
         # renamed to pipeline/, so no defensive marker exclusion is needed.
         run: pytest tests/ -v --tb=short -m "not integration and not dbt_compile" --cov=pipeline/spark/jobs --cov=pipeline/plugins --cov=pipeline/dags --cov-report=xml --cov-report=term-missing
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml
           flags: pytest
