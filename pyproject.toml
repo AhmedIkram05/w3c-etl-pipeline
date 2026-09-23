@@ -44,6 +44,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+importmode = "importlib"
 pythonpath = ["airflow/spark/jobs", "airflow/dags", "airflow/plugins"]
 consider_namespace_packages = false
 markers = [
