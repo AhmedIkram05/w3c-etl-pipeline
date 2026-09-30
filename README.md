@@ -176,7 +176,7 @@ flowchart LR
 
 | Decision | Alternative | Why This Won |
 | --- | --- | --- |
-| **Dual-dialect dbt:** inline `{% if target.type == 'sqlserver' %}` branches | Per-dialect model files (`_azure.sql`) | dbt would parse both as independent models - duplicate DAG entries. Inline branches keep one source of truth. |
+| **Dual-dialect dbt:** inline `{% raw %}{% if target.type == 'sqlserver' %}{% endraw %}` branches | Per-dialect model files (`_azure.sql`) | dbt would parse both as independent models - duplicate DAG entries. Inline branches keep one source of truth. |
 | **Serverless DLT** over classic clusters | Fixed job clusters with VMs | Zero infrastructure management: scales to zero when idle, no cluster tuning ever. |
 | **SCD Type 2** for `dim_geolocation` over append-only/Type 1 | In-place overwrite | Full attribute history plus current-state performance, via a T-SQL `MERGE ... OUTPUT` pattern in the Azure SQL load (Airflow `export_dimensions`); the local Postgres path stays SCD1-style upserts. |
 | **Thin Power BI reports** - transforms stay in dbt/SQL | Logic embedded in Power BI DAX | The report is a presentation layer over a semantic contract; the warehouse stays the single source of truth. |
