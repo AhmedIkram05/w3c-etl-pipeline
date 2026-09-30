@@ -9,6 +9,12 @@
 #
 # Pull requests run terraform-plan only (read-only). Apply is skipped on PRs
 # — fast feedback without risking the environment.
+#
+# Azure master switch: all three jobs below are gated on the
+# AZURE_DEPLOY_ENABLED repo variable. Azure OIDC + the state backend are
+# decommissioned (see terraform-plan's comment), so any step touching Azure
+# fails. Unset/false keeps these jobs skipped (grey, not red); set the
+# variable to true once Azure is re-provisioned.
 # ---------------------------------------------------------------------------
 name: CD - Deploy to Azure
 
@@ -36,7 +42,7 @@ jobs:
     # Dependabot PRs skip the plan entirely: Azure OIDC + state backend are
     # decommissioned, so any plan step that touches Azure will fail. The
     # dependabot auto-merge workflow handles terraform PRs (no real CD risk).
-    if: github.actor != 'dependabot[bot]'
+    if: vars.AZURE_DEPLOY_ENABLED == 'true' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     environment: azure-dev
     permissions:
@@ -101,7 +107,7 @@ jobs:
   # -----------------------------------------------------------------------
   terraform-apply:
     name: Terraform Apply
-    if: github.event_name != 'pull_request'
+    if: vars.AZURE_DEPLOY_ENABLED == 'true' && github.event_name != 'pull_request'
     needs: terraform-plan
     runs-on: ubuntu-latest
     environment: azure-dev
@@ -143,7 +149,7 @@ jobs:
   # -----------------------------------------------------------------------
   rollback:
     name: Rollback
-    if: github.event_name == 'workflow_dispatch'
+    if: vars.AZURE_DEPLOY_ENABLED == 'true' && github.event_name == 'workflow_dispatch'
     needs: [terraform-plan]
     runs-on: ubuntu-latest
     environment: azure-dev
