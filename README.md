@@ -31,6 +31,7 @@
 <p align="center">
   <a href="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/ci.yml"><img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/cd.yml"><img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/cd.yml/badge.svg" alt="CD"></a>
+  <a href="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/codeql.yml"><img src="https://github.com/AhmedIkram05/w3c-etl-pipeline/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
   <a href="https://codecov.io/gh/AhmedIkram05/w3c-etl-pipeline"><img src="https://codecov.io/gh/AhmedIkram05/w3c-etl-pipeline/branch/main/graph/badge.svg" alt="Codecov"></a>
 </p>
 
