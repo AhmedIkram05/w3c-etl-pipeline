@@ -35,14 +35,32 @@ env:
 
 jobs:
   # -----------------------------------------------------------------------
+  # Deploy switch (master switch → output)
+  # -----------------------------------------------------------------------
+  # Converts the AZURE_DEPLOY_ENABLED repo variable into an output the CD
+  # chain consumes. The job itself always succeeds, so a disabled pipeline
+  # concludes as a green run (badge shows passing) instead of a red skipped
+  # one. Azure OIDC + state backend are decommissioned, so the variable
+  # stays unset until Azure is re-provisioned; set it to true to restore.
+  deploy-switch:
+    name: Deploy Switch
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.eval.outputs.enabled }}
+    steps:
+      - id: eval
+        run: echo "enabled=${{ vars.AZURE_DEPLOY_ENABLED == 'true' }}" >> "$GITHUB_OUTPUT"
+
+  # -----------------------------------------------------------------------
   # Terraform Plan (read-only, always runs)
   # -----------------------------------------------------------------------
   terraform-plan:
     name: Terraform Plan
+    needs: deploy-switch
     # Dependabot PRs skip the plan entirely: Azure OIDC + state backend are
     # decommissioned, so any plan step that touches Azure will fail. The
     # dependabot auto-merge workflow handles terraform PRs (no real CD risk).
-    if: vars.AZURE_DEPLOY_ENABLED == 'true' && github.actor != 'dependabot[bot]'
+    if: needs.deploy-switch.outputs.enabled == 'true' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     environment: azure-dev
     permissions:
