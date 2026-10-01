@@ -26,8 +26,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: cd-terraform  # Single slot — cancel stale runs to avoid state lock collisions
-  cancel-in-progress: true
+  group: cd-terraform  # Single slot — queue (don't cancel) to avoid state lock collisions.
+  # cancel-in-progress must stay false: cancelled runs poison the README badge,
+  # which resolves "latest" nondeterministically across old cancelled runs.
+  cancel-in-progress: false
 
 env:
   TF_VERSION: "1.10.5"
