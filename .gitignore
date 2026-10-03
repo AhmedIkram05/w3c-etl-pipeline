@@ -56,3 +56,10 @@ utils.zip
 
 graphify-out
 w3c_etl_pipeline.egg-info
+
+# Local virtualenv + tool caches
+.venv/
+.uv-cache/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/

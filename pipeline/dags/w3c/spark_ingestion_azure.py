@@ -79,6 +79,284 @@ default_args = {
 }
 
 
+def _azure_conn_str(server: str, database: str, username: str, password: str) -> str:
+    """Build the Azure SQL ODBC connection string."""
+    return (
+        f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+        f"SERVER={server};"
+        f"DATABASE={database};"
+        f"UID={username};"
+        f"PWD={password};"
+        f"Encrypt=yes;TrustServerCertificate=no;"
+    )
+
+
+def _device_type(parsed) -> str:
+    """Classify a parsed user-agent into a dim_useragent device_type label."""
+    if getattr(parsed, "is_mobile", False):
+        return "Mobile"
+    if getattr(parsed, "is_tablet", False):
+        return "Tablet"
+    if getattr(parsed, "is_pc", False):
+        return "Desktop"
+    if getattr(parsed, "is_bot", False):
+        return "Bot"
+    return "Other"
+
+
+def _parse_user_agent_rows(ua_rows) -> list[tuple]:
+    """Parse raw UA strings into deduplicated dim_useragent insert tuples.
+
+    Returns ``[]`` when the ``user_agents`` library is unavailable so the
+    caller can skip the merge without failing the DAG run.
+    """
+    try:
+        import hashlib
+
+        from user_agents import parse as ua_parse
+    except ImportError:
+        logger.warning("user-agents library not installed; skipping dim_useragent build")
+        return []
+
+    logger.info(f"Parsing {len(ua_rows)} distinct user-agent strings...")
+    insert_data: list[tuple] = []
+    seen_hashes: set = set()
+    for idx, (ua_raw,) in enumerate(ua_rows):
+        # Keep the RAW (URL-encoded) string for storage so the join key
+        # matches dbo.raw_enriched.user_agent in fact_webrequest.sql.
+        # Use the decoded string only for parsing browser/OS/device.
+        ua_raw_str = ua_raw[:1000] if ua_raw else ""
+        ua_str_decoded = unquote_plus(ua_raw_str)
+        parsed = ua_parse(ua_str_decoded)
+
+        agent_type = "Crawler" if getattr(parsed, "is_bot", False) else "Browser"
+        browser_name = parsed.browser.family or "Unknown"
+        browser_version = parsed.browser.version_string or "Unknown"
+        os_name = parsed.os.family or "Unknown"
+        device = _device_type(parsed)
+
+        # Hash the DECODED string so two differently-escaped raw strings that
+        # decode to the same UA produce the same hash (consistent dedup
+        # regardless of URL encoding).
+        hash_input = (
+            f"{ua_str_decoded[:500]}|{agent_type or ''}|{browser_name or ''}|"
+            f"{browser_version or ''}|{os_name or ''}|{device or ''}"
+        )
+        ua_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
+
+        if ua_hash in seen_hashes:
+            continue
+        seen_hashes.add(ua_hash)
+
+        insert_data.append((
+            ua_hash,
+            ua_raw_str,
+            agent_type,
+            browser_name,
+            browser_version,
+            os_name,
+            device,
+        ))
+
+        if (idx + 1) % 500 == 0:
+            logger.info(f"Parsed {idx + 1}/{len(ua_rows)} user-agents...")
+    return insert_data
+
+
+def _merge_useragent_rows(cursor, insert_data: list[tuple], batch_size: int = 250) -> None:
+    """Batched MERGE upsert of dim_useragent rows.
+
+    ``batch_size`` stays under SQL Server's 2100-parameter limit
+    (7 parameters per row).
+    """
+    if not insert_data:
+        return
+    logger.info(f"Inserting {len(insert_data)} rows into dim_useragent...")
+    for batch_start in range(0, len(insert_data), batch_size):
+        batch = insert_data[batch_start : batch_start + batch_size]
+        placeholders = ",".join(["(?,?,?,?,?,?,?)"] * len(batch))
+        params = tuple(v for row in batch for v in row)
+        cursor.execute(
+            f"""
+            MERGE dbo.dim_useragent AS target
+            USING (VALUES {placeholders}) AS source (ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
+            ON target.ua_hash = source.ua_hash
+            WHEN NOT MATCHED THEN
+                INSERT (ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
+                VALUES (source.ua_hash, source.user_agent, source.agent_type, source.browser_name,
+                        source.browser_version, source.operating_system, source.device_type);
+            """,
+            params,
+        )
+    logger.info(f"Inserted {len(insert_data)} rows into dim_useragent")
+
+
+def _build_dim_geolocation(cursor, conn) -> None:
+    """Create (or migrate) ``dim_geolocation`` and load the SCD Type 2 snapshot."""
+    cursor.execute("""
+        IF OBJECT_ID('dbo.dim_geolocation') IS NULL
+        BEGIN
+            CREATE TABLE dbo.dim_geolocation (
+                geolocation_sk  INT IDENTITY(1,1) PRIMARY KEY,
+                geo_hash        NVARCHAR(64)   NOT NULL,
+                country         NVARCHAR(100)  NULL,
+                region          NVARCHAR(100)  NULL,
+                city            NVARCHAR(100)  NULL,
+                latitude        FLOAT          NULL,
+                longitude       FLOAT          NULL,
+                isp             NVARCHAR(200)  NULL,
+                -- SCD Type 2 validity columns
+                valid_from      DATETIME2      NOT NULL
+                    CONSTRAINT df_dim_geolocation__valid_from DEFAULT SYSUTCDATETIME(),
+                valid_to        DATETIME2      NOT NULL
+                    CONSTRAINT df_dim_geolocation__valid_to DEFAULT '9999-12-31',
+                is_current      BIT            NOT NULL
+                    CONSTRAINT df_dim_geolocation__is_current DEFAULT 1
+            );
+
+            -- SCD2: history allowed per geo_hash, but exactly ONE current
+            -- version each (filtered unique index, not a table constraint).
+            CREATE UNIQUE INDEX ux_dim_geolocation__current
+                ON dbo.dim_geolocation (geo_hash) WHERE is_current = 1;
+
+            -- Seed -1 sentinel unknown row for FK integrity
+            SET IDENTITY_INSERT dbo.dim_geolocation ON;
+            INSERT INTO dbo.dim_geolocation (geolocation_sk, geo_hash, country, region, city, isp)
+            VALUES (-1, '0000000000000000000000000000000000000000000000000000000000000000', 'Unknown', 'Unknown', 'Unknown', '-');
+            SET IDENTITY_INSERT dbo.dim_geolocation OFF;
+        END;
+        ELSE IF COL_LENGTH('dbo.dim_geolocation', 'valid_from') IS NULL
+        BEGIN
+            -- One-time migration of pre-SCD2 deployments:
+            -- SCD1 unique constraint must go (history needs duplicate hashes),
+            -- existing rows become the first current version via defaults.
+            IF EXISTS (
+                SELECT 1 FROM sys.key_constraints
+                WHERE name = 'uq_dim_geolocation__geo_hash'
+                  AND parent_object_id = OBJECT_ID('dbo.dim_geolocation')
+            )
+                ALTER TABLE dbo.dim_geolocation DROP CONSTRAINT uq_dim_geolocation__geo_hash;
+
+            ALTER TABLE dbo.dim_geolocation ADD
+                valid_from DATETIME2 NOT NULL
+                    CONSTRAINT df_dim_geolocation__valid_from DEFAULT SYSUTCDATETIME(),
+                valid_to   DATETIME2 NOT NULL
+                    CONSTRAINT df_dim_geolocation__valid_to DEFAULT '9999-12-31',
+                is_current BIT       NOT NULL
+                    CONSTRAINT df_dim_geolocation__is_current DEFAULT 1;
+
+            CREATE UNIQUE INDEX ux_dim_geolocation__current
+                ON dbo.dim_geolocation (geo_hash) WHERE is_current = 1;
+        END;
+    """)
+
+    # SCD Type 2 load:
+    #   1. Aggregate current attributes per geo_hash into @src.
+    #   2. MERGE against CURRENT rows only (ON ... is_current = 1):
+    #        - new hash          -> insert new current version
+    #        - hash present but
+    #          tracked attr changed -> expire old version (valid_to /
+    #          is_current = 0). T-SQL MERGE cannot expire AND insert in
+    #          one branch, so the $action OUTPUT captures expired hashes
+    #   3. Re-insert a fresh current version for every expired hash.
+    # country/region/city/lat/long are baked into geo_hash; MAX(isp)
+    # is the only tracked attribute outside it, so isp drift alone
+    # triggers a new version.
+    cursor.execute("""
+        DECLARE @src TABLE (
+            geo_hash NVARCHAR(64) NOT NULL PRIMARY KEY,
+            country  NVARCHAR(100),
+            region   NVARCHAR(100),
+            city     NVARCHAR(100),
+            latitude FLOAT,
+            longitude FLOAT,
+            isp      NVARCHAR(200)
+        );
+
+        INSERT INTO @src (geo_hash, country, region, city, latitude, longitude, isp)
+        SELECT
+            CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',
+                ISNULL(country, '') + '|'
+                + ISNULL(region, '') + '|'
+                + ISNULL(city, '') + '|'
+                + ISNULL(CAST(latitude AS NVARCHAR), '') + '|'
+                + ISNULL(CAST(longitude AS NVARCHAR), '')
+            ), 2)                                               AS geo_hash,
+            country, region, city, latitude, longitude,
+            MAX(isp)                                            AS isp
+        FROM dbo.raw_enriched
+        WHERE country IS NOT NULL
+        GROUP BY country, region, city, latitude, longitude;
+
+        DECLARE @scd2_log TABLE (merge_action NVARCHAR(10), geo_hash NVARCHAR(64));
+
+        MERGE dbo.dim_geolocation AS target
+        USING @src AS source
+        ON target.geo_hash = source.geo_hash AND target.is_current = 1
+        WHEN MATCHED AND ISNULL(target.isp, '') <> ISNULL(source.isp, '') THEN
+            UPDATE SET
+                valid_to   = SYSUTCDATETIME(),
+                is_current = 0
+        WHEN NOT MATCHED THEN
+            INSERT (geo_hash, country, region, city, latitude, longitude, isp)
+            VALUES (source.geo_hash, source.country, source.region,
+                    source.city, source.latitude, source.longitude, source.isp)
+        OUTPUT $action, inserted.geo_hash INTO @scd2_log (merge_action, geo_hash);
+
+        INSERT INTO dbo.dim_geolocation (geo_hash, country, region, city, latitude, longitude, isp)
+        SELECT s.geo_hash, s.country, s.region, s.city, s.latitude, s.longitude, s.isp
+        FROM @src s
+        WHERE EXISTS (
+            SELECT 1 FROM @scd2_log l
+            WHERE l.merge_action = 'UPDATE' AND l.geo_hash = s.geo_hash
+        );
+    """)
+    conn.commit()
+
+
+def _build_dim_useragent(cursor, conn) -> None:
+    """Create (or migrate) ``dim_useragent`` and MERGE parsed UA rows."""
+    # ── dim_useragent (MERGE upsert on ua_hash) ─────────────
+    # Parse raw user-agent strings from dbo.raw_enriched using user-agents library
+    # (matching the pattern from pipeline/plugins/operators/export_dimensions.py)
+    cursor.execute("""
+        IF OBJECT_ID('dbo.dim_useragent') IS NULL
+        BEGIN
+            CREATE TABLE dbo.dim_useragent (
+                user_agent_sk   INT IDENTITY(1,1) PRIMARY KEY,
+                ua_hash         NVARCHAR(64)   NOT NULL,
+                user_agent      NVARCHAR(2048) NULL,
+                agent_type      NVARCHAR(50)   NULL,
+                browser_name    NVARCHAR(100)  NULL,
+                browser_version NVARCHAR(50)   NULL,
+                operating_system NVARCHAR(100)  NULL,
+                device_type     NVARCHAR(50)   NULL,
+                CONSTRAINT uq_dim_useragent__ua_hash
+                    UNIQUE (ua_hash)
+            );
+
+            -- Seed -1 sentinel unknown row for FK integrity
+            SET IDENTITY_INSERT dbo.dim_useragent ON;
+            INSERT INTO dbo.dim_useragent (user_agent_sk, ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
+            VALUES (-1, '0000000000000000000000000000000000000000000000000000000000000000', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown');
+            SET IDENTITY_INSERT dbo.dim_useragent OFF;
+        END;
+    """)
+
+    # Read distinct user_agent strings from dbo.raw_enriched
+    cursor.execute(
+        "SELECT DISTINCT user_agent FROM dbo.raw_enriched WHERE user_agent IS NOT NULL AND user_agent != '-'"
+    )
+    ua_rows = cursor.fetchall()
+
+    if ua_rows:
+        _merge_useragent_rows(cursor, _parse_user_agent_rows(ua_rows))
+    else:
+        logger.info("No user-agent strings found in dbo.raw_enriched; skipping dim_useragent build")
+
+    conn.commit()
+
+
 def _export_dimensions(**context) -> None:
     """Build Airflow-managed dimension tables from Azure SQL.
 
@@ -127,262 +405,10 @@ def _export_dimensions(**context) -> None:
     try:
         import pyodbc
 
-        conn_str = (
-            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-            f"SERVER={server};"
-            f"DATABASE={database};"
-            f"UID={username};"
-            f"PWD={password};"
-            f"Encrypt=yes;TrustServerCertificate=no;"
-        )
-
-        with pyodbc.connect(conn_str, autocommit=False) as conn:
+        with pyodbc.connect(_azure_conn_str(server, database, username, password), autocommit=False) as conn:
             cursor = conn.cursor()
-
-            # ── dim_geolocation (SCD Type 2 on geo_hash) ────────────
-            cursor.execute("""
-                IF OBJECT_ID('dbo.dim_geolocation') IS NULL
-                BEGIN
-                    CREATE TABLE dbo.dim_geolocation (
-                        geolocation_sk  INT IDENTITY(1,1) PRIMARY KEY,
-                        geo_hash        NVARCHAR(64)   NOT NULL,
-                        country         NVARCHAR(100)  NULL,
-                        region          NVARCHAR(100)  NULL,
-                        city            NVARCHAR(100)  NULL,
-                        latitude        FLOAT          NULL,
-                        longitude       FLOAT          NULL,
-                        isp             NVARCHAR(200)  NULL,
-                        -- SCD Type 2 validity columns
-                        valid_from      DATETIME2      NOT NULL
-                            CONSTRAINT df_dim_geolocation__valid_from DEFAULT SYSUTCDATETIME(),
-                        valid_to        DATETIME2      NOT NULL
-                            CONSTRAINT df_dim_geolocation__valid_to DEFAULT '9999-12-31',
-                        is_current      BIT            NOT NULL
-                            CONSTRAINT df_dim_geolocation__is_current DEFAULT 1
-                    );
-
-                    -- SCD2: history allowed per geo_hash, but exactly ONE current
-                    -- version each (filtered unique index, not a table constraint).
-                    CREATE UNIQUE INDEX ux_dim_geolocation__current
-                        ON dbo.dim_geolocation (geo_hash) WHERE is_current = 1;
-
-                    -- Seed -1 sentinel unknown row for FK integrity
-                    SET IDENTITY_INSERT dbo.dim_geolocation ON;
-                    INSERT INTO dbo.dim_geolocation (geolocation_sk, geo_hash, country, region, city, isp)
-                    VALUES (-1, '0000000000000000000000000000000000000000000000000000000000000000', 'Unknown', 'Unknown', 'Unknown', '-');
-                    SET IDENTITY_INSERT dbo.dim_geolocation OFF;
-                END;
-                ELSE IF COL_LENGTH('dbo.dim_geolocation', 'valid_from') IS NULL
-                BEGIN
-                    -- One-time migration of pre-SCD2 deployments:
-                    -- SCD1 unique constraint must go (history needs duplicate hashes),
-                    -- existing rows become the first current version via defaults.
-                    IF EXISTS (
-                        SELECT 1 FROM sys.key_constraints
-                        WHERE name = 'uq_dim_geolocation__geo_hash'
-                          AND parent_object_id = OBJECT_ID('dbo.dim_geolocation')
-                    )
-                        ALTER TABLE dbo.dim_geolocation DROP CONSTRAINT uq_dim_geolocation__geo_hash;
-
-                    ALTER TABLE dbo.dim_geolocation ADD
-                        valid_from DATETIME2 NOT NULL
-                            CONSTRAINT df_dim_geolocation__valid_from DEFAULT SYSUTCDATETIME(),
-                        valid_to   DATETIME2 NOT NULL
-                            CONSTRAINT df_dim_geolocation__valid_to DEFAULT '9999-12-31',
-                        is_current BIT       NOT NULL
-                            CONSTRAINT df_dim_geolocation__is_current DEFAULT 1;
-
-                    CREATE UNIQUE INDEX ux_dim_geolocation__current
-                        ON dbo.dim_geolocation (geo_hash) WHERE is_current = 1;
-                END;
-            """)
-
-            # SCD Type 2 load:
-            #   1. Aggregate current attributes per geo_hash into @src.
-            #   2. MERGE against CURRENT rows only (ON ... is_current = 1):
-            #        - new hash          -> insert new current version
-            #        - hash present but
-            #          tracked attr changed -> expire old version (valid_to /
-            #          is_current = 0). T-SQL MERGE cannot expire AND insert in
-            #          one branch, so the $action OUTPUT captures expired hashes
-            #   3. Re-insert a fresh current version for every expired hash.
-            # country/region/city/lat/long are baked into geo_hash; MAX(isp)
-            # is the only tracked attribute outside it, so isp drift alone
-            # triggers a new version.
-            cursor.execute("""
-                DECLARE @src TABLE (
-                    geo_hash NVARCHAR(64) NOT NULL PRIMARY KEY,
-                    country  NVARCHAR(100),
-                    region   NVARCHAR(100),
-                    city     NVARCHAR(100),
-                    latitude FLOAT,
-                    longitude FLOAT,
-                    isp      NVARCHAR(200)
-                );
-
-                INSERT INTO @src (geo_hash, country, region, city, latitude, longitude, isp)
-                SELECT
-                    CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',
-                        ISNULL(country, '') + '|'
-                        + ISNULL(region, '') + '|'
-                        + ISNULL(city, '') + '|'
-                        + ISNULL(CAST(latitude AS NVARCHAR), '') + '|'
-                        + ISNULL(CAST(longitude AS NVARCHAR), '')
-                    ), 2)                                               AS geo_hash,
-                    country, region, city, latitude, longitude,
-                    MAX(isp)                                            AS isp
-                FROM dbo.raw_enriched
-                WHERE country IS NOT NULL
-                GROUP BY country, region, city, latitude, longitude;
-
-                DECLARE @scd2_log TABLE (merge_action NVARCHAR(10), geo_hash NVARCHAR(64));
-
-                MERGE dbo.dim_geolocation AS target
-                USING @src AS source
-                ON target.geo_hash = source.geo_hash AND target.is_current = 1
-                WHEN MATCHED AND ISNULL(target.isp, '') <> ISNULL(source.isp, '') THEN
-                    UPDATE SET
-                        valid_to   = SYSUTCDATETIME(),
-                        is_current = 0
-                WHEN NOT MATCHED THEN
-                    INSERT (geo_hash, country, region, city, latitude, longitude, isp)
-                    VALUES (source.geo_hash, source.country, source.region,
-                            source.city, source.latitude, source.longitude, source.isp)
-                OUTPUT $action, inserted.geo_hash INTO @scd2_log (merge_action, geo_hash);
-
-                INSERT INTO dbo.dim_geolocation (geo_hash, country, region, city, latitude, longitude, isp)
-                SELECT s.geo_hash, s.country, s.region, s.city, s.latitude, s.longitude, s.isp
-                FROM @src s
-                WHERE EXISTS (
-                    SELECT 1 FROM @scd2_log l
-                    WHERE l.merge_action = 'UPDATE' AND l.geo_hash = s.geo_hash
-                );
-            """)
-            conn.commit()
-
-            # ── dim_useragent (MERGE upsert on ua_hash) ─────────────
-            # Parse raw user-agent strings from dbo.raw_enriched using user-agents library
-            # (matching the pattern from pipeline/plugins/operators/export_dimensions.py)
-            cursor.execute("""
-                IF OBJECT_ID('dbo.dim_useragent') IS NULL
-                BEGIN
-                    CREATE TABLE dbo.dim_useragent (
-                        user_agent_sk   INT IDENTITY(1,1) PRIMARY KEY,
-                        ua_hash         NVARCHAR(64)   NOT NULL,
-                        user_agent      NVARCHAR(2048) NULL,
-                        agent_type      NVARCHAR(50)   NULL,
-                        browser_name    NVARCHAR(100)  NULL,
-                        browser_version NVARCHAR(50)   NULL,
-                        operating_system NVARCHAR(100)  NULL,
-                        device_type     NVARCHAR(50)   NULL,
-                        CONSTRAINT uq_dim_useragent__ua_hash
-                            UNIQUE (ua_hash)
-                    );
-
-                    -- Seed -1 sentinel unknown row for FK integrity
-                    SET IDENTITY_INSERT dbo.dim_useragent ON;
-                    INSERT INTO dbo.dim_useragent (user_agent_sk, ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
-                    VALUES (-1, '0000000000000000000000000000000000000000000000000000000000000000', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown');
-                    SET IDENTITY_INSERT dbo.dim_useragent OFF;
-                END;
-            """)
-
-            # Read distinct user_agent strings from dbo.raw_enriched
-            cursor.execute(
-                "SELECT DISTINCT user_agent FROM dbo.raw_enriched WHERE user_agent IS NOT NULL AND user_agent != '-'"
-            )
-            ua_rows = cursor.fetchall()
-
-            if ua_rows:
-                # Parse user-agent strings using user-agents library
-                try:
-                    import hashlib
-
-                    from user_agents import parse as ua_parse
-                except ImportError:
-                    logger.warning("user-agents library not installed; skipping dim_useragent build")
-                    ua_rows = []
-                else:
-                    logger.info(f"Parsing {len(ua_rows)} distinct user-agent strings...")
-                    insert_data = []
-                    seen_hashes = set()
-                    for idx, (ua_raw,) in enumerate(ua_rows):
-                        # Keep the RAW (URL-encoded) string for storage so the join key
-                        # matches dbo.raw_enriched.user_agent in fact_webrequest.sql.
-                        # Use the decoded string only for parsing browser/OS/device.
-                        ua_raw_str = ua_raw[:1000] if ua_raw else ""
-                        ua_str_decoded = unquote_plus(ua_raw_str)
-                        parsed = ua_parse(ua_str_decoded)
-
-                        agent_type = "Crawler" if getattr(parsed, "is_bot", False) else "Browser"
-                        browser_name = parsed.browser.family or "Unknown"
-                        browser_version = parsed.browser.version_string or "Unknown"
-                        os_name = parsed.os.family or "Unknown"
-
-                        if getattr(parsed, "is_mobile", False):
-                            device = "Mobile"
-                        elif getattr(parsed, "is_tablet", False):
-                            device = "Tablet"
-                        elif getattr(parsed, "is_pc", False):
-                            device = "Desktop"
-                        elif getattr(parsed, "is_bot", False):
-                            device = "Bot"
-                        else:
-                            device = "Other"
-
-                        # Compute hash from DECODED string so two differently-escaped
-                        # raw strings that decode to the same UA produce the same hash
-                        # (consistent dedup regardless of URL encoding).
-                        hash_input = f"{ua_str_decoded[:500]}|{agent_type or ''}|{browser_name or ''}|{browser_version or ''}|{os_name or ''}|{device or ''}"
-                        ua_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
-
-                        # Dedup after URL-unescaping: two differently-escaped raw strings may
-                        # unquote_plus to the same UA, producing the same hash
-                        if ua_hash in seen_hashes:
-                            continue
-                        seen_hashes.add(ua_hash)
-
-                        # Store the RAW (encoded) user_agent string so the FK join in
-                        # fact_webrequest.sql matches dbo.raw_enriched.user_agent.
-                        insert_data.append((
-                            ua_hash,
-                            ua_raw_str,
-                            agent_type,
-                            browser_name,
-                            browser_version,
-                            os_name,
-                            device,
-                        ))
-
-                        # Log progress every 500 UAs
-                        if (idx + 1) % 500 == 0:
-                            logger.info(f"Parsed {idx + 1}/{len(ua_rows)} user-agents...")
-
-                    # Batch insert with MERGE for idempotency (batched VALUES for performance)
-                    if insert_data:
-                        logger.info(f"Inserting {len(insert_data)} rows into dim_useragent...")
-                        batch_size = 250  # Stay under SQL Server's 2100-param limit (7 params/row)
-                        for batch_start in range(0, len(insert_data), batch_size):
-                            batch = insert_data[batch_start : batch_start + batch_size]
-                            placeholders = ",".join(["(?,?,?,?,?,?,?)"] * len(batch))
-                            params = tuple(v for row in batch for v in row)
-                            cursor.execute(
-                                f"""
-                                MERGE dbo.dim_useragent AS target
-                                USING (VALUES {placeholders}) AS source (ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
-                                ON target.ua_hash = source.ua_hash
-                                WHEN NOT MATCHED THEN
-                                    INSERT (ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
-                                    VALUES (source.ua_hash, source.user_agent, source.agent_type, source.browser_name,
-                                            source.browser_version, source.operating_system, source.device_type);
-                            """,
-                                params,
-                            )
-                        logger.info(f"Inserted {len(insert_data)} rows into dim_useragent")
-            else:
-                logger.info("No user-agent strings found in dbo.raw_enriched; skipping dim_useragent build")
-
-            conn.commit()
+            _build_dim_geolocation(cursor, conn)
+            _build_dim_useragent(cursor, conn)
 
         logger.info("Dimension tables dim_geolocation and dim_useragent built successfully from Azure SQL.")
 
@@ -430,14 +456,7 @@ def _create_indexes(**context) -> None:
     try:
         import pyodbc
 
-        conn_str = (
-            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-            f"SERVER={server};"
-            f"DATABASE={database};"
-            f"UID={username};"
-            f"PWD={password};"
-            f"Encrypt=yes;TrustServerCertificate=no;"
-        )
+        conn_str = _azure_conn_str(server, database, username, password)
 
         with pyodbc.connect(conn_str, autocommit=True) as conn:
             cursor = conn.cursor()
