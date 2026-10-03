@@ -182,6 +182,66 @@ def _geoip_lookup(ip: str, attr: str) -> str:
 # ── Main pipeline ───────────────────────────────────────────────────────
 
 
+def _page_category(uri_stem: str) -> str:
+    if not uri_stem:
+        return "Unknown"
+    uri_lower = uri_stem.lower()
+    if uri_lower.startswith("/css/"):
+        return "Stylesheet"
+    if uri_lower.startswith("/js/"):
+        return "JavaScript"
+    if uri_lower.startswith("/images/") or uri_lower.startswith("/img/"):
+        return "Image"
+    if uri_lower.endswith(".pdf"):
+        return "Document"
+    if uri_lower.endswith(".xml") or uri_lower.endswith(".rss"):
+        return "Feed"
+    if uri_lower == "/" or uri_lower == "/default.aspx":
+        return "Homepage"
+    return "Content"
+
+
+def _referrer_domain(referrer: str) -> str:
+    if not referrer or referrer == "-":
+        return "Direct"
+    try:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(referrer)
+        return parsed.netloc or "Direct"
+    except Exception:
+        return "Unknown"
+
+
+def _traffic_type(referrer: str) -> str:
+    if not referrer or referrer == "-":
+        return "Direct"
+    try:
+        from urllib.parse import urlparse
+
+        domain = urlparse(referrer).netloc.lower()
+        if "google" in domain or "bing" in domain or "yahoo" in domain:
+            return "Search"
+        if "facebook" in domain or "twitter" in domain or "linkedin" in domain:
+            return "Social"
+        return "Referral"
+    except Exception:
+        return "Referral"
+
+
+def _size_band(bytes_sent, bytes_recv) -> str:
+    total = (bytes_sent or 0) + (bytes_recv or 0)
+    if total == 0:
+        return "Zero"
+    if total < 1024:
+        return "Tiny (<1KB)"
+    if total < 10240:
+        return "Small (1-10KB)"
+    if total < 102400:
+        return "Medium (10-100KB)"
+    return "Large (>100KB)"
+
+
 def run(spark, geolite2_db: str | None = None):
     """Execute the Silver enrichment pipeline on Databricks."""
     # Ensure target table
@@ -228,69 +288,10 @@ def run(spark, geolite2_db: str | None = None):
     # Computed field UDFs
     is_crawler_udf = udf(lambda ip: "true" if ip in crawler_ips else "false", StringType())
 
-    def page_category_udf(uri_stem: str) -> str:
-        if not uri_stem:
-            return "Unknown"
-        uri_lower = uri_stem.lower()
-        if uri_lower.startswith("/css/"):
-            return "Stylesheet"
-        elif uri_lower.startswith("/js/"):
-            return "JavaScript"
-        elif uri_lower.startswith("/images/") or uri_lower.startswith("/img/"):
-            return "Image"
-        elif uri_lower.endswith(".pdf"):
-            return "Document"
-        elif uri_lower.endswith(".xml") or uri_lower.endswith(".rss"):
-            return "Feed"
-        elif uri_lower == "/" or uri_lower == "/default.aspx":
-            return "Homepage"
-        else:
-            return "Content"
-
-    def referrer_domain_udf(referrer: str) -> str:
-        if not referrer or referrer == "-":
-            return "Direct"
-        try:
-            from urllib.parse import urlparse
-
-            parsed = urlparse(referrer)
-            return parsed.netloc or "Direct"
-        except Exception:
-            return "Unknown"
-
-    def traffic_type_udf(referrer: str) -> str:
-        if not referrer or referrer == "-":
-            return "Direct"
-        try:
-            from urllib.parse import urlparse
-
-            domain = urlparse(referrer).netloc.lower()
-            if "google" in domain or "bing" in domain or "yahoo" in domain:
-                return "Search"
-            elif "facebook" in domain or "twitter" in domain or "linkedin" in domain:
-                return "Social"
-            else:
-                return "Referral"
-        except Exception:
-            return "Referral"
-
-    def size_band_udf(bytes_sent, bytes_recv) -> str:
-        total = (bytes_sent or 0) + (bytes_recv or 0)
-        if total == 0:
-            return "Zero"
-        elif total < 1024:
-            return "Tiny (<1KB)"
-        elif total < 10240:
-            return "Small (1-10KB)"
-        elif total < 102400:
-            return "Medium (10-100KB)"
-        else:
-            return "Large (>100KB)"
-
-    page_category_fn = udf(page_category_udf, StringType())
-    referrer_domain_fn = udf(referrer_domain_udf, StringType())
-    traffic_type_fn = udf(traffic_type_udf, StringType())
-    size_band_fn = udf(size_band_udf, StringType())
+    page_category_fn = udf(_page_category, StringType())
+    referrer_domain_fn = udf(_referrer_domain, StringType())
+    traffic_type_fn = udf(_traffic_type, StringType())
+    size_band_fn = udf(_size_band, StringType())
 
     # Apply enrichment
     enriched = (
