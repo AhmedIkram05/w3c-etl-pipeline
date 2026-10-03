@@ -79,7 +79,6 @@ default_args = {
 }
 
 
-
 def _azure_conn_str(server: str, database: str, username: str, password: str) -> str:
     """Build the Azure SQL ODBC connection string."""
     return (
@@ -314,6 +313,7 @@ def _build_dim_geolocation(cursor, conn) -> None:
     """)
     conn.commit()
 
+
 def _build_dim_useragent(cursor, conn) -> None:
     """Create (or migrate) ``dim_useragent`` and MERGE parsed UA rows."""
     # ── dim_useragent (MERGE upsert on ua_hash) ─────────────
@@ -355,6 +355,7 @@ def _build_dim_useragent(cursor, conn) -> None:
         logger.info("No user-agent strings found in dbo.raw_enriched; skipping dim_useragent build")
 
     conn.commit()
+
 
 def _export_dimensions(**context) -> None:
     """Build Airflow-managed dimension tables from Azure SQL.
@@ -404,9 +405,7 @@ def _export_dimensions(**context) -> None:
     try:
         import pyodbc
 
-        with pyodbc.connect(
-            _azure_conn_str(server, database, username, password), autocommit=False
-        ) as conn:
+        with pyodbc.connect(_azure_conn_str(server, database, username, password), autocommit=False) as conn:
             cursor = conn.cursor()
             _build_dim_geolocation(cursor, conn)
             _build_dim_useragent(cursor, conn)
