@@ -82,8 +82,12 @@ def parse_log_line(line: str, file_format: int, source_file: str) -> dict | None
     if len(parts) < file_format:
         return None
 
+    # 18-field format inserts uri_query (and 3 more fields) at index 7,
+    # shifting every column from cookie onward by 4.
+    shift = 4 if file_format == 18 else 0
+
     try:
-        row = {
+        row: dict = {
             "log_date": parts[0],
             "log_time": parts[1],
             "server_ip": parts[2],
@@ -91,23 +95,29 @@ def parse_log_line(line: str, file_format: int, source_file: str) -> dict | None
             "uri_stem": parts[4],
             "client_ip": parts[5],
             "user_agent": parts[6] if len(parts) > 6 else "",
-            "cookie": parts[11] if file_format == 18 else parts[7],
-            "referrer": parts[12] if file_format == 18 else parts[8],
-            "status": _int(parts[13] if file_format == 18 else parts[9]),
-            "sub_status": _int(parts[14] if file_format == 18 else parts[10]),
-            "win32_status": _int(parts[15] if file_format == 18 else parts[11]),
-            "bytes_sent": _int(parts[16] if file_format == 18 else parts[12]),
-            "bytes_recv": _int(parts[17] if file_format == 18 else parts[13]),
-            "time_taken": _int(parts[18] if file_format == 18 else parts[14]),
-            "server_port": _int(parts[19] if file_format == 18 else parts[15]),
-            "username": parts[20] if file_format == 18 else parts[16],
+            "cookie": parts[7 + shift],
+            "referrer": parts[8 + shift],
             "uri_query": parts[7] if file_format == 18 else "",
             "source_file": source_file,
         }
+        for idx, key in enumerate(_INT_KEYS):
+            row[key] = _int(parts[9 + shift + idx])
+        row["username"] = parts[16 + shift]
     except (IndexError, ValueError):
         return None
 
     return row
+
+
+_INT_KEYS = (
+    "status",
+    "sub_status",
+    "win32_status",
+    "bytes_sent",
+    "bytes_recv",
+    "time_taken",
+    "server_port",
+)
 
 
 def _int(val: str) -> int | None:
