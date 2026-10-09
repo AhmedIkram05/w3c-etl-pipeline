@@ -17,7 +17,7 @@ dbt-common==1.27.1
 
 # Data freshness probe dependencies
 prometheus-client>=0.26.0,<1.0
-pymssql>=2.4.2,<3.0
+pymssql>=2.4.3,<3.0
 
 # Data lineage — OpenLineage events emitted to self-hosted Marquez
 # (see pipeline/lineage/docker-compose.lineage.yaml).
