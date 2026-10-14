@@ -1,27 +1,52 @@
 # ---------------------------------------------------------------------------
-# Dependabot — Automated Dependency Updates
+# Dependabot — Unified Monday-Morning Dependency Updates
 # ---------------------------------------------------------------------------
-# - Patch updates auto-merged via workflow
-# - Minor/major create PRs for human review
-# - Check daily for critical security patches
+# - Weekly, Monday 09:00 Europe/London across every ecosystem
+# - Minor/patch bumps grouped into one PR per ecosystem
+# - Patch updates auto-merged via workflow; minor/major need human review
 # ---------------------------------------------------------------------------
 
 version: 2
 updates:
-  # Python dependencies (pip + uv)
-  - package-ecosystem: "pip"
+  # Python dependencies (pyproject.toml + uv.lock at the repo root).
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
       time: "09:00"
-      timezone: "Etc/UTC"
+      timezone: "Europe/London"
+    target-branch: "main"
     labels:
       - "dependencies"
       - "python"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "ahmedikram"
-    # Only auto-merge patch updates
+    commit-message:
+      prefix: "chore"
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Python — Airflow stack (pipeline/requirements.txt).
+  - package-ecosystem: "pip"
+    directory: "/pipeline"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/London"
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "python"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "ahmedikram"
+    commit-message:
+      prefix: "chore"
+    # Only auto-merge patch updates.
     allow:
       - dependency-type: "direct"
         update-types: ["version-update:semver-patch"]
@@ -39,6 +64,9 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "protobuf"
         update-types: ["version-update:semver-major"]
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -47,13 +75,19 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-      timezone: "Etc/UTC"
+      timezone: "Europe/London"
+    target-branch: "main"
     labels:
       - "dependencies"
       - "github-actions"
     open-pull-requests-limit: 5
     reviewers:
       - "ahmedikram"
+    commit-message:
+      prefix: "chore"
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
 
   # Terraform providers
   - package-ecosystem: "terraform"
@@ -62,13 +96,19 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-      timezone: "Etc/UTC"
+      timezone: "Europe/London"
+    target-branch: "main"
     labels:
       - "dependencies"
       - "terraform"
     open-pull-requests-limit: 5
     reviewers:
       - "ahmedikram"
+    commit-message:
+      prefix: "chore"
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "terraform"
     directory: "/terraform/databricks"
@@ -76,13 +116,19 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-      timezone: "Etc/UTC"
+      timezone: "Europe/London"
+    target-branch: "main"
     labels:
       - "dependencies"
       - "terraform"
     open-pull-requests-limit: 5
     reviewers:
       - "ahmedikram"
+    commit-message:
+      prefix: "chore"
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
 
   # Docker images
   - package-ecosystem: "docker"
@@ -91,14 +137,20 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-      timezone: "Etc/UTC"
+      timezone: "Europe/London"
+    target-branch: "main"
     labels:
       - "dependencies"
       - "docker"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     reviewers:
       - "ahmedikram"
+    commit-message:
+      prefix: "chore"
     # Stack is pinned to apache/airflow 2.10.2: never propose the 3.x image.
     ignore:
       - dependency-name: "apache/airflow"
         update-types: ["version-update:semver-major"]
+    groups:
+      docker-all:
+        patterns: ["*"]
