@@ -25,6 +25,26 @@ updates:
       - "ahmedikram"
     commit-message:
       prefix: "chore"
+    # Mirror the /pipeline pip entry's protections on the entry that actually
+    # scans these files — the root uv job kept proposing majors the pip entry
+    # already blocks (apache-airflow 2→3, protobuf 5→7). The dbt stack is
+    # exact-pinned to 1.8.x (see pipeline/requirements.txt comments) and is held
+    # until the protobuf 5→6 migration is done deliberately.
+    ignore:
+      - dependency-name: "apache-airflow"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "apache-airflow-providers-openlineage"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "apache-airflow-providers-apache-spark"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "apache-airflow-providers-databricks"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "protobuf"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "dbt-core"
+      - dependency-name: "dbt-common"
+      - dependency-name: "dbt-postgres"
+      - dependency-name: "dbt-sqlserver"
     groups:
       minor-patch:
         update-types: ["minor", "patch"]
