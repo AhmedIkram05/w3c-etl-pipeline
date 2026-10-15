@@ -70,9 +70,9 @@ updates:
     allow:
       - dependency-type: "direct"
         update-types: ["version-update:semver-patch"]
-    # Stack is pinned to Airflow 2.x (2.10.2): never propose 3.x, and never
-    # propose provider/protobuf majors that require Airflow >=2.11 / break
-    # dbt-common (see pipeline/requirements.txt comments).
+    # Stack is on the Airflow 2.x line (base image apache/airflow:2.11.2):
+    # never propose 3.x, and never propose majors that break the pinned
+    # protobuf / sqlalchemy / pyodbc ranges (see pipeline/requirements.txt).
     ignore:
       - dependency-name: "apache-airflow"
         update-types: ["version-update:semver-major"]
@@ -83,6 +83,12 @@ updates:
       - dependency-name: "apache-airflow-providers-databricks"
         update-types: ["version-update:semver-major"]
       - dependency-name: "protobuf"
+        update-types: ["version-update:semver-major"]
+      # dbt-fabric (via dbt-sqlserver 1.8.x) caps pyodbc<5.2.0.
+      - dependency-name: "pyodbc"
+        versions: [">=5.2"]
+      # Airflow 2.11.2 (base image) and dbt-core 1.8.x cap sqlalchemy<2.0.
+      - dependency-name: "sqlalchemy"
         update-types: ["version-update:semver-major"]
     groups:
       minor-patch:
