@@ -8,6 +8,6 @@ apache-airflow-providers-apache-spark>=4.11,<5.0
 user-agents==2.2.0
 geoip2==5.3.0
 maxminddb==3.2.0
-requests==2.32.5
+requests==2.34.2
 pandas>=3.0.6,<4.0
 psycopg2-binary>=2.9.13,<3.0
