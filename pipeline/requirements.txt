@@ -5,13 +5,19 @@ dbt-postgres==1.8.2
 dbt-core==1.8.10
 dbt-sqlserver==1.8.7
 psycopg2-binary>=2.9.13,<3.0
-pyodbc>=5.3.0,<6.0
-sqlalchemy>=2.1.4,<3.0
-# Pin protobuf to 5.27+: the `always_print_fields_with_no_presence` kwarg
-# used by dbt-common 1.27.1 (MessageToJson) was added in protobuf 5.27.
-# Airflow 2.10 base image ships protobuf 4.25.9; must be upgraded or
-# dbt run/test/docs all crash with TypeError on the final Resource report.
-protobuf>=7.36.2,<8
+# dbt-fabric (pulled in by dbt-sqlserver 1.8.x) caps pyodbc<5.2.0, so the
+# Dependabot bump to >=5.3.0 left this file unsatisfiable. Stay in [5.1, 5.2)
+# until dbt-fabric lifts the cap.
+pyodbc>=5.1,<5.2
+# Airflow 2.11.2 (base image) and dbt-core 1.8.x both cap sqlalchemy<2.0;
+# the Dependabot bump to >=2.1.4 left this file unsatisfiable.
+sqlalchemy>=1.4.36,<2.0
+# Pin protobuf to 5.27–5.x: the `always_print_fields_with_no_presence` kwarg
+# used by dbt-common 1.27.1 (MessageToJson) was added in protobuf 5.27, and
+# dbt-common / dbt-core 1.8.x cap protobuf at <6.0. The Airflow base image
+# ships an older protobuf; must be upgraded or dbt run/test/docs all crash with
+# TypeError on the final Resource report.
+protobuf>=5.27,<6
 # dbt-core 1.8.x is built against protobuf 5; dbt-common 1.28+ moves to protobuf 6.
 dbt-common==1.27.1
 
@@ -21,8 +27,8 @@ pymssql>=2.4.4,<3.0
 
 # Data lineage — OpenLineage events emitted to self-hosted Marquez
 # (see pipeline/lineage/docker-compose.lineage.yaml).
-# Provider capped <2: 2.x requires apache-airflow>=2.11 but this stack is
-# pinned to 2.10.2 (1.14.0 = newest release supporting 2.8+).
+# Provider capped <3: the 3.x line tracks Airflow 3. The base image is
+# apache/airflow:2.11.2, which satisfies the 2.x providers (>=2.11.0).
 # openlineage-dbt provides the `dbt-ol` wrapper used by w3c_dbt_marts;
 # its latest accepts dbt-core>=1.0.0 so the ==1.8.9 pin holds.
 apache-airflow-providers-openlineage>=2.20.2,<3
