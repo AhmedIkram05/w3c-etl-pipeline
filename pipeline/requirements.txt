@@ -11,7 +11,7 @@ psycopg2-binary>=2.9.13,<3.0
 pyodbc>=5.1,<5.2
 # Airflow 2.11.2 (base image) and dbt-core 1.8.x both cap sqlalchemy<2.0;
 # the Dependabot bump to >=2.1.4 left this file unsatisfiable.
-sqlalchemy>=1.4.36,<2.0
+sqlalchemy>=1.4.54,<2.0
 # Pin protobuf to 5.27–5.x: the `always_print_fields_with_no_presence` kwarg
 # used by dbt-common 1.27.1 (MessageToJson) was added in protobuf 5.27, and
 # dbt-common / dbt-core 1.8.x cap protobuf at <6.0. The Airflow base image
