@@ -25,7 +25,8 @@ updates:
       - "ahmedikram"
     commit-message:
       prefix: "chore"
-    # This entry owns the ROOT uv project only (pyproject.toml + uv.lock).
+    # This entry owns the ROOT uv project (pyproject.toml + uv.lock) and
+    # tests/requirements-test.txt — nothing under pipeline/.
     # Dependabot's uv scanner also picks up requirements.txt files in
     # subdirectories, so without this it double-managed pipeline/requirements.txt
     # alongside the dedicated "pip" entry below — every pipeline dependency
