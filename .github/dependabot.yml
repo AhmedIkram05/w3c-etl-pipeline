@@ -25,6 +25,14 @@ updates:
       - "ahmedikram"
     commit-message:
       prefix: "chore"
+    # This entry owns the ROOT uv project only (pyproject.toml + uv.lock).
+    # Dependabot's uv scanner also picks up requirements.txt files in
+    # subdirectories, so without this it double-managed pipeline/requirements.txt
+    # alongside the dedicated "pip" entry below — every pipeline dependency
+    # produced two PRs (#203 + #204, #197 + #198, #185 + #188), and the second
+    # one was always an empty merge once the first landed.
+    exclude-paths:
+      - "pipeline/**"
     # Mirror the /pipeline pip entry's protections on the entry that actually
     # scans these files — the root uv job kept proposing majors the pip entry
     # already blocks (apache-airflow 2→3, protobuf 5→7). The dbt stack is
