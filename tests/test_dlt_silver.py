@@ -428,6 +428,20 @@ class TestGetPageCategory:
         df = spark.createDataFrame([Row(uri_stem="/favicon.ico")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
 
+    def test_static_asset_with_query_string(self, spark):
+        """Query string is stripped before the extension check."""
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(uri_stem="/assets/app.js?v=3")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
+
+    def test_api_path_not_matched_as_js(self, spark):
+        """``/api/json`` must not be treated as a .js asset."""
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(uri_stem="/api/json")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "API"
+
     def test_api_endpoint(self, spark):
         from pyspark.sql.functions import col
 

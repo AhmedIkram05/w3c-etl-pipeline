@@ -210,8 +210,9 @@ def _extract_domain(url):
 def get_page_category(uri_stem):
     """Categorize page by URI pattern."""
     uri_stem_lower = uri_stem.lower() if uri_stem else ""
+    path = uri_stem_lower.split("?")[0]
 
-    if any(ext in uri_stem_lower for ext in [".css", ".js", ".png", ".jpg", ".gif", ".ico"]):
+    if path.endswith((".css", ".js", ".png", ".jpg", ".gif", ".ico")):
         return "Static Asset"
     elif "/api/" in uri_stem_lower:
         return "API"
