@@ -194,13 +194,17 @@ class TestExtractDomain:
         url = "http://www.darwinsbeagleplants.org/Darwin/Plant.aspx"
         assert _extract_domain(url) == "darwinsbeagleplants.org"
 
+    def test_scheme_less_referrer(self):
+        """A referrer with no scheme still yields its domain (was empty netloc)."""
+        assert _extract_domain("www.google.com") == "google.com"
+
     def test_unknown_string(self):
-        """Literal 'Unknown' passes through urlparse with empty netloc."""
-        assert _extract_domain("Unknown") == ""
+        """Literal 'Unknown' is passed through unchanged."""
+        assert _extract_domain("Unknown") == "Unknown"
 
     def test_malformed_url(self):
-        """Non-parseable URL returns empty string (urlparse returns empty netloc)."""
-        assert _extract_domain("not-a-url") == ""
+        """A scheme-less non-URL is parsed as its own host rather than dropped."""
+        assert _extract_domain("not-a-url") == "not-a-url"
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -423,6 +427,20 @@ class TestGetPageCategory:
 
         df = spark.createDataFrame([Row(uri_stem="/favicon.ico")])
         assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
+
+    def test_static_asset_with_query_string(self, spark):
+        """Query string is stripped before the extension check."""
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(uri_stem="/assets/app.js?v=3")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
+
+    def test_api_path_not_matched_as_js(self, spark):
+        """``/api/json`` must not be treated as a .js asset."""
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(uri_stem="/api/json")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "API"
 
     def test_api_endpoint(self, spark):
         from pyspark.sql.functions import col
