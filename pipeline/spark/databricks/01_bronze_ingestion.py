@@ -76,48 +76,82 @@ BRONZE_UC_PATH = f"{CATALOG}.{SCHEMA}.{TABLE}"
 def parse_log_line(line: str, file_format: int, source_file: str) -> dict | None:
     """Parse a single W3C log line into a dict matching BRONZE_SCHEMA.
 
+    Field order follows the per-file ``#Fields:`` header, matching the
+    reference parser in ``utils/w3c_parser.py``:
+
+    * 14 fields: date time s-ip cs-method cs-uri-stem cs-uri-query s-port
+      cs-username c-ip cs(User-Agent) sc-status sc-substatus
+      sc-win32-status sc-time-taken
+    * 18 fields: the above plus cs(Cookie) cs(Referer) after the UA, and
+      sc-bytes cs-bytes before sc-time-taken.
+
     Returns ``None`` for malformed lines (skipped silently).
     """
-    parts = line.strip().split()
-    if len(parts) < file_format:
-        return None
-
-    # 18-field format inserts uri_query (and 3 more fields) at index 7,
-    # shifting every column from cookie onward by 4.
-    shift = 4 if file_format == 18 else 0
-
+    line = line.strip()
     try:
-        row: dict = {
-            "log_date": parts[0],
-            "log_time": parts[1],
-            "server_ip": parts[2],
-            "method": parts[3],
-            "uri_stem": parts[4],
-            "client_ip": parts[5],
-            "user_agent": parts[6] if len(parts) > 6 else "",
-            "cookie": parts[7 + shift],
-            "referrer": parts[8 + shift],
-            "uri_query": parts[7] if file_format == 18 else "",
-            "source_file": source_file,
-        }
-        for idx, key in enumerate(_INT_KEYS):
-            row[key] = _int(parts[9 + shift + idx])
-        row["username"] = parts[16 + shift]
+        if file_format == 14:
+            # Last 4 tokens: status sub_status win32_status time_taken
+            rs = line.rsplit(" ", 4)
+            if len(rs) < 5:
+                return None
+            ls = rs[0].split(" ", 9)
+            if len(ls) < 10:
+                return None
+            return {
+                "log_date": ls[0],
+                "log_time": ls[1],
+                "server_ip": ls[2],
+                "method": ls[3],
+                "uri_stem": ls[4],
+                "uri_query": ls[5],
+                "server_port": _int(ls[6]),
+                "username": ls[7],
+                "client_ip": ls[8],
+                "user_agent": ls[9],
+                "cookie": None,
+                "referrer": None,
+                "status": _int(rs[1]),
+                "sub_status": _int(rs[2]),
+                "win32_status": _int(rs[3]),
+                "bytes_sent": None,
+                "bytes_recv": None,
+                "time_taken": _int(rs[4]),
+                "source_file": source_file,
+            }
+
+        if file_format == 18:
+            # Last 6 tokens: status sub_status win32_status bytes_sent bytes_recv time_taken
+            rs = line.rsplit(" ", 6)
+            if len(rs) < 7:
+                return None
+            ls = rs[0].split(" ", 11)
+            if len(ls) < 12:
+                return None
+            return {
+                "log_date": ls[0],
+                "log_time": ls[1],
+                "server_ip": ls[2],
+                "method": ls[3],
+                "uri_stem": ls[4],
+                "uri_query": ls[5],
+                "server_port": _int(ls[6]),
+                "username": ls[7],
+                "client_ip": ls[8],
+                "user_agent": ls[9],
+                "cookie": ls[10],
+                "referrer": ls[11],
+                "status": _int(rs[1]),
+                "sub_status": _int(rs[2]),
+                "win32_status": _int(rs[3]),
+                "bytes_sent": _int(rs[4]),
+                "bytes_recv": _int(rs[5]),
+                "time_taken": _int(rs[6]),
+                "source_file": source_file,
+            }
+
+        return None
     except (IndexError, ValueError):
         return None
-
-    return row
-
-
-_INT_KEYS = (
-    "status",
-    "sub_status",
-    "win32_status",
-    "bytes_sent",
-    "bytes_recv",
-    "time_taken",
-    "server_port",
-)
 
 
 def _int(val: str) -> int | None:
