@@ -130,23 +130,16 @@ class TestIntHelper:
 class TestParseLogLine14Field:
     """Parsing 14-field W3C log lines.
 
-    The function's 14-field mapping positions:
+    Positions follow the ``#Fields:`` header:
       0:log_date  1:log_time  2:server_ip  3:method  4:uri_stem
-      5:client_ip  6:user_agent  7:cookie  8:referrer
-      9:status  10:sub_status  11:win32_status
-      12:bytes_sent  13:bytes_recv  14:time_taken
-      15:server_port  16:username
-    (needs 17 values despite format being "14")
+      5:uri_query  6:server_port  7:username  8:client_ip  9:user_agent
+      10:status  11:sub_status  12:win32_status  13:time_taken
     """
 
     SOURCE = "u_ex091024.log"
 
     def test_parses_successfully(self):
-        line = (
-            "2009-10-24 01:40:40 134.36.36.75 GET / "
-            "1.2.3.4 Mozilla/4.0+ CookieVal www.example.com "
-            "200 0 0 12345 678 900 80 -"
-        )
+        line = "2009-10-24 01:40:40 134.36.36.75 GET / q=test 80 - 1.2.3.4 Mozilla/4.0+ 200 0 0 900"
         result = bronze.parse_log_line(line, 14, self.SOURCE)
         assert result is not None
         assert result["log_date"] == "2009-10-24"
@@ -154,19 +147,19 @@ class TestParseLogLine14Field:
         assert result["server_ip"] == "134.36.36.75"
         assert result["method"] == "GET"
         assert result["uri_stem"] == "/"
-        assert result["uri_query"] == ""
+        assert result["uri_query"] == "q=test"
+        assert result["server_port"] == 80
+        assert result["username"] == "-"
         assert result["client_ip"] == "1.2.3.4"
         assert result["user_agent"] == "Mozilla/4.0+"
-        assert result["cookie"] == "CookieVal"
-        assert result["referrer"] == "www.example.com"
+        assert result["cookie"] is None
+        assert result["referrer"] is None
         assert result["status"] == 200
         assert result["sub_status"] == 0
         assert result["win32_status"] == 0
-        assert result["bytes_sent"] == 12345
-        assert result["bytes_recv"] == 678
+        assert result["bytes_sent"] is None
+        assert result["bytes_recv"] is None
         assert result["time_taken"] == 900
-        assert result["server_port"] == 80
-        assert result["username"] == "-"
         assert result["source_file"] == self.SOURCE
 
     def test_malformed_line_returns_none(self):
@@ -178,30 +171,26 @@ class TestParseLogLine14Field:
 
     def test_numeric_fields_with_dash(self):
         """Dashes in numeric fields parse as None."""
-        line = "2009-10-24 01:40:40 134.36.36.75 GET / 1.2.3.4 Mozilla/4.0+ - www.example.com - - - 186 - 80 - -"
+        line = "2009-10-24 01:40:40 134.36.36.75 GET / - - - 1.2.3.4 Mozilla/4.0+ - - - 80"
         result = bronze.parse_log_line(line, 14, self.SOURCE)
         assert result is not None
-        assert result["status"] is None  # parts[9] = "-"
-        assert result["sub_status"] is None  # parts[10] = "-"
-        assert result["win32_status"] is None  # parts[11] = "-"
-        assert result["bytes_sent"] == 186  # parts[12] = "186"
-        assert result["bytes_recv"] is None  # parts[13] = "-"
-        assert result["time_taken"] == 80  # parts[14] = "80"
-        assert result["server_port"] is None  # parts[15] = "-"
+        assert result["server_port"] is None  # ls[6] = "-"
+        assert result["username"] == "-"  # ls[7] = "-"
+        assert result["status"] is None  # rs[1] = "-"
+        assert result["sub_status"] is None  # rs[2] = "-"
+        assert result["win32_status"] is None  # rs[3] = "-"
+        assert result["time_taken"] == 80  # rs[4] = "80"
 
 
 class TestParseLogLine18Field:
     """Parsing 18-field W3C log lines.
 
-    The function's 18-field mapping positions:
+    Positions follow the ``#Fields:`` header:
       0:log_date  1:log_time  2:server_ip  3:method  4:uri_stem
-      5:client_ip  6:user_agent  7:uri_query
-      8:(gap)  9:(gap)  10:(gap)
-      11:cookie  12:referrer
-      13:status  14:sub_status  15:win32_status
-      16:bytes_sent  17:bytes_recv  18:time_taken
-      19:server_port  20:username
-    (needs 21 values)
+      5:uri_query  6:server_port  7:username  8:client_ip  9:user_agent
+      10:cookie  11:referrer
+      12:status  13:sub_status  14:win32_status
+      15:bytes_sent  16:bytes_recv  17:time_taken
     """
 
     SOURCE = "u_ex091024.log"
@@ -209,10 +198,9 @@ class TestParseLogLine18Field:
     def test_parses_successfully(self):
         line = (
             "2009-10-24 01:40:40 134.36.36.75 GET / "
-            "1.2.3.4 Mozilla/4.0+ q=test "
-            "- - - "
+            "q=test 443 - 1.2.3.4 Mozilla/4.0+ "
             "CookieVal www.example.com "
-            "200 0 0 12345 678 900 443 -"
+            "200 0 0 12345 678 900"
         )
         result = bronze.parse_log_line(line, 18, self.SOURCE)
         assert result is not None
@@ -222,6 +210,8 @@ class TestParseLogLine18Field:
         assert result["method"] == "GET"
         assert result["uri_stem"] == "/"
         assert result["uri_query"] == "q=test"
+        assert result["server_port"] == 443
+        assert result["username"] == "-"
         assert result["client_ip"] == "1.2.3.4"
         assert result["user_agent"] == "Mozilla/4.0+"
         assert result["cookie"] == "CookieVal"
@@ -232,8 +222,6 @@ class TestParseLogLine18Field:
         assert result["bytes_sent"] == 12345
         assert result["bytes_recv"] == 678
         assert result["time_taken"] == 900
-        assert result["server_port"] == 443
-        assert result["username"] == "-"
         assert result["source_file"] == self.SOURCE
 
     def test_malformed_line_returns_none(self):
@@ -430,8 +418,8 @@ class TestRunPipeline:
                 "u_ex091024.log",
                 14,
                 [
-                    "2009-10-24 01:40:40 134.36.36.75 GET / 1.2.3.4 Mozilla/4.0+ - - 200 0 0 186 0 186 80 -",
-                    "2009-10-24 01:41:00 134.36.36.75 GET /page 1.2.3.4 Mozilla/4.0+ - - 404 0 0 250 0 250 80 -",
+                    "2009-10-24 01:40:40 134.36.36.75 GET / - - - 1.2.3.4 Mozilla/4.0+ 200 0 0 186",
+                    "2009-10-24 01:41:00 134.36.36.75 GET /page - - - 1.2.3.4 Mozilla/4.0+ 404 0 0 250",
                 ],
             )
             rows = self._parse_file(fpath, "u_ex091024.log")
@@ -439,9 +427,9 @@ class TestRunPipeline:
 
             from pyspark.sql import Row
 
-            spark.createDataFrame([Row(**r) for r in rows]).write.mode("append").partitionBy("log_date").saveAsTable(
-                self.UC_TABLE
-            )
+            spark.createDataFrame([Row(**r) for r in rows], schema=bronze.BRONZE_SCHEMA).write.mode(
+                "append"
+            ).partitionBy("log_date").saveAsTable(self.UC_TABLE)
 
             df = spark.table(self.UC_TABLE)
             assert df.count() == 2
@@ -473,22 +461,24 @@ class TestRunPipeline:
                 "unique.log",
                 14,
                 [
-                    "2009-10-24 01:40:40 134.36.36.75 GET / 1.2.3.4 Mozilla/4.0+ - - 200 0 0 186 0 186 80 -",
+                    "2009-10-24 01:40:40 134.36.36.75 GET / - - - 1.2.3.4 Mozilla/4.0+ 200 0 0 186",
                 ],
             )
             rows = self._parse_file(fpath, "unique.log")
             from pyspark.sql import Row
 
-            spark.createDataFrame([Row(**r) for r in rows]).write.mode("append").partitionBy("log_date").saveAsTable(
-                self.UC_TABLE
-            )
+            spark.createDataFrame([Row(**r) for r in rows], schema=bronze.BRONZE_SCHEMA).write.mode(
+                "append"
+            ).partitionBy("log_date").saveAsTable(self.UC_TABLE)
             assert spark.table(self.UC_TABLE).count() == 1
 
             # Second write with same source_file — table should still have 1 row
             # (idempotency via source_file dedup at app level)
             existing = bronze.get_loaded_files(spark)
             if "unique.log" not in existing:
-                spark.createDataFrame([Row(**r) for r in rows]).write.mode("append").saveAsTable(self.UC_TABLE)
+                spark.createDataFrame([Row(**r) for r in rows], schema=bronze.BRONZE_SCHEMA).write.mode(
+                    "append"
+                ).saveAsTable(self.UC_TABLE)
             assert spark.table(self.UC_TABLE).count() == 1
 
     def test_writes_per_file_separately_with_correct_source(self, spark):
@@ -499,7 +489,7 @@ class TestRunPipeline:
                 "file_a.log",
                 14,
                 [
-                    "2009-10-24 01:40:40 134.36.36.75 GET /a 1.2.3.4 UA - - 200 0 0 100 0 100 80 -",
+                    "2009-10-24 01:40:40 134.36.36.75 GET /a - - - 1.2.3.4 UA 200 0 0 100",
                 ],
             )
             fpath_b = self._write_log_file(
@@ -507,7 +497,7 @@ class TestRunPipeline:
                 "file_b.log",
                 14,
                 [
-                    "2009-10-24 01:41:00 134.36.36.75 GET /b 1.2.3.4 UA - - 200 0 0 200 0 200 80 -",
+                    "2009-10-24 01:41:00 134.36.36.75 GET /b - - - 1.2.3.4 UA 200 0 0 200",
                 ],
             )
 
@@ -515,9 +505,9 @@ class TestRunPipeline:
 
             for fpath, fname in [(fpath_a, "file_a.log"), (fpath_b, "file_b.log")]:
                 rows = self._parse_file(fpath, fname)
-                spark.createDataFrame([Row(**r) for r in rows]).write.mode("append").partitionBy(
-                    "log_date"
-                ).saveAsTable(self.UC_TABLE)
+                spark.createDataFrame([Row(**r) for r in rows], schema=bronze.BRONZE_SCHEMA).write.mode(
+                    "append"
+                ).partitionBy("log_date").saveAsTable(self.UC_TABLE)
 
             df = spark.table(self.UC_TABLE)
             sources = {r.source_file for r in df.collect()}
