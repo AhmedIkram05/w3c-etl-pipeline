@@ -149,3 +149,11 @@ def test_replacewhere_idempotent(spark, tmp_path):
     _run(spark, str(tmp_path))
     n2 = spark.read.format("delta").load(os.path.join(str(tmp_path), "silver")).count()
     assert n1 == n2 == 1000
+
+
+def test_empty_start_date_is_noop(spark):
+    """A scheduled run (empty dag_run.conf) is a no-op instead of raising."""
+    res = silver_backfill.run(spark, "", "")
+    assert res["rows_read"] == 0
+    assert res["rows_written"] == 0
+    assert res["broadcast_used"] is False
