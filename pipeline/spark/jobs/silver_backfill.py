@@ -107,6 +107,20 @@ def run(
     dry_run: bool = False,
 ):
     """Reprocess one Bronze date range into Silver via salted, broadcast-joined enrichment."""
+    # Scheduled runs leave dag_run.conf empty, so start_date arrives as "".
+    # Treat that as "nothing to backfill" rather than raising from fromisoformat.
+    if not start_date:
+        log.warning("No start_date provided (e.g. scheduled run); skipping backfill.")
+        return {
+            "rows_read": 0,
+            "rows_written": 0,
+            "partitions_before": partition_stats([]),
+            "partitions_after": partition_stats([]),
+            "partitions_before_ratio": 0.0,
+            "partitions_after_ratio": 0.0,
+            "broadcast_used": False,
+        }
+
     start = datetime.date.fromisoformat(start_date)
     end = datetime.date.fromisoformat(end_date)
     if start > end:
