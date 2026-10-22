@@ -159,8 +159,8 @@ def _lookup(ip: str) -> dict | None:
             "country": response.country.name or "Unknown",
             "region": response.subdivisions.most_specific.name or "Unknown",
             "city": response.city.name or "Unknown",
-            "latitude": str(response.location.latitude) if response.location.latitude else None,
-            "longitude": str(response.location.longitude) if response.location.longitude else None,
+            "latitude": str(response.location.latitude) if response.location.latitude is not None else None,
+            "longitude": str(response.location.longitude) if response.location.longitude is not None else None,
             "postcode": response.postal.code or None,
         }
     except geoip2.errors.AddressNotFoundError:

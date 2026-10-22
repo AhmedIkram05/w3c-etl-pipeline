@@ -156,9 +156,6 @@ def run_dbt_command(
     """
     project_dir = _get_run_project_dir(project_or_tmpdir)
     profiles_dir = project_or_tmpdir  # profiles.yml lives in outer tmpdir
-    if profiles_dir == project_dir:
-        # Caller passed the inner project dir directly — keep it simple
-        pass
     print(f"Project directory: {project_dir}")
     print(f"Profiles directory: {profiles_dir}")
     full_cmd = [
