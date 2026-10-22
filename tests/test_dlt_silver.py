@@ -194,13 +194,17 @@ class TestExtractDomain:
         url = "http://www.darwinsbeagleplants.org/Darwin/Plant.aspx"
         assert _extract_domain(url) == "darwinsbeagleplants.org"
 
+    def test_scheme_less_referrer(self):
+        """A referrer with no scheme still yields its domain (was empty netloc)."""
+        assert _extract_domain("www.google.com") == "google.com"
+
     def test_unknown_string(self):
-        """Literal 'Unknown' passes through urlparse with empty netloc."""
-        assert _extract_domain("Unknown") == ""
+        """Literal 'Unknown' is passed through unchanged."""
+        assert _extract_domain("Unknown") == "Unknown"
 
     def test_malformed_url(self):
-        """Non-parseable URL returns empty string (urlparse returns empty netloc)."""
-        assert _extract_domain("not-a-url") == ""
+        """A scheme-less non-URL is parsed as its own host rather than dropped."""
+        assert _extract_domain("not-a-url") == "not-a-url"
 
 
 # ══════════════════════════════════════════════════════════════════════

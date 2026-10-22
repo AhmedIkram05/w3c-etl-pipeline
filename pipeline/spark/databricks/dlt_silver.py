@@ -186,16 +186,19 @@ def get_isp(ip: str) -> str:
 
 def _extract_domain(url):
     """Extract domain from URL (plain Python, not UDF)."""
-    if not url or url == "-":
+    if not url or url.strip() == "-":
         return "Direct"
+    if url == "Unknown":
+        return "Unknown"
     try:
         from urllib.parse import urlparse
 
-        parsed = urlparse(url)
-        domain = parsed.netloc
-        if domain.startswith("www."):
-            domain = domain[4:]
-        return domain
+        candidate = url.strip()
+        if "//" not in candidate:
+            candidate = "http://" + candidate
+        parsed = urlparse(candidate)
+        domain = parsed.netloc.split("@")[-1].split(":")[0].lower().replace("www.", "")
+        return domain or url
     except Exception:
         return "Unknown"
 
