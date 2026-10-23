@@ -1,5 +1,5 @@
 import dlt
-from pyspark.sql.functions import col, coalesce, lit, udf
+from pyspark.sql.functions import coalesce, col, lit, udf
 from pyspark.sql.types import BooleanType, FloatType, StringType, StructField, StructType
 
 # ─── GeoIP via maxminddb (pure Python, no compiled deps) ──────────────
