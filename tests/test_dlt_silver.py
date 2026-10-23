@@ -894,7 +894,16 @@ class TestGeoUnknownFill:
     def test_resolved_geo_values_untouched(self, spark):
         """Rows whose geo lookup resolved keep their real values."""
         df = spark.createDataFrame(
-            [Row(country="United States", region="California", city="San Francisco", postcode="94105", latitude=37.77, longitude=-122.42)],
+            [
+                Row(
+                    country="United States",
+                    region="California",
+                    city="San Francisco",
+                    postcode="94105",
+                    latitude=37.77,
+                    longitude=-122.42,
+                )
+            ],
             schema=self._geo_schema(),
         )
 
