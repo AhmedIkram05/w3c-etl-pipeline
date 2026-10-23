@@ -44,9 +44,15 @@ resource "databricks_secret" "sql_password" {
 }
 
 resource "databricks_secret" "storage_key" {
-  key          = "storage-access-key"
+  key          = "azure.storage.key"
   scope        = databricks_secret_scope.w3c_etl.name
   string_value = var.storage_access_key
+}
+
+resource "databricks_secret" "storage_account" {
+  key          = "azure.storage.account"
+  scope        = databricks_secret_scope.w3c_etl.name
+  string_value = var.storage_account_name
 }
 
 # --------------------------------------------------------------------------
