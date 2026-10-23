@@ -13,7 +13,8 @@ WITH raw_status AS (
 
 status_entries AS (
     SELECT
-        ROW_NUMBER() OVER (ORDER BY rs.status_code, rs.sub_status, rs.win32_status) AS status_sk,
+        -- Stable SK: md5 of the natural key (same rationale as dim_page).
+        {{ tsql_hash_md5("CONCAT(rs.status_code, '|', rs.sub_status, '|', rs.win32_status)") }} AS status_sk,
         rs.status_code,
         rs.sub_status,
         rs.win32_status,

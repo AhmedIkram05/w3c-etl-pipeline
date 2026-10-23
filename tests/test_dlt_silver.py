@@ -56,25 +56,7 @@ for _sp_path in (_NESTED_SPARK, _FLAT_SPARK):
     if os.path.isdir(_sp_path) and _sp_path not in sys.path:
         sys.path.insert(0, _sp_path)
 
-if TYPE_CHECKING:
-    from dlt_silver import (
-        _asn_lookup,
-        _ensure_asn_reader,
-        _ensure_geo_reader,
-        _extract_domain,
-        _geo_lookup,
-        _is_usable_ip,
-        get_geo_fields,
-        get_is_crawler,
-        get_isp,
-        get_page_category,
-        get_referrer_domain,
-        get_size_band,
-        get_traffic_type,
-        silver_enriched_logs,
-    )
-else:
-    try:
+    if TYPE_CHECKING:
         from dlt_silver import (
             _asn_lookup,
             _ensure_asn_reader,
@@ -82,6 +64,7 @@ else:
             _extract_domain,
             _geo_lookup,
             _is_usable_ip,
+            fill_geo_unknowns,
             get_geo_fields,
             get_is_crawler,
             get_isp,
@@ -91,23 +74,43 @@ else:
             get_traffic_type,
             silver_enriched_logs,
         )
-    except ImportError:
-        from databricks.dlt_silver import (
-            _asn_lookup,
-            _ensure_asn_reader,
-            _ensure_geo_reader,
-            _extract_domain,
-            _geo_lookup,
-            _is_usable_ip,
-            get_geo_fields,
-            get_is_crawler,
-            get_isp,
-            get_page_category,
-            get_referrer_domain,
-            get_size_band,
-            get_traffic_type,
-            silver_enriched_logs,
-        )
+    else:
+        try:
+            from dlt_silver import (
+                _asn_lookup,
+                _ensure_asn_reader,
+                _ensure_geo_reader,
+                _extract_domain,
+                _geo_lookup,
+                _is_usable_ip,
+                fill_geo_unknowns,
+                get_geo_fields,
+                get_is_crawler,
+                get_isp,
+                get_page_category,
+                get_referrer_domain,
+                get_size_band,
+                get_traffic_type,
+                silver_enriched_logs,
+            )
+        except ImportError:
+            from databricks.dlt_silver import (
+                _asn_lookup,
+                _ensure_asn_reader,
+                _ensure_geo_reader,
+                _extract_domain,
+                _geo_lookup,
+                _is_usable_ip,
+                fill_geo_unknowns,
+                get_geo_fields,
+                get_is_crawler,
+                get_isp,
+                get_page_category,
+                get_referrer_domain,
+                get_size_band,
+                get_traffic_type,
+                silver_enriched_logs,
+            )
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -842,6 +845,79 @@ class TestSilverExpectations:
         ])
         filtered = df.filter(col("page_category").isNotNull())
         assert filtered.count() == 1
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  8b. Geo unknown-fill — geo-miss rows retained (audit finding #2)
+# ══════════════════════════════════════════════════════════════════════
+
+
+class TestGeoUnknownFill:
+    """A GeoIP lookup miss must retain the row with 'Unknown' fields, not drop it."""
+
+    @staticmethod
+    def _geo_schema():
+        from pyspark.sql.types import FloatType, StringType, StructField, StructType
+
+        return StructType([
+            StructField("country", StringType(), True),
+            StructField("region", StringType(), True),
+            StructField("city", StringType(), True),
+            StructField("postcode", StringType(), True),
+            StructField("latitude", FloatType(), True),
+            StructField("longitude", FloatType(), True),
+        ])
+
+    def test_geo_miss_row_retained_with_unknown(self, spark):
+        """A row whose geo lookup missed (all geo fields NULL) survives the valid_country expectation."""
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame(
+            [Row(country=None, region=None, city=None, postcode=None, latitude=None, longitude=None)],
+            schema=self._geo_schema(),
+        )
+
+        filled = fill_geo_unknowns(df)
+        # The valid_country expectation: expect_or_drop("valid_country", "country IS NOT NULL")
+        retained = filled.filter(col("country").isNotNull())
+
+        assert retained.count() == 1
+        row = retained.first()
+        assert row.country == "Unknown"
+        assert row.region == "Unknown"
+        assert row.city == "Unknown"
+        assert row.postcode == "Unknown"
+        # latitude/longitude are floats — they stay NULL on a geo miss
+        assert row.latitude is None
+        assert row.longitude is None
+
+    def test_resolved_geo_values_untouched(self, spark):
+        """Rows whose geo lookup resolved keep their real values."""
+        df = spark.createDataFrame(
+            [
+                Row(
+                    country="United States",
+                    region="California",
+                    city="San Francisco",
+                    postcode="94105",
+                    latitude=37.77,
+                    longitude=-122.42,
+                )
+            ],
+            schema=self._geo_schema(),
+        )
+
+        result = fill_geo_unknowns(df).first()
+        assert result.country == "United States"
+        assert result.city == "San Francisco"
+        assert result.latitude == pytest.approx(37.77, abs=0.001)
+
+    def test_silver_table_applies_unknown_fill(self):
+        """The DLT table function must apply the unknown-fill (regression guard)."""
+        import inspect
+
+        source = inspect.getsource(silver_enriched_logs)
+        assert "fill_geo_unknowns" in source
 
 
 # ══════════════════════════════════════════════════════════════════════

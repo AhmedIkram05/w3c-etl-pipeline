@@ -12,7 +12,8 @@ WITH raw_methods AS (
 
 method_entries AS (
     SELECT
-        ROW_NUMBER() OVER (ORDER BY rm.method_name) AS method_sk,
+        -- Stable SK: md5 of the natural key (same rationale as dim_page).
+        {{ tsql_hash_md5("CONCAT(rm.method_name, '|')") }} AS method_sk,
         rm.method_name AS http_method,
         CASE
             WHEN rm.method_name = 'GET' THEN 'Retrieve a resource'
