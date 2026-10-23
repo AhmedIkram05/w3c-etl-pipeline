@@ -122,7 +122,7 @@ class TestTerraformDatabricksResources:
         """main.tf defines all expected resource blocks."""
         content = self._main_tf_content()
         matches = re.findall(r'resource\s+"(\w+)"\s+"(\w+)"', content)
-        assert len(matches) == 24, f"Expected 24 resources, found {len(matches)}: {matches}"
+        assert len(matches) == 25, f"Expected 25 resources, found {len(matches)}: {matches}"
 
     def test_both_pipelines_are_serverless(self):
         """Both pipeline resources have serverless = true."""
