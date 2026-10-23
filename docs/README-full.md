@@ -35,11 +35,9 @@
 </p>
 
 <p align="center">
-  <a href="https://app.powerbi.com/reportEmbed?reportId=41d525b8-b808-4750-88ba-cb31dbbba958&autoAuth=true&ctid=ae323139-093a-4d2a-81a6-5d334bcd9019">
-    <img src="media/summary.png" alt="W3C ETL Dashboard" width="800"/>
-  </a>
+  <img src="media/summary.png" alt="W3C ETL Dashboard" width="800"/>
   <br/>
-  <em>Click the preview above to open the live 7-page Power BI dashboard</em>
+  <em>Preview of the 7-page Power BI dashboard (live report available on request)</em>
 </p>
 
 ---
