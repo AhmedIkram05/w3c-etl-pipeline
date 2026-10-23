@@ -36,9 +36,11 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/summary.png" alt="W3C ETL Dashboard" width="800"/>
+  <a href="docs/w3c-etl-dashboard.pdf">
+    <img src="docs/media/summary.png" alt="W3C ETL Dashboard" width="800"/>
+  </a>
   <br/>
-  <em>Preview of the 7-page Power BI dashboard (live report available on request)</em>
+  <em>Click the preview to open the PDF export of the 7-page Power BI dashboard (live report on request)</em>
 </p>
 
 ---
@@ -145,7 +147,7 @@ flowchart LR
 
 ## Demos
 
-**The 7-page Power BI dashboard**:
+**The 7-page Power BI dashboard** ([PDF export](docs/w3c-etl-dashboard.pdf)):
 
 ![Power BI dashboard - all 7 pages](docs/media/powerbi.gif)
 
