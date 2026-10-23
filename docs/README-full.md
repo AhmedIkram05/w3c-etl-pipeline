@@ -35,9 +35,11 @@
 </p>
 
 <p align="center">
-  <img src="media/summary.png" alt="W3C ETL Dashboard" width="800"/>
+  <a href="w3c-etl-dashboard.pdf">
+    <img src="media/summary.png" alt="W3C ETL Dashboard" width="800"/>
+  </a>
   <br/>
-  <em>Preview of the 7-page Power BI dashboard (live report available on request)</em>
+  <em>Click the preview to open the PDF export of the 7-page Power BI dashboard (live report on request)</em>
 </p>
 
 ---
