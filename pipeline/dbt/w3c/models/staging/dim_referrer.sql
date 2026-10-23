@@ -11,7 +11,8 @@ WITH raw_referrers AS (
 
 referrer_entries AS (
     SELECT
-        ROW_NUMBER() OVER (ORDER BY rr.referrer_url) AS referrer_sk,
+        -- Stable SK: md5 of the natural key (same rationale as dim_page).
+        {{ tsql_hash_md5("CONCAT(rr.referrer_url, '|')") }} AS referrer_sk,
         rr.referrer_url,
         {% if target.type == 'sqlserver' %}
             CASE

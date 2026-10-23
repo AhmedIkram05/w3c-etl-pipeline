@@ -13,7 +13,10 @@ WITH raw_pages AS (
 
 page_entries AS (
     SELECT
-        ROW_NUMBER() OVER (ORDER BY rp.uri_stem, rp.uri_query) AS page_sk,
+        -- Stable SK: md5 of the natural key. This dim is rebuilt every run while
+        -- fact_webrequest is incremental; a ROW_NUMBER sort position re-pointed
+        -- every historical fact FK whenever a new member sorted earlier.
+        {{ tsql_hash_md5("CONCAT(rp.uri_stem, '|', rp.uri_query)") }} AS page_sk,
         rp.uri_stem AS page_path,
         rp.uri_query AS query_string,
         -- directory extraction
