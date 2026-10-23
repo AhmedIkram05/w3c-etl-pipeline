@@ -1,5 +1,5 @@
 import dlt
-from pyspark.sql.functions import col, udf
+from pyspark.sql.functions import col, coalesce, lit, udf
 from pyspark.sql.types import BooleanType, FloatType, StringType, StructField, StructType
 
 # ─── GeoIP via maxminddb (pure Python, no compiled deps) ──────────────
@@ -181,6 +181,21 @@ def get_isp(ip: str) -> str:
     return result or "Unknown"
 
 
+def fill_geo_unknowns(silver_df):
+    """Fill string geo fields with 'Unknown' when the GeoIP lookup missed.
+
+    _geo_lookup returns None for private/unresolvable IPs, a missing or
+    unreadable mmdb, or any read error. Without this fill the NULL country
+    trips expect_or_drop("valid_country") and the whole row is silently
+    dropped from silver. Matches 02_silver_enrichment's 'Unknown' vocabulary;
+    latitude/longitude stay NULL (floats — absent for many successful
+    lookups too).
+    """
+    for field in ("country", "region", "city", "postcode"):
+        silver_df = silver_df.withColumn(field, coalesce(col(field), lit("Unknown")))
+    return silver_df
+
+
 # ─── Plain Python Function (NOT a UDF) ───
 
 
@@ -277,6 +292,7 @@ def get_size_band(bytes_sent):
     name="silver_enriched_logs",
     table_properties={"delta.enableChangeDataFeed": "true", "delta.autoOptimize.optimizeWrite": "true"},
 )
+# 'valid_country' stays expect_or_drop: geo-miss rows get 'Unknown' via fill_geo_unknowns below, so it only drops genuinely-NULL countries.
 @dlt.expect_or_drop("valid_country", "country IS NOT NULL")
 @dlt.expect_or_drop("valid_traffic_type", "traffic_type IN ('Direct', 'Search', 'Social', 'Referral')")
 @dlt.expect_or_drop("valid_page_category", "page_category IS NOT NULL")
@@ -302,6 +318,9 @@ def silver_enriched_logs():
         silver_df = silver_df.withColumn(field, col(f"geo.{field}"))
 
     silver_df = silver_df.drop("geo")
+
+    # Geo-miss rows are retained with 'Unknown' geo fields instead of being dropped.
+    silver_df = fill_geo_unknowns(silver_df)
 
     # ISP comes from the ASN DB (separate lookup)
     silver_df = silver_df.withColumn("isp", get_isp(col("client_ip")))
