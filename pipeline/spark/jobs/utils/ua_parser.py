@@ -9,7 +9,7 @@ performance over row-at-a-time UDFs.
 
 import pandas as pd
 from pyspark.sql.functions import pandas_udf
-from pyspark.sql.types import StringType
+from pyspark.sql.types import StringType, StructField, StructType
 from user_agents import parse as ua_parse
 
 
@@ -86,3 +86,29 @@ def parse_operating_system(ua_series: pd.Series) -> pd.Series:
 @pandas_udf(returnType=StringType())
 def parse_device_type(ua_series: pd.Series) -> pd.Series:
     return ua_series.apply(lambda ua: _safe_parse(ua)["device_type"])
+
+
+# ── Consolidated struct UDF ──────────────────────────────────────────
+# One ua_parse call per row returns all five fields. The scalar
+# ``parse_*`` UDFs above remain for callers that have not migrated
+# (e.g. silver_backfill).
+
+_UA_STRUCT_SCHEMA = StructType([
+    StructField("agent_type", StringType(), True),
+    StructField("browser_name", StringType(), True),
+    StructField("browser_version", StringType(), True),
+    StructField("operating_system", StringType(), True),
+    StructField("device_type", StringType(), True),
+])
+
+
+@pandas_udf(returnType=_UA_STRUCT_SCHEMA)
+def parse_ua_fields(ua_series: pd.Series) -> pd.DataFrame:
+    """Consolidated UA parsing UDF: one ``ua_parse`` call per row.
+
+    Replaces five scalar ``parse_*`` UDFs that each re-parsed the same
+    string; callers unpack fields from the struct. Output values match
+    the scalar UDFs exactly.
+    """
+    parsed = ua_series.apply(_safe_parse)
+    return pd.DataFrame(parsed.tolist(), index=ua_series.index, columns=_UA_STRUCT_SCHEMA.fieldNames())

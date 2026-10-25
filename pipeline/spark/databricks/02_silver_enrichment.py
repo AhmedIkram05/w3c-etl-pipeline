@@ -33,7 +33,8 @@ import os
 from typing import Set
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, udf
+from pyspark.sql.types import StringType, StructField, StructType
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("databricks_silver")
@@ -161,10 +162,24 @@ def _init_geoip(db_path: str | None):
             log.warning("Failed to initialise GeoIP reader: %s", exc)
 
 
-def _geoip_lookup(ip: str, attr: str) -> str:
-    """Look up a single GeoIP attribute for an IP address."""
+def _geo_lookup(ip: str) -> dict:
+    """Single consolidated GeoIP lookup returning all six fields.
+
+    Mirrors dlt_silver's pattern: one ``city()`` call per row feeds every
+    geo column. Missing data yields ``"Unknown"`` per field (never NULL)
+    to match the previous per-attribute lookups and the UC table's
+    STRING columns.
+    """
+    unknown = {
+        "country": "Unknown",
+        "region": "Unknown",
+        "city": "Unknown",
+        "latitude": "Unknown",
+        "longitude": "Unknown",
+        "isp": "Unknown",
+    }
     if _geoip_reader is None:
-        return "Unknown"
+        return unknown
     try:
         response = _geoip_reader.city(ip)
         return {
@@ -174,9 +189,29 @@ def _geoip_lookup(ip: str, attr: str) -> str:
             "latitude": str(response.location.latitude) if response.location else "Unknown",
             "longitude": str(response.location.longitude) if response.location else "Unknown",
             "isp": str(response.traits.isp) if hasattr(response.traits, "isp") else "Unknown",
-        }.get(attr, "Unknown")
+        }
     except Exception:
-        return "Unknown"
+        return unknown
+
+
+# ── Consolidated GeoIP struct UDF ────────────────────────────────────
+# One mmdb call per row returns all six fields (was six scalar UDFs, each
+# performing its own city() lookup per row).
+
+_GEO_STRUCT_SCHEMA = StructType([
+    StructField("country", StringType(), True),
+    StructField("region", StringType(), True),
+    StructField("city", StringType(), True),
+    StructField("latitude", StringType(), True),
+    StructField("longitude", StringType(), True),
+    StructField("isp", StringType(), True),
+])
+
+
+@udf(returnType=_GEO_STRUCT_SCHEMA)
+def get_geo_fields(ip: str) -> dict:
+    """Consolidated GeoIP UDF wrapping :func:`_geo_lookup`."""
+    return _geo_lookup(ip)
 
 
 # ── Main pipeline ───────────────────────────────────────────────────────
@@ -277,14 +312,6 @@ def run(spark, geolite2_db: str | None = None):
     from pyspark.sql.functions import udf
     from pyspark.sql.types import StringType
 
-    # GeoIP UDFs
-    geoip_country_udf = udf(lambda ip: _geoip_lookup(ip, "country"), StringType())
-    geoip_region_udf = udf(lambda ip: _geoip_lookup(ip, "region"), StringType())
-    geoip_city_udf = udf(lambda ip: _geoip_lookup(ip, "city"), StringType())
-    geoip_latitude_udf = udf(lambda ip: _geoip_lookup(ip, "latitude"), StringType())
-    geoip_longitude_udf = udf(lambda ip: _geoip_lookup(ip, "longitude"), StringType())
-    geoip_isp_udf = udf(lambda ip: _geoip_lookup(ip, "isp"), StringType())
-
     # Computed field UDFs
     is_crawler_udf = udf(lambda ip: "true" if ip in crawler_ips else "false", StringType())
 
@@ -296,13 +323,14 @@ def run(spark, geolite2_db: str | None = None):
     # Apply enrichment
     enriched = (
         new_data
-        # Geo-IP enrichment
-        .withColumn("country", geoip_country_udf("client_ip"))
-        .withColumn("region", geoip_region_udf("client_ip"))
-        .withColumn("city", geoip_city_udf("client_ip"))
-        .withColumn("latitude", geoip_latitude_udf("client_ip"))
-        .withColumn("longitude", geoip_longitude_udf("client_ip"))
-        .withColumn("isp", geoip_isp_udf("client_ip"))
+        # Geo-IP enrichment: one mmdb call per row, fields unpacked from the struct
+        .withColumn("geo", get_geo_fields("client_ip"))
+        .withColumn("country", col("geo.country"))
+        .withColumn("region", col("geo.region"))
+        .withColumn("city", col("geo.city"))
+        .withColumn("latitude", col("geo.latitude"))
+        .withColumn("longitude", col("geo.longitude"))
+        .withColumn("isp", col("geo.isp"))
         # Crawler detection
         .withColumn("is_crawler", is_crawler_udf("client_ip"))
         # Computed fields
@@ -310,13 +338,14 @@ def run(spark, geolite2_db: str | None = None):
         .withColumn("referrer_domain", referrer_domain_fn("referrer"))
         .withColumn("traffic_type", traffic_type_fn("referrer"))
         .withColumn("size_band", size_band_fn("bytes_sent", "bytes_recv"))
+        .drop("geo")
     )
 
     # Write to Silver UC table
+    # No post-write count(): on an uncached DataFrame it re-executes the
+    # whole bronze scan + UDF pipeline just for a log line.
     enriched.write.format("delta").mode("append").partitionBy("log_date").saveAsTable(SILVER_UC_PATH)
-
-    enriched_rows = enriched.count()
-    log.info("Wrote %d enriched rows to Silver (Unity Catalog).", enriched_rows)
+    log.info("Silver enrichment write complete (Unity Catalog).")
 
     # Display summary (Databricks notebook output)
     try:
