@@ -188,7 +188,9 @@ def _is_missing_table_error(exc) -> bool:
 
     pymssql server errors carry the message number in ``args[0]``.
     """
-    args = getattr(exc, "args", ())
+    # Annotation defeats mypy's getattr special-case, which types the result
+    # as the default's tuple[()] and flags args[0] as out of range.
+    args: tuple = getattr(exc, "args", ())
     return bool(args) and args[0] == 208
 
 
