@@ -20,8 +20,12 @@ WITH country_browser_stats AS (
         ON dg.geolocation_sk = fw.geolocation_sk
     LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua
         ON ua.user_agent_sk = fw.user_agent_sk
-    WHERE fw.geolocation_sk >= -1  -- >= 0 on SQL Server, -1 on PostgreSQL
-      AND ua.user_agent_sk >= -1    -- >= 0 on SQL Server, -1 on PostgreSQL
+    -- `> 0` excludes the -1 sentinel rows seeded in dim_geolocation /
+    -- dim_useragent for unknown geo / unknown UA, so 'Unknown' can never be
+    -- published as a real country or top_browser (the previous `>= -1`
+    -- filters admitted them — always true on SQL Server).
+    WHERE fw.geolocation_sk > 0
+      AND ua.user_agent_sk > 0
       AND dg.country IS NOT NULL
     GROUP BY fw.date_sk, dd.date, dg.country, ua.browser_name
 )

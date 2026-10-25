@@ -71,3 +71,8 @@ variable "azure_sql_password" {
   sensitive   = true
   default     = ""
 }
+
+variable "dlt_run_as_principal" {
+  description = "Principal (service principal application ID or workspace group) the DLT pipelines run as — granted READ_FILES on the raw-logs external location. Replaces the former tenant-wide 'account users' grant. Set via tfvars or -var."
+  type        = string
+}

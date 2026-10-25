@@ -158,21 +158,19 @@ def run(spark: SparkSession, delta_dir: str, geolite2_db: str | None = None, geo
 
     # ── 4. Apply enrichment UDFs ─────────────────────────────────────
     # Import here so the Spark worker can resolve them.
-    from utils.geoip import (
-        geoip_isp,
-        get_geo_fields,
-        init_asn_reader,
-        init_reader,
-    )
+    from utils.geoip import asn_lookup, city_lookup
 
-    # Initialise the GeoLite2 readers with the configured database paths
-    # (overrides the module-level defaults in utils/geoip.py).
-    if geolite2_db:
-        init_reader(geolite2_db)
+    # The UDF factories bake the configured DB paths into the UDF closures,
+    # so the --geolite2-db / --geolite2-asn-db overrides reach executors.
+    # (A driver-side module init cannot: workers re-import utils.geoip and
+    # would silently fall back to the default paths.)
+    city_udf = city_lookup(geolite2_db)
     if geolite2_asn_db and os.path.exists(geolite2_asn_db):
-        init_asn_reader(geolite2_asn_db)
-    elif geolite2_asn_db:
-        log.warning("GeoLite2-ASN DB not found at %s; isp will be Unknown.", geolite2_asn_db)
+        isp_udf = asn_lookup(geolite2_asn_db)
+    else:
+        if geolite2_asn_db:
+            log.warning("GeoLite2-ASN DB not found at %s; isp will be Unknown.", geolite2_asn_db)
+        isp_udf = asn_lookup(None)
     from utils.transformations import (
         make_crawler_udf,
         page_category,
@@ -187,14 +185,14 @@ def run(spark: SparkSession, delta_dir: str, geolite2_db: str | None = None, geo
     enriched = (
         new_data
         # Geo-IP enrichment: one City-DB call per row, fields unpacked from the struct
-        .withColumn("geo", get_geo_fields("client_ip"))
+        .withColumn("geo", city_udf("client_ip"))
         .withColumn("country", col("geo.country"))
         .withColumn("region", col("geo.region"))
         .withColumn("city", col("geo.city"))
         .withColumn("latitude", col("geo.latitude"))
         .withColumn("longitude", col("geo.longitude"))
         .withColumn("postcode", col("geo.postcode"))
-        .withColumn("isp", geoip_isp("client_ip"))
+        .withColumn("isp", isp_udf("client_ip"))
         # User-Agent parsing: one ua_parse call per row, fields unpacked from the struct
         .withColumn("ua", parse_ua_fields("user_agent"))
         .withColumn("agent_type", col("ua.agent_type"))

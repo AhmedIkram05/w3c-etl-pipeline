@@ -357,6 +357,25 @@ def _build_dim_useragent(cursor, conn) -> None:
     conn.commit()
 
 
+def _emit_outlets(context: dict, *datasets) -> None:
+    """Emit Dataset outlets programmatically — only on real success.
+
+    Outlets are deliberately NOT declared statically on the operators: a
+    declared outlet fires whenever the task succeeds, even when the callable
+    took a graceful skip (e.g. missing Azure SQL credentials), which would
+    wake the downstream ``w3c_dbt_marts_azure`` DAG against stale data.
+    Airflow >= 2.5 injects ``outlet_events`` into the task context; emitting
+    here means downstream dataset consumers only trigger when the work
+    actually happened. Direct invocations without a task context (unit
+    tests) simply emit nothing.
+    """
+    outlet_events = context.get("outlet_events")
+    if outlet_events is None:
+        return
+    for ds in datasets:
+        outlet_events[ds].emit()
+
+
 def _export_dimensions(**context) -> None:
     """Build Airflow-managed dimension tables from Azure SQL.
 
@@ -411,6 +430,7 @@ def _export_dimensions(**context) -> None:
             _build_dim_useragent(cursor, conn)
 
         logger.info("Dimension tables dim_geolocation and dim_useragent built successfully from Azure SQL.")
+        _emit_outlets(context, DIM_GEOLOCATION, DIM_USERAGENT)
 
     except ImportError:
         logger.warning(
@@ -541,6 +561,7 @@ def _create_indexes(**context) -> None:
             conn.commit()
 
         logger.info("Azure SQL indexes created successfully.")
+        _emit_outlets(context, AZURE_WAREHOUSE_LOADED)
 
     except Exception as e:
         logger.exception(f"Error while creating indexes: {e}")
@@ -579,7 +600,8 @@ export_dimensions = PythonOperator(
     task_id="export_dimensions",
     python_callable=_export_dimensions,
     inlets=[RAW_ENRICHED],
-    outlets=[DIM_GEOLOCATION, DIM_USERAGENT],
+    # Outlets (DIM_GEOLOCATION, DIM_USERAGENT) are emitted programmatically
+    # inside _export_dimensions on real success — see _emit_outlets.
     dag=dag,
 )
 
@@ -590,7 +612,8 @@ export_dimensions = PythonOperator(
 create_indexes = PythonOperator(
     task_id="create_indexes",
     python_callable=_create_indexes,
-    outlets=[AZURE_WAREHOUSE_LOADED],
+    # Outlet (AZURE_WAREHOUSE_LOADED) is emitted programmatically inside
+    # _create_indexes on real success — see _emit_outlets.
     dag=dag,
 )
 

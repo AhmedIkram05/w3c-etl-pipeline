@@ -18,12 +18,17 @@ WITH bucket_definitions AS (
 ),
 
 visit_counts AS (
+    -- One row per (client_ip, log_date): COUNT(*) is the IP's request count
+    -- for that single day. Buckets were previously computed over LIFETIME
+    -- request counts while labeled "Visits", which mis-bucketed IPs and let
+    -- every run re-bucket historical fact rows retroactively.
     SELECT
         client_ip,
+        log_date,
         COUNT(*) AS visit_count
     FROM {{ source('w3c', 'raw_enriched') }}
     WHERE client_ip IS NOT NULL AND client_ip != '-'
-    GROUP BY client_ip
+    GROUP BY client_ip, log_date
 ),
 
 ip_buckets AS (
@@ -42,6 +47,9 @@ SELECT
     visit_bucket_order AS visit_bucket_sk,
     visit_bucket,
     visit_bucket_order,
-    COUNT(client_ip) AS user_count
+    -- user_count counts (client_ip, log_date) rows — per-day visit sessions
+    -- in this bucket — because with per-day bucketing one IP can appear in
+    -- different buckets on different days.
+    COUNT(*) AS user_count
 FROM ip_buckets
 GROUP BY visit_bucket_order, visit_bucket

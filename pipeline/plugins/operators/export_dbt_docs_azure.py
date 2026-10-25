@@ -1,18 +1,15 @@
 """
-Export dbt Docs Artifacts from Local dbt Target to Airflow.
+Export dbt Docs Artifacts from Azure Blob Storage to Airflow.
 
-Downloads dbt documentation artifacts (``index.html``, ``manifest.json``,
-``catalog.json``) to the local Airflow filesystem at
-``/opt/airflow/data/dbt-docs/``.
+The ``dbt_docs`` Databricks notebook generates the docs and uploads
+``index.html``, ``manifest.json`` and ``catalog.json`` to Blob Storage at
+``gold/dbt-docs/``. This operator downloads THOSE artifacts to the local
+Airflow filesystem at ``/opt/airflow/data/dbt-docs/``.
 
-Two methods are attempted (in order):
-1. **Local dbt target directory** — copies from the dbt project's
-   ``target/`` directory (``/opt/airflow/dbt/w3c/target/``) generated
-   via ``dbt docs generate`` at build time or by a prior run.
-2. **Pre-staged files** — checks if files have been placed at the
-   target directory (e.g., via a bind mount or manual copy).
-
-If neither succeeds, the operator logs a warning and exits gracefully.
+It deliberately does NOT fall back to pre-existing local files: the
+Databricks run never populates a local worker path, so a local fallback
+would serve arbitrarily stale docs. If the Blob upload is missing or
+incomplete, the task fails loudly instead.
 """
 
 from __future__ import annotations
@@ -20,77 +17,78 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shutil
 
 logger = logging.getLogger(__name__)
 
 LOCAL_DOCS_DIR = "/opt/airflow/data/dbt-docs"
 REQUIRED_FILES = ["index.html", "manifest.json", "catalog.json"]
 
-# Local dbt project target directory (populated by dbt docs generate)
-DBT_TARGET_DIR = "/opt/airflow/dbt/w3c/target"
+# Blob location the dbt_docs notebook uploads to (see
+# pipeline/spark/databricks/dbt_docs.py).
+BLOB_CONTAINER = "gold"
+BLOB_PREFIX = "dbt-docs"
 
 
 def export_dbt_docs_to_airflow(**context) -> None:
-    """Copy dbt docs artifacts to local Airflow from the dbt project target.
+    """Download dbt docs artifacts from Blob ``gold/dbt-docs/`` to the worker.
 
-    Falls back to checking for pre-staged files if the target directory
-    is unavailable or incomplete.
+    Fails with a clear error when the notebook's upload is absent — stale
+    local files are never served as a fallback.
+
+    Environment variables
+    ---------------------
+    AZURE_STORAGE_ACCOUNT / AZURE_STORAGE_KEY : Blob Storage credentials
+    (same variables the dbt_docs notebook uses for its upload).
     """
     os.makedirs(LOCAL_DOCS_DIR, exist_ok=True)
 
-    # ── Method 1: Local dbt target directory ──────────────────────────
-    if _copy_from_local_target():
-        if _verify_docs():
-            logger.info(f"dbt docs artifacts copied from {DBT_TARGET_DIR}")
-            return
+    storage_account = os.environ.get("AZURE_STORAGE_ACCOUNT")
+    storage_key = os.environ.get("AZURE_STORAGE_KEY")
+    if not storage_account or not storage_key:
+        raise RuntimeError(
+            "AZURE_STORAGE_ACCOUNT / AZURE_STORAGE_KEY are not configured — cannot download dbt docs from Blob Storage"
+        )
 
-    # ── Method 2: Check if pre-staged locally ─────────────────────────
-    if _verify_docs():
-        logger.info(f"dbt docs artifacts already present at {LOCAL_DOCS_DIR}")
-        return
+    try:
+        from azure.storage.blob import BlobServiceClient
+    except ImportError as exc:
+        raise RuntimeError("azure-storage-blob is required to download dbt docs artifacts") from exc
 
-    logger.warning(
-        f"dbt docs artifacts not downloaded to {LOCAL_DOCS_DIR}. "
-        f"dbt project target ({DBT_TARGET_DIR}) was missing or incomplete. "
-        f"To enable automatic sync, either:\n"
-        f"  1. Run 'dbt docs generate' locally to populate {DBT_TARGET_DIR}\n"
-        f"  2. Place the artifacts directly in {LOCAL_DOCS_DIR}"
+    conn_str = (
+        f"DefaultEndpointsProtocol=https;AccountName={storage_account};"
+        f"AccountKey={storage_key};EndpointSuffix=core.windows.net"
     )
+    blob_service = BlobServiceClient.from_connection_string(conn_str)
+    container_client = blob_service.get_container_client(BLOB_CONTAINER)
 
-
-def _copy_from_local_target() -> bool:
-    """Copy dbt docs artifacts from the local dbt project target directory.
-
-    Returns ``True`` if at least one file was successfully copied.
-    """
-    if not os.path.isdir(DBT_TARGET_DIR):
-        logger.info(f"Local dbt target directory not found: {DBT_TARGET_DIR}")
-        return False
-
-    copied = 0
+    downloaded = 0
     for filename in REQUIRED_FILES:
-        src = os.path.join(DBT_TARGET_DIR, filename)
+        blob_path = f"{BLOB_PREFIX}/{filename}"
+        blob_client = container_client.get_blob_client(blob_path)
+        if not blob_client.exists():
+            raise RuntimeError(
+                f"dbt docs artifact {blob_path} not found in Blob Storage — "
+                f"the dbt_docs notebook upload failed or has not run yet. "
+                f"Refusing to serve stale docs from {LOCAL_DOCS_DIR}."
+            )
         dst = os.path.join(LOCAL_DOCS_DIR, filename)
+        with open(dst, "wb") as fh:
+            fh.write(blob_client.download_blob().readall())
+        logger.info("Downloaded %s (%d bytes) -> %s", blob_path, os.path.getsize(dst), dst)
+        downloaded += 1
 
-        if not os.path.isfile(src):
-            logger.info(f"Local dbt target missing {filename} (not yet generated?)")
-            continue
+    if not _verify_docs():
+        raise RuntimeError(
+            f"Downloaded dbt docs artifacts failed validation at {LOCAL_DOCS_DIR} "
+            "(missing file or invalid catalog.json)"
+        )
 
-        try:
-            shutil.copy2(src, dst)
-            size = os.path.getsize(dst)
-            logger.info(f"Copied {filename} ({size} bytes) -> {dst}")
-            copied += 1
-        except OSError as exc:
-            logger.warning(f"Could not copy {filename}: {exc}")
-
-    if copied == 0:
-        logger.warning(f"No dbt docs artifacts found in {DBT_TARGET_DIR}")
-        return False
-
-    logger.info(f"Copied {copied}/{len(REQUIRED_FILES)} dbt docs artifacts from local target")
-    return True
+    logger.info(
+        "dbt docs artifacts downloaded from Blob %s/%s (%d files)",
+        BLOB_CONTAINER,
+        BLOB_PREFIX,
+        downloaded,
+    )
 
 
 def _verify_docs() -> bool:

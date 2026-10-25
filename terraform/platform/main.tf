@@ -50,7 +50,6 @@ module "warehouse" {
   server_name             = var.sql_server_name
   database_name           = var.sql_database_name
   administrator_login     = var.sql_administrator_login
-  administrator_password  = var.sql_administrator_password
   azuread_admin_object_id = var.azuread_admin_object_id
   vnet_id                 = module.networking.vnet_id
   sql_subnet_id           = module.networking.sql_subnet_id

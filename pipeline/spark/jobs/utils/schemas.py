@@ -10,6 +10,7 @@ or writing Delta tables.
 from pyspark.sql.types import (
     DateType,
     IntegerType,
+    LongType,
     StringType,
     StructField,
     StructType,
@@ -33,8 +34,8 @@ bronze_schema = StructType([
     StructField("status", IntegerType(), True),
     StructField("sub_status", IntegerType(), True),
     StructField("win32_status", IntegerType(), True),
-    StructField("bytes_sent", IntegerType(), True),
-    StructField("bytes_recv", IntegerType(), True),
-    StructField("time_taken", IntegerType(), True),
+    StructField("bytes_sent", LongType(), True),
+    StructField("bytes_recv", LongType(), True),
+    StructField("time_taken", LongType(), True),
     StructField("source_file", StringType(), True),
 ])

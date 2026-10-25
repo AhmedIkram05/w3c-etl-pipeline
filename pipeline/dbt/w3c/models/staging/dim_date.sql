@@ -20,7 +20,9 @@ date_entries AS (
         {{ tsql_day_name('log_date') }} AS day_name,
         {{ tsql_cast(tsql_dow('log_date'), 'INT') }} AS day_of_week,
         {{ tsql_cast(tsql_datepart('quarter', 'log_date'), 'INT') }} AS quarter,
-        {{ tsql_cast(tsql_datepart('week', 'log_date'), 'INT') }} AS week_of_year,
+        {{ tsql_cast(tsql_iso_week('log_date'), 'INT') }} AS week_of_year,
+        -- tsql_dow is DATEFIRST-independent (DATEDIFF from the fixed Sunday
+        -- 1900-01-07), so is_weekend holds under any @@DATEFIRST setting.
         CASE WHEN {{ tsql_dow('log_date') }} IN (0, 6) THEN 'Yes' ELSE 'No' END AS is_weekend,
         CASE WHEN log_date IN (
             {% for date in var('uk_holidays') %}

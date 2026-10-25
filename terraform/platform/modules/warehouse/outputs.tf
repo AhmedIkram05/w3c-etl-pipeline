@@ -13,3 +13,9 @@ output "server_id" {
 output "database_id" {
   value = azurerm_mssql_database.this.id
 }
+
+output "sql_admin_password" {
+  description = "Generated SQL admin password (frozen after first apply) — feed to Airflow/Spark consumers"
+  value       = random_password.sql_admin.result
+  sensitive   = true
+}

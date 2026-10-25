@@ -25,12 +25,6 @@ variable "administrator_login" {
   sensitive   = true
 }
 
-variable "administrator_password" {
-  description = "SQL admin password (must meet Azure complexity rules)"
-  type        = string
-  sensitive   = true
-}
-
 variable "azuread_admin_object_id" {
   description = "Azure AD admin object ID for SQL server (optional)"
   type        = string

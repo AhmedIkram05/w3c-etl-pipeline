@@ -6,8 +6,9 @@ pre-existing unit tests**:
 
 1. ``plugins.operators.export_csv_azure`` — CSV export from Azure SQL to
    ``/opt/airflow/data/Star-Schema/`` for Power BI (with failure tracking).
-2. ``plugins.operators.export_dbt_docs_azure`` — Copy dbt documentation
-   artifacts from local dbt project target to Airflow.
+2. ``plugins.operators.export_dbt_docs_azure`` — Download dbt documentation
+   artifacts from Blob Storage (``gold/dbt-docs/``, the notebook's upload
+   path) to Airflow; fails loudly when the upload is missing (#17).
 3. ``dbt_common`` — Shared bootstrap utilities for Databricks dbt notebooks
    (``_write_profiles_yml``, ``run_dbt_command``, ``cleanup``).
 
@@ -359,40 +360,70 @@ class TestExportDBTDocsAzureConstants:
 
     def _import_constants(self):
         from plugins.operators.export_dbt_docs_azure import (
+            BLOB_CONTAINER,
+            BLOB_PREFIX,
             LOCAL_DOCS_DIR,
             REQUIRED_FILES,
         )
 
-        return REQUIRED_FILES, LOCAL_DOCS_DIR
+        return REQUIRED_FILES, LOCAL_DOCS_DIR, BLOB_CONTAINER, BLOB_PREFIX
 
     def test_required_files(self):
         """REQUIRED_FILES lists the three expected artifacts."""
-        files, _ = self._import_constants()
+        files, _, _, _ = self._import_constants()
         assert files == ["index.html", "manifest.json", "catalog.json"]
 
     def test_docs_dir(self):
         """LOCAL_DOCS_DIR is set to the expected path."""
-        _, docs_dir = self._import_constants()
+        _, docs_dir, _, _ = self._import_constants()
         assert docs_dir == "/opt/airflow/data/dbt-docs"
+
+    def test_blob_location_matches_notebook_upload(self):
+        """The operator pulls from the Blob path the dbt_docs notebook writes."""
+        _, _, container, prefix = self._import_constants()
+        assert container == "gold"
+        assert prefix == "dbt-docs"
 
 
 class TestExportDBTDocsAzure:
-    """Functional tests for dbt docs export operator."""
+    """Functional tests for dbt docs export operator (Blob pull, #17)."""
 
     # ── Helpers ──────────────────────────────────────────────────────────
 
     @pytest.fixture(autouse=True)
-    def _ensure_module_loaded(self):
-        from plugins.operators.export_dbt_docs_azure import (
-            _copy_from_local_target,
-            _verify_docs,
-            export_dbt_docs_to_airflow,
-        )
+    def _ensure_module_loaded(self, tmp_path):
+        import plugins.operators.export_dbt_docs_azure as mod
 
-        self._export_dbt_docs_to_airflow = export_dbt_docs_to_airflow
-        self._copy_from_local_target = _copy_from_local_target
-        self._verify_docs = _verify_docs
+        self._mod = mod
+        self._export_dbt_docs_to_airflow = mod.export_dbt_docs_to_airflow
+        self._verify_docs = mod._verify_docs
+        # Redirect the docs dir into the test tree — never write to
+        # /opt/airflow/data from tests.
+        self._original_docs_dir = mod.LOCAL_DOCS_DIR
+        mod.LOCAL_DOCS_DIR = str(tmp_path)
         yield
+        mod.LOCAL_DOCS_DIR = self._original_docs_dir
+
+    @contextmanager
+    def _mock_azure_blob(self, existing=(True, True, True)):
+        """Mock ``azure.storage.blob`` in sys.modules; yields the blob client mock."""
+        mock_azure = MagicMock(name="azure")
+        mock_blob_module = MagicMock(name="azure.storage.blob")
+        container_client = (
+            mock_blob_module.BlobServiceClient.from_connection_string.return_value.get_container_client.return_value
+        )
+        blob_client = container_client.get_blob_client.return_value
+        blob_client.exists.side_effect = list(existing)
+        blob_client.download_blob.return_value.readall.return_value = b'{"nodes": {}}'
+        mock_azure.storage.blob = mock_blob_module
+        with patch.dict(
+            "sys.modules",
+            {"azure": mock_azure, "azure.storage": mock_azure.storage, "azure.storage.blob": mock_blob_module},
+            clear=False,
+        ):
+            yield blob_client
+
+    _CREDS = {"AZURE_STORAGE_ACCOUNT": "acc", "AZURE_STORAGE_KEY": "key"}
 
     def _assert_log_contains(self, caplog, fragment):
         assert any(fragment in msg for msg in caplog.messages), (
@@ -429,56 +460,59 @@ class TestExportDBTDocsAzure:
         with patch("os.path.isfile", return_value=False):
             assert self._verify_docs() is False
 
-    # ── _copy_from_local_target() ───────────────────────────────────────
+    # ── export_dbt_docs_to_airflow() — Blob download ────────────────────
 
-    def test_local_target_copy_success(self):
-        """Local dbt target has all files → copies them, returns True."""
-        with patch("os.path.isdir", return_value=True):
-            with patch("os.path.isfile", return_value=True):
-                with patch("os.path.getsize", return_value=100):
-                    with patch("plugins.operators.export_dbt_docs_azure.shutil.copy2") as mock_copy:
-                        result = self._copy_from_local_target()
+    def test_downloads_artifacts_from_blob(self):
+        """All three artifacts present in Blob → downloaded to the docs dir."""
+        with patch.dict(os.environ, self._CREDS, clear=True):
+            with self._mock_azure_blob() as blob_client:
+                self._export_dbt_docs_to_airflow()
 
-        assert result is True
-        assert mock_copy.call_count == 3
+        assert blob_client.exists.call_count == 3
+        assert blob_client.download_blob().readall.call_count >= 1
+        for filename in ("index.html", "manifest.json", "catalog.json"):
+            assert (Path(self._mod.LOCAL_DOCS_DIR) / filename).is_file(), f"{filename} not downloaded"
 
-    def test_local_target_missing_dir(self, caplog_export):
-        """Local dbt target directory does not exist → False."""
-        with patch("os.path.isdir", return_value=False):
-            result = self._copy_from_local_target()
-
-        assert result is False
-        self._assert_log_contains(caplog_export, "Local dbt target directory not found")
-
-    def test_local_target_no_files(self, caplog_export):
-        """Local dbt target exists but has no artifacts → False."""
-        with patch("os.path.isdir", return_value=True):
-            with patch("os.path.isfile", return_value=False):
-                result = self._copy_from_local_target()
-
-        assert result is False
-        self._assert_log_contains(caplog_export, "No dbt docs artifacts found")
-
-    # ── export_dbt_docs_to_airflow() ────────────────────────────────────
-
-    def test_local_target_success_returns_early(self, caplog_export):
-        """Local target copy succeeds → returns, no fallback."""
-        with patch("plugins.operators.export_dbt_docs_azure._copy_from_local_target", return_value=True):
-            with patch("plugins.operators.export_dbt_docs_azure._verify_docs", return_value=True):
-                with patch("plugins.operators.export_dbt_docs_azure.os.makedirs"):
+    def test_missing_blob_artifact_fails_loudly(self):
+        """Any artifact missing in Blob → clear failure, no stale fallback."""
+        with patch.dict(os.environ, self._CREDS, clear=True):
+            with self._mock_azure_blob(existing=(True, False, True)):
+                with pytest.raises(RuntimeError, match="dbt-docs/manifest.json"):
                     self._export_dbt_docs_to_airflow()
 
-        self._assert_log_contains(caplog_export, "dbt docs artifacts copied from")
+    def test_stale_local_files_are_not_served(self):
+        """Pre-existing local docs + missing Blob upload → failure, not fallback."""
+        docs_dir = Path(self._mod.LOCAL_DOCS_DIR)
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        (docs_dir / "index.html").write_text("<html>STALE</html>")
+        (docs_dir / "catalog.json").write_text('{"stale": true}')
 
-    def test_both_methods_fail_graceful(self, caplog_export):
-        """Both local methods fail → warning with actionable steps."""
-        with patch("plugins.operators.export_dbt_docs_azure._copy_from_local_target", return_value=False):
-            with patch("plugins.operators.export_dbt_docs_azure._verify_docs", return_value=False):
-                with patch("plugins.operators.export_dbt_docs_azure.os.makedirs"):
+        with patch.dict(os.environ, self._CREDS, clear=True):
+            with self._mock_azure_blob(existing=(False, False, False)):
+                with pytest.raises(RuntimeError, match="Refusing to serve stale docs"):
                     self._export_dbt_docs_to_airflow()
 
-        self._assert_log_contains(caplog_export, "not downloaded")
-        self._assert_log_contains(caplog_export, "dbt project target")
+        # Stale file untouched (not presented as fresh docs).
+        assert (docs_dir / "index.html").read_text() == "<html>STALE</html>"
+
+    def test_missing_storage_credentials_fails(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(RuntimeError, match="AZURE_STORAGE_ACCOUNT"):
+                self._export_dbt_docs_to_airflow()
+
+    def test_missing_azure_library_fails(self):
+        with patch.dict(os.environ, self._CREDS, clear=True):
+            with patch.dict("sys.modules", {"azure": None, "azure.storage": None, "azure.storage.blob": None}):
+                with pytest.raises(RuntimeError, match="azure-storage-blob is required"):
+                    self._export_dbt_docs_to_airflow()
+
+    def test_invalid_downloaded_catalog_fails(self):
+        """catalog.json downloads as invalid JSON → validation failure."""
+        with patch.dict(os.environ, self._CREDS, clear=True):
+            with self._mock_azure_blob() as blob_client:
+                blob_client.download_blob.return_value.readall.return_value = b"not json"
+                with pytest.raises(RuntimeError, match="failed validation"):
+                    self._export_dbt_docs_to_airflow()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
