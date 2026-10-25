@@ -135,7 +135,7 @@ def get_loaded_source_files(jdbc_url: str, jdbc_props: dict) -> set:
     )
     try:
         with conn.cursor() as cursor:
-            cursor.execute(f"SELECT source_file FROM {TRACKING_TABLE}")
+            cursor.execute(f"SELECT source_file FROM {TRACKING_TABLE}")  # nosec B608 — table name is a module-level constant
             loaded = {row[0] for row in cursor.fetchall()}
         log.info("Already tracked source_files: %d.", len(loaded))
         return loaded
@@ -294,7 +294,7 @@ def _insert_rows(conn, rows, table, commit=True):
     params = [tuple(row) for row in rows]
     col_names = ", ".join(columns)
     placeholders = ", ".join(["%s"] * len(columns))
-    sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})"
+    sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})"  # nosec B608 — table from module constants, columns from Spark Row fields; values bound as %s params
 
     with conn.cursor() as cursor:
         cursor.executemany(sql, params)
@@ -318,7 +318,7 @@ def export_files_atomically(conn, rows_by_file, batch_size=BATCH_SIZE):
         for i in range(0, len(file_rows), batch_size):
             inserted += _insert_rows(conn, file_rows[i : i + batch_size], RAW_ENRICHED_TABLE, commit=False)
         with conn.cursor() as cursor:
-            cursor.execute(f"INSERT INTO {TRACKING_TABLE} (source_file) VALUES (%s)", (source_file,))
+            cursor.execute(f"INSERT INTO {TRACKING_TABLE} (source_file) VALUES (%s)", (source_file,))  # nosec B608 — table name is a module-level constant; value bound as a %s parameter
         conn.commit()
     return inserted
 
