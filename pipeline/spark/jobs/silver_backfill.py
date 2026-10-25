@@ -178,24 +178,21 @@ def run(
     salted = flagged.withColumn("salt", floor(rand(42) * int(salt_buckets)).cast("int"))
     repart = salted.repartition(int(target_partitions), *[col(c) for c in cols])
 
-    from utils.geoip import (
-        geoip_city,
-        geoip_country,
-        geoip_isp,
-        geoip_latitude,
-        geoip_longitude,
-        geoip_postcode,
-        geoip_region,
-        init_asn_reader,
-        init_reader,
-    )
+    from utils.geoip import asn_lookup, city_field
 
-    if geolite2_db:
-        init_reader(geolite2_db)
-    if geolite2_asn_db and os.path.exists(geolite2_asn_db):
-        init_asn_reader(geolite2_asn_db)
-    elif geolite2_asn_db:
+    # The UDF factories bake the configured DB paths into the UDF closures,
+    # so the --geolite2-db / --geolite2-asn-db overrides reach executors.
+    # (A driver-side module init cannot: workers re-import utils.geoip and
+    # would silently fall back to the default paths.)
+    if geolite2_asn_db and not os.path.exists(geolite2_asn_db):
         log.warning("GeoLite2-ASN DB not found at %s; isp will be Unknown.", geolite2_asn_db)
+    asn_path = geolite2_asn_db if (geolite2_asn_db and os.path.exists(geolite2_asn_db)) else None
+
+    geo_udfs = {
+        field: city_field(field, geolite2_db)
+        for field in ("country", "region", "city", "latitude", "longitude", "postcode")
+    }
+    isp_udf = asn_lookup(asn_path)
     from utils.transformations import page_category, referrer_domain, size_band, traffic_type
     from utils.ua_parser import (
         parse_agent_type,
@@ -207,13 +204,13 @@ def run(
 
     enriched = (
         repart
-        .withColumn("country", geoip_country("client_ip"))
-        .withColumn("region", geoip_region("client_ip"))
-        .withColumn("city", geoip_city("client_ip"))
-        .withColumn("latitude", geoip_latitude("client_ip"))
-        .withColumn("longitude", geoip_longitude("client_ip"))
-        .withColumn("postcode", geoip_postcode("client_ip"))
-        .withColumn("isp", geoip_isp("client_ip"))
+        .withColumn("country", geo_udfs["country"]("client_ip"))
+        .withColumn("region", geo_udfs["region"]("client_ip"))
+        .withColumn("city", geo_udfs["city"]("client_ip"))
+        .withColumn("latitude", geo_udfs["latitude"]("client_ip"))
+        .withColumn("longitude", geo_udfs["longitude"]("client_ip"))
+        .withColumn("postcode", geo_udfs["postcode"]("client_ip"))
+        .withColumn("isp", isp_udf("client_ip"))
         .withColumn("agent_type", parse_agent_type("user_agent"))
         .withColumn("browser_name", parse_browser_name("user_agent"))
         .withColumn("browser_version", parse_browser_version("user_agent"))

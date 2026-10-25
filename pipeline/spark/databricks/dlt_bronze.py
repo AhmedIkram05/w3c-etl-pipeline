@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 import dlt
@@ -11,6 +12,8 @@ from pyspark.sql.types import (
     StructField,
     StructType,
 )
+
+logger = logging.getLogger(__name__)
 
 # ─── W3C Parser (from authoritative w3c_parser.py) ───
 
@@ -162,6 +165,12 @@ def _parse_file_content(content_bytes: bytes, source_path: str) -> list:
 
         return results
     except Exception:
+        # Keep skip-file semantics (one poisoned file must not fail the
+        # stream — the file is consumed either way), but log loudly: silently
+        # returning [] here would mark the file ingested with zero rows,
+        # forever, with no trace. This log surfaces the loss in the cluster
+        # logs of the executor that ran the UDF.
+        logger.exception("Failed to parse log file %r — file skipped (0 rows)", source_path)
         return []
 
 
@@ -200,6 +209,35 @@ parse_file_udf = udf(
 
 # ─── Bronze DLT Pipeline ───
 
+# Per-expectation dropped-row metrics: DLT reports passed/dropped row counts
+# for every expectation natively in the pipeline event log
+# (``flow_progress.data_quality.expectations``); the expectation names below
+# are the metric keys to alert on. Quarantine side-tables (dual-flow
+# expect_or_quarantine targets) are a deliberate follow-up, not done here.
+_METHOD_WHITELIST = (
+    "GET",
+    "POST",
+    "HEAD",
+    "PUT",
+    "DELETE",
+    "OPTIONS",
+    "TRACE",
+    # PATCH/CONNECT and the WebDAV verbs (RFC 4918 / RFC 5323) are legitimate
+    # traffic in IIS logs — dropping them silently deleted real requests.
+    "PATCH",
+    "CONNECT",
+    "PROPFIND",
+    "PROPPATCH",
+    "MKCOL",
+    "COPY",
+    "MOVE",
+    "LOCK",
+    "UNLOCK",
+    "REPORT",
+    "SEARCH",
+)
+_VALID_METHOD_SQL = "method IN (" + ", ".join(f"'{m}'" for m in _METHOD_WHITELIST) + ")"
+
 
 @dlt.table(
     name="bronze_raw_logs",
@@ -214,9 +252,12 @@ parse_file_udf = udf(
 @dlt.expect_or_drop("valid_log_date", "log_date IS NOT NULL")
 @dlt.expect_or_drop("valid_status", "status BETWEEN 100 AND 599")
 @dlt.expect_or_drop("valid_client_ip", "client_ip IS NOT NULL AND client_ip != '-'")
-@dlt.expect_or_drop("valid_method", "method IN ('GET', 'POST', 'HEAD', 'PUT', 'DELETE', 'OPTIONS', 'TRACE')")
+@dlt.expect_or_drop("valid_method", _VALID_METHOD_SQL)
 @dlt.expect_or_drop("valid_uri_stem", "uri_stem IS NOT NULL")
-@dlt.expect_or_drop("valid_user_agent", "user_agent IS NOT NULL AND user_agent != '-'")
+# '-' user agents are legitimate in IIS logs (requests with no UA header);
+# only a missing user_agent is structural garbage. Downstream, fact_webrequest
+# already maps '-' / unmatched UAs to the dim_useragent -1 sentinel.
+@dlt.expect_or_drop("valid_user_agent", "user_agent IS NOT NULL")
 @dlt.expect_or_drop(
     "valid_bytes", "(bytes_sent IS NULL OR bytes_sent >= 0) AND (bytes_recv IS NULL OR bytes_recv >= 0)"
 )

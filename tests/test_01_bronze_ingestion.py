@@ -3,7 +3,7 @@ Unit tests for Databricks UC Bronze ingestion (``01_bronze_ingestion.py``).
 
 Tests cover:
 
-* ``_int`` — safe integer parsing helper
+* ``safe_int`` / ``safe_date`` — reference-parser helpers
 * ``parse_log_line`` — W3C log line parser for 14-field and 18-field formats
 * ``detect_format`` — field-count detection from ``#Fields:`` header
 * ``get_loaded_files`` — loaded-file discovery from UC table
@@ -20,6 +20,7 @@ import importlib
 import os
 import sys
 import tempfile
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -89,37 +90,54 @@ def spark():
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  1. _int — safe integer parsing
+#  1. safe_int / safe_date — reference-parser helpers
 # ══════════════════════════════════════════════════════════════════════
 
 
-class TestIntHelper:
-    """Verify the ``_int`` safe-parsing helper."""
+class TestSafeIntHelper:
+    """Verify the ``safe_int`` helper (mirrors ``w3c_parser.safe_int``).
+
+    Negative values parse but return None — mirroring the reference parser
+    (#16): a negative byte count or status is malformed data, not a value.
+    """
 
     def test_positive_int(self):
-        assert bronze._int("42") == 42
+        assert bronze.safe_int("42") == 42
 
     def test_zero(self):
-        assert bronze._int("0") == 0
+        assert bronze.safe_int("0") == 0
 
-    def test_negative_int(self):
-        assert bronze._int("-1") == -1
+    def test_negative_becomes_none(self):
+        assert bronze.safe_int("-1") is None
 
     def test_whitespace_stripped(self):
-        assert bronze._int("  42  ") == 42
+        assert bronze.safe_int("  42  ") == 42
 
     def test_none_input(self):
-        assert bronze._int(None) is None
+        assert bronze.safe_int(None) is None
 
     def test_non_numeric_string(self):
-        assert bronze._int("abc") is None
+        assert bronze.safe_int("abc") is None
 
     def test_empty_string(self):
-        assert bronze._int("") is None
+        assert bronze.safe_int("") is None
 
     def test_float_string(self):
         """Float strings raise ValueError in int() — return None."""
-        assert bronze._int("12.5") is None
+        assert bronze.safe_int("12.5") is None
+
+
+class TestSafeDateHelper:
+    """Verify the ``safe_date`` helper (mirrors ``w3c_parser.safe_date``)."""
+
+    def test_valid_iso_date(self):
+        assert bronze.safe_date("2009-10-24") == date(2009, 10, 24)
+
+    def test_invalid_returns_none(self):
+        assert bronze.safe_date("24/10/2009") is None
+
+    def test_none_returns_none(self):
+        assert bronze.safe_date(None) is None
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -142,7 +160,7 @@ class TestParseLogLine14Field:
         line = "2009-10-24 01:40:40 134.36.36.75 GET / q=test 80 - 1.2.3.4 Mozilla/4.0+ 200 0 0 900"
         result = bronze.parse_log_line(line, 14, self.SOURCE)
         assert result is not None
-        assert result["log_date"] == "2009-10-24"
+        assert result["log_date"] == date(2009, 10, 24)  # DATE, not STRING (#16)
         assert result["log_time"] == "01:40:40"
         assert result["server_ip"] == "134.36.36.75"
         assert result["method"] == "GET"
@@ -204,7 +222,7 @@ class TestParseLogLine18Field:
         )
         result = bronze.parse_log_line(line, 18, self.SOURCE)
         assert result is not None
-        assert result["log_date"] == "2009-10-24"
+        assert result["log_date"] == date(2009, 10, 24)  # DATE, not STRING (#16)
         assert result["log_time"] == "01:40:40"
         assert result["server_ip"] == "134.36.36.75"
         assert result["method"] == "GET"

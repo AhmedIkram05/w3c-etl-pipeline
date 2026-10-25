@@ -7,3 +7,5 @@ unity_catalog_name   = "w3c_etl_databricks"
 access_connector_id  = "/subscriptions/2cfbc457-25bd-4007-8585-6bfa6765ec30/resourceGroups/rg-w3c-etl/providers/Microsoft.Databricks/accessConnectors/w3c-etl-databricks-access-connector"
 azure_sql_user       = "sqladmin"
 # storage_access_key: set via TF_VAR_storage_access_key env var (never commit plaintext)
+# dlt_run_as_principal: set via tfvars or -var — the DLT pipelines' run-as
+# service principal app ID (granted READ_FILES on the raw-logs external location).

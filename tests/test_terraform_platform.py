@@ -156,7 +156,6 @@ class TestTerraformPlatformVariables:
         "sql_server_name",
         "sql_database_name",
         "sql_administrator_login",
-        "sql_administrator_password",
         "enable_private_endpoints",
         "sql_allowed_ips",
     ]

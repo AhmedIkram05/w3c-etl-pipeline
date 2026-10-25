@@ -1,10 +1,39 @@
+terraform {
+  required_providers {
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.7"
+    }
+  }
+}
+
+# The SQL admin password is generated, never supplied as a plaintext
+# variable (plaintext landed in tfvars and shell history). It is frozen
+# after first apply via ignore_changes so rotations are an explicit,
+# out-of-band operation; retrieve the generated value with
+# `terraform output -raw sql_admin_password` (sensitive output) and set it
+# as the consumers' AZURE_SQL_PASS / W3C_DB_PASS.
+resource "random_password" "sql_admin" {
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+  min_upper        = 2
+  min_lower        = 2
+  min_numeric      = 2
+  min_special      = 2
+}
+
 resource "azurerm_mssql_server" "this" {
   name                         = var.server_name
   resource_group_name          = var.resource_group_name
   location                     = var.location
   version                      = "12.0"
   administrator_login          = var.administrator_login
-  administrator_login_password = var.administrator_password
+  administrator_login_password = random_password.sql_admin.result
+
+  lifecycle {
+    ignore_changes = [administrator_login_password]
+  }
 
   dynamic "azuread_administrator" {
     for_each = var.azuread_admin_object_id != "" ? [1] : []

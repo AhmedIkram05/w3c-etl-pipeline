@@ -120,8 +120,13 @@ resource "databricks_external_location" "raw_logs" {
 resource "databricks_grants" "bronze_raw_logs" {
   external_location = databricks_external_location.raw_logs.id
 
+  # Narrowed from "account users" (every user in the tenant could READ_FILES
+  # the raw W3C logs): only the identity the DLT pipelines run as needs
+  # access. The pipelines reach storage via the managed identity inside
+  # databricks_storage_credential.raw_logs_credential; this grant controls
+  # which principal may USE the external location itself.
   grant {
-    principal  = "account users"
+    principal  = var.dlt_run_as_principal
     privileges = ["READ_FILES"]
   }
 
@@ -139,7 +144,9 @@ resource "databricks_pipeline" "bronze" {
   target     = "bronze"
   serverless = true
   continuous = false
-  channel    = "PREVIEW"
+  # Current (production-stable) DLT channel — the preview channel tracks
+  # Databricks preview runtimes, which rotate beneath you.
+  channel = "current"
 
   library {
     notebook {
@@ -163,7 +170,9 @@ resource "databricks_pipeline" "silver" {
   target     = "silver"
   serverless = true
   continuous = false
-  channel    = "PREVIEW"
+  # Current (production-stable) DLT channel — the preview channel tracks
+  # Databricks preview runtimes, which rotate beneath you.
+  channel = "current"
 
   library {
     notebook {
@@ -204,13 +213,13 @@ resource "databricks_job" "w3c_etl_workflow" {
     }
   }
 
-  # Daily schedule at 2:00 AM UTC
-  schedule {
-    quartz_cron_expression = "0 0 2 * * ?"
-    timezone_id            = "UTC"
-    pause_status           = "UNPAUSED"
-  }
-
+  # No schedule here — the Airflow DAG ``w3c_spark_ingestion_azure``
+  # (weekly, Friday 17:00 UTC) is the single scheduler for this job. The
+  # removed daily 2AM cron double-scheduled the same job_id: Databricks
+  # would run it daily while Airflow's dim build / Dataset outlets / dbt
+  # trigger only fire on the Airflow-run, leaving the two schedules out of
+  # sync. Downstream orchestration depends on the Airflow trigger.
+  #
   # Suppress noisy diffs from the Databricks provider storing task blocks
   # as an unordered TypeSet instead of TypeList. The task_key identifiers
   # are stable — task ordering in state is cosmetic. If intentional task
@@ -230,7 +239,9 @@ resource "databricks_job" "w3c_etl_workflow" {
       pipeline_id = databricks_pipeline.bronze.id
     }
 
-    timeout_seconds = 0
+    # Bounded runtime: 4h for the DLT tasks (was 0 = no timeout, a hung
+    # pipeline blocked the workflow forever).
+    timeout_seconds = 14400
   }
 
   # -----------------------------------------------------------------------
@@ -248,7 +259,7 @@ resource "databricks_job" "w3c_etl_workflow" {
       pipeline_id = databricks_pipeline.silver.id
     }
 
-    timeout_seconds = 0
+    timeout_seconds = 14400
   }
 
   # -----------------------------------------------------------------------
@@ -269,7 +280,8 @@ resource "databricks_job" "w3c_etl_workflow" {
     }
 
     environment_key = "jdbc_env"
-    timeout_seconds = 0
+    # 2h for the JDBC export.
+    timeout_seconds = 7200
   }
 }
 

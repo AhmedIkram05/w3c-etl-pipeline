@@ -87,13 +87,6 @@ variable "sql_administrator_login" {
   sensitive   = true
 }
 
-variable "sql_administrator_password" {
-  description = "SQL admin password (sourced from TF_VAR_sql_administrator_password env var if not set)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 variable "enable_private_endpoints" {
   description = "Enable private endpoints for Databricks and SQL"
   type        = bool
