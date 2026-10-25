@@ -20,7 +20,7 @@ Usage:
 
 import ast
 import os
-from unittest.mock import ANY, MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -376,129 +376,176 @@ class TestApplyTypeCasts:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  4. Idempotency Tracking — get_loaded_source_files (requires PySpark)
+#  4. Idempotency Tracking — get_loaded_source_files (psycopg2-backed)
 # ═══════════════════════════════════════════════════════════════════════════
 
 
 class TestGetLoadedSourceFiles:
-    """Verify the tracking table query logic."""
+    """Verify the tracking table query logic and error semantics."""
 
-    def test_returns_set_of_source_files(self, spark):
+    def _mock_pg(self, fetch_rows=None, execute_error=None):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        if execute_error is not None:
+            mock_cursor.execute.side_effect = execute_error
+        else:
+            mock_cursor.fetchall.return_value = fetch_rows or []
+        return patch("psycopg2.connect", return_value=mock_conn), mock_conn, mock_cursor
+
+    def test_returns_set_of_source_files(self):
         """When the tracking table exists and has rows, return a set of values."""
         _requires_pyspark()
         from export_warehouse import get_loaded_source_files
-        from pyspark.sql import Row
 
-        mock_reader = MagicMock()
-        mock_reader.format.return_value = mock_reader
-        mock_reader.option.return_value = mock_reader
-        mock_reader.options.return_value = mock_reader
+        patcher, mock_conn, _ = self._mock_pg(fetch_rows=[("u_ex091024.log",), ("u_ex100718.log",)])
+        with patcher:
+            result = get_loaded_source_files("jdbc:postgresql://host:5432/db", {"user": "u", "password": "p"})
 
-        expected_files = {"u_ex091024.log", "u_ex100718.log"}
-        mock_df = spark.createDataFrame(
-            [Row(source_file=f) for f in expected_files],
-            schema="source_file string",
-        )
-        mock_reader.load.return_value = mock_df
+        assert result == {"u_ex091024.log", "u_ex100718.log"}
+        mock_conn.close.assert_called_once()
 
-        with patch.object(type(spark), "read", new_callable=PropertyMock, return_value=mock_reader):
-            result = get_loaded_source_files(spark, "jdbc:postgresql://host:5432/db", {"user": "u", "password": "p"})
-
-        assert result == expected_files
-
-    def test_returns_empty_set_when_table_missing(self, spark):
-        """When the tracking table does not exist, return an empty set."""
+    def test_returns_empty_set_when_table_missing(self):
+        """SQLSTATE 42P01 (undefined_table) means 'first run' — return an empty set."""
         _requires_pyspark()
         from export_warehouse import get_loaded_source_files
 
-        mock_reader = MagicMock()
-        mock_reader.format.return_value = mock_reader
-        mock_reader.option.return_value = mock_reader
-        mock_reader.options.return_value = mock_reader
-        mock_reader.load.side_effect = Exception("Table not found")
-
-        with patch.object(type(spark), "read", new_callable=PropertyMock, return_value=mock_reader):
-            result = get_loaded_source_files(spark, "jdbc:postgresql://host:5432/db", {"user": "u", "password": "p"})
+        missing = Exception("relation does not exist")
+        missing.pgcode = "42P01"
+        patcher, _, _ = self._mock_pg(execute_error=missing)
+        with patcher:
+            result = get_loaded_source_files("jdbc:postgresql://host:5432/db", {"user": "u", "password": "p"})
 
         assert result == set()
 
-    def test_correct_jdbc_options_passed(self, spark):
-        """Verify the function calls JDBC reader with correct dbtable and props."""
+    def test_raises_on_other_read_errors(self):
+        """Any non-42P01 read error must propagate, never masquerade as empty."""
+        _requires_pyspark()
+        from export_warehouse import get_loaded_source_files
+
+        patcher, _, _ = self._mock_pg(execute_error=RuntimeError("connection dropped mid-query"))
+        with patcher, pytest.raises(RuntimeError, match="connection dropped"):
+            get_loaded_source_files("jdbc:postgresql://host:5432/db", {"user": "u", "password": "p"})
+
+    def test_queries_tracking_table(self):
+        """The read targets the tracking table by name."""
         _requires_pyspark()
         from export_warehouse import TRACKING_TABLE, get_loaded_source_files
 
-        mock_reader = MagicMock()
-        mock_reader.format.return_value = mock_reader
-        mock_reader.option.return_value = mock_reader
-        mock_reader.options.return_value = mock_reader
+        patcher, _, mock_cursor = self._mock_pg(fetch_rows=[])
+        with patcher:
+            get_loaded_source_files("jdbc:postgresql://pg:5432/w3c", {"user": "u", "password": "p"})
 
-        empty_df = spark.createDataFrame([], schema="source_file string")
-        mock_reader.load.return_value = empty_df
-
-        jdbc_url = "jdbc:postgresql://pg:5432/w3c"
-        jdbc_props = {"user": "airflow", "password": "pass", "driver": "org.postgresql.Driver"}
-
-        with patch.object(type(spark), "read", new_callable=PropertyMock, return_value=mock_reader):
-            get_loaded_source_files(spark, jdbc_url, jdbc_props)
-
-        mock_reader.format.assert_called_with("jdbc")
-        mock_reader.option.assert_any_call("url", jdbc_url)
-        mock_reader.option.assert_any_call("dbtable", TRACKING_TABLE)
-        mock_reader.options.assert_called_with(**jdbc_props)
-        mock_reader.load.assert_called_once()
+        sql = mock_cursor.execute.call_args[0][0]
+        assert TRACKING_TABLE in sql
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  5. Idempotency Tracking — insert_tracking_records (requires PySpark)
+#  5. Per-file atomic export — export_files_atomically
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestInsertTrackingRecords:
-    """Verify tracking record insertion logic."""
+class TestExportFilesAtomically:
+    """Per-file insert + tracking pairing with one commit per file."""
 
-    def test_inserts_new_source_files(self, spark):
-        """When new source files are provided, a DataFrame is created and appended."""
+    def _mock_conn(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        return mock_conn, mock_cursor
+
+    def _record_calls(self, mock_conn, mock_cursor):
+        calls = []
+        mock_cursor.executemany.side_effect = lambda sql, params: calls.append((
+            "insert_rows",
+            sql.split()[2],
+            len(params),
+        ))
+        mock_cursor.execute.side_effect = lambda sql, params=None: calls.append(("track", sql.split()[2]))
+        mock_conn.commit.side_effect = lambda: calls.append(("commit",))
+        return calls
+
+    def test_insert_and_track_pair_per_file_with_commit_between(self):
+        """Each file's data inserts and its tracking row share one transaction."""
         _requires_pyspark()
-        from export_warehouse import TRACKING_TABLE, insert_tracking_records
+        from export_warehouse import RAW_ENRICHED_TABLE, TRACKING_TABLE, export_files_atomically
+        from pyspark.sql import Row
 
-        new_files = {"u_ex091024.log", "u_ex100718.log", "u_ex110101.log"}
-        mock_writer = MagicMock()
-        mock_writer.format.return_value = mock_writer
-        mock_writer.mode.return_value = mock_writer
-        mock_writer.option.return_value = mock_writer
-        mock_writer.options.return_value = mock_writer
+        mock_conn, mock_cursor = self._mock_conn()
+        calls = self._record_calls(mock_conn, mock_cursor)
+        rows_by_file = {
+            "b.log": [Row(source_file="b.log"), Row(source_file="b.log")],
+            "a.log": [Row(source_file="a.log")],
+        }
 
-        mock_df = MagicMock()
-        mock_df.write = mock_writer
+        inserted = export_files_atomically(mock_conn, rows_by_file)
 
-        with patch.object(spark, "createDataFrame", return_value=mock_df) as mock_create:
-            insert_tracking_records(spark, "jdbc:postgresql://pg:5432/w3c", {"user": "u", "password": "p"}, new_files)
+        assert inserted == 3
+        assert calls == [
+            ("insert_rows", RAW_ENRICHED_TABLE, 1),
+            ("track", TRACKING_TABLE),
+            ("commit",),
+            ("insert_rows", RAW_ENRICHED_TABLE, 2),
+            ("track", TRACKING_TABLE),
+            ("commit",),
+        ]
 
-            mock_create.assert_called_once()
-            mock_writer.format.assert_called_with("jdbc")
-            mock_writer.mode.assert_called_with("append")
-            mock_writer.option.assert_any_call("dbtable", TRACKING_TABLE)
-            mock_writer.save.assert_called_once()
-
-    def test_noop_when_empty_set(self, spark):
-        """When new_source_files is empty, nothing is written."""
+    def test_large_file_is_batched_within_its_transaction(self):
+        """Rows beyond batch_size chunk into several inserts before the commit."""
         _requires_pyspark()
-        from export_warehouse import insert_tracking_records
+        from export_warehouse import export_files_atomically
+        from pyspark.sql import Row
 
-        with patch.object(spark, "createDataFrame") as mock_create_df:
-            insert_tracking_records(spark, "jdbc:postgresql://pg:5432/w3c", {"user": "u", "password": "p"}, set())
-            mock_create_df.assert_not_called()
+        mock_conn, mock_cursor = self._mock_conn()
+        calls = self._record_calls(mock_conn, mock_cursor)
+        rows_by_file = {"a.log": [Row(source_file="a.log")] * 5}
+
+        inserted = export_files_atomically(mock_conn, rows_by_file, batch_size=2)
+
+        assert inserted == 5
+        assert calls == [
+            ("insert_rows", "public.raw_enriched", 2),
+            ("insert_rows", "public.raw_enriched", 2),
+            ("insert_rows", "public.raw_enriched", 1),
+            ("track", "public.raw_enriched_loaded"),
+            ("commit",),
+        ]
+
+    def test_no_files_no_commits(self):
+        """An empty grouping does nothing."""
+        _requires_pyspark()
+        from export_warehouse import export_files_atomically
+
+        mock_conn, mock_cursor = self._mock_conn()
+        export_files_atomically(mock_conn, {})
+        mock_conn.commit.assert_not_called()
+        mock_cursor.execute.assert_not_called()
+
+    def test_tracking_row_values_source_file_only(self):
+        """The tracking insert carries the source_file; loaded_at is a DB default."""
+        _requires_pyspark()
+        from export_warehouse import TRACKING_TABLE, export_files_atomically
+        from pyspark.sql import Row
+
+        mock_conn, mock_cursor = self._mock_conn()
+        rows_by_file = {"a.log": [Row(source_file="a.log")]}
+
+        export_files_atomically(mock_conn, rows_by_file)
+
+        sql, params = mock_cursor.execute.call_args[0]
+        assert TRACKING_TABLE in sql
+        assert params == ("a.log",)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  6. Error Handling — tracking table NOT updated on JDBC failure
+#  6. Error Handling — tracking NOT committed when the export fails
 # ═══════════════════════════════════════════════════════════════════════════
 
 
 class TestErrorHandling:
-    """Verify the tracking table is NOT updated when the JDBC write fails."""
+    """Verify a failed export rolls back instead of half-committing."""
 
-    def _mock_run_deps(self, spark, fail_on_write=False):
+    def _mock_run_deps(self, spark, fail_on_export=False):
         """Helper to set up mocks for the ``run()`` function."""
         _requires_pyspark()
         # We patch at the module level to avoid importing until pyspark is confirmed
@@ -527,35 +574,29 @@ class TestErrorHandling:
         patcher_ddl = patch("export_warehouse.execute_ddl")
         _mock_ddl = patcher_ddl.start()
 
-        patcher_insert = patch("export_warehouse.insert_tracking_records")
-        mock_insert = patcher_insert.start()
+        patcher_bootstrap = patch("export_warehouse.ensure_database_exists")
+        _mock_bootstrap = patcher_bootstrap.start()
 
-        class Writer:
-            def __init__(self, fail=False):
-                self._fail = fail
+        patcher_pg = patch("psycopg2.connect")
+        mock_pg_connect = patcher_pg.start()
+        mock_conn = MagicMock()
+        mock_pg_connect.return_value = mock_conn
 
-            def format(self, *a, **kw):
-                return self
-
-            def mode(self, *a, **kw):
-                return self
-
-            def option(self, *a, **kw):
-                return self
-
-            def options(self, **kw):
-                return self
-
-            def save(self, **kw):
-                if self._fail:
-                    raise RuntimeError("Connection refused: PostgreSQL is down")
+        patcher_export = patch("export_warehouse.export_files_atomically")
+        mock_export = patcher_export.start()
+        if fail_on_export:
+            mock_export.side_effect = RuntimeError("connection refused mid-export")
+        else:
+            mock_export.return_value = 2
 
         cast_df = MagicMock()
-        cast_df.write = Writer(fail=fail_on_write)
         # The pipeline now calls .select() after apply_type_casts to filter to
-        # the 25 DDL columns.  Make .select() return the same cast_df so the
-        # Writer (with its fail/ok behavior) flows through to the JDBC write step.
+        # the 25 DDL columns, then collects rows grouped by source_file.
         cast_df.select.return_value = cast_df
+        cast_df.collect.return_value = [
+            Row(source_file="u_ex091024.log"),
+            Row(source_file="u_ex100718.log"),
+        ]
         mock_cast.return_value = cast_df
 
         def cleanup():
@@ -563,17 +604,19 @@ class TestErrorHandling:
             patcher_get.stop()
             patcher_cast.stop()
             patcher_ddl.stop()
-            patcher_insert.stop()
+            patcher_bootstrap.stop()
+            patcher_pg.stop()
+            patcher_export.stop()
 
-        return run, mock_insert, cleanup
+        return run, mock_export, mock_conn, cleanup
 
-    def test_tracking_not_updated_on_write_failure(self, spark):
-        """When the JDBC append write raises, insert_tracking_records is never called."""
+    def test_no_tracking_on_export_failure(self, spark):
+        """When the per-file export raises, run() propagates and rolls back."""
         _requires_pyspark()
-        run, mock_insert, cleanup = self._mock_run_deps(spark, fail_on_write=True)
+        run, mock_export, mock_conn, cleanup = self._mock_run_deps(spark, fail_on_export=True)
 
-        with patch("export_warehouse.log") as mock_log:
-            with pytest.raises(RuntimeError, match="Connection refused"):
+        try:
+            with pytest.raises(RuntimeError, match="connection refused"):
                 run(
                     spark,
                     delta_dir="/fake/delta",
@@ -583,32 +626,35 @@ class TestErrorHandling:
                     jdbc_driver="org.postgresql.Driver",
                 )
 
-            mock_insert.assert_not_called()
-            mock_log.error.assert_any_call(
-                "JDBC write to %s failed: %s. Tracking table NOT updated.",
-                ANY,
-                ANY,
-            )
-        cleanup()
+            mock_export.assert_called_once()
+            mock_conn.rollback.assert_called_once()
+            mock_conn.commit.assert_not_called()
+            mock_conn.close.assert_called_once()
+        finally:
+            cleanup()
 
-    def test_tracking_updated_on_success(self, spark):
-        """When the JDBC write succeeds, insert_tracking_records IS called."""
+    def test_tracking_committed_on_success(self, spark):
+        """When the export succeeds, all files' rows+tracking are committed."""
         _requires_pyspark()
-        run, mock_insert, cleanup = self._mock_run_deps(spark, fail_on_write=False)
+        run, mock_export, mock_conn, cleanup = self._mock_run_deps(spark, fail_on_export=False)
 
-        run(
-            spark,
-            delta_dir="/fake/delta",
-            jdbc_url="jdbc:postgresql://pg:5432/w3c",
-            jdbc_user="u",
-            jdbc_password="p",
-            jdbc_driver="org.postgresql.Driver",
-        )
+        try:
+            run(
+                spark,
+                delta_dir="/fake/delta",
+                jdbc_url="jdbc:postgresql://pg:5432/w3c",
+                jdbc_user="u",
+                jdbc_password="p",
+                jdbc_driver="org.postgresql.Driver",
+            )
 
-        mock_insert.assert_called_once()
-        args, _ = mock_insert.call_args
-        assert args[3] == {"u_ex091024.log", "u_ex100718.log"}
-        cleanup()
+            mock_export.assert_called_once()
+            args, _ = mock_export.call_args
+            assert set(args[1].keys()) == {"u_ex091024.log", "u_ex100718.log"}
+            mock_conn.rollback.assert_not_called()
+            mock_conn.close.assert_called_once()
+        finally:
+            cleanup()
 
 
 # ═══════════════════════════════════════════════════════════════════════════

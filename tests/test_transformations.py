@@ -265,3 +265,65 @@ class TestSizeBand:
 
         df = spark.createDataFrame([Row(sent=2_000_000, recv=0)])
         assert df.select(size_band(col("sent"), col("recv")).alias("b")).collect()[0]["b"] == "Huge"
+
+
+class TestParseUAFieldsEquivalence:
+    """Equivalence: consolidated UA struct UDF == the five scalar parse_* UDFs.
+
+    The struct UDF exists so one ua_parse call per row feeds all five
+    columns instead of five row-wise parses of the same string. Both are
+    exercised through the real Spark UDF path on sample rows.
+    """
+
+    SAMPLE_UAS = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+        "-",
+        "",
+    ]
+
+    def test_struct_fields_equal_scalar_outputs(self, spark):
+        from pyspark.sql.functions import col
+        from utils.ua_parser import (
+            parse_agent_type,
+            parse_browser_name,
+            parse_browser_version,
+            parse_device_type,
+            parse_operating_system,
+            parse_ua_fields,
+        )
+
+        rows = [Row(ua=ua) for ua in self.SAMPLE_UAS]
+        df = spark.createDataFrame(rows)
+        result = df.select(
+            parse_ua_fields(col("ua")).alias("ua_struct"),
+            parse_agent_type(col("ua")).alias("agent_type"),
+            parse_browser_name(col("ua")).alias("browser_name"),
+            parse_browser_version(col("ua")).alias("browser_version"),
+            parse_operating_system(col("ua")).alias("operating_system"),
+            parse_device_type(col("ua")).alias("device_type"),
+        ).collect()
+
+        for row in result:
+            s = row["ua_struct"]
+            assert s.agent_type == row["agent_type"]
+            assert s.browser_name == row["browser_name"]
+            assert s.browser_version == row["browser_version"]
+            assert s.operating_system == row["operating_system"]
+            assert s.device_type == row["device_type"]
+
+    def test_struct_unknown_sentinels(self, spark):
+        """Sentinel UA strings still resolve to the documented Unknowns."""
+        from pyspark.sql.functions import col
+        from utils.ua_parser import parse_ua_fields
+
+        df = spark.createDataFrame([Row(ua="-"), Row(ua="")])
+        rows = df.select(parse_ua_fields(col("ua")).alias("ua")).collect()
+        for row in rows:
+            s = row["ua"]
+            assert s.agent_type == "Unknown"
+            assert s.browser_name == "Unknown"
+            assert s.browser_version == "Unknown"
+            assert s.operating_system == "Unknown"
+            assert s.device_type == "Unknown"

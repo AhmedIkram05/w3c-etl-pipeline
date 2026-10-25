@@ -50,7 +50,7 @@ referrer_map AS (
 
 ip_visit_buckets AS (
     SELECT
-        client_ip,
+        re.client_ip,
         CASE
             WHEN COUNT(*) = 1 THEN '1 Visit'
             WHEN COUNT(*) <= 5 THEN '2-5 Visits'
@@ -59,9 +59,19 @@ ip_visit_buckets AS (
             WHEN COUNT(*) <= 50 THEN '21-50 Visits'
             ELSE '51+ Visits'
         END AS visit_bucket_name
-    FROM {{ source('w3c', 'raw_enriched') }}
-    WHERE client_ip IS NOT NULL AND client_ip != '-'
-    GROUP BY client_ip
+    FROM {{ source('w3c', 'raw_enriched') }} re
+    WHERE re.client_ip IS NOT NULL AND re.client_ip != '-'
+    {% if is_incremental() %}
+    -- Semi-join against the incremental slice: only IPs present in this
+    -- run's rows are bucketed, so the aggregate input is pruned to those
+    -- IPs' rows instead of a full-history GROUP BY over the whole table.
+    AND EXISTS (
+        SELECT 1
+        FROM enriched_input ei
+        WHERE ei.client_ip = re.client_ip
+    )
+    {% endif %}
+    GROUP BY re.client_ip
 ),
 
 computed AS (

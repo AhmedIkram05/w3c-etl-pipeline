@@ -452,17 +452,44 @@ class TestGetLoadedSourceFiles:
 
         assert result == {"file1.log", "file2.log", "file3.log"}
 
-    def test_returns_empty_set_on_error(self):
-        """Returns empty set when tracking table doesn't exist yet."""
+    def test_returns_empty_set_when_table_missing(self):
+        """SQL Server error 208 (invalid object name) means 'first run' — empty set."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.execute.side_effect = Exception("Table not found")
+        missing = Exception("Invalid object name 'dbo.raw_enriched_loaded'.")
+        missing.args = (208, "Invalid object name 'dbo.raw_enriched_loaded'.")
+        mock_cursor.execute.side_effect = missing
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
 
         get = self._import_func()
         result = get(mock_conn)
 
         assert result == set()
+
+    def test_raises_on_other_read_errors(self):
+        """Any non-208 read error must propagate, never masquerade as empty."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.execute.side_effect = RuntimeError("connection dropped mid-query")
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        get = self._import_func()
+        with pytest.raises(RuntimeError, match="connection dropped"):
+            get(mock_conn)
+
+    def test_missing_table_check_is_error_number_based(self):
+        """_is_missing_table_error matches pymssql msgno 208 only."""
+        _is_missing_table_error = _import_from_module("_is_missing_table_error")
+
+        err_208 = Exception("Invalid object name")
+        err_208.args = (208, "Invalid object name")
+        assert _is_missing_table_error(err_208) is True
+
+        err_207 = Exception("Invalid column name")
+        err_207.args = (207, "Invalid column name")
+        assert _is_missing_table_error(err_207) is False
+
+        assert _is_missing_table_error(Exception("no args")) is False
 
     def test_empty_tracking_table_returns_empty_set(self):
         """Returns empty set when tracking table has no rows."""
@@ -571,7 +598,96 @@ class TestInsertBatch:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 6. export_to_azure_sql — end-to-end flow
+# 6. export_files_atomically — per-file idempotency
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestExportFilesAtomically:
+    """Per-file insert + tracking pairing with one commit per file."""
+
+    def _mock_conn(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        return mock_conn, mock_cursor
+
+    def _record_calls(self, mock_conn, mock_cursor):
+        calls = []
+        mock_cursor.executemany.side_effect = lambda sql, params: calls.append((
+            "insert",
+            "raw_enriched_loaded" in sql,
+            len(params),
+        ))
+        mock_conn.commit.side_effect = lambda: calls.append(("commit",))
+        return calls
+
+    def test_insert_and_track_pair_per_file_with_commit_between(self):
+        """Each file's data inserts and its tracking row share one transaction."""
+        export_files_atomically = _import_from_module("export_files_atomically")
+
+        mock_conn, mock_cursor = self._mock_conn()
+        calls = self._record_calls(mock_conn, mock_cursor)
+        rows_by_file = {
+            "b.log": [dict(source_file="b.log", status=200), dict(source_file="b.log", status=404)],
+            "a.log": [dict(source_file="a.log", status=200)],
+        }
+
+        inserted = export_files_atomically(mock_conn, rows_by_file)
+
+        assert inserted == 3
+        assert calls == [
+            ("insert", False, 1),  # a.log data
+            ("insert", True, 1),  # a.log tracking
+            ("commit",),
+            ("insert", False, 2),  # b.log data
+            ("insert", True, 1),  # b.log tracking
+            ("commit",),
+        ]
+
+    def test_large_file_is_batched_within_its_transaction(self):
+        """Rows beyond batch_size chunk into several inserts before the commit."""
+        export_files_atomically = _import_from_module("export_files_atomically")
+
+        mock_conn, mock_cursor = self._mock_conn()
+        calls = self._record_calls(mock_conn, mock_cursor)
+        rows_by_file = {"a.log": [dict(source_file="a.log")] * 5}
+
+        inserted = export_files_atomically(mock_conn, rows_by_file, batch_size=2)
+
+        assert inserted == 5
+        assert calls == [
+            ("insert", False, 2),
+            ("insert", False, 2),
+            ("insert", False, 1),
+            ("insert", True, 1),
+            ("commit",),
+        ]
+
+    def test_no_files_no_commits(self):
+        """An empty grouping does nothing."""
+        export_files_atomically = _import_from_module("export_files_atomically")
+
+        mock_conn, mock_cursor = self._mock_conn()
+        assert export_files_atomically(mock_conn, {}) == 0
+        mock_conn.commit.assert_not_called()
+        mock_cursor.executemany.assert_not_called()
+
+    def test_batch_inserts_are_not_auto_committed(self):
+        """Data inserts defer the commit to export_files_atomically."""
+        insert_batch = _import_from_module("insert_batch")
+
+        mock_conn, mock_cursor = self._mock_conn()
+        rows = [dict(source_file="a.log")]
+
+        insert_batch(mock_conn, rows, "dbo.raw_enriched", commit=False)
+        mock_conn.commit.assert_not_called()
+
+        insert_batch(mock_conn, rows, "dbo.raw_enriched")
+        mock_conn.commit.assert_called_once()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 7. export_to_azure_sql — end-to-end flow
 # ═══════════════════════════════════════════════════════════════════════════
 
 
