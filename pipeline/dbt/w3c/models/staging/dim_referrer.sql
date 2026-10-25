@@ -17,9 +17,13 @@ referrer_entries AS (
         {% if target.type == 'sqlserver' %}
             CASE
                 WHEN rr.referrer_url = 'Direct' THEN 'Direct'
+                WHEN rr.referrer_url = 'Unknown' THEN 'Unknown'
                 WHEN rr.referrer_url LIKE 'http://%' OR rr.referrer_url LIKE 'https://%'
                     THEN {{ tsql_extract_domain('rr.referrer_url') }}
-                ELSE 'Unknown'
+                -- Scheme-less referrers are real traffic: prepend a scheme so the
+                -- domain is still extracted (canonical utils/transformations
+                -- behavior), instead of lumping them in as 'Unknown'.
+                ELSE {{ tsql_extract_domain("'http://' + rr.referrer_url") }}
             END AS referrer_domain,
             CASE
                 WHEN rr.referrer_url = 'Direct' THEN 'Direct'
@@ -35,11 +39,15 @@ referrer_entries AS (
         {% else %}
             CASE
                 WHEN rr.referrer_url = 'Direct' THEN 'Direct'
+                WHEN rr.referrer_url = 'Unknown' THEN 'Unknown'
                 WHEN rr.referrer_url ~* '^https?://([^/]+)'
                     THEN LOWER(REGEXP_REPLACE(rr.referrer_url, '^https?://([^/]+).*', '\1'))
                 WHEN rr.referrer_url ~* '^https?://'
                     THEN LOWER(SPLIT_PART(REPLACE(REPLACE(rr.referrer_url, 'http://', ''), 'https://', ''), '/', 1))
-                ELSE 'Unknown'
+                -- Scheme-less referrers are real traffic: prepend a scheme so the
+                -- domain is still extracted (canonical utils/transformations
+                -- behavior), instead of lumping them in as 'Unknown'.
+                ELSE LOWER(REGEXP_REPLACE('http://' || rr.referrer_url, '^https?://([^/]+).*', '\1'))
             END AS referrer_domain,
             CASE
                 WHEN rr.referrer_url = 'Direct' THEN 'Direct'

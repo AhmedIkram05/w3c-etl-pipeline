@@ -373,7 +373,7 @@ class TestRunEnrichment:
         assert row.city == "Unknown"
 
         # Computed fields
-        assert row.page_category == "Homepage"  # uri_stem = "/"
+        assert row.page_category == "Directory"  # uri_stem = "/" (canonical: no extension)
         assert row.referrer_domain == "Direct"  # referrer = "-"
         assert row.traffic_type == "Direct"
         assert row.is_crawler == "false"  # IP not in crawler set
@@ -474,7 +474,7 @@ class TestRunEnrichment:
         df = spark.table(self.SILVER_TABLE)
         cats = {r.page_category for r in df.collect()}
         assert "Stylesheet" in cats
-        assert "JavaScript" in cats
+        assert "Script" in cats
         assert "Image" in cats
         assert "Document" in cats
 
@@ -576,9 +576,9 @@ class TestRunEnrichment:
         for r in df.collect():
             bands[r.uri_stem] = r.size_band
         assert bands["/zero"] == "Zero"
-        assert bands["/tiny"] == "Tiny (<1KB)"
-        assert bands["/small"] == "Small (1-10KB)"
-        assert bands["/large"] == "Large (>100KB)"
+        assert bands["/tiny"] == "Tiny"
+        assert bands["/small"] == "Small"
+        assert bands["/large"] == "Large"
 
     def test_referrer_classification(self, spark):
         self._create_bronze_data(
@@ -668,6 +668,27 @@ class TestRunEnrichment:
                     "time_taken": 50,
                     "source_file": "test.log",
                 },
+                {
+                    "log_date": "2009-10-24",
+                    "log_time": "01:40:44",
+                    "server_ip": "1.2.3.4",
+                    "method": "GET",
+                    "uri_stem": "/schemeless",
+                    "uri_query": "",
+                    "client_ip": "1.2.3.4",
+                    "user_agent": "UA",
+                    "cookie": "",
+                    "referrer": "www.example.com/path",
+                    "status": 200,
+                    "sub_status": 0,
+                    "win32_status": 0,
+                    "bytes_sent": 400,
+                    "bytes_recv": 40,
+                    "server_port": 80,
+                    "username": "-",
+                    "time_taken": 50,
+                    "source_file": "test.log",
+                },
             ],
         )
 
@@ -681,6 +702,9 @@ class TestRunEnrichment:
         assert refs["/search"] == ("google.com", "Search")
         assert refs["/social"] == ("facebook.com", "Social")
         assert refs["/referral"] == ("example.org", "Referral")
+        # Scheme-less referrers are real traffic: the domain is extracted
+        # (canonical behavior), never misclassified as direct.
+        assert refs["/schemeless"] == ("example.com", "Referral")
 
     def test_incremental_skip_already_enriched(self, spark):
         """Files in silver are skipped on re-run (source_file dedup)."""
