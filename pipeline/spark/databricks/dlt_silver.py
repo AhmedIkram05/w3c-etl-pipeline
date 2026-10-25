@@ -200,7 +200,14 @@ def fill_geo_unknowns(silver_df):
 
 
 def _extract_domain(url):
-    """Extract domain from URL (plain Python, not UDF)."""
+    """Extract domain from URL (plain Python, not UDF).
+
+    Mirrors utils/transformations._extract_domain (the canonical
+    referrer logic): absent (''/ '-') -> 'Direct', the literal sentinel
+    'Unknown' -> 'Unknown', scheme-less URLs get a scheme prepended so
+    the domain is still extracted, and parse failures fall back to the
+    raw input.
+    """
     if not url or url.strip() == "-":
         return "Direct"
     if url == "Unknown":
@@ -215,28 +222,49 @@ def _extract_domain(url):
         domain = parsed.netloc.split("@")[-1].split(":")[0].lower().replace("www.", "")
         return domain or url
     except Exception:
-        return "Unknown"
+        return str(url)
 
 
 # ─── Computed Field UDFs ───
 
+# Canonical page-category vocabulary, mirroring utils/transformations
+# (_EXTENSION_CATEGORIES) and the dbt dim_page model.
+_EXTENSION_CATEGORIES = {
+    "aspx": "Dynamic Page",
+    "asp": "Dynamic Page",
+    "html": "Static Page",
+    "htm": "Static Page",
+    "shtml": "Static Page",
+    "jpg": "Image",
+    "jpeg": "Image",
+    "png": "Image",
+    "gif": "Image",
+    "bmp": "Image",
+    "ico": "Icon",
+    "css": "Stylesheet",
+    "js": "Script",
+    "txt": "Text File",
+    "pdf": "Document",
+    "no_extension": "Directory",
+}
+
 
 @udf(StringType())
 def get_page_category(uri_stem):
-    """Categorize page by URI pattern."""
-    uri_stem_lower = uri_stem.lower() if uri_stem else ""
-    path = uri_stem_lower.split("?")[0]
+    """Categorize page by URI pattern (canonical vocabulary).
 
-    if path.endswith((".css", ".js", ".png", ".jpg", ".gif", ".ico")):
-        return "Static Asset"
-    elif "/api/" in uri_stem_lower:
-        return "API"
-    elif "/admin/" in uri_stem_lower:
-        return "Admin"
-    elif uri_stem_lower.endswith("/"):
-        return "Homepage"
-    else:
-        return "Content"
+    Mirrors utils/transformations.page_category and the dbt dim_page
+    model: Dynamic Page, Static Page, Image, Icon, Stylesheet, Script,
+    Text File, Document, Directory, Other; absent URI stems resolve to
+    'Unknown'.
+    """
+    if not uri_stem or uri_stem.strip() in ("-", "Unknown", ""):
+        return "Unknown"
+    stem = uri_stem.split("?")[0]
+    if "." in stem:
+        ext = stem.rsplit(".", 1)[-1].lower().strip()
+        return _EXTENSION_CATEGORIES.get(ext, "Other")
+    return "Directory"
 
 
 @udf(StringType())
@@ -269,20 +297,24 @@ def get_is_crawler(user_agent):
 
 
 @udf(StringType())
-def get_size_band(bytes_sent):
-    """Categorize response size into bands."""
-    if not bytes_sent or bytes_sent < 0:
-        return "Unknown"
-    elif bytes_sent < 1024:
-        return "< 1KB"
-    elif bytes_sent < 10240:
-        return "1KB-10KB"
-    elif bytes_sent < 102400:
-        return "10KB-100KB"
-    elif bytes_sent < 1048576:
-        return "100KB-1MB"
-    else:
-        return "> 1MB"
+def get_size_band(bytes_sent, bytes_recv):
+    """Categorize total bytes (sent + received) into canonical bands.
+
+    Mirrors utils/transformations.size_band: Zero, Tiny, Small, Medium,
+    Large, Huge (thresholds 0 / 1KB / 10KB / 100KB / 1MB).
+    """
+    total = (bytes_sent or 0) + (bytes_recv or 0)
+    if total == 0:
+        return "Zero"
+    if total < 1024:
+        return "Tiny"
+    if total < 10240:
+        return "Small"
+    if total < 102400:
+        return "Medium"
+    if total < 1048576:
+        return "Large"
+    return "Huge"
 
 
 # ─── Silver DLT Pipeline ───
@@ -332,7 +364,7 @@ def silver_enriched_logs():
         .withColumn("referrer_domain", get_referrer_domain(col("referrer")))
         .withColumn("traffic_type", get_traffic_type(col("referrer_domain")))
         .withColumn("is_crawler", get_is_crawler(col("user_agent")))
-        .withColumn("size_band", get_size_band(col("bytes_sent")))
+        .withColumn("size_band", get_size_band(col("bytes_sent"), col("bytes_recv")))
     )
 
     # Note: UA columns (agent_type, browser_name, browser_version, os, device_type)

@@ -217,35 +217,69 @@ def get_geo_fields(ip: str) -> dict:
 # ── Main pipeline ───────────────────────────────────────────────────────
 
 
+# Canonical page-category vocabulary, mirroring utils/transformations
+# (_EXTENSION_CATEGORIES) and the dbt dim_page model.
+_EXTENSION_CATEGORIES = {
+    "aspx": "Dynamic Page",
+    "asp": "Dynamic Page",
+    "html": "Static Page",
+    "htm": "Static Page",
+    "shtml": "Static Page",
+    "jpg": "Image",
+    "jpeg": "Image",
+    "png": "Image",
+    "gif": "Image",
+    "bmp": "Image",
+    "ico": "Icon",
+    "css": "Stylesheet",
+    "js": "Script",
+    "txt": "Text File",
+    "pdf": "Document",
+    "no_extension": "Directory",
+}
+
+
 def _page_category(uri_stem: str) -> str:
-    if not uri_stem:
+    """Canonical page-category vocabulary.
+
+    Mirrors utils/transformations.page_category and the dbt dim_page
+    model: Dynamic Page, Static Page, Image, Icon, Stylesheet, Script,
+    Text File, Document, Directory, Other; absent URI stems resolve to
+    'Unknown'.
+    """
+    if not uri_stem or uri_stem.strip() in ("-", "Unknown", ""):
         return "Unknown"
-    uri_lower = uri_stem.lower()
-    if uri_lower.startswith("/css/"):
-        return "Stylesheet"
-    if uri_lower.startswith("/js/"):
-        return "JavaScript"
-    if uri_lower.startswith("/images/") or uri_lower.startswith("/img/"):
-        return "Image"
-    if uri_lower.endswith(".pdf"):
-        return "Document"
-    if uri_lower.endswith(".xml") or uri_lower.endswith(".rss"):
-        return "Feed"
-    if uri_lower == "/" or uri_lower == "/default.aspx":
-        return "Homepage"
-    return "Content"
+    stem = uri_stem.split("?")[0]
+    if "." in stem:
+        ext = stem.rsplit(".", 1)[-1].lower().strip()
+        return _EXTENSION_CATEGORIES.get(ext, "Other")
+    return "Directory"
 
 
 def _referrer_domain(referrer: str) -> str:
-    if not referrer or referrer == "-":
+    """Canonical referrer-domain extraction.
+
+    Mirrors utils/transformations.referrer_domain: absent (''/ '-')
+    referrers -> 'Direct', the literal sentinel 'Unknown' -> 'Unknown',
+    scheme-less URLs get a scheme prepended so the domain is still
+    extracted (a real referrer must never be misclassified as direct
+    traffic), and parse failures fall back to the raw input.
+    """
+    if not referrer or referrer.strip() == "-":
         return "Direct"
+    if referrer == "Unknown":
+        return "Unknown"
     try:
         from urllib.parse import urlparse
 
-        parsed = urlparse(referrer)
-        return parsed.netloc or "Direct"
+        candidate = referrer.strip()
+        if "//" not in candidate:
+            candidate = "http://" + candidate
+        parsed = urlparse(candidate)
+        domain = parsed.netloc.split("@")[-1].split(":")[0].lower().replace("www.", "")
+        return domain or referrer
     except Exception:
-        return "Unknown"
+        return str(referrer)
 
 
 def _traffic_type(referrer: str) -> str:
@@ -265,16 +299,23 @@ def _traffic_type(referrer: str) -> str:
 
 
 def _size_band(bytes_sent, bytes_recv) -> str:
+    """Canonical size bands over total bytes (sent + received).
+
+    Mirrors utils/transformations.size_band: Zero, Tiny, Small, Medium,
+    Large, Huge (thresholds 0 / 1KB / 10KB / 100KB / 1MB).
+    """
     total = (bytes_sent or 0) + (bytes_recv or 0)
     if total == 0:
         return "Zero"
     if total < 1024:
-        return "Tiny (<1KB)"
+        return "Tiny"
     if total < 10240:
-        return "Small (1-10KB)"
+        return "Small"
     if total < 102400:
-        return "Medium (10-100KB)"
-    return "Large (>100KB)"
+        return "Medium"
+    if total < 1048576:
+        return "Large"
+    return "Huge"
 
 
 def run(spark, geolite2_db: str | None = None):

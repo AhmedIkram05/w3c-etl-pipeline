@@ -392,109 +392,100 @@ class TestAsnLookup:
 
 
 class TestGetPageCategory:
-    """Verify ``get_page_category`` URI classification UDF."""
+    """Verify ``get_page_category`` URI classification UDF (canonical vocabulary).
 
-    def test_static_asset_css(self, spark):
+    Canonical values mirror utils/transformations.page_category and the
+    dbt dim_page model.
+    """
+
+    def test_stylesheet(self, spark):
         from pyspark.sql.functions import col
 
         df = spark.createDataFrame([Row(uri_stem="/Darwin/style.css")])
         result = df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"]
-        assert result == "Static Asset"
+        assert result == "Stylesheet"
 
-    def test_static_asset_js(self, spark):
+    def test_script(self, spark):
         from pyspark.sql.functions import col
 
         df = spark.createDataFrame([Row(uri_stem="/js/app.js")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Script"
 
-    def test_static_asset_png(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(uri_stem="/images/photo.png")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
-
-    def test_static_asset_jpg(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(uri_stem="/images/photo.jpg")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
-
-    def test_static_asset_gif(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(uri_stem="/images/animated.gif")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
-
-    def test_static_asset_ico(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(uri_stem="/favicon.ico")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
-
-    def test_static_asset_with_query_string(self, spark):
+    def test_script_with_query_string(self, spark):
         """Query string is stripped before the extension check."""
         from pyspark.sql.functions import col
 
         df = spark.createDataFrame([Row(uri_stem="/assets/app.js?v=3")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Asset"
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Script"
 
-    def test_api_path_not_matched_as_js(self, spark):
-        """``/api/json`` must not be treated as a .js asset."""
+    def test_image_png(self, spark):
         from pyspark.sql.functions import col
 
-        df = spark.createDataFrame([Row(uri_stem="/api/json")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "API"
+        df = spark.createDataFrame([Row(uri_stem="/images/photo.png")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Image"
 
-    def test_api_endpoint(self, spark):
+    def test_icon(self, spark):
         from pyspark.sql.functions import col
 
-        df = spark.createDataFrame([Row(uri_stem="/api/v1/users")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "API"
+        df = spark.createDataFrame([Row(uri_stem="/favicon.ico")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Icon"
 
-    def test_admin_page(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(uri_stem="/admin/dashboard")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Admin"
-
-    def test_homepage_trailing_slash(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(uri_stem="/")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Homepage"
-
-    def test_homepage_directory_slash(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(uri_stem="/about/")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Homepage"
-
-    def test_content_page(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(uri_stem="/about/team")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Content"
-
-    def test_aspx_dynamic_page(self, spark):
+    def test_dynamic_page_aspx(self, spark):
         from pyspark.sql.functions import col
 
         df = spark.createDataFrame([Row(uri_stem="/Darwin/MyAccount.aspx")])
         result = df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"]
-        assert result == "Content"
+        assert result == "Dynamic Page"
 
-    def test_null_uri(self, spark):
+    def test_static_page_html(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(uri_stem="/guide/index.html")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Static Page"
+
+    def test_text_file(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(uri_stem="/robots.txt")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Text File"
+
+    def test_document(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(uri_stem="/report.pdf")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Document"
+
+    def test_no_extension_directory(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(uri_stem="/about/team")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Directory"
+
+    def test_root_directory(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(uri_stem="/")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Directory"
+
+    def test_unknown_extension_other(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(uri_stem="/files/archive.zip")])
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Other"
+
+    def test_null_uri_unknown(self, spark):
         from pyspark.sql.functions import col
         from pyspark.sql.types import StringType, StructField, StructType
 
         schema = StructType([StructField("uri_stem", StringType(), True)])
         df = spark.createDataFrame([Row(uri_stem=None)], schema=schema)
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Content"
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Unknown"
 
-    def test_empty_uri(self, spark):
+    def test_empty_uri_unknown(self, spark):
         from pyspark.sql.functions import col
 
         df = spark.createDataFrame([Row(uri_stem="")])
-        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Content"
+        assert df.select(get_page_category(col("uri_stem")).alias("cat")).collect()[0]["cat"] == "Unknown"
 
 
 class TestGetReferrerDomain:
@@ -633,58 +624,68 @@ class TestGetIsCrawler:
 
 
 class TestGetSizeBand:
-    """Verify ``get_size_band`` response size categorisation UDF."""
+    """Verify ``get_size_band`` response size categorisation UDF (canonical bands).
 
-    def test_negative_bytes(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(bytes=-1)])
-        assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "Unknown"
+    Canonical bands mirror utils/transformations.size_band: Zero, Tiny,
+    Small, Medium, Large, Huge over total bytes (sent + received).
+    """
 
     def test_zero_bytes(self, spark):
         from pyspark.sql.functions import col
 
-        df = spark.createDataFrame([Row(bytes=0)])
-        # ``not 0`` is True in Python so ``not bytes_sent`` returns "Unknown"
-        assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "Unknown"
+        df = spark.createDataFrame([Row(bytes=0, recv=0)])
+        assert df.select(get_size_band(col("bytes"), col("recv")).alias("b")).collect()[0]["b"] == "Zero"
 
-    def test_less_than_1kb(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(bytes=500)])
-        assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "< 1KB"
-
-    def test_1kb_to_10kb(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(bytes=5000)])
-        assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "1KB-10KB"
-
-    def test_10kb_to_100kb(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(bytes=50000)])
-        assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "10KB-100KB"
-
-    def test_100kb_to_1mb(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(bytes=500000)])
-        assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "100KB-1MB"
-
-    def test_greater_than_1mb(self, spark):
-        from pyspark.sql.functions import col
-
-        df = spark.createDataFrame([Row(bytes=2_000_000)])
-        assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "> 1MB"
-
-    def test_none_bytes(self, spark):
+    def test_none_bytes_zero_band(self, spark):
         from pyspark.sql.functions import col
         from pyspark.sql.types import IntegerType, StructField, StructType
 
-        schema = StructType([StructField("bytes", IntegerType(), True)])
-        df = spark.createDataFrame([Row(bytes=None)], schema=schema)
-        assert df.select(get_size_band(col("bytes")).alias("b")).collect()[0]["b"] == "Unknown"
+        schema = StructType([StructField("bytes", IntegerType(), True), StructField("recv", IntegerType(), True)])
+        df = spark.createDataFrame([Row(bytes=None, recv=None)], schema=schema)
+        # (None or 0) + (None or 0) == 0 -> "Zero" under the canonical bands
+        assert df.select(get_size_band(col("bytes"), col("recv")).alias("b")).collect()[0]["b"] == "Zero"
+
+    def test_recv_only_counts_toward_total(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(bytes=0, recv=500)])
+        assert df.select(get_size_band(col("bytes"), col("recv")).alias("b")).collect()[0]["b"] == "Tiny"
+
+    def test_tiny(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(bytes=500, recv=100)])
+        assert df.select(get_size_band(col("bytes"), col("recv")).alias("b")).collect()[0]["b"] == "Tiny"
+
+    def test_small_boundary(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(bytes=1024, recv=0)])
+        assert df.select(get_size_band(col("bytes"), col("recv")).alias("b")).collect()[0]["b"] == "Small"
+
+    def test_small(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(bytes=5000, recv=1000)])
+        assert df.select(get_size_band(col("bytes"), col("recv")).alias("b")).collect()[0]["b"] == "Small"
+
+    def test_medium(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(bytes=50000, recv=10000)])
+        assert df.select(get_size_band(col("bytes"), col("recv")).alias("b")).collect()[0]["b"] == "Medium"
+
+    def test_large(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(bytes=500000, recv=100000)])
+        assert df.select(get_size_band(col("bytes"), col("recv")).alias("b")).collect()[0]["b"] == "Large"
+
+    def test_huge(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(bytes=2_000_000, recv=0)])
+        assert df.select(get_size_band(col("bytes"), col("recv")).alias("b")).collect()[0]["b"] == "Huge"
 
 
 # ══════════════════════════════════════════════════════════════════════
