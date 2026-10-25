@@ -432,10 +432,12 @@ def _create_indexes(**context) -> None:
     the downstream ``dbt_marts_azure`` DAG.
 
     Indexes created:
-      - ``ix_raw_enriched_cx``: Clustered index on ``dbo.raw_enriched(source_file, log_time)``
-        speeds up full scans (heap → clustered) and the incremental WHERE clause.
+      - ``ix_raw_enriched_cx``: Clustered index on ``dbo.raw_enriched(log_date, source_file, log_time)``.
+        The leading ``log_date`` matches the incremental WHERE clause in
+        ``fact_webrequest.sql`` (``log_date >= watermark``) so the slice scan is
+        index-ordered instead of an unpruned table scan.
       - ``ix_raw_enriched_client_ip``: Non-clustered index on client_ip speeds up
-        the ``ip_visit_buckets`` CTE in ``fact_webrequest.sql``.
+        the ``ip_visit_buckets`` semi-join in ``fact_webrequest.sql``.
 
     All index creation uses ``IF NOT EXISTS`` checks for idempotent re-runs.
 
@@ -461,17 +463,26 @@ def _create_indexes(**context) -> None:
         with pyodbc.connect(conn_str, autocommit=True) as conn:
             cursor = conn.cursor()
 
-            # Clustered index on raw_enriched (source_file, log_time)
+            # Clustered index on raw_enriched, leading with log_date so the
+            # incremental log_date >= watermark predicate is index-ordered.
+            # The existence check verifies the leading column: deployments
+            # carrying the legacy (source_file, log_time) key are rebuilt.
             cursor.execute("""
                 IF NOT EXISTS (
-                    SELECT 1 FROM sys.indexes
-                    WHERE name = 'ix_raw_enriched_cx'
-                      AND object_id = OBJECT_ID('dbo.raw_enriched')
+                    SELECT 1 FROM sys.indexes i
+                    JOIN sys.index_columns ic
+                        ON ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.key_ordinal = 1
+                    JOIN sys.columns c
+                        ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+                    WHERE i.name = 'ix_raw_enriched_cx'
+                      AND i.object_id = OBJECT_ID('dbo.raw_enriched')
+                      AND c.name = 'log_date'
                 )
                 BEGIN
+                    DROP INDEX IF EXISTS ix_raw_enriched_cx ON dbo.raw_enriched;
                     CREATE CLUSTERED INDEX ix_raw_enriched_cx
-                    ON dbo.raw_enriched(source_file, log_time);
-                    PRINT 'Created ix_raw_enriched_cx';
+                    ON dbo.raw_enriched(log_date, source_file, log_time);
+                    PRINT 'Created ix_raw_enriched_cx (leading log_date)';
                 END
                 ELSE
                     PRINT 'ix_raw_enriched_cx already exists';
