@@ -159,13 +159,8 @@ def run(spark: SparkSession, delta_dir: str, geolite2_db: str | None = None, geo
     # ── 4. Apply enrichment UDFs ─────────────────────────────────────
     # Import here so the Spark worker can resolve them.
     from utils.geoip import (
-        geoip_city,
-        geoip_country,
         geoip_isp,
-        geoip_latitude,
-        geoip_longitude,
-        geoip_postcode,
-        geoip_region,
+        get_geo_fields,
         init_asn_reader,
         init_reader,
     )
@@ -185,45 +180,42 @@ def run(spark: SparkSession, delta_dir: str, geolite2_db: str | None = None, geo
         size_band,
         traffic_type,
     )
-    from utils.ua_parser import (
-        parse_agent_type,
-        parse_browser_name,
-        parse_browser_version,
-        parse_device_type,
-        parse_operating_system,
-    )
+    from utils.ua_parser import parse_ua_fields
 
     is_crawler_udf = make_crawler_udf(crawler_ips)
 
     enriched = (
         new_data
-        # Geo-IP enrichment
-        .withColumn("country", geoip_country("client_ip"))
-        .withColumn("region", geoip_region("client_ip"))
-        .withColumn("city", geoip_city("client_ip"))
-        .withColumn("latitude", geoip_latitude("client_ip"))
-        .withColumn("longitude", geoip_longitude("client_ip"))
-        .withColumn("postcode", geoip_postcode("client_ip"))
+        # Geo-IP enrichment: one City-DB call per row, fields unpacked from the struct
+        .withColumn("geo", get_geo_fields("client_ip"))
+        .withColumn("country", col("geo.country"))
+        .withColumn("region", col("geo.region"))
+        .withColumn("city", col("geo.city"))
+        .withColumn("latitude", col("geo.latitude"))
+        .withColumn("longitude", col("geo.longitude"))
+        .withColumn("postcode", col("geo.postcode"))
         .withColumn("isp", geoip_isp("client_ip"))
-        # User-Agent parsing
-        .withColumn("agent_type", parse_agent_type("user_agent"))
-        .withColumn("browser_name", parse_browser_name("user_agent"))
-        .withColumn("browser_version", parse_browser_version("user_agent"))
-        .withColumn("operating_system", parse_operating_system("user_agent"))
-        .withColumn("device_type", parse_device_type("user_agent"))
+        # User-Agent parsing: one ua_parse call per row, fields unpacked from the struct
+        .withColumn("ua", parse_ua_fields("user_agent"))
+        .withColumn("agent_type", col("ua.agent_type"))
+        .withColumn("browser_name", col("ua.browser_name"))
+        .withColumn("browser_version", col("ua.browser_version"))
+        .withColumn("operating_system", col("ua.operating_system"))
+        .withColumn("device_type", col("ua.device_type"))
         # Computed fields
         .withColumn("page_category", page_category("uri_stem"))
         .withColumn("referrer_domain", referrer_domain("referrer"))
         .withColumn("traffic_type", traffic_type("referrer"))
         .withColumn("is_crawler", is_crawler_udf("client_ip"))
         .withColumn("size_band", size_band("bytes_sent", "bytes_recv"))
+        .drop("geo", "ua")
     )
 
     # ── 5. Write to Silver Delta table ───────────────────────────────
+    # No post-write count(): on an uncached DataFrame it re-executes the
+    # whole bronze scan + UDF pipeline just for a log line.
     enriched.write.format("delta").mode("append").partitionBy("log_date").option("path", silver_path).save()
-
-    enriched_rows = enriched.count()
-    log.info("Wrote %d enriched rows to Silver (Delta).", enriched_rows)
+    log.info("Silver enrichment write complete (Delta).")
 
 
 def main():
