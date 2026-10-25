@@ -101,40 +101,73 @@ def spark():
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  1. _geoip_lookup — returns "Unknown" when no DB is loaded
+#  1. _geo_lookup / get_geo_fields — consolidated GeoIP struct lookup
 # ══════════════════════════════════════════════════════════════════════
 
 
 class TestGeoIPLookup:
-    """GeoIP attribute lookup with no reader available (returns "Unknown")."""
+    """Consolidated GeoIP lookup with no reader available (all "Unknown")."""
 
     def setup_method(self):
         """Ensure _geoip_reader is None before each test."""
         silver._geoip_reader = None
 
-    def test_country_unknown(self):
-        assert silver._geoip_lookup("8.8.8.8", "country") == "Unknown"
-
-    def test_region_unknown(self):
-        assert silver._geoip_lookup("8.8.8.8", "region") == "Unknown"
-
-    def test_city_unknown(self):
-        assert silver._geoip_lookup("8.8.8.8", "city") == "Unknown"
-
-    def test_latitude_unknown(self):
-        assert silver._geoip_lookup("8.8.8.8", "latitude") == "Unknown"
-
-    def test_longitude_unknown(self):
-        assert silver._geoip_lookup("8.8.8.8", "longitude") == "Unknown"
-
-    def test_isp_unknown(self):
-        assert silver._geoip_lookup("8.8.8.8", "isp") == "Unknown"
-
-    def test_unknown_attr_defaults_to_unknown(self):
-        assert silver._geoip_lookup("8.8.8.8", "nonexistent") == "Unknown"
+    def test_unknown_reader_all_fields_unknown(self):
+        fields = silver._geo_lookup("8.8.8.8")
+        assert fields == {
+            "country": "Unknown",
+            "region": "Unknown",
+            "city": "Unknown",
+            "latitude": "Unknown",
+            "longitude": "Unknown",
+            "isp": "Unknown",
+        }
 
     def test_empty_ip_returns_unknown(self):
-        assert silver._geoip_lookup("", "country") == "Unknown"
+        assert silver._geo_lookup("")["country"] == "Unknown"
+
+    def test_struct_udf_matches_per_field_lookup(self):
+        """Equivalence: struct-UDF output fields == the old per-field outputs.
+
+        The old API was ``_geoip_lookup(ip, attr)`` per column, each doing
+        its own mmdb call. The consolidated struct (whose body is
+        ``_geo_lookup``) must produce identical values for every field,
+        including the reader-missing defaults.
+        """
+        old_per_field = {
+            "country": "Unknown",
+            "region": "Unknown",
+            "city": "Unknown",
+            "latitude": "Unknown",
+            "longitude": "Unknown",
+            "isp": "Unknown",
+        }
+        assert dict(silver._geo_lookup("8.8.8.8")) == old_per_field
+
+    def test_struct_udf_with_mocked_reader_matches_per_field_semantics(self):
+        """A successful mmdb response flows through the struct unchanged."""
+        from unittest.mock import MagicMock
+
+        response = MagicMock()
+        response.country.name = "United States"
+        response.subdivisions.most_specific.name = "California"
+        response.city.name = "San Jose"
+        response.location.latitude = 37.33
+        response.location.longitude = -121.89
+        response.traits.isp = "Test ISP"
+        silver._geoip_reader = MagicMock()
+        silver._geoip_reader.city.return_value = response
+
+        try:
+            fields = dict(silver._geo_lookup("8.8.8.8"))
+            assert fields["country"] == "United States"
+            assert fields["region"] == "California"
+            assert fields["city"] == "San Jose"
+            assert fields["latitude"] == "37.33"
+            assert fields["longitude"] == "-121.89"
+            assert fields["isp"] == "Test ISP"
+        finally:
+            silver._geoip_reader = None
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -340,7 +373,7 @@ class TestRunEnrichment:
         assert row.city == "Unknown"
 
         # Computed fields
-        assert row.page_category == "Homepage"  # uri_stem = "/"
+        assert row.page_category == "Directory"  # uri_stem = "/" (canonical: no extension)
         assert row.referrer_domain == "Direct"  # referrer = "-"
         assert row.traffic_type == "Direct"
         assert row.is_crawler == "false"  # IP not in crawler set
@@ -441,7 +474,7 @@ class TestRunEnrichment:
         df = spark.table(self.SILVER_TABLE)
         cats = {r.page_category for r in df.collect()}
         assert "Stylesheet" in cats
-        assert "JavaScript" in cats
+        assert "Script" in cats
         assert "Image" in cats
         assert "Document" in cats
 
@@ -543,9 +576,9 @@ class TestRunEnrichment:
         for r in df.collect():
             bands[r.uri_stem] = r.size_band
         assert bands["/zero"] == "Zero"
-        assert bands["/tiny"] == "Tiny (<1KB)"
-        assert bands["/small"] == "Small (1-10KB)"
-        assert bands["/large"] == "Large (>100KB)"
+        assert bands["/tiny"] == "Tiny"
+        assert bands["/small"] == "Small"
+        assert bands["/large"] == "Large"
 
     def test_referrer_classification(self, spark):
         self._create_bronze_data(
@@ -635,6 +668,27 @@ class TestRunEnrichment:
                     "time_taken": 50,
                     "source_file": "test.log",
                 },
+                {
+                    "log_date": "2009-10-24",
+                    "log_time": "01:40:44",
+                    "server_ip": "1.2.3.4",
+                    "method": "GET",
+                    "uri_stem": "/schemeless",
+                    "uri_query": "",
+                    "client_ip": "1.2.3.4",
+                    "user_agent": "UA",
+                    "cookie": "",
+                    "referrer": "www.example.com/path",
+                    "status": 200,
+                    "sub_status": 0,
+                    "win32_status": 0,
+                    "bytes_sent": 400,
+                    "bytes_recv": 40,
+                    "server_port": 80,
+                    "username": "-",
+                    "time_taken": 50,
+                    "source_file": "test.log",
+                },
             ],
         )
 
@@ -648,6 +702,9 @@ class TestRunEnrichment:
         assert refs["/search"] == ("google.com", "Search")
         assert refs["/social"] == ("facebook.com", "Social")
         assert refs["/referral"] == ("example.org", "Referral")
+        # Scheme-less referrers are real traffic: the domain is extracted
+        # (canonical behavior), never misclassified as direct.
+        assert refs["/schemeless"] == ("example.com", "Referral")
 
     def test_incremental_skip_already_enriched(self, spark):
         """Files in silver are skipped on re-run (source_file dedup)."""

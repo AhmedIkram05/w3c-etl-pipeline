@@ -38,7 +38,7 @@ that database return the field's documented default ("Unknown" or
 """
 
 from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType
+from pyspark.sql.types import StringType, StructField, StructType
 
 # ── Lazy-loading GeoLite2 City reader singleton ───────────────────────
 # A single reader instance is shared by all executor tasks.
@@ -263,4 +263,42 @@ def geoip_isp(ip: str) -> str:
     result = _lookup_asn(ip)
     if result is None or not result:
         return "Unknown"
+    return result
+
+
+# ── Consolidated GeoIP struct UDF ────────────────────────────────────
+# One City-DB call returns all six fields, mirroring dlt_silver's
+# get_geo_fields. The scalar ``geoip_*`` UDFs above remain for callers
+# that have not migrated (e.g. silver_backfill).
+
+_GEO_STRUCT_SCHEMA = StructType([
+    StructField("country", StringType(), True),
+    StructField("region", StringType(), True),
+    StructField("city", StringType(), True),
+    StructField("latitude", StringType(), True),
+    StructField("longitude", StringType(), True),
+    StructField("postcode", StringType(), True),
+])
+
+
+@udf(returnType=_GEO_STRUCT_SCHEMA)
+def get_geo_fields(ip: str) -> dict:
+    """Consolidated GeoIP UDF: one City-DB call returns all six fields.
+
+    Field values match the scalar ``geoip_*`` UDFs exactly: a failed or
+    unusable lookup yields ``"Unknown"`` for country/region/city and
+    ``None`` for latitude/longitude/postcode. Callers unpack fields from
+    the struct (``col("geo.country")``) so a row triggers one mmdb
+    lookup instead of six.
+    """
+    result = _lookup(ip)
+    if result is None:
+        return {
+            "country": "Unknown",
+            "region": "Unknown",
+            "city": "Unknown",
+            "latitude": None,
+            "longitude": None,
+            "postcode": None,
+        }
     return result

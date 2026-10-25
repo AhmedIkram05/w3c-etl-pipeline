@@ -97,16 +97,19 @@ models:
       - name: file_extension
         description: "File extension (css, js, image, html, etc.)"
       - name: page_category
-        description: "Content type classification (Static Page, Image, Script, etc.)"
+        description: "Content type classification (Dynamic Page, Static Page, Image, etc.)"
         tests:
           - accepted_values:
               values:
+                - "Dynamic Page"
                 - "Static Page"
                 - "Image"
+                - "Icon"
+                - "Stylesheet"
                 - "Script"
-                - "Style"
-                - "API"
+                - "Text File"
                 - "Document"
+                - "Directory"
                 - "Other"
               severity: warn
 
