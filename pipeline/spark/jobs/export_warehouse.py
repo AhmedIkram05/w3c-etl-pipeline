@@ -21,8 +21,10 @@ Idempotency
 -----------
 Before writing, the script queries ``public.raw_enriched_loaded`` for
 already-exported ``source_file`` values.  Only rows whose ``source_file``
-is not in that set are written.  After a successful JDBC write, the
-new ``source_file`` values are inserted into the tracking table.
+is not in that set are written.  Rows are inserted per source file, with
+that file's tracking record committed in the same transaction, so a
+mid-export crash leaves at most the in-flight file untracked and the
+Airflow retry skips every already-committed file.
 
 Type mappings (Delta -> PostgreSQL)
 -----------------------------------
@@ -47,6 +49,7 @@ log = logging.getLogger("export_warehouse")
 
 RAW_ENRICHED_TABLE = "public.raw_enriched"
 TRACKING_TABLE = "public.raw_enriched_loaded"
+BATCH_SIZE = 5000  # rows per INSERT batch (matches jdbc_export_azure)
 
 # DDL for the enriched data table (36 columns matching silver schema).
 RAW_ENRICHED_DDL = """
@@ -112,25 +115,37 @@ def create_spark_session(app_name: str = "W3C_Export_Warehouse") -> SparkSession
     )
 
 
-def get_loaded_source_files(spark: SparkSession, jdbc_url: str, jdbc_props: dict) -> set:
+def get_loaded_source_files(jdbc_url: str, jdbc_props: dict) -> set:
     """Return the set of ``source_file`` values already in the tracking table.
 
-    Returns an empty set if the table does not exist yet.
+    A missing tracking table (PostgreSQL SQLSTATE 42P01, undefined_table) is
+    expected on the first run and yields an empty set. Any other read error
+    propagates: a transient failure must never be misread as "nothing loaded
+    yet", or the export would re-send all history.
     """
+    import psycopg2
+
+    conn_info = _parse_jdbc_url(jdbc_url)
+    conn = psycopg2.connect(
+        host=conn_info["host"],
+        port=conn_info["port"],
+        dbname=conn_info["dbname"],
+        user=jdbc_props["user"],
+        password=jdbc_props["password"],
+    )
     try:
-        df = (
-            spark.read
-            .format("jdbc")
-            .option("url", jdbc_url)
-            .option("dbtable", TRACKING_TABLE)
-            .options(**jdbc_props)
-            .load()
-        )
-        rows = df.select("source_file").collect()
-        return {row.source_file for row in rows}
-    except Exception:
-        log.info("Tracking table %s does not exist yet — will create.", TRACKING_TABLE)
-        return set()
+        with conn.cursor() as cursor:
+            cursor.execute(f"SELECT source_file FROM {TRACKING_TABLE}")
+            loaded = {row[0] for row in cursor.fetchall()}
+        log.info("Already tracked source_files: %d.", len(loaded))
+        return loaded
+    except Exception as exc:
+        if getattr(exc, "pgcode", None) == "42P01":
+            log.info("Tracking table %s does not exist yet — will create.", TRACKING_TABLE)
+            return set()
+        raise
+    finally:
+        conn.close()
 
 
 def _parse_jdbc_url(url: str) -> dict:
@@ -266,33 +281,46 @@ def apply_type_casts(df: DataFrame) -> DataFrame:
     return df
 
 
-def insert_tracking_records(
-    spark: SparkSession,
-    jdbc_url: str,
-    jdbc_props: dict,
-    new_source_files: set,
-):
-    """Insert new ``source_file`` values into the tracking table.
+def _insert_rows(conn, rows, table, commit=True):
+    """Insert Spark ``Row`` objects (from ``collect()``) via psycopg2.
 
-    Uses a batch JDBC approach: creates a temporary DataFrame with the
-    new values and appends it to ``public.raw_enriched_loaded``.
-    The ``loaded_at`` column is populated automatically by the database
-    via the DEFAULT CURRENT_TIMESTAMP constraint.
+    Pass ``commit=False`` to keep the transaction open across several
+    inserts (per-file atomicity); the caller then commits explicitly.
     """
-    if not new_source_files:
-        return
+    if not rows:
+        return 0
 
-    from pyspark.sql.types import StringType, StructField, StructType
+    columns = list(rows[0].__fields__)
+    params = [tuple(row) for row in rows]
+    col_names = ", ".join(columns)
+    placeholders = ", ".join(["%s"] * len(columns))
+    sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})"
 
-    tracking_schema = StructType([StructField("source_file", StringType(), True)])
-    rows = [[sf] for sf in new_source_files]
-    tracking_df = spark.createDataFrame(rows, schema=tracking_schema)
+    with conn.cursor() as cursor:
+        cursor.executemany(sql, params)
+    if commit:
+        conn.commit()
+    return len(rows)
 
-    tracking_df.write.format("jdbc").mode("append").option("url", jdbc_url).option("dbtable", TRACKING_TABLE).options(
-        **jdbc_props
-    ).save()
 
-    log.info("Inserted %d new source_file(s) into %s.", len(new_source_files), TRACKING_TABLE)
+def export_files_atomically(conn, rows_by_file, batch_size=BATCH_SIZE):
+    """Insert rows and the tracking row for each source file, then commit.
+
+    Grouping is ``{source_file: [rows]}``. For every file the data inserts
+    and its ``public.raw_enriched_loaded`` tracking row share one
+    transaction, so a mid-export crash leaves at most the in-flight file
+    untracked and the Airflow retry skips every already-committed file
+    instead of re-exporting the whole set.
+    """
+    inserted = 0
+    for source_file in sorted(rows_by_file):
+        file_rows = rows_by_file[source_file]
+        for i in range(0, len(file_rows), batch_size):
+            inserted += _insert_rows(conn, file_rows[i : i + batch_size], RAW_ENRICHED_TABLE, commit=False)
+        with conn.cursor() as cursor:
+            cursor.execute(f"INSERT INTO {TRACKING_TABLE} (source_file) VALUES (%s)", (source_file,))
+        conn.commit()
+    return inserted
 
 
 # ── Main pipeline ────────────────────────────────────────────────────
@@ -348,8 +376,7 @@ def run(
     ensure_database_exists(jdbc_url, jdbc_props)
 
     # ── 3. Determine new source_files (not yet in tracking table) ────
-    tracked_files = get_loaded_source_files(spark, jdbc_url, jdbc_props)
-    log.info("Already tracked source_files: %d.", len(tracked_files))
+    tracked_files = get_loaded_source_files(jdbc_url, jdbc_props)
 
     all_sources = set(row.source_file for row in silver_df.select("source_file").distinct().collect())
     new_source_files = all_sources - tracked_files
@@ -411,30 +438,38 @@ def run(
     # (safe to run repeatedly — IF NOT EXISTS / ADD COLUMN IF NOT EXISTS)
     execute_ddl(spark, jdbc_url, jdbc_props, TRACKING_MIGRATION_SQL, f"{TRACKING_TABLE} (migration: loaded_at)")
 
-    # ── 7. Write new data to PostgreSQL via JDBC ─────────────────────
-    try:
-        cast_data.write.format("jdbc").mode("append").option("url", jdbc_url).option(
-            "dbtable", RAW_ENRICHED_TABLE
-        ).options(**jdbc_props).save()
+    # ── 7. Per-file export: insert rows + tracking row in one transaction ──
+    # Spark JDBC writes autocommit per statement and cannot share a
+    # transaction with the tracking insert, so psycopg2 (already used for
+    # DDL) performs the inserts. Rows are collected once and grouped by
+    # source_file driver-side.
+    import psycopg2
 
-        log.info("Successfully wrote %d rows to %s.", new_row_count, RAW_ENRICHED_TABLE)
-    except Exception as exc:
-        log.error(
-            "JDBC write to %s failed: %s. Tracking table NOT updated.",
-            RAW_ENRICHED_TABLE,
-            exc,
-        )
-        raise
+    rows_by_file: dict = {}
+    for row in cast_data.collect():
+        rows_by_file.setdefault(row.source_file, []).append(row)
 
-    # ── 8. Update tracking table with newly exported source_files ────
-    insert_tracking_records(spark, jdbc_url, jdbc_props, new_source_files)
-
-    log.info(
-        "Export complete. %d rows written to %s from %d new file(s).",
-        new_row_count,
-        RAW_ENRICHED_TABLE,
-        len(new_source_files),
+    conn_info = _parse_jdbc_url(jdbc_url)
+    conn = psycopg2.connect(
+        host=conn_info["host"],
+        port=conn_info["port"],
+        dbname=conn_info["dbname"],
+        user=jdbc_props["user"],
+        password=jdbc_props["password"],
     )
+    try:
+        inserted = export_files_atomically(conn, rows_by_file)
+        log.info(
+            "Export complete. %d rows written to %s from %d new file(s).",
+            inserted,
+            RAW_ENRICHED_TABLE,
+            len(rows_by_file),
+        )
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def main():

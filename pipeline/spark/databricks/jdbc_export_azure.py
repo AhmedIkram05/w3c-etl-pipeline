@@ -183,8 +183,23 @@ def ensure_tables_exist(conn):
     execute_ddl(conn, TRACKING_MIGRATION_SQL)
 
 
+def _is_missing_table_error(exc) -> bool:
+    """True when SQL Server reports the table itself does not exist (error 208).
+
+    pymssql server errors carry the message number in ``args[0]``.
+    """
+    args = getattr(exc, "args", ())
+    return bool(args) and args[0] == 208
+
+
 def get_loaded_source_files(conn):
-    """Return a set of source_file values already in the tracking table."""
+    """Return a set of source_file values already in the tracking table.
+
+    A missing tracking table (SQL Server error 208) is expected on the first
+    run and yields an empty set. Any other read error propagates: a transient
+    failure must never be misread as "nothing loaded yet", or the export
+    would re-send all history.
+    """
     loaded = set()
     try:
         with conn.cursor() as cursor:
@@ -193,16 +208,22 @@ def get_loaded_source_files(conn):
                 loaded.add(row[0])
         print(f"Found {len(loaded)} already-loaded source files")
     except Exception as e:
-        print(f"Tracking table read failed (will create): {e}")
+        if _is_missing_table_error(e):
+            print("Tracking table does not exist yet (will create)")
+            return set()
+        raise
     return loaded
 
 
-def insert_batch(conn, rows, table):
+def insert_batch(conn, rows, table, commit=True):
     """Insert a batch of rows using executemany.
 
     Accepts both Spark ``Row`` objects (from ``DataFrame.collect()``) and
     plain ``dict`` rows (for small tracking-table inserts).  Detects the
     input type by checking for ``__fields__`` (Row) vs ``keys()`` (dict).
+
+    Pass ``commit=False`` to keep the transaction open across several
+    inserts (per-file atomicity); the caller then commits explicitly.
     """
     if not rows:
         return 0
@@ -221,8 +242,31 @@ def insert_batch(conn, rows, table):
 
     with conn.cursor() as cursor:
         cursor.executemany(sql, params)
-    conn.commit()
+    if commit:
+        conn.commit()
     return len(rows)
+
+
+def export_files_atomically(conn, rows_by_file, batch_size=BATCH_SIZE):
+    """Insert rows and the tracking row for each source file, then commit.
+
+    Grouping is ``{source_file: [rows]}``. For every file the data inserts
+    and its ``dbo.raw_enriched_loaded`` tracking row share one transaction,
+    so a mid-export crash leaves at most the in-flight file untracked and
+    the Airflow retry skips every already-committed file instead of
+    re-exporting the whole set.
+    """
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    inserted = 0
+    for source_file in sorted(rows_by_file):
+        file_rows = rows_by_file[source_file]
+        for i in range(0, len(file_rows), batch_size):
+            inserted += insert_batch(conn, file_rows[i : i + batch_size], "dbo.raw_enriched", commit=False)
+        insert_batch(conn, [{"source_file": source_file, "loaded_at": now}], "dbo.raw_enriched_loaded", commit=False)
+        conn.commit()
+    return inserted
 
 
 def export_to_azure_sql(spark, server, database, username, password):
@@ -268,24 +312,13 @@ def export_to_azure_sql(spark, server, database, username, password):
 
         print(f"Collected {len(new_rows)} rows from {len(new_source_files)} new source file(s)")
 
-        # ── Batch INSERT into dbo.raw_enriched ───────────────────────
-        inserted = 0
-        for i in range(0, len(new_rows), BATCH_SIZE):
-            batch = new_rows[i : i + BATCH_SIZE]
-            count = insert_batch(conn, batch, "dbo.raw_enriched")
-            inserted += count
-            if (i // BATCH_SIZE) % 5 == 0 or i + BATCH_SIZE >= len(new_rows):
-                print(f"  Inserted {inserted}/{new_row_count} rows...")
+        # ── Per-file INSERT + tracking in one transaction ────────────
+        rows_by_file: dict = {}
+        for row in new_rows:
+            rows_by_file.setdefault(row.source_file, []).append(row)
 
+        inserted = export_files_atomically(conn, rows_by_file)
         print(f"Successfully exported {inserted} rows to dbo.raw_enriched")
-
-        # ── Update tracking table ────────────────────────────────────
-        from datetime import datetime, timezone
-
-        now = datetime.now(timezone.utc)
-        tracking_rows = [{"source_file": sf, "loaded_at": now} for sf in sorted(new_source_files)]
-        inserted_tracking = insert_batch(conn, tracking_rows, "dbo.raw_enriched_loaded")
-        print(f"Updated tracking table with {inserted_tracking} new source file(s)")
 
     finally:
         conn.close()
