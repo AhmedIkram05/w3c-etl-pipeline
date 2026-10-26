@@ -24,6 +24,10 @@ variables {
   azure_sql_user       = "testadmin"
   azure_sql_password   = "TestP@ss123!"
   access_connector_id  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-w3c-etl-dev/providers/Microsoft.Databricks/accessConnectors/w3c-etl-databricks-dev-access-connector"
+  # Placeholder run-as principal for tests. Real deployments must set the DLT
+  # pipelines' run-as service principal app ID (granted READ_FILES on the
+  # raw-logs external location) — the all-zeros UUID is a non-existent principal.
+  dlt_run_as_principal = "00000000-0000-0000-0000-000000000000"
 }
 
 run "validate_bronze_pipeline_exists" {

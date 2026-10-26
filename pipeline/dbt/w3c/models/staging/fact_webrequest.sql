@@ -49,8 +49,16 @@ referrer_map AS (
 ),
 
 ip_visit_buckets AS (
+    -- Visit buckets are defined PER CALENDAR DAY: COUNT(*) is the number of
+    -- requests one client IP made on a single log_date, not its lifetime
+    -- request total. Per-day counts are stable once a day is loaded, so
+    -- historical fact rows are never re-bucketed retroactively (the previous
+    -- lifetime GROUP BY changed existing rows' buckets as history grew).
+    -- The aggregate reads enriched_input itself, so on incremental runs only
+    -- the watermark slice is scanned — no full-history GROUP BY.
     SELECT
-        re.client_ip,
+        ei.client_ip,
+        ei.log_date,
         CASE
             WHEN COUNT(*) = 1 THEN '1 Visit'
             WHEN COUNT(*) <= 5 THEN '2-5 Visits'
@@ -59,19 +67,9 @@ ip_visit_buckets AS (
             WHEN COUNT(*) <= 50 THEN '21-50 Visits'
             ELSE '51+ Visits'
         END AS visit_bucket_name
-    FROM {{ source('w3c', 'raw_enriched') }} re
-    WHERE re.client_ip IS NOT NULL AND re.client_ip != '-'
-    {% if is_incremental() %}
-    -- Semi-join against the incremental slice: only IPs present in this
-    -- run's rows are bucketed, so the aggregate input is pruned to those
-    -- IPs' rows instead of a full-history GROUP BY over the whole table.
-    AND EXISTS (
-        SELECT 1
-        FROM enriched_input ei
-        WHERE ei.client_ip = re.client_ip
-    )
-    {% endif %}
-    GROUP BY re.client_ip
+    FROM enriched_input ei
+    WHERE ei.client_ip IS NOT NULL AND ei.client_ip != '-'
+    GROUP BY ei.client_ip, ei.log_date
 ),
 
 computed AS (
@@ -212,7 +210,9 @@ INNER JOIN status_map s
     AND s.win32_status = c.win32_status
 INNER JOIN referrer_map rf ON rf.referrer_url = c.referrer_url
 INNER JOIN {{ ref('dim_visitortype') }} v ON v.visitor_sk = c.visitor_key
-INNER JOIN ip_visit_buckets ib ON ib.client_ip = c.client_ip
+INNER JOIN ip_visit_buckets ib
+    ON ib.client_ip = c.client_ip
+    AND ib.log_date = c.log_date
 INNER JOIN {{ ref('dim_visit_buckets') }} vb ON vb.visit_bucket = ib.visit_bucket_name
 LEFT JOIN geo_lookup gl ON gl.client_ip = c.client_ip
 {% if target.type == 'sqlserver' %}

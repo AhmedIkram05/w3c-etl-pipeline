@@ -148,8 +148,34 @@ def _create_spark_session():
     # depending on ``utils.transformations``, ``utils.ua_parser`` etc.
     # can be deserialised without ``ModuleNotFoundError``.
     session.sparkContext.addPyFile(_build_utils_zip())
+    _strip_utils_zip_from_driver_path()
 
     return session
+
+
+def _strip_utils_zip_from_driver_path() -> None:
+    """Remove the driver-side ``sys.path`` entry ``addPyFile()`` injected.
+
+    ``SparkContext.addPyFile(zip)`` appends the zip to ``_python_includes``
+    (shipped to every worker via the task binaries) AND — as a local-mode
+    convenience — inserts the SparkFiles copy into the *driver's*
+    ``sys.path``.  That driver entry is a hazard: the first ``import utils``
+    then binds the package to the zip inside the current session's
+    ``userFiles-*`` directory, and when that session is stopped (the jdbc
+    export E2E tests call ``spark.stop()``) the directory is deleted,
+    leaving a dangling ``utils.__path__``.  Any submodule not yet imported
+    then fails with ``ModuleNotFoundError`` — observed as ``No module named
+    'utils.transformations'`` while ``utils.geoip``, imported before the
+    stop, still resolved from ``sys.modules``.
+
+    Workers keep receiving the zip via ``_python_includes``; the driver keeps
+    resolving ``utils`` from the on-disk ``spark/jobs/utils`` package, which
+    conftest keeps on ``sys.path``.
+    """
+    if _UTILS_ZIP_PATH is None:
+        return
+    zip_basename = os.path.basename(_UTILS_ZIP_PATH)
+    sys.path[:] = [p for p in sys.path if not (p and os.path.basename(p) == zip_basename)]
 
 
 # ── Own the first JVM ────────────────────────────────────────────────

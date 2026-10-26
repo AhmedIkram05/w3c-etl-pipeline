@@ -196,7 +196,7 @@ models:
                 - "Unknown"
 
   - name: dim_visit_buckets
-    description: "Visit bucket dimension grouping IPs by visit frequency"
+    description: "Visit bucket dimension grouping per-day IP request counts into frequency buckets (counts are per calendar day, not lifetime)"
     columns:
       - name: visit_bucket_sk
         description: "Surrogate key (same as visit_bucket_order, 1-6)"
@@ -214,7 +214,7 @@ models:
           - unique
           - not_null
       - name: user_count
-        description: "Number of unique users (IPs) in this bucket"
+        description: "Number of (client_ip, log_date) per-day visit sessions in this bucket"
         tests:
           - not_null
 
@@ -684,7 +684,11 @@ models:
         tests:
           - not_null
       - name: top_browser
-        description: "Browser family with the highest request count for this country and day"
+        description: "Browser family with the highest request count for this country and day (the 'Unknown' sentinel browser is excluded upstream)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "top_browser != 'Unknown'"
       - name: top_browser_requests
         description: "Request count for the top browser"
       - name: top_browser_share_pct

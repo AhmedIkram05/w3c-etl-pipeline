@@ -124,6 +124,15 @@ class TestTerraformDatabricksResources:
         matches = re.findall(r'resource\s+"(\w+)"\s+"(\w+)"', content)
         assert len(matches) == 25, f"Expected 25 resources, found {len(matches)}: {matches}"
 
+    def test_raw_logs_grant_not_account_wide(self):
+        """READ_FILES on the raw-logs external location must not go to every account user (#15)."""
+        content = self._main_tf_content()
+        assert not re.search(r'principal\s*=\s*"account\s+users"', content), (
+            "tenant-wide 'account users' grant re-introduced — raw logs must only be readable "
+            "by the DLT pipelines' run-as principal (var.dlt_run_as_principal)"
+        )
+        assert "var.dlt_run_as_principal" in content, "grant must use the narrowed run-as principal variable"
+
     def test_both_pipelines_are_serverless(self):
         """Both pipeline resources have serverless = true."""
         content = self._main_tf_content()
@@ -145,13 +154,35 @@ class TestTerraformDatabricksResources:
         assert re.search(r'task_key\s*=\s*"run_bronze"', content), "Dependency on run_bronze not found"
         assert re.search(r'task_key\s*=\s*"run_silver"', content), "Dependency on run_silver not found"
 
-    def test_workflow_has_daily_schedule(self):
-        """Job has a daily 2AM UTC schedule."""
+    def test_workflow_has_no_schedule(self):
+        """Job has NO schedule — Airflow (w3c_spark_ingestion_azure, weekly) is the single scheduler.
+
+        The former daily 2AM Databricks cron double-scheduled the same
+        job_id that Airflow triggers weekly; it was removed (#15f).
+        """
         content = self._main_tf_content()
-        assert "quartz_cron_expression" in content
-        assert "0 0 2 * * ?" in content or "0 2 * * *" in content
-        assert "timezone_id" in content
-        assert "UTC" in content
+        assert "quartz_cron_expression" not in content, (
+            "databricks_job must not define its own schedule — Airflow is the single scheduler"
+        )
+        assert "schedule {" not in content, "schedule block found — Airflow is the single scheduler"
+
+    def test_pipelines_use_current_channel(self):
+        """Both DLT pipelines use the production-stable `current` channel (not PREVIEW)."""
+        content = self._main_tf_content()
+        assert content.count('channel = "current"') == 2, (
+            "Both pipelines must pin the current (production-stable) DLT channel"
+        )
+        assert "PREVIEW" not in content and 'channel = "preview"' not in content, (
+            "PREVIEW DLT channel must not run in production"
+        )
+
+    def test_workflow_tasks_have_timeouts(self):
+        """Every workflow task sets a bounded timeout (no timeout_seconds = 0)."""
+        content = self._main_tf_content()
+        timeouts = re.findall(r"timeout_seconds\s*=\s*(\d+)", content)
+        assert len(timeouts) == 3, f"Expected 3 task timeouts, found {len(timeouts)}"
+        for value in timeouts:
+            assert int(value) > 0, "timeout_seconds = 0 means no timeout — hung tasks block the workflow"
 
     def test_workflow_has_notebook_task(self):
         """Job has a notebook_task for JDBC export."""
@@ -222,13 +253,13 @@ class TestTerraformDatabricksConfig:
         assert target_count >= 2, f"Expected target in at least 2 places, found {target_count}"
 
     def test_conditional_storage_key(self):
-        """Storage key uses ternary for conditional injection."""
+        """Storage key secret is provisioned under the name dbt_common reads."""
         content = _read_file(os.path.join(_DATABRICKS_DIR, "main.tf"))
         assert content is not None
-        # Should have a ternary pattern like: var.storage_access_key != "" ? ...
+        # dbt_common.py reads dbutils.secrets.get(scope, "azure.storage.key")
+        # — the Terraform secret key must match it exactly.
         assert "storage_access_key" in content
-        assert "?" in content  # ternary operator
-        assert "storage_access_key != " in content or "storage_access_key" in content
+        assert 'key          = "azure.storage.key"' in content
 
 
 # ── Variables ────────────────────────────────────────────────────────

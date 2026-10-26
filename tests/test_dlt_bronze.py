@@ -845,61 +845,46 @@ class TestBronzeExpectations:
         assert filtered.count() == 1
 
     def test_expect_valid_method(self, spark):
-        """Rows with methods outside the allowed set are dropped (valid_method)."""
-        from pyspark.sql.functions import lit
+        """Rows with methods outside the allowed set are dropped (valid_method).
 
+        The whitelist includes PATCH, CONNECT and the WebDAV verbs (#13) —
+        those are legitimate IIS traffic and must be kept.
+        """
+        allowed = [
+            "GET",
+            "POST",
+            "HEAD",
+            "PUT",
+            "DELETE",
+            "OPTIONS",
+            "TRACE",
+            "PATCH",
+            "CONNECT",
+            "PROPFIND",
+            "PROPPATCH",
+            "MKCOL",
+            "COPY",
+            "MOVE",
+            "LOCK",
+            "UNLOCK",
+            "REPORT",
+            "SEARCH",
+        ]
         df = spark.createDataFrame([
             Row(
                 log_date=date(2009, 1, 1),
                 status=200,
                 client_ip="1.2.3.4",
-                method="GET",
+                method=method,
                 uri_stem="/",
                 user_agent="UA",
                 bytes_sent=100,
                 bytes_recv=0,
-            ),
-            Row(
-                log_date=date(2009, 1, 1),
-                status=200,
-                client_ip="1.2.3.4",
-                method="CONNECT",
-                uri_stem="/",
-                user_agent="UA",
-                bytes_sent=100,
-                bytes_recv=0,
-            ),
-            Row(
-                log_date=date(2009, 1, 1),
-                status=200,
-                client_ip="1.2.3.4",
-                method="PATCH",
-                uri_stem="/",
-                user_agent="UA",
-                bytes_sent=100,
-                bytes_recv=0,
-            ),
-            Row(
-                log_date=date(2009, 1, 1),
-                status=200,
-                client_ip="1.2.3.4",
-                method=None,
-                uri_stem="/",
-                user_agent="UA",
-                bytes_sent=100,
-                bytes_recv=0,
-            ),
+            )
+            for method in allowed + [None, "BREW"]
         ])
-        filtered = df.filter(
-            (col("method") == lit("GET"))
-            | (col("method") == lit("POST"))
-            | (col("method") == lit("HEAD"))
-            | (col("method") == lit("PUT"))
-            | (col("method") == lit("DELETE"))
-            | (col("method") == lit("OPTIONS"))
-            | (col("method") == lit("TRACE"))
-        )
-        assert filtered.count() == 1
+        filtered = df.filter(col("method").isin(allowed))
+        assert filtered.count() == len(allowed)
 
     def test_expect_valid_uri_stem(self, spark):
         """Rows with null uri_stem are dropped (valid_uri_stem)."""
@@ -930,7 +915,12 @@ class TestBronzeExpectations:
         assert filtered.count() == 1
 
     def test_expect_valid_user_agent(self, spark):
-        """Rows with null or '-' user_agent are dropped (valid_user_agent)."""
+        """Only a NULL user_agent is dropped (valid_user_agent).
+
+        '-' user agents are legitimate in IIS logs (requests without a UA
+        header) and must be kept (#13) — downstream they resolve to the
+        dim_useragent -1 sentinel.
+        """
 
         df = spark.createDataFrame([
             Row(
@@ -964,8 +954,8 @@ class TestBronzeExpectations:
                 bytes_recv=0,
             ),
         ])
-        filtered = df.filter(col("user_agent").isNotNull() & (col("user_agent") != "-"))
-        assert filtered.count() == 1
+        filtered = df.filter(col("user_agent").isNotNull())
+        assert filtered.count() == 2  # Mozilla + '-' kept, NULL dropped
 
     def test_expect_valid_bytes(self, spark):
         """Rows with negative bytes_sent or bytes_recv are dropped (valid_bytes)."""

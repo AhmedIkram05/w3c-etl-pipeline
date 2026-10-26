@@ -24,6 +24,10 @@ terraform {
       source  = "hashicorp/azuread"
       version = "~> 3.1"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.7"
+    }
   }
 
   required_version = ">= 1.10.5, < 2.0"
