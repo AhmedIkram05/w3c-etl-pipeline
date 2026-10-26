@@ -28,6 +28,12 @@ output "database_name" {
   value       = module.warehouse.database_name
 }
 
+output "sql_admin_password" {
+  description = "Generated SQL admin password (sensitive) — set as consumers' AZURE_SQL_PASS / W3C_DB_PASS"
+  value       = module.warehouse.sql_admin_password
+  sensitive   = true
+}
+
 output "resource_group_name" {
   description = "Resource group name"
   value       = var.resource_group_name

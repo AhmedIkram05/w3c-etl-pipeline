@@ -238,10 +238,25 @@ export_warehouse = SparkSubmitOperator(
 # TASK 4: Export Airflow-Managed Dimensions
 # ══════════════════════════════════════════════════════════════════════════
 
+
+def _export_dimensions_with_outlet(**context) -> None:
+    """Build the dimension tables, then emit the downstream Dataset outlet.
+
+    The outlet is emitted programmatically instead of being declared on the
+    operator: a declared outlet fires whenever the task succeeds, so a failed
+    or no-op dimension build would still wake ``w3c_dbt_marts`` against stale
+    data. Emitting here (Airflow >= 2.5 ``outlet_events``) means downstream
+    dataset consumers only trigger when the build actually completed.
+    """
+    _export_dimensions()
+    outlet_events = context.get("outlet_events")
+    if outlet_events is not None:
+        outlet_events[WAREHOUSE_LOADED].emit()
+
+
 export_dimensions = PythonOperator(
     task_id="export_dimensions",
-    python_callable=_export_dimensions,
-    outlets=[WAREHOUSE_LOADED],
+    python_callable=_export_dimensions_with_outlet,
     dag=dag,
 )
 

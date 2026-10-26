@@ -32,9 +32,17 @@
 
 {% macro tsql_dow(field) -%}
   {% if target.type == 'sqlserver' -%}
-    DATEPART(weekday, {{ field }}) - 1
+    (DATEDIFF(day, '19000107', {{ field }}) % 7)
   {%- else -%}
     EXTRACT(dow FROM {{ field }})
+  {%- endif %}
+{%- endmacro %}
+
+{% macro tsql_iso_week(field) -%}
+  {% if target.type == 'sqlserver' -%}
+    DATEPART(ISO_WEEK, {{ field }})
+  {%- else -%}
+    EXTRACT(week FROM {{ field }})
   {%- endif %}
 {%- endmacro %}
 

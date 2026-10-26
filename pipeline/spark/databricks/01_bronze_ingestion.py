@@ -32,14 +32,15 @@ import argparse
 import os
 
 from pyspark.sql import SparkSession
-from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
+from pyspark.sql.types import DateType, IntegerType, LongType, StringType, StructField, StructType
 
 # ── Schema ──────────────────────────────────────────────────────────────
-# Replicates the bronze_schema from utils/schemas.py but self-contained
-# so this notebook can run independently on Databricks.
+# Verbatim mirror of the bronze_schema from utils/schemas.py, self-contained
+# so this notebook can run independently on Databricks (terraform provisions
+# notebooks as single files — no utils/ bundle).
 
 BRONZE_SCHEMA = StructType([
-    StructField("log_date", StringType(), True),
+    StructField("log_date", DateType(), True),
     StructField("log_time", StringType(), True),
     StructField("server_ip", StringType(), True),
     StructField("method", StringType(), True),
@@ -69,8 +70,30 @@ TABLE = "raw_logs"
 BRONZE_UC_PATH = f"{CATALOG}.{SCHEMA}.{TABLE}"
 
 
-# ── W3C Parser (self-contained) ────────────────────────────────────────
-# Inline minimal parser so this script has no dependency on utils/.
+# ── W3C Parser (verbatim mirror of utils/w3c_parser.py) ────────────────
+# Inline parser so this script has no dependency on utils/ (terraform
+# provisions notebooks as single files). SYNC OBLIGATION: any parser fix
+# must be applied to BOTH this copy and pipeline/spark/jobs/utils/w3c_parser.py
+# — keep the field parsing below byte-for-byte consistent with the reference.
+
+
+def safe_int(val: str) -> int | None:
+    """Convert to non-negative int or return None (mirrors w3c_parser.safe_int)."""
+    try:
+        v = int(val)
+        return v if v >= 0 else None
+    except (ValueError, TypeError):
+        return None
+
+
+def safe_date(val: str):
+    """Parse an ISO ``YYYY-MM-DD`` date string, or return None (mirrors w3c_parser.safe_date)."""
+    from datetime import datetime
+
+    try:
+        return datetime.strptime(val.strip(), "%Y-%m-%d").date()
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 
 def parse_log_line(line: str, file_format: int, source_file: str) -> dict | None:
@@ -98,24 +121,24 @@ def parse_log_line(line: str, file_format: int, source_file: str) -> dict | None
             if len(ls) < 10:
                 return None
             return {
-                "log_date": ls[0],
+                "log_date": safe_date(ls[0]),
                 "log_time": ls[1],
                 "server_ip": ls[2],
                 "method": ls[3],
                 "uri_stem": ls[4],
                 "uri_query": ls[5],
-                "server_port": _int(ls[6]),
+                "server_port": safe_int(ls[6]),
                 "username": ls[7],
                 "client_ip": ls[8],
                 "user_agent": ls[9],
                 "cookie": None,
                 "referrer": None,
-                "status": _int(rs[1]),
-                "sub_status": _int(rs[2]),
-                "win32_status": _int(rs[3]),
+                "status": safe_int(rs[1]),
+                "sub_status": safe_int(rs[2]),
+                "win32_status": safe_int(rs[3]),
                 "bytes_sent": None,
                 "bytes_recv": None,
-                "time_taken": _int(rs[4]),
+                "time_taken": safe_int(rs[4]),
                 "source_file": source_file,
             }
 
@@ -127,38 +150,31 @@ def parse_log_line(line: str, file_format: int, source_file: str) -> dict | None
             ls = rs[0].split(" ", 11)
             if len(ls) < 12:
                 return None
+            referrer = ls[11].strip()
             return {
-                "log_date": ls[0],
+                "log_date": safe_date(ls[0]),
                 "log_time": ls[1],
                 "server_ip": ls[2],
                 "method": ls[3],
                 "uri_stem": ls[4],
                 "uri_query": ls[5],
-                "server_port": _int(ls[6]),
+                "server_port": safe_int(ls[6]),
                 "username": ls[7],
                 "client_ip": ls[8],
                 "user_agent": ls[9],
                 "cookie": ls[10],
-                "referrer": ls[11],
-                "status": _int(rs[1]),
-                "sub_status": _int(rs[2]),
-                "win32_status": _int(rs[3]),
-                "bytes_sent": _int(rs[4]),
-                "bytes_recv": _int(rs[5]),
-                "time_taken": _int(rs[6]),
+                "referrer": referrer,
+                "status": safe_int(rs[1]),
+                "sub_status": safe_int(rs[2]),
+                "win32_status": safe_int(rs[3]),
+                "bytes_sent": safe_int(rs[4]),
+                "bytes_recv": safe_int(rs[5]),
+                "time_taken": safe_int(rs[6]),
                 "source_file": source_file,
             }
 
         return None
     except (IndexError, ValueError):
-        return None
-
-
-def _int(val: str) -> int | None:
-    """Safely parse an integer, returning None for malformed values."""
-    try:
-        return int(val)
-    except (ValueError, TypeError):
         return None
 
 
@@ -212,7 +228,7 @@ def ensure_target_table(spark):
     spark.sql(
         f"""
         CREATE TABLE IF NOT EXISTS {BRONZE_UC_PATH} (
-            log_date      STRING,
+            log_date      DATE,
             log_time      STRING,
             server_ip     STRING,
             method        STRING,

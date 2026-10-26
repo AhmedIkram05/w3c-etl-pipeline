@@ -35,6 +35,12 @@ pytest.importorskip("airflow.models")
 _LOCAL_DAGS = os.path.join(os.path.dirname(__file__), "..", "pipeline", "dags", "w3c")
 _DAG_FOLDER = _LOCAL_DAGS if os.path.isdir(_LOCAL_DAGS) else "/opt/airflow/dags/w3c"
 
+# Importable DAG modules (for emit-on-success Dataset contracts). The dags
+# live under a package path (``dags.w3c``) added by conftest; importing them
+# here reuses the modules DagBag already loaded (same sys.modules entries).
+from dags.w3c import spark_ingestion as _spark_ingestion_module  # noqa: E402
+from dags.w3c import spark_ingestion_azure as _spark_ingestion_azure_module  # noqa: E402
+
 
 @pytest.mark.dag_integrity
 class TestSparkIngestionDAG:
@@ -97,31 +103,27 @@ class TestSparkIngestionDAG:
         assert downstream_map["silver_backfill"] == set()
 
     def test_spark_ingestion_has_dataset_outlet(self):
-        """Verify the spark_ingestion DAG emits Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")."""
+        """export_dimensions emits WAREHOUSE_LOADED programmatically on success.
+
+        The outlet is emitted inside the callable (emit-on-success), so the
+        operator must NOT declare a static outlet — a declared outlet would
+        fire even when the dimension build was skipped or failed.
+        """
+        from airflow.datasets import Dataset
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
         dag = dag_bag.dags.get("w3c_spark_ingestion")
         assert dag is not None
 
-        # Find the export_dimensions task (it has the outlet)
-        export_dim_task = None
-        for task in dag.tasks:
-            if task.task_id == "export_dimensions":
-                export_dim_task = task
-                break
-
-        assert export_dim_task is not None, "export_dimensions task not found"
-        # Check outlets attribute
-        outlets = getattr(export_dim_task, "outlets", [])
-        assert len(outlets) > 0, "export_dimensions task has no outlets"
-
-        from airflow.datasets import Dataset
-
-        target = Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")
-        assert target in outlets, (
-            f"Expected Dataset('postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded') in outlets, got {outlets}"
+        export_dim_task = next(t for t in dag.tasks if t.task_id == "export_dimensions")
+        assert getattr(export_dim_task, "outlets", []) == [], (
+            "export_dimensions must not declare a static outlet — it emits programmatically only on real success"
         )
+
+        # The emitted dataset is the DAG module's contract constant.
+        target = Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")
+        assert _spark_ingestion_module.WAREHOUSE_LOADED == target
 
     def test_spark_ingestion_has_no_import_errors(self):
         """Verify the DAG file has zero import errors in DagBag."""
@@ -267,22 +269,20 @@ class TestDAGDataContract:
     """Verify the data contract between the two DAGs."""
 
     def test_spark_outlet_matches_dbt_inlet(self):
-        """The Dataset emitted by spark_ingestion should be the same as dbt_marts consumes."""
+        """The Dataset emitted by spark_ingestion should be the same as dbt_marts consumes.
+
+        The outlet is emitted programmatically inside the callables
+        (emit-on-success), so the contract is checked against the DAG
+        modules' Dataset constants instead of statically declared outlets.
+        """
         from airflow.datasets import Dataset
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
 
-        # Get spark DAG outlet
-        spark_dag = dag_bag.dags.get("w3c_spark_ingestion")
-        assert spark_dag is not None
-
-        spark_outlet_datasets = set()
-        for task in spark_dag.tasks:
-            for outlet in getattr(task, "outlets", []):
-                spark_outlet_datasets.add(outlet)
-
-        assert len(spark_outlet_datasets) > 0, "spark_ingestion has no Dataset outlets"
+        spark_outlet_datasets = {
+            _spark_ingestion_module.WAREHOUSE_LOADED,
+        }
 
         # Get dbt DAG inlet (schedule = Dataset list or timetable collection)
         dbt_dag = dag_bag.dags.get("w3c_dbt_marts")
@@ -361,32 +361,36 @@ class TestSparkIngestionAzureDAG:
         assert downstream_map["create_indexes"] == set()
 
     def test_azure_dag_has_dataset_outlet(self):
-        """Verify the spark_ingestion_azure DAG emits Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")."""
+        """create_indexes emits Dataset("mssql://azure-sql/dbo/raw_enriched_loaded") on real success.
+
+        The outlet is emitted programmatically inside the callable
+        (emit-on-success) — the operator must not declare it statically,
+        or a graceful skip (missing Azure SQL creds) would still fire the
+        downstream ``w3c_dbt_marts_azure`` trigger.
+        """
+        from airflow.datasets import Dataset
         from airflow.models import DagBag
 
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
         dag = dag_bag.dags.get("w3c_spark_ingestion_azure")
         assert dag is not None
 
-        create_idx_task = None
-        for task in dag.tasks:
-            if task.task_id == "create_indexes":
-                create_idx_task = task
-                break
-
-        assert create_idx_task is not None, "create_indexes task not found"
-        outlets = getattr(create_idx_task, "outlets", [])
-        assert len(outlets) > 0, "create_indexes task has no outlets"
-
-        from airflow.datasets import Dataset
-
-        target = Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")
-        assert target in outlets, (
-            f"Expected Dataset('mssql://azure-sql/dbo/raw_enriched_loaded') in outlets, got {outlets}"
+        create_idx_task = next(t for t in dag.tasks if t.task_id == "create_indexes")
+        assert getattr(create_idx_task, "outlets", []) == [], (
+            "create_indexes must not declare a static outlet — it emits programmatically only on real success"
         )
 
+        target = Dataset("mssql://azure-sql/dbo/raw_enriched_loaded")
+        assert _spark_ingestion_azure_module.AZURE_WAREHOUSE_LOADED == target
+
     def test_azure_dag_lineage_datasets(self):
-        """Verify OpenLineage inlets/outlets: Databricks → raw_enriched → dimensions."""
+        """Verify OpenLineage inlets/outlets: Databricks → raw_enriched → dimensions.
+
+        The dim_geolocation / dim_useragent outlets are emitted
+        programmatically inside ``_export_dimensions`` on real success
+        (#12), so they are checked against the DAG module's Dataset
+        constants instead of statically declared outlets.
+        """
         from airflow.datasets import Dataset
         from airflow.models import DagBag
 
@@ -403,11 +407,12 @@ class TestSparkIngestionAzureDAG:
         )
 
         # export_dimensions consumes raw_enriched and produces both dimensions
+        # (programmatic emission on real success — no static outlets)
         dim_task = tasks["export_dimensions"]
         assert Dataset("mssql://azure-sql/dbo/raw_enriched") in getattr(dim_task, "inlets", [])
-        dim_outlets = getattr(dim_task, "outlets", [])
-        assert Dataset("mssql://azure-sql/dbo/dim_geolocation") in dim_outlets
-        assert Dataset("mssql://azure-sql/dbo/dim_useragent") in dim_outlets
+        assert getattr(dim_task, "outlets", []) == []
+        assert _spark_ingestion_azure_module.DIM_GEOLOCATION == Dataset("mssql://azure-sql/dbo/dim_geolocation")
+        assert _spark_ingestion_azure_module.DIM_USERAGENT == Dataset("mssql://azure-sql/dbo/dim_useragent")
 
     def test_azure_dag_has_no_import_errors(self):
         """Verify the DAG file has zero import errors in DagBag."""

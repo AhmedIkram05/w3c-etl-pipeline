@@ -43,14 +43,16 @@ resource "azurerm_monitor_action_group" "info" {
 
 # ---- Metric Alerts ----
 
-# P1 — Azure SQL auto-pause anomaly (serverless tier)
-# Serverless tier uses `cpu_percent` instead of `dtu_consumption_percent`
+# P3 — Azure SQL auto-pause is the serverless tier working as designed, not
+# an incident: it must not page anyone (was P1-critical, which fired every
+# time the platform saved money). Serverless tier uses `cpu_percent` instead
+# of `dtu_consumption_percent`.
 resource "azurerm_monitor_metric_alert" "azure_sql_auto_pause" {
   name                = "ma-w3c-azure-sql-auto-pause"
   resource_group_name = var.resource_group_name
   scopes              = [module.warehouse.database_id]
-  description         = "Alert if Azure SQL CPU drops near zero (serverless auto-pause detection, P1 - Critical)"
-  severity            = 0
+  description         = "Informational: Azure SQL CPU near zero (serverless auto-pause detection, P3)"
+  severity            = 3
 
   criteria {
     metric_namespace = "Microsoft.Sql/servers/databases"
@@ -63,11 +65,40 @@ resource "azurerm_monitor_metric_alert" "azure_sql_auto_pause" {
   window_size = "PT1H"
 
   action {
-    action_group_id = azurerm_monitor_action_group.critical.id
+    action_group_id = azurerm_monitor_action_group.info.id
+  }
+}
+
+# ---- Log Analytics (log-based alerts) ----
+# The DatabricksJobs log-based alert needs BOTH a data source (diagnostic
+# setting on the Databricks workspace) and a Log Analytics workspace to
+# query. Without these the alert can never fire.
+resource "azurerm_log_analytics_workspace" "this" {
+  count               = var.enable_log_analytics ? 1 : 0
+  name                = "log-w3c-etl"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+}
+
+# Stream Databricks job logs into Log Analytics so the scheduled query below
+# has a data source.
+resource "azurerm_monitor_diagnostic_setting" "databricks_jobs" {
+  count                      = var.enable_log_analytics ? 1 : 0
+  name                       = "diag-w3c-databricks-jobs"
+  target_resource_id         = module.databricks.workspace_id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.this[0].id
+
+  enabled_log {
+    category = "jobs"
   }
 }
 
 # P2 — Databricks job retries (log-based, requires Log Analytics)
+# Scoped to the LOG ANALYTICS workspace id — the previous value
+# (`module.databricks.workspace_id`) is a Databricks workspace resource id,
+# which is not a valid Log Analytics query scope.
 resource "azurerm_monitor_scheduled_query_rules_alert_v2" "databricks_job_retry" {
   count                = var.enable_log_analytics ? 1 : 0
   name                 = "sqr-w3c-databricks-job-retry"
@@ -77,7 +108,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "databricks_job_retry"
   severity             = 1
   evaluation_frequency = "PT5M"
   window_duration      = "PT30M"
-  scopes               = [module.databricks.workspace_id]
+  scopes               = [azurerm_log_analytics_workspace.this[0].id]
 
   criteria {
     query                   = <<-QUERY
