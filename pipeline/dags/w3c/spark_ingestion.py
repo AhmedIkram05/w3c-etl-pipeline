@@ -258,6 +258,9 @@ def _export_dimensions_with_outlet(**context) -> None:
 export_dimensions = PythonOperator(
     task_id="export_dimensions",
     python_callable=_export_dimensions_with_outlet,
+    # Bound the worker slot: a hung dimension build must not pin the weekly
+    # Saturday slot indefinitely.
+    execution_timeout=dt.timedelta(hours=1),
     dag=dag,
 )
 

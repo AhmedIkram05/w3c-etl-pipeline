@@ -602,6 +602,9 @@ export_dimensions = PythonOperator(
     inlets=[RAW_ENRICHED],
     # Outlets (DIM_GEOLOCATION, DIM_USERAGENT) are emitted programmatically
     # inside _export_dimensions on real success — see _emit_outlets.
+    # Bound the worker slot: a hung SCD2/UA build must not pin the weekly
+    # Friday slot indefinitely.
+    execution_timeout=dt.timedelta(hours=1),
     dag=dag,
 )
 
@@ -614,6 +617,8 @@ create_indexes = PythonOperator(
     python_callable=_create_indexes,
     # Outlet (AZURE_WAREHOUSE_LOADED) is emitted programmatically inside
     # _create_indexes on real success — see _emit_outlets.
+    # The clustered-index rebuild is bounded so a hung DDL cannot pin the slot.
+    execution_timeout=dt.timedelta(hours=1),
     dag=dag,
 )
 
