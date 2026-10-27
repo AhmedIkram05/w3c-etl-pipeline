@@ -343,9 +343,9 @@ def main():
         username = dbutils.secrets.get(scope=secrets_scope, key="azure.sql.username")
         password = dbutils.secrets.get(scope=secrets_scope, key="azure.sql.password")
 
-        print(f"Server: {server}")
+        # Server/username intentionally not logged — they are credentials-adjacent
+        # connection info and driver logs are broadly readable (audit #24).
         print(f"Database: {database}")
-        print(f"Username: {username}")
 
         # Execute export
         export_to_azure_sql(spark, server, database, username, password)

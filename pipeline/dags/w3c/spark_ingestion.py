@@ -226,10 +226,11 @@ export_warehouse = SparkSubmitOperator(
         "jdbc:postgresql://postgres:5432/w3c_warehouse",
         "--jdbc-user",
         os.environ.get("W3C_DB_USER", "airflow"),
-        "--jdbc-password",
-        os.environ.get("W3C_DB_PASS", "airflow"),
         "--jdbc-driver",
         "org.postgresql.Driver",
+        # No --jdbc-password: the job reads W3C_DB_PASS from the environment
+        # it inherits from this worker, so the secret never appears in the
+        # spark-submit argv (visible via ps / Spark UI).
     ],
     dag=dag,
 )
