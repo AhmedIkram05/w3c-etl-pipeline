@@ -102,6 +102,41 @@ class TestSparkIngestionDAG:
         assert downstream_map["export_dimensions"] == set()
         assert downstream_map["silver_backfill"] == set()
 
+    def test_silver_backfill_skips_without_conf_dates(self):
+        """silver_backfill must skip (not spark-submit) on scheduled runs.
+
+        The task is unattached, so every scheduled run schedules it; without
+        the conf gate each run launched a spark-submit that no-oped on empty
+        conf inside the job. A conf carrying both dates still submits.
+        """
+        from unittest.mock import patch
+
+        from airflow.exceptions import AirflowSkipException
+        from airflow.models import DagBag
+        from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+
+        dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
+        dag = dag_bag.dags.get("w3c_spark_ingestion")
+        assert dag is not None
+
+        task = next(t for t in dag.tasks if t.task_id == "silver_backfill")
+
+        class _FakeDagRun:
+            def __init__(self, conf):
+                self.conf = conf
+
+        # Scheduled run: empty conf -> AirflowSkipException, no spark-submit.
+        with patch.object(SparkSubmitOperator, "execute", return_value="submitted") as mock_super:
+            with pytest.raises(AirflowSkipException):
+                task.execute({"dag_run": _FakeDagRun({})})
+            mock_super.assert_not_called()
+
+        # Manual run: conf with both dates -> submits as before.
+        with patch.object(SparkSubmitOperator, "execute", return_value="submitted") as mock_super:
+            result = task.execute({"dag_run": _FakeDagRun({"start_date": "2009-10-24", "end_date": "2009-10-26"})})
+            assert result == "submitted"
+            mock_super.assert_called_once()
+
     def test_spark_ingestion_has_dataset_outlet(self):
         """export_dimensions emits WAREHOUSE_LOADED programmatically on success.
 
