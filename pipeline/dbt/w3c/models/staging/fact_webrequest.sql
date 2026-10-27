@@ -11,8 +11,14 @@ WITH enriched_input AS (
         -- Stable unique key (raw_log_id) generated since source has no auto-increment
         -- Includes enough dimensions to disambiguate concurrent identical-looking requests:
         -- source_file, log_time, client_ip, user_agent, referrer, uri_stem, uri_query,
-        -- method, status, sub_status, win32_status, time_taken
-        {{ tsql_hash_md5("CONCAT(source_file, '|', log_time, '|', client_ip, '|', user_agent, '|', referrer, '|', uri_stem, '|', uri_query, '|', method, '|', status, '|', sub_status, '|', win32_status, '|', time_taken)") }} AS raw_log_id,
+        -- method, status, sub_status, win32_status, time_taken.
+        -- The nullable text components are COALESCEd to a '~NULL~' sentinel before
+        -- hashing: CONCAT renders both NULL and '' as '', so a NULL referrer row and
+        -- an empty-string referrer row used to share a key (one deduped away). No IIS
+        -- log field value can be '~NULL~', so NULL and '' now hash differently on both
+        -- targets. Numeric components stay bare: a NULL INT renders as '' but no real
+        -- integer does, so they cannot collide.
+        {{ tsql_hash_md5("CONCAT(source_file, '|', COALESCE(log_time, '~NULL~'), '|', COALESCE(client_ip, '~NULL~'), '|', COALESCE(user_agent, '~NULL~'), '|', COALESCE(referrer, '~NULL~'), '|', uri_stem, '|', uri_query, '|', method, '|', status, '|', sub_status, '|', win32_status, '|', time_taken)") }} AS raw_log_id,
         {% if target.type == 'sqlserver' %}
             CASE WHEN status = 404 THEN 1 ELSE 0 END AS is_404,
             CASE WHEN referrer = '-' OR referrer IS NULL THEN 1 ELSE 0 END AS is_direct_traffic,
