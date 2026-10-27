@@ -127,11 +127,16 @@ def traffic_type(referrer_url):
 
     domain = _extract_domain(referrer_url)
 
-    if any(s in domain for s in _INTERNAL_DOMAINS):
+    # Domain-boundary match: a pattern only matches whole dot-delimited
+    # labels of the domain, so 'notgoogle.com' is not a Google referrer.
+    # Wrapping the domain in dots lets one substring check express that
+    # boundary for every pattern, including multi-label ones like 't.co'.
+    padded = f".{domain}."
+    if any(f".{s}." in padded for s in _INTERNAL_DOMAINS):
         return "Internal"
-    if any(s in domain for s in _SEARCH_ENGINES):
+    if any(f".{s}." in padded for s in _SEARCH_ENGINES):
         return "Search Engine"
-    if any(s in domain for s in _SOCIAL_DOMAINS):
+    if any(f".{s}." in padded for s in _SOCIAL_DOMAINS):
         return "Social"
     return "Referral"
 
