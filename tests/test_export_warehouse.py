@@ -133,7 +133,6 @@ class TestJDBCArgumentParsing:
         )
         parser.add_argument("--jdbc-url", required=True)
         parser.add_argument("--jdbc-user", required=True)
-        parser.add_argument("--jdbc-password", required=True)
         parser.add_argument(
             "--jdbc-driver",
             default="org.postgresql.Driver",
@@ -148,12 +147,9 @@ class TestJDBCArgumentParsing:
             "jdbc:postgresql://postgres:5432/w3c_warehouse",
             "--jdbc-user",
             "airflow",
-            "--jdbc-password",
-            "s3cret",
         ])
         assert args.jdbc_url == "jdbc:postgresql://postgres:5432/w3c_warehouse"
         assert args.jdbc_user == "airflow"
-        assert args.jdbc_password == "s3cret"
         assert args.jdbc_driver == "org.postgresql.Driver"  # default
         assert args.delta_dir == "/opt/spark/delta"  # default
 
@@ -166,8 +162,6 @@ class TestJDBCArgumentParsing:
             "jdbc:postgresql://rds:5432/prod",
             "--jdbc-user",
             "admin",
-            "--jdbc-password",
-            "pass",
             "--jdbc-driver",
             "org.postgresql.Driver",
         ])
@@ -181,8 +175,6 @@ class TestJDBCArgumentParsing:
             "jdbc:postgresql://host:5432/db",
             "--jdbc-user",
             "u",
-            "--jdbc-password",
-            "p",
             "--jdbc-driver",
             "com.amazon.redshift.jdbc.Driver",
         ])
@@ -196,7 +188,7 @@ class TestJDBCArgumentParsing:
     def test_missing_jdbc_url_fails(self):
         parser = self._make_parser()
         with pytest.raises(SystemExit):
-            parser.parse_args(["--jdbc-user", "u", "--jdbc-password", "p"])
+            parser.parse_args(["--jdbc-user", "u"])
 
     def test_jdbc_url_construction_pattern(self):
         """Verify the URL pattern matches the PostgreSQL JDBC format."""
@@ -206,13 +198,22 @@ class TestJDBCArgumentParsing:
             "jdbc:postgresql://postgres:5432/w3c_warehouse",
             "--jdbc-user",
             "airflow",
-            "--jdbc-password",
-            "s3cret",
         ])
         assert args.jdbc_url.startswith("jdbc:postgresql://")
         assert "postgres" in args.jdbc_url
         assert "5432" in args.jdbc_url
         assert "w3c_warehouse" in args.jdbc_url
+
+    def test_password_is_not_a_cli_argument(self):
+        """Regression guard (#24): the DB password must never travel via argv.
+
+        spark-submit process arguments are world-readable via ``ps`` and
+        surface in the Spark UI, so the job reads ``W3C_DB_PASS`` from the
+        environment instead of accepting a ``--jdbc-password`` flag.
+        """
+        with open(_EXPORT_WAREHOUSE_PATH) as f:
+            source = f.read()
+        assert "--jdbc-password" not in source
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -174,6 +174,56 @@ class TestTrafficType:
         df = spark.createDataFrame([Row(ref="http://some-other-site.com/link")])
         assert df.select(traffic_type(col("ref")).alias("t")).collect()[0]["t"] == "Referral"
 
+    def test_search_engine_subdomain_still_matches(self, spark):
+        """A subdomain of a known engine keeps its classification."""
+        from pyspark.sql.functions import col
+        from utils.transformations import traffic_type
+
+        df = spark.createDataFrame([Row(ref="http://news.google.com/search?q=test")])
+        assert df.select(traffic_type(col("ref")).alias("t")).collect()[0]["t"] == "Search Engine"
+
+    def test_notgoogle_is_referral(self, spark):
+        """'notgoogle.com' merely contains 'google' — it is a plain Referral.
+
+        Matching is on dot-delimited domain labels, not substrings.
+        """
+        from pyspark.sql.functions import col
+        from utils.transformations import traffic_type
+
+        df = spark.createDataFrame([Row(ref="http://notgoogle.com/page")])
+        assert df.select(traffic_type(col("ref")).alias("t")).collect()[0]["t"] == "Referral"
+
+    def test_notfacebook_is_referral(self, spark):
+        from pyspark.sql.functions import col
+        from utils.transformations import traffic_type
+
+        df = spark.createDataFrame([Row(ref="http://notfacebook.com/post")])
+        assert df.select(traffic_type(col("ref")).alias("t")).collect()[0]["t"] == "Referral"
+
+    def test_engine_name_in_query_string_is_referral(self, spark):
+        """A search-engine name in a query string does not classify the referrer."""
+        from pyspark.sql.functions import col
+        from utils.transformations import traffic_type
+
+        df = spark.createDataFrame([Row(ref="http://example.com/?from=google.com")])
+        assert df.select(traffic_type(col("ref")).alias("t")).collect()[0]["t"] == "Referral"
+
+    def test_tco_shortener_still_social(self, spark):
+        """Multi-label pattern 't.co' matches the domain label sequence."""
+        from pyspark.sql.functions import col
+        from utils.transformations import traffic_type
+
+        df = spark.createDataFrame([Row(ref="https://t.co/abc123")])
+        assert df.select(traffic_type(col("ref")).alias("t")).collect()[0]["t"] == "Social"
+
+    def test_lookalike_tco_is_referral(self, spark):
+        """'not-t.co' is not the 't.co' shortener — label boundary misses."""
+        from pyspark.sql.functions import col
+        from utils.transformations import traffic_type
+
+        df = spark.createDataFrame([Row(ref="http://not-t.co/x")])
+        assert df.select(traffic_type(col("ref")).alias("t")).collect()[0]["t"] == "Referral"
+
 
 # ══════════════════════════════════════════════════════════════════════
 #  make_crawler_udf

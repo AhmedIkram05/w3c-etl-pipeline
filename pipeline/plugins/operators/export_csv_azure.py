@@ -23,6 +23,13 @@ logger = logging.getLogger(__name__)
 
 STAR_SCHEMA_DIR = "/opt/airflow/data/Star-Schema"
 
+# Per-statement query timeout for the export reads. The ``timeout=`` argument
+# of ``pyodbc.connect`` only bounds the login handshake; the Connection's
+# ``timeout`` attribute sets SQL_ATTR_QUERY_TIMEOUT for every statement on
+# the connection, so a hung table scan fails instead of wedging the worker
+# slot indefinitely.
+QUERY_TIMEOUT_SECONDS = 300
+
 # Azure SQL profile uses schema: dbo, so dbt concatenates it with the
 # +schema config: dbo + "_" + staging = dbo_staging (same as PostgreSQL's
 # dbt + "_" + staging = dbt_staging). These must match the actual schema
@@ -113,6 +120,7 @@ def export_csv_azure(**context) -> None:
 
     try:
         with pyodbc.connect(conn_str, timeout=30) as conn:
+            conn.timeout = QUERY_TIMEOUT_SECONDS
             for table in STAGING_TABLES + MART_TABLES:
                 try:
                     _export_table(conn, table, f"{STAR_SCHEMA_DIR}/{table}.csv")
