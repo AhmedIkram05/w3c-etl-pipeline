@@ -9,10 +9,8 @@ WITH raw_referrers AS (
     FROM {{ source('w3c', 'raw_enriched') }}
 ),
 
-referrer_entries AS (
+referrer_domains AS (
     SELECT
-        -- Stable SK: md5 of the natural key (same rationale as dim_page).
-        {{ tsql_hash_md5("CONCAT(rr.referrer_url, '|')") }} AS referrer_sk,
         rr.referrer_url,
         {% if target.type == 'sqlserver' %}
             CASE
@@ -25,17 +23,6 @@ referrer_entries AS (
                 -- behavior), instead of lumping them in as 'Unknown'.
                 ELSE {{ tsql_extract_domain("'http://' + rr.referrer_url") }}
             END AS referrer_domain,
-            CASE
-                WHEN rr.referrer_url = 'Direct' THEN 'Direct'
-                WHEN LOWER(rr.referrer_url) LIKE '%google.%' THEN 'Search Engine'
-                WHEN LOWER(rr.referrer_url) LIKE '%bing.%' THEN 'Search Engine'
-                WHEN LOWER(rr.referrer_url) LIKE '%yahoo.%' THEN 'Search Engine'
-                WHEN LOWER(rr.referrer_url) LIKE '%facebook.%' THEN 'Social Media'
-                WHEN LOWER(rr.referrer_url) LIKE '%twitter.%' THEN 'Social Media'
-                WHEN LOWER(rr.referrer_url) LIKE '%linkedin.%' THEN 'Social Media'
-                WHEN LOWER(rr.referrer_url) LIKE '%w3c.org%' THEN 'Internal (W3C)'
-                ELSE 'Referral'
-            END AS traffic_source
         {% else %}
             CASE
                 WHEN rr.referrer_url = 'Direct' THEN 'Direct'
@@ -48,20 +35,44 @@ referrer_entries AS (
                 -- domain is still extracted (canonical utils/transformations
                 -- behavior), instead of lumping them in as 'Unknown'.
                 ELSE LOWER(REGEXP_REPLACE('http://' || rr.referrer_url, '^https?://([^/]+).*', '\1'))
-            END AS referrer_domain,
-            CASE
-                WHEN rr.referrer_url = 'Direct' THEN 'Direct'
-                WHEN rr.referrer_url ~* 'google\.' THEN 'Search Engine'
-                WHEN rr.referrer_url ~* 'bing\.' THEN 'Search Engine'
-                WHEN rr.referrer_url ~* 'yahoo\.' THEN 'Search Engine'
-                WHEN rr.referrer_url ~* 'facebook\.' THEN 'Social Media'
-                WHEN rr.referrer_url ~* 'twitter\.' THEN 'Social Media'
-                WHEN rr.referrer_url ~* 'linkedin\.' THEN 'Social Media'
-                WHEN rr.referrer_url ~* 'w3c\.org' THEN 'Internal (W3C)'
-                ELSE 'Referral'
-            END AS traffic_source
+            END AS referrer_domain
         {% endif %}
     FROM raw_referrers rr
+),
+
+referrer_entries AS (
+    SELECT
+        -- Stable SK: md5 of the natural key (same rationale as dim_page).
+        {{ tsql_hash_md5("CONCAT(rr.referrer_url, '|')") }} AS referrer_sk,
+        rr.referrer_url,
+        rr.referrer_domain,
+        -- traffic_source matches whole dot-delimited labels of the extracted
+        -- domain: the domain is wrapped in dots so '%.google.%' demands a
+        -- label boundary on both sides — 'notgoogle.com' no longer counts as
+        -- a Google referrer. The output vocabulary is unchanged.
+        CASE
+            WHEN rr.referrer_url = 'Direct' THEN 'Direct'
+            WHEN rr.referrer_url = 'Unknown' THEN 'Unknown'
+        {% if target.type == 'sqlserver' %}
+            WHEN ('.' + rr.referrer_domain + '.') LIKE '%.google.%' THEN 'Search Engine'
+            WHEN ('.' + rr.referrer_domain + '.') LIKE '%.bing.%' THEN 'Search Engine'
+            WHEN ('.' + rr.referrer_domain + '.') LIKE '%.yahoo.%' THEN 'Search Engine'
+            WHEN ('.' + rr.referrer_domain + '.') LIKE '%.facebook.%' THEN 'Social Media'
+            WHEN ('.' + rr.referrer_domain + '.') LIKE '%.twitter.%' THEN 'Social Media'
+            WHEN ('.' + rr.referrer_domain + '.') LIKE '%.linkedin.%' THEN 'Social Media'
+            WHEN ('.' + rr.referrer_domain + '.') LIKE '%.w3c.org.%' THEN 'Internal (W3C)'
+        {% else %}
+            WHEN ('.' || rr.referrer_domain || '.') LIKE '%.google.%' THEN 'Search Engine'
+            WHEN ('.' || rr.referrer_domain || '.') LIKE '%.bing.%' THEN 'Search Engine'
+            WHEN ('.' || rr.referrer_domain || '.') LIKE '%.yahoo.%' THEN 'Search Engine'
+            WHEN ('.' || rr.referrer_domain || '.') LIKE '%.facebook.%' THEN 'Social Media'
+            WHEN ('.' || rr.referrer_domain || '.') LIKE '%.twitter.%' THEN 'Social Media'
+            WHEN ('.' || rr.referrer_domain || '.') LIKE '%.linkedin.%' THEN 'Social Media'
+            WHEN ('.' || rr.referrer_domain || '.') LIKE '%.w3c.org.%' THEN 'Internal (W3C)'
+        {% endif %}
+            ELSE 'Referral'
+        END AS traffic_source
+    FROM referrer_domains rr
 )
 
 SELECT * FROM referrer_entries
