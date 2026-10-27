@@ -45,15 +45,19 @@ complete successfully — downstream analytics will simply lack geo data.
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import os
 import zipfile
 
 from airflow import DAG
 from airflow.datasets import Dataset
+from airflow.exceptions import AirflowSkipException
 from airflow.operators.python import PythonOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.utils.trigger_rule import TriggerRule
 from operators.export_dimensions import export_dimensions as _export_dimensions
+
+logger = logging.getLogger(__name__)
 
 # ── Dataset outlet — signals downstream dbt DAG ────────────────────────────
 WAREHOUSE_LOADED = Dataset("postgres://postgres:5432/w3c_warehouse/public/raw_enriched_loaded")
@@ -226,10 +230,11 @@ export_warehouse = SparkSubmitOperator(
         "jdbc:postgresql://postgres:5432/w3c_warehouse",
         "--jdbc-user",
         os.environ.get("W3C_DB_USER", "airflow"),
-        "--jdbc-password",
-        os.environ.get("W3C_DB_PASS", "airflow"),
         "--jdbc-driver",
         "org.postgresql.Driver",
+        # No --jdbc-password: the job reads W3C_DB_PASS from the environment
+        # it inherits from this worker, so the secret never appears in the
+        # spark-submit argv (visible via ps / Spark UI).
     ],
     dag=dag,
 )
@@ -257,6 +262,9 @@ def _export_dimensions_with_outlet(**context) -> None:
 export_dimensions = PythonOperator(
     task_id="export_dimensions",
     python_callable=_export_dimensions_with_outlet,
+    # Bound the worker slot: a hung dimension build must not pin the weekly
+    # Saturday slot indefinitely.
+    execution_timeout=dt.timedelta(hours=1),
     dag=dag,
 )
 
@@ -269,7 +277,29 @@ export_dimensions = PythonOperator(
 #   airflow dags trigger w3c_spark_ingestion \
 #     --conf '{"start_date": "2009-10-24", "end_date": "2009-10-26"}'
 
-silver_backfill = SparkSubmitOperator(
+
+class _ConfGatedSparkSubmit(SparkSubmitOperator):
+    """Skip the spark-submit unless ``dag_run.conf`` carries the backfill dates.
+
+    silver_backfill is unattached, so every scheduled run schedules it too;
+    without this gate each Saturday run launched a spark-submit that no-oped
+    on empty conf inside the job. When conf carries start_date AND end_date
+    the submit proceeds unchanged; anything else skips with a log line.
+    """
+
+    def execute(self, context):
+        dag_run = context.get("dag_run")
+        conf = (dag_run.conf or {}) if dag_run is not None else {}
+        if not (conf.get("start_date") and conf.get("end_date")):
+            logger.info(
+                "silver_backfill skipped: dag_run.conf has no start_date/end_date "
+                "(scheduled run — trigger manually with a conf to backfill)."
+            )
+            raise AirflowSkipException("No start_date/end_date in dag_run.conf — nothing to backfill.")
+        return super().execute(context)
+
+
+silver_backfill = _ConfGatedSparkSubmit(
     task_id="silver_backfill",
     application=f"{SPARK_JOBS_DIR}/silver_backfill.py",
     conn_id="spark_default",

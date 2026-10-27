@@ -160,6 +160,9 @@ export_dbt_docs = PythonOperator(
     task_id="export_dbt_docs",
     python_callable=export_dbt_docs_to_airflow,
     outlets=[DBT_DOCS_READY],
+    # A docs artifact copy is minutes of work at most — fail loudly instead
+    # of hanging on a stalled Blob read.
+    execution_timeout=dt.timedelta(minutes=30),
     dag=dag,
 )
 
@@ -171,6 +174,8 @@ export_csv = PythonOperator(
     python_callable=export_csv_azure,
     inlets=[DBT_STAGING_TABLES, DBT_MARTS_TABLES],
     outlets=[CSV_EXPORTS_READY],
+    # 18 full-table reads; bound them so a hung query cannot pin the slot.
+    execution_timeout=dt.timedelta(hours=1),
     dag=dag,
 )
 

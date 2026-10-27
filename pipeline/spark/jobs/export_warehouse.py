@@ -14,8 +14,12 @@ Usage (via ``spark-submit`` --with-postgresql-jar)::
         --delta-dir /opt/spark/delta \\
         --jdbc-url jdbc:postgresql://postgres:5432/w3c_warehouse \\
         --jdbc-user "\\${W3C_DB_USER}" \\
-        --jdbc-password "\\${W3C_DB_PASS}" \\
         --jdbc-driver org.postgresql.Driver
+
+The PostgreSQL password is read from the ``W3C_DB_PASS`` environment
+variable, never from a command-line argument: spark-submit process
+arguments are visible to every user on the host via ``ps`` and in the
+Spark UI / history server.
 
 Idempotency
 -----------
@@ -490,16 +494,15 @@ def main():
         help="PostgreSQL user name.",
     )
     parser.add_argument(
-        "--jdbc-password",
-        required=True,
-        help="PostgreSQL password.",
-    )
-    parser.add_argument(
         "--jdbc-driver",
         default="org.postgresql.Driver",
         help="JDBC driver class name. (default: %(default)s)",
     )
     args = parser.parse_args()
+
+    # Password comes from the environment, never argv: spark-submit process
+    # arguments are world-readable via ps and surface in the Spark UI.
+    jdbc_password = os.environ.get("W3C_DB_PASS", "airflow")
 
     spark = create_spark_session()
     try:
@@ -508,7 +511,7 @@ def main():
             args.delta_dir,
             args.jdbc_url,
             args.jdbc_user,
-            args.jdbc_password,
+            jdbc_password,
             args.jdbc_driver,
         )
     except Exception:
