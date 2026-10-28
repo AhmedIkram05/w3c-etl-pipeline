@@ -58,7 +58,7 @@ peak_hour AS (
             date_sk,
             hour,
             total_requests,
-            ROW_NUMBER() OVER (PARTITION BY date_sk ORDER BY total_requests DESC) AS rn
+            ROW_NUMBER() OVER (PARTITION BY date_sk ORDER BY total_requests DESC, hour) AS rn
         FROM {{ ref('mart_timeofday_analysis') }}
     ) ranked
     WHERE rn = 1
