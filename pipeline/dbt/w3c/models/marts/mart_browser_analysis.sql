@@ -42,6 +42,9 @@ SELECT
     bs.avg_response_time_ms,
     bs.total_bytes_sent,
     ROUND(100.0 * bs.total_requests / NULLIF(dt.daily_total_requests, 0), 2) AS pct_of_daily_traffic,
-    ROW_NUMBER() OVER (PARTITION BY bs.date_sk ORDER BY bs.total_requests DESC) AS browser_rank
+    ROW_NUMBER() OVER (
+        PARTITION BY bs.date_sk
+        ORDER BY bs.total_requests DESC, bs.browser_name, bs.operating_system, bs.device_type
+    ) AS browser_rank
 FROM browser_stats bs
 JOIN daily_total dt ON dt.date_sk = bs.date_sk
