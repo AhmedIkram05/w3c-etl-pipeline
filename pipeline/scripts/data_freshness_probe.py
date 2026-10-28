@@ -14,6 +14,7 @@ Supports two database backends:
 """
 
 import json
+import logging
 import os
 import time
 import urllib.error
@@ -23,6 +24,8 @@ from datetime import datetime, timezone
 import psycopg2
 import pymssql
 from prometheus_client import Gauge, start_http_server
+
+logger = logging.getLogger(__name__)
 
 # ── Prometheus gauges ──────────────────────────────────────────────────
 FRESHNESS_GAUGE = Gauge(
@@ -157,17 +160,15 @@ def check_freshness() -> float | None:
     return result
 
 
-def check_pipeline_status() -> int:
-    """Return 1 if data was loaded recently, 0 otherwise."""
-    seconds = check_freshness()
-    if seconds is None:
-        return 0
-    return 1 if seconds < STALE_THRESHOLD_SECONDS else 0
-
-
 def check_dbt_pass_rate() -> float:
     """
     Estimate dbt test pass rate from database.
+
+    Returns 1.0 when the results table is missing or empty (no dbt tests
+    recorded — not a failure), and 0.0 when no database is reachable.
+    The table must be probed in a separate statement: a CASE guard inside
+    the aggregate cannot save the FROM reference, which fails at compile
+    time when the table is absent.
     """
     global ACTIVE_BACKEND
     ACTIVE_BACKEND = None
@@ -178,33 +179,35 @@ def check_dbt_pass_rate() -> float:
     try:
         cursor = conn.cursor()
         if backend == "azure_sql":
-            cursor.execute("""
-                SELECT
-                    CASE
-                        WHEN OBJECT_ID('dbo.dbt_test_results') IS NOT NULL
-                        THEN 1.0 * SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)
-                        ELSE 1.0
-                    END
-                FROM dbo.dbt_test_results
-                HAVING COUNT(*) > 0
-            """)
+            cursor.execute(
+                "SELECT COUNT(*) FROM information_schema.tables"
+                " WHERE table_schema = 'dbo' AND table_name = 'dbt_test_results'"
+            )
         else:
-            cursor.execute("""
-                SELECT
-                    CASE
-                        WHEN EXISTS (
-                            SELECT 1 FROM information_schema.tables
-                            WHERE table_schema = 'public' AND table_name = 'dbt_test_results'
-                        )
-                        THEN 1.0 * SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)
-                        ELSE 1.0
-                    END
-                FROM public.dbt_test_results
-                HAVING COUNT(*) > 0
-            """)
+            cursor.execute(
+                "SELECT COUNT(*) FROM information_schema.tables"
+                " WHERE table_schema = 'public' AND table_name = 'dbt_test_results'"
+            )
+        if not cursor.fetchone()[0]:
+            logger.warning("dbt_test_results not found on %s; reporting pass rate 1.0", backend)
+            return 1.0
+        cursor.execute(
+            """
+            SELECT 1.0 * SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)
+            FROM dbo.dbt_test_results
+            HAVING COUNT(*) > 0
+            """
+            if backend == "azure_sql"
+            else """
+            SELECT 1.0 * SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)
+            FROM public.dbt_test_results
+            HAVING COUNT(*) > 0
+            """
+        )
         row = cursor.fetchone()
         return float(row[0]) if row and row[0] is not None else 1.0
     except Exception:
+        logger.exception("dbt pass-rate query failed; reporting pass rate 1.0")
         return 1.0
     finally:
         conn.close()
@@ -282,9 +285,10 @@ if __name__ == "__main__":
         if seconds is not None:
             FRESHNESS_GAUGE.labels(source=source_label).set(seconds)
 
-        # Pipeline status
-        source_label = ACTIVE_BACKEND or "unknown"
-        STATUS_GAUGE.labels(source=source_label).set(check_pipeline_status())
+        # Pipeline status — reuse the freshness sample above (no second round-trip)
+        STATUS_GAUGE.labels(source=source_label).set(
+            1 if seconds is not None and seconds < STALE_THRESHOLD_SECONDS else 0
+        )
 
         # dbt pass rate
         DBT_GAUGE.set(check_dbt_pass_rate())
