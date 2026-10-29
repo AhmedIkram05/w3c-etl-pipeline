@@ -59,7 +59,6 @@ AZURE_DSN = {
     "timeout": 10,  # Connection timeout in seconds
     "login_timeout": 10,  # Login timeout in seconds (slow failover protection)
     "charset": "UTF-8",  # Ensure Unicode data is handled correctly
-    "as_dict": True,  # Access columns by name instead of index
 }
 HAS_AZURE_SQL = all(AZURE_DSN.values())
 
@@ -97,7 +96,10 @@ def _get_connection():
     """
     if HAS_AZURE_SQL:
         try:
-            conn = pymssql.connect(**AZURE_DSN)
+            # Every query below indexes row[0] positionally, so dict rows
+            # (pymssql as_dict=True) would KeyError on Azure SQL. The kwarg
+            # must stay out of AZURE_DSN: its values gate HAS_AZURE_SQL.
+            conn = pymssql.connect(**AZURE_DSN, as_dict=False)
             return conn, "azure_sql"
         except Exception:
             pass  # nosec B110 — intentional: Azure SQL failure falls through to PostgreSQL
