@@ -131,17 +131,32 @@ computed AS (
 
 {% if target.type == 'sqlserver' %}
 geo_lookup AS (
-    SELECT DISTINCT
-        c.client_ip,
-        CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',
-            ISNULL(c.country, '') + '|'
-            + ISNULL(c.region, '') + '|'
-            + ISNULL(c.city, '') + '|'
-            + ISNULL(CAST(c.latitude AS NVARCHAR), '') + '|'
-            + ISNULL(CAST(c.longitude AS NVARCHAR), '')
-        ), 2) AS geo_hash
-    FROM computed c
-    WHERE c.country IS NOT NULL
+    -- Exactly one geo_hash per client_ip. A single IP whose rows carry two
+    -- different geo tuples would otherwise yield two rows here and fan out the
+    -- fact's LEFT JOIN, duplicating raw_log_id inside one incremental MERGE
+    -- ("cannot UPDATE the same row twice"). ROW_NUMBER over the geo tuple picks
+    -- one deterministically. Coordinates are hashed at fixed DECIMAL(18,10)
+    -- precision (not the ~6-significant-digit default FLOAT->NVARCHAR cast), so
+    -- coordinates differing past the 6th digit no longer collide on geo_hash.
+    SELECT client_ip, geo_hash
+    FROM (
+        SELECT
+            c.client_ip,
+            CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',
+                ISNULL(c.country, '') + '|'
+                + ISNULL(c.region, '') + '|'
+                + ISNULL(c.city, '') + '|'
+                + ISNULL(CONVERT(NVARCHAR(32), CONVERT(DECIMAL(18,10), c.latitude)), '') + '|'
+                + ISNULL(CONVERT(NVARCHAR(32), CONVERT(DECIMAL(18,10), c.longitude)), '')
+            ), 2) AS geo_hash,
+            ROW_NUMBER() OVER (
+                PARTITION BY c.client_ip
+                ORDER BY c.country, c.region, c.city, c.latitude, c.longitude
+            ) AS rn
+        FROM computed c
+        WHERE c.country IS NOT NULL
+    ) g
+    WHERE g.rn = 1
 ),
 {% else %}
 geo_lookup AS (
@@ -179,7 +194,7 @@ SELECT
         COALESCE(ua.user_agent_sk, -1) AS user_agent_sk,
     {% endif %}
     v.visitor_sk,
-    vb.visit_bucket_sk,
+    COALESCE(vb.visit_bucket_sk, -1) AS visit_bucket_sk,
     c.bytes_sent,
     c.bytes_received,
     c.response_time_ms,
@@ -216,10 +231,15 @@ INNER JOIN status_map s
     AND s.win32_status = c.win32_status
 INNER JOIN referrer_map rf ON rf.referrer_url = c.referrer_url
 INNER JOIN {{ ref('dim_visitortype') }} v ON v.visitor_sk = c.visitor_key
-INNER JOIN ip_visit_buckets ib
+-- LEFT JOINs keep requests whose client_ip is NULL/'-' (they have no bucket
+-- row); the old INNER JOIN dropped them from the fact. COALESCE maps them to
+-- dim_visit_buckets' 'Unknown' (-1) member. ip_visit_buckets still excludes
+-- NULL/'-' so the real bucket counts are not inflated.
+LEFT JOIN ip_visit_buckets ib
     ON ib.client_ip = c.client_ip
     AND ib.log_date = c.log_date
-INNER JOIN {{ ref('dim_visit_buckets') }} vb ON vb.visit_bucket = ib.visit_bucket_name
+LEFT JOIN {{ ref('dim_visit_buckets') }} vb
+    ON vb.visit_bucket = COALESCE(ib.visit_bucket_name, 'Unknown')
 LEFT JOIN geo_lookup gl ON gl.client_ip = c.client_ip
 {% if target.type == 'sqlserver' %}
 -- dim_geolocation is SCD Type 2 (multiple versions per geo_hash): join to the
