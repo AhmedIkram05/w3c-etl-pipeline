@@ -53,3 +53,9 @@ SELECT
     COUNT(*) AS user_count
 FROM ip_buckets
 GROUP BY visit_bucket_order, visit_bucket
+
+UNION ALL
+
+-- -1 sentinel for requests without a usable client_ip (NULL/'-'): the fact
+-- maps those here so they survive instead of being dropped by its bucket join.
+SELECT -1 AS visit_bucket_sk, 'Unknown' AS visit_bucket, -1 AS visit_bucket_order, 0 AS user_count

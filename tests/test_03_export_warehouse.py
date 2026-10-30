@@ -335,6 +335,42 @@ class TestRunExport:
         tracking = spark.table(self.TRACKING_TABLE)
         assert {r.source_file for r in tracking.collect()} == {"tracked.log"}
 
+    def test_multiple_source_files_all_exported_and_tracked(self, spark):
+        """Per-file loop appends and tracks every new file in one run."""
+        template = {
+            "log_date": "2009-10-24",
+            "log_time": "01:40:40",
+            "server_ip": "1.2.3.4",
+            "method": "GET",
+            "uri_stem": "/",
+            "uri_query": "",
+            "client_ip": "1.2.3.4",
+            "user_agent": "UA",
+            "cookie": "",
+            "referrer": "-",
+            "status": 200,
+            "sub_status": 0,
+            "win32_status": 0,
+            "bytes_sent": 100,
+            "bytes_recv": 10,
+            "server_port": 80,
+            "username": "-",
+            "time_taken": 50,
+            "source_file": "a.log",
+            "page_category": "Content",
+            "referrer_domain": "Direct",
+            "traffic_type": "Direct",
+            "is_crawler": "false",
+            "size_band": "Zero",
+        }
+        second = {**template, "source_file": "b.log", "uri_stem": "/b"}
+        self._create_silver_data(spark, [template, second])
+
+        export.run(spark)
+
+        assert spark.table(self.GOLD_TABLE).count() == 2
+        assert {r.source_file for r in spark.table(self.TRACKING_TABLE).collect()} == {"a.log", "b.log"}
+
     def test_incremental_skip_already_exported(self, spark):
         """Files already in the tracking table are skipped on re-run."""
         self._create_silver_data(

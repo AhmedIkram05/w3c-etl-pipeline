@@ -261,6 +261,8 @@ class TestExportCSVAzure:
             assert "myserver.database.windows.net" in conn_str
             assert "w3c-etl-db" in conn_str
             assert "DRIVER={ODBC Driver 18 for SQL Server}" in conn_str
+            # Password is ODBC-escaped: braced, inner braces doubled.
+            assert "PWD={s3cret};" in conn_str
 
             # 18 tables exported
             assert mock_pandas.read_sql.call_count == 18
@@ -703,3 +705,21 @@ class TestDBTCommonCleanup:
             cleanup_fn("/tmp/missing_dir")
 
         assert mock_rmtree.call_count == 2
+
+
+class TestOdbcValueEscaping:
+    """The Azure SQL password may contain ODBC-special characters."""
+
+    def _odbc_value(self, value: str) -> str:
+        from plugins.operators.export_csv_azure import _odbc_value
+
+        return _odbc_value(value)
+
+    def test_closing_brace_is_doubled_and_braced(self):
+        assert self._odbc_value("a}b") == "{a}}b}"
+
+    def test_opening_brace_is_left_as_is(self):
+        assert self._odbc_value("a{b") == "{a{b}"
+
+    def test_semicolon_and_equals_are_contained(self):
+        assert self._odbc_value("pass;word=1") == "{pass;word=1}"

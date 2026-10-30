@@ -101,7 +101,30 @@ if not _AIRFLOW_AVAILABLE:
     sys.modules["airflow.providers.databricks.operators.databricks"] = _airflow_databricks
 
 # ── Module under test ─────────────────────────────────────────────────────
-from dags.w3c.spark_ingestion_azure import _export_dimensions  # noqa: E402 — sys.modules mock comes first
+from dags.w3c.spark_ingestion_azure import (  # noqa: E402 — sys.modules mock comes first
+    _azure_conn_str,
+    _export_dimensions,
+    _odbc_value,
+)
+
+
+class TestOdbcConnectionStringEscaping:
+    """The generated password may contain ODBC-special characters."""
+
+    def test_closing_brace_is_doubled_and_braced(self):
+        assert _odbc_value("a}b") == "{a}}b}"
+
+    def test_opening_brace_is_left_as_is(self):
+        assert _odbc_value("a{b") == "{a{b}"
+
+    def test_plain_value_is_braced(self):
+        assert _odbc_value("pass;word=1") == "{pass;word=1}"
+
+    def test_conn_str_pwd_uses_escaped_value(self):
+        conn = _azure_conn_str("srv", "db", "user", "p}s;w")
+        assert "PWD={p}}s;w};" in conn
+        assert "PWD=p}s;w;" not in conn
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Test helpers

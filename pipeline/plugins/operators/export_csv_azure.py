@@ -64,6 +64,19 @@ PUBLIC_TABLES = [
 ALL_TABLES = STAGING_TABLES + MART_TABLES + PUBLIC_TABLES
 
 
+def _odbc_value(value: str) -> str:
+    """Quote an ODBC connection-string value so ``;``, ``=`` and braces are safe.
+
+    A braced value is literal except that every ``}`` must be doubled
+    (``}}``); ``{`` needs no escaping. The braces also stop a ``;`` or ``=``
+    inside the password from terminating the ``PWD=`` pair.
+
+    Twin of the helper in ``dags/w3c/spark_ingestion_azure.py`` — kept local
+    because operators must not import from the dags package.
+    """
+    return "{" + value.replace("}", "}}") + "}"
+
+
 def export_csv_azure(**context) -> None:
     """Export dbt mart and staging tables from Azure SQL to CSV files.
 
@@ -110,7 +123,7 @@ def export_csv_azure(**context) -> None:
         f"SERVER={server};"
         f"DATABASE={database};"
         f"UID={username};"
-        f"PWD={password};"
+        f"PWD={_odbc_value(password)};"
         f"Encrypt=yes;TrustServerCertificate=no;"
     )
 

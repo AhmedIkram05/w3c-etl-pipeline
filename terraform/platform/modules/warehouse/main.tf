@@ -13,10 +13,12 @@ terraform {
 # out-of-band operation; retrieve the generated value with
 # `terraform output -raw sql_admin_password` (sensitive output) and set it
 # as the consumers' AZURE_SQL_PASS / W3C_DB_PASS.
+# Braces are deliberately excluded from the charset: a '{'/'}' in the password
+# corrupts the ODBC connection strings the consumers build (see _azure_conn_str).
 resource "random_password" "sql_admin" {
   length           = 32
   special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
+  override_special = "!#$%&*()-_=+[]<>:?"
   min_upper        = 2
   min_lower        = 2
   min_numeric      = 2

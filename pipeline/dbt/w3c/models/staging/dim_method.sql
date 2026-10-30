@@ -4,10 +4,12 @@
 ) }}
 
 WITH raw_methods AS (
+    -- NULL methods are kept so the COALESCE below emits the 'Unknown' member
+    -- the fact maps them to; excluding them left that member missing and the
+    -- fact's INNER JOIN silently dropped the rows.
     SELECT DISTINCT
         COALESCE(NULLIF(TRIM(UPPER(method)), ''), 'Unknown') AS method_name
     FROM {{ source('w3c', 'raw_enriched') }}
-    WHERE method IS NOT NULL
 ),
 
 method_entries AS (
