@@ -79,6 +79,16 @@ default_args = {
 }
 
 
+def _odbc_value(value: str) -> str:
+    """Quote an ODBC connection-string value so ``;``, ``=`` and braces are safe.
+
+    A braced value is literal except that every ``}`` must be doubled
+    (``}}``); ``{`` needs no escaping. The braces also stop a ``;`` or ``=``
+    inside the password from terminating the ``PWD=`` pair.
+    """
+    return "{" + value.replace("}", "}}") + "}"
+
+
 def _azure_conn_str(server: str, database: str, username: str, password: str) -> str:
     """Build the Azure SQL ODBC connection string."""
     return (
@@ -86,7 +96,7 @@ def _azure_conn_str(server: str, database: str, username: str, password: str) ->
         f"SERVER={server};"
         f"DATABASE={database};"
         f"UID={username};"
-        f"PWD={password};"
+        f"PWD={_odbc_value(password)};"
         f"Encrypt=yes;TrustServerCertificate=no;"
     )
 
@@ -279,8 +289,8 @@ def _build_dim_geolocation(cursor, conn) -> None:
                 ISNULL(country, '') + '|'
                 + ISNULL(region, '') + '|'
                 + ISNULL(city, '') + '|'
-                + ISNULL(CAST(latitude AS NVARCHAR), '') + '|'
-                + ISNULL(CAST(longitude AS NVARCHAR), '')
+                + ISNULL(CONVERT(NVARCHAR(32), CONVERT(DECIMAL(18,10), latitude)), '') + '|'
+                + ISNULL(CONVERT(NVARCHAR(32), CONVERT(DECIMAL(18,10), longitude)), '')
             ), 2)                                               AS geo_hash,
             country, region, city, latitude, longitude,
             MAX(isp)                                            AS isp
