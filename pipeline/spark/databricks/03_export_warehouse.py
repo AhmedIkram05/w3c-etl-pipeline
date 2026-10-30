@@ -162,6 +162,28 @@ def insert_tracking_records(spark, new_source_files: Set[str]):
     )
 
 
+def export_files_atomically(spark, new_data, source_files: Set[str]) -> int:
+    """Append each source file's rows to Gold and record it, one file at a time.
+
+    Grouping per ``source_file`` mirrors ``jdbc_export_azure.export_files_atomically``.
+    A crash between a file's Gold append and its tracking insert leaves only that
+    file untracked, so a retry re-appends at most the in-flight file instead of
+    the whole batch (the previous bulk append + bulk tracking let any crash
+    re-append every source file). Delta has no cross-table transaction, so the
+    two writes cannot share one commit as the JDBC path's transaction does.
+    """
+    inserted = 0
+    for source_file in sorted(source_files):
+        file_df = new_data.filter(col("source_file") == source_file)
+        file_count = file_df.count()
+        if file_count == 0:
+            continue
+        file_df.write.format("delta").mode("append").partitionBy("log_date").saveAsTable(GOLD_UC_PATH)
+        insert_tracking_records(spark, {source_file})
+        inserted += file_count
+    return inserted
+
+
 # ── Main pipeline ───────────────────────────────────────────────────────
 
 
@@ -205,25 +227,20 @@ def run(spark):
     if new_row_count == 0:
         return
 
-    # Write new data to Gold UC table
+    # Append + track per source file so a crash cannot re-append the whole batch.
     try:
-        new_data.write.format("delta").mode("append").partitionBy("log_date").saveAsTable(GOLD_UC_PATH)
-
-        log.info("Successfully wrote %d rows to %s.", new_row_count, GOLD_UC_PATH)
+        inserted = export_files_atomically(spark, new_data, new_source_files)
     except Exception as exc:
         log.error(
-            "Write to %s failed: %s. Tracking table NOT updated.",
+            "Write to %s failed: %s. Tracking table NOT updated for the in-flight file.",
             GOLD_UC_PATH,
             exc,
         )
         raise
 
-    # Update tracking table with newly exported source_files
-    insert_tracking_records(spark, new_source_files)
-
     log.info(
         "Export complete. %d rows written to %s from %d new file(s).",
-        new_row_count,
+        inserted,
         GOLD_UC_PATH,
         len(new_source_files),
     )
