@@ -4,11 +4,27 @@
 ) }}
 
 WITH raw_pages AS (
+    -- NULL uri_stem is kept so the COALESCE emits the 'Unknown' member the
+    -- fact maps it to; excluding it left that member missing and the fact's
+    -- INNER JOIN silently dropped the rows.
     SELECT DISTINCT
         COALESCE(NULLIF(TRIM(uri_stem), ''), 'Unknown') AS uri_stem,
         COALESCE(NULLIF(TRIM(uri_query), ''), '-') AS uri_query
     FROM {{ source('w3c', 'raw_enriched') }}
-    WHERE uri_stem IS NOT NULL
+),
+
+page_paths AS (
+    SELECT
+        uri_stem,
+        uri_query,
+        -- Path part only (query string is stored separately in uri_query, but
+        -- some stems embed one); both dialects split on the first '?'.
+        {% if target.type == 'sqlserver' %}
+            {{ tsql_split_part('uri_stem', '?', 1) }} AS path
+        {% else %}
+            SPLIT_PART(uri_stem, '?', 1) AS path
+        {% endif %}
+    FROM raw_pages
 ),
 
 page_entries AS (
@@ -19,31 +35,33 @@ page_entries AS (
         {{ tsql_hash_md5("CONCAT(rp.uri_stem, '|', rp.uri_query)") }} AS page_sk,
         rp.uri_stem AS page_path,
         rp.uri_query AS query_string,
-        -- directory extraction
+        -- directory extraction: everything before the last '/', or '/' when the
+        -- stem has no '/' or is slash-rooted. Both dialects use the same rule
+        -- (last-slash distance via REVERSE) so they no longer disagree on
+        -- trailing-slash / multi-segment stems.
         CASE
             WHEN rp.uri_stem LIKE '%/robots.txt' THEN '/robots.txt'
             {% if target.type == 'sqlserver' %}
-                WHEN (LEN(rp.uri_stem) - LEN(REPLACE(rp.uri_stem, '/', ''))) >= 2
-                    THEN REVERSE({{ tsql_split_part('REVERSE(' ~ tsql_split_part('rp.uri_stem', '?', 1) ~ ')', '/', 2) }})
-                WHEN rp.uri_stem LIKE '/%' AND CHARINDEX('/', rp.uri_stem, 2) = 0 THEN '/'
+                WHEN CHARINDEX('/', REVERSE(rp.path)) = 0
+                    OR CHARINDEX('/', REVERSE(rp.path)) = LEN(rp.path) THEN '/'
+                ELSE LEFT(rp.path, LEN(rp.path) - CHARINDEX('/', REVERSE(rp.path)))
             {% else %}
-                WHEN rp.uri_stem ~ '^.*/[^/]+/[^/]+$'
-                    THEN REVERSE(SPLIT_PART(REVERSE(SPLIT_PART(rp.uri_stem, '?', 1)), '/', 2))
-                WHEN rp.uri_stem ~ '^/[^/]+$' THEN '/'
+                WHEN STRPOS(REVERSE(rp.path), '/') = 0
+                    OR STRPOS(REVERSE(rp.path), '/') = LENGTH(rp.path) THEN '/'
+                ELSE LEFT(rp.path, LENGTH(rp.path) - STRPOS(REVERSE(rp.path), '/'))
             {% endif %}
-            ELSE '/'
         END AS directory,
-        -- file_name extraction
+        -- file_name extraction: the segment after the last '/', or the whole
+        -- path when there is no '/'.
         CASE
             WHEN rp.uri_stem LIKE '%/robots.txt' THEN 'robots.txt'
             {% if target.type == 'sqlserver' %}
-                WHEN rp.uri_stem LIKE '%/%'
-                    THEN {{ tsql_split_part('REVERSE(' ~ tsql_split_part('REVERSE(rp.uri_stem)', '/', 1) ~ ')', '?', 1) }}
+                WHEN CHARINDEX('/', REVERSE(rp.path)) = 0 THEN rp.path
+                ELSE RIGHT(rp.path, CHARINDEX('/', REVERSE(rp.path)) - 1)
             {% else %}
-                WHEN rp.uri_stem ~ '^.*/([^/]+)$'
-                    THEN SPLIT_PART(REVERSE(SPLIT_PART(REVERSE(rp.uri_stem), '/', 1)), '?', 1)
+                WHEN STRPOS(REVERSE(rp.path), '/') = 0 THEN rp.path
+                ELSE RIGHT(rp.path, STRPOS(REVERSE(rp.path), '/') - 1)
             {% endif %}
-            ELSE rp.uri_stem
         END AS file_name,
         -- file_extension extraction
         CASE
@@ -99,7 +117,7 @@ page_entries AS (
             {% endif %}
             ELSE 'Other'
         END AS page_category
-    FROM raw_pages rp
+    FROM page_paths rp
 )
 
 SELECT * FROM page_entries

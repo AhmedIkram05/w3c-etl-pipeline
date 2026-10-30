@@ -199,7 +199,7 @@ models:
     description: "Visit bucket dimension grouping per-day IP request counts into frequency buckets (counts are per calendar day, not lifetime)"
     columns:
       - name: visit_bucket_sk
-        description: "Surrogate key (same as visit_bucket_order, 1-6)"
+        description: "Surrogate key (same as visit_bucket_order: 1-6 for real buckets, -1 for the 'Unknown' member)"
         tests:
           - unique
           - not_null
