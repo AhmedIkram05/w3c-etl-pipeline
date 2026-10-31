@@ -28,6 +28,10 @@ visit_counts AS (
         COUNT(*) AS visit_count
     FROM {{ source('w3c', 'raw_enriched') }}
     WHERE client_ip IS NOT NULL AND client_ip != '-'
+      -- Scope to the same latest-day window the incremental fact processes,
+      -- rather than a full-history GROUP BY on every dbt run. Per-day
+      -- grouping (the source of the per-day bucket semantics) is unchanged.
+      AND log_date >= (SELECT MAX(log_date) FROM {{ source('w3c', 'raw_enriched') }})
     GROUP BY client_ip, log_date
 ),
 
@@ -44,15 +48,17 @@ ip_buckets AS (
 )
 
 SELECT
-    visit_bucket_order AS visit_bucket_sk,
-    visit_bucket,
-    visit_bucket_order,
-    -- user_count counts (client_ip, log_date) rows — per-day visit sessions
-    -- in this bucket — because with per-day bucketing one IP can appear in
-    -- different buckets on different days.
-    COUNT(*) AS user_count
-FROM ip_buckets
-GROUP BY visit_bucket_order, visit_bucket
+    bd.visit_bucket_order AS visit_bucket_sk,
+    bd.visit_bucket,
+    bd.visit_bucket_order,
+    -- user_count counts (client_ip, log_date) rows in the window — per-day
+    -- visit sessions in this bucket. Driven from bucket_definitions so all six
+    -- members always exist: the fact's LEFT JOIN must resolve for every bucket
+    -- name even when the latest window has no IPs in that bucket.
+    COUNT(ib.client_ip) AS user_count
+FROM bucket_definitions bd
+LEFT JOIN ip_buckets ib ON ib.visit_bucket_order = bd.visit_bucket_order
+GROUP BY bd.visit_bucket_order, bd.visit_bucket
 
 UNION ALL
 
