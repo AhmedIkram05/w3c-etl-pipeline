@@ -148,9 +148,7 @@ def _parse_user_agent_rows(ua_rows) -> list[tuple]:
         # joins on LOWER(HASHBYTES('MD5', c.user_agent)), so the stored hash is
         # lowercase utf-8 md5. Distinct raw strings now get distinct rows
         # instead of collapsing on a 1000-char prefix.
-        ua_hash = hashlib.md5(
-            (ua_raw or "").encode("utf-8"), usedforsecurity=False
-        ).hexdigest()
+        ua_hash = hashlib.md5((ua_raw or "").encode("utf-8"), usedforsecurity=False).hexdigest()
 
         if ua_hash in seen_hashes:
             continue
