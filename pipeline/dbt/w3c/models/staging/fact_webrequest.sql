@@ -34,6 +34,12 @@ WITH enriched_input AS (
     -- on the deterministic raw_log_id) instead of being silently dropped.
     -- raw_enriched is append-only (new log files arrive daily via DLT pipeline),
     -- so this prevents MERGE from scanning/reprocessing all 150k+ existing rows.
+    --
+    -- KNOWN LIMITATION (deliberate, not a bug): a file re-uploaded for a day
+    -- strictly OLDER than the watermark is never reprocessed, so its rows stay
+    -- missing forever. Handling that needs per-file load tracking rather than a
+    -- single MAX(log_date); until then, a back-dated re-upload requires a
+    -- manual full refresh of this model (dbt run --full-refresh -s fact_webrequest).
     WHERE log_date >= (SELECT MAX(log_date) FROM {{ this }})
     {% endif %}
 ),
@@ -160,20 +166,35 @@ geo_lookup AS (
 ),
 {% else %}
 geo_lookup AS (
-    SELECT DISTINCT
-        c.client_ip,
-        g.geolocation_sk
-    FROM computed c
-    LEFT JOIN {{ source('w3c', 'dim_geolocation') }} g ON g.ip = c.client_ip
-    WHERE g.geolocation_sk IS NOT NULL
+    -- Exactly one geo row per client_ip, matching the sqlserver branch.
+    -- public.dim_geolocation.ip is normally unique, but if it ever holds
+    -- several rows for one IP a plain DISTINCT would fan out the fact's
+    -- LEFT JOIN; ROW_NUMBER picks one deterministically instead.
+    SELECT client_ip, geolocation_sk
+    FROM (
+        SELECT
+            c.client_ip,
+            g.geolocation_sk,
+            ROW_NUMBER() OVER (
+                PARTITION BY c.client_ip
+                ORDER BY g.country, g.region, g.city, g.latitude, g.longitude
+            ) AS rn
+        FROM computed c
+        JOIN {{ source('w3c', 'dim_geolocation') }} g ON g.ip = c.client_ip
+    ) g
+    WHERE g.rn = 1
 ),
 {% endif %}
 ua_lookup AS (
+    -- Join on a hash of the FULL user agent, not LEFT(user_agent, 1000): two
+    -- distinct UAs sharing a 1000-char prefix used to collapse onto one dim
+    -- row, silently giving the loser the winner's parsed attributes.
     SELECT DISTINCT
         c.user_agent,
         ua.user_agent_sk
     FROM computed c
-    LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua ON ua.user_agent = LEFT(c.user_agent, 1000)
+    LEFT JOIN {{ source('w3c', 'dim_useragent') }} ua
+        ON ua.ua_hash = {{ tsql_ua_hash('c.user_agent') }}
     WHERE c.user_agent IS NOT NULL AND c.user_agent != '-'
 )
 

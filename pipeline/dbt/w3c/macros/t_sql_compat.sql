@@ -92,22 +92,6 @@
   {%- endif %}
 {%- endmacro %}
 
-{% macro tsql_regexp_replace(field, pattern, replacement) -%}
-  {% if target.type == 'sqlserver' -%}
-    {{ field }}
-  {%- else -%}
-    REGEXP_REPLACE({{ field }}, '{{ pattern }}', '{{ replacement }}')
-  {%- endif %}
-{%- endmacro %}
-
-{% macro tsql_case_insensitive_like(field, pattern) -%}
-  {% if target.type == 'sqlserver' -%}
-    {{ field }} LIKE '{{ pattern }}' COLLATE SQL_Latin1_General_CP1_CI_AS
-  {%- else -%}
-    {{ field }} ~* '{{ pattern }}'
-  {%- endif %}
-{%- endmacro %}
-
 {% macro tsql_generate_series(start, end, step=1) -%}
   {% if target.type == 'sqlserver' -%}
     GENERATE_SERIES({{ start }}, {{ end }}, {{ step }})
@@ -141,6 +125,20 @@
   {%- else -%}
     MD5({{ concat_expr }})
   {%- endif %}
+{%- endmacro %}
+
+{% macro tsql_ua_hash(field) -%}
+  {#- MD5 of the FULL raw user-agent string, used to join fact -> dim_useragent.
+      Casing matches the Python dim builders (lowercase md5): PostgreSQL MD5()
+      is already lowercase; SQL Server HASHBYTES returns uppercase, so LOWER().
+      On SQL Server the input is cast to VARCHAR (code-page bytes) because
+      HASHBYTES over nvarchar uses UTF-16 — for IIS user-agents (URL-encoded
+      ASCII) the code-page bytes equal the UTF-8 bytes Python hashes. -#}
+  {% if target.type == 'sqlserver' -%}
+    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CONVERT(VARCHAR(MAX), {{ field }})), 2))
+  {%- else -%}
+    MD5({{ field }})
+  {%- endif -%}
 {%- endmacro %}
 
 {% macro tsql_boolean_to_int(field) -%}
@@ -196,9 +194,15 @@ where not({{ column_name }} {{ expression }})
   {% if target.type == 'sqlserver' -%}
     LOWER(
       CASE
+        -- A host segment is required. 'https://' with no host, or a leading
+        -- '/' after the scheme, must fall through to the ELSE so the result
+        -- matches the PostgreSQL branch (whose anchored regexp leaves a
+        -- host-less input unchanged rather than returning an empty string).
         WHEN {{ url_field }} LIKE 'https://%'
+          AND CHARINDEX('/', {{ url_field }} + '/', 9) > 9
           THEN SUBSTRING({{ url_field }}, 9, CHARINDEX('/', {{ url_field }} + '/', 9) - 9)
         WHEN {{ url_field }} LIKE 'http://%'
+          AND CHARINDEX('/', {{ url_field }} + '/', 8) > 8
           THEN SUBSTRING({{ url_field }}, 8, CHARINDEX('/', {{ url_field }} + '/', 8) - 8)
         ELSE {{ url_field }}
       END
