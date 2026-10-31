@@ -132,10 +132,9 @@ def _parse_user_agent_rows(ua_rows) -> list[tuple]:
     insert_data: list[tuple] = []
     seen_hashes: set = set()
     for idx, (ua_raw,) in enumerate(ua_rows):
-        # Keep the RAW (URL-encoded) string for storage so the join key
-        # matches dbo.raw_enriched.user_agent in fact_webrequest.sql.
-        # Use the decoded string only for parsing browser/OS/device.
-        ua_raw_str = ua_raw[:1000] if ua_raw else ""
+        # Store the RAW (URL-encoded) string so it survives the round trip;
+        # parse the decoded copy for browser/OS/device.
+        ua_raw_str = ua_raw[:2048] if ua_raw else ""
         ua_str_decoded = unquote_plus(ua_raw_str)
         parsed = ua_parse(ua_str_decoded)
 
@@ -145,14 +144,11 @@ def _parse_user_agent_rows(ua_rows) -> list[tuple]:
         os_name = parsed.os.family or "Unknown"
         device = _device_type(parsed)
 
-        # Hash the DECODED string so two differently-escaped raw strings that
-        # decode to the same UA produce the same hash (consistent dedup
-        # regardless of URL encoding).
-        hash_input = (
-            f"{ua_str_decoded[:500]}|{agent_type or ''}|{browser_name or ''}|"
-            f"{browser_version or ''}|{os_name or ''}|{device or ''}"
-        )
-        ua_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
+        # Key on md5 of the FULL raw UA, matching dbt's tsql_ua_hash: the fact
+        # joins on LOWER(HASHBYTES('MD5', c.user_agent)), so the stored hash is
+        # lowercase utf-8 md5. Distinct raw strings now get distinct rows
+        # instead of collapsing on a 1000-char prefix.
+        ua_hash = hashlib.md5((ua_raw or "").encode("utf-8"), usedforsecurity=False).hexdigest()
 
         if ua_hash in seen_hashes:
             continue

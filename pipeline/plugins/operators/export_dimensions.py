@@ -24,6 +24,7 @@ callable (it accepts ``**context``).
 
 from __future__ import annotations
 
+import hashlib
 import os
 import time
 from urllib.parse import unquote_plus
@@ -129,8 +130,8 @@ def _ensure_default_rows(conn):
         """)
         cur.execute("""
             INSERT INTO dim_useragent
-                (user_agent_sk, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
-            VALUES (-1, 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown')
+                (user_agent_sk, ua_hash, user_agent, agent_type, browser_name, browser_version, operating_system, device_type)
+            VALUES (-1, MD5('Unknown'), 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown')
             ON CONFLICT DO NOTHING
         """)
     conn.commit()
@@ -164,15 +165,26 @@ def _read_silver_geo_dim(silver_path: str) -> pd.DataFrame:
     geo = geo.dropna(subset=["client_ip"])
     geo = geo[geo["client_ip"].astype(str).str.strip() != ""]
     geo = geo[geo["client_ip"].astype(str).str.strip() != "-"]
-    # First non-null value per client_ip wins (silver is a single source
-    # of truth, but distinct IP enrichment keeps the row count down).
-    geo = geo.groupby("client_ip", as_index=False).first()
+    # Deterministic per-IP pick: sort by the same key order the dbt geo_lookup
+    # ROW_NUMBER uses, then take the first row of each client_ip. Without the
+    # sort, groupby.first() follows physical parquet row order, so the chosen
+    # geo for an IP varies between runs (and with partition/compaction layout).
+    geo = (
+        geo
+        .sort_values(
+            ["client_ip", "country", "region", "city", "latitude", "longitude"],
+            na_position="last",
+        )
+        .groupby("client_ip", as_index=False)
+        .first()
+    )
 
     if has_postcode:
         # Bring the postcode column along for the same distinct IP.
         pc = (
             df[["client_ip", "postcode"]]
             .dropna(subset=["client_ip"])
+            .sort_values(["client_ip", "postcode"], na_position="last")
             .groupby("client_ip", as_index=False)["postcode"]
             .first()
         )
@@ -302,8 +314,13 @@ def _build_dim_useragent(conn):
     insert_data = []
     for (ua_raw,) in rows:
         parsed = _parse_user_agent(ua_raw)
+        # Key on md5 of the FULL raw UA (matches dbt's tsql_ua_hash join).
+        # The raw string is stored whole, so UAs sharing a long prefix no
+        # longer collapse onto a single dim row and inherit wrong attributes.
+        ua_hash = hashlib.md5(ua_raw.encode("utf-8"), usedforsecurity=False).hexdigest()
         insert_data.append((
-            ua_raw[:1000],
+            ua_hash,
+            ua_raw,
             parsed["AgentType"],
             parsed["BrowserName"],
             parsed["BrowserVersion"],
@@ -319,10 +336,10 @@ def _build_dim_useragent(conn):
                     write_cur,
                     """
                     INSERT INTO dim_useragent
-                        (user_agent, agent_type, browser_name, browser_version,
+                        (ua_hash, user_agent, agent_type, browser_name, browser_version,
                          operating_system, device_type)
                     VALUES %s
-                    ON CONFLICT (user_agent) DO NOTHING
+                    ON CONFLICT (ua_hash) DO NOTHING
                     """,
                     insert_data,
                     page_size=1000,
@@ -361,6 +378,7 @@ def _ensure_dimension_tables(conn):
         cur.execute("""
             CREATE TABLE IF NOT EXISTS dim_useragent (
                 user_agent_sk    SERIAL PRIMARY KEY,
+                ua_hash          TEXT CONSTRAINT ux_dim_useragent_ua_hash UNIQUE,
                 user_agent       TEXT UNIQUE,
                 agent_type       VARCHAR(20),
                 browser_name     VARCHAR(50),
@@ -369,6 +387,17 @@ def _ensure_dimension_tables(conn):
                 device_type      VARCHAR(20)
             );
         """)
+        # Migration for deployments predating ua_hash: add the column, backfill
+        # it (md5 of the stored UA — matches dbt's tsql_ua_hash on Postgres) and
+        # enforce uniqueness. The old user_agent uniqueness is kept: an equal
+        # string yields an equal hash, so ON CONFLICT (ua_hash) still dedupes.
+        cur.execute("ALTER TABLE dim_useragent ADD COLUMN IF NOT EXISTS ua_hash TEXT")
+        cur.execute("""
+            UPDATE dim_useragent
+               SET ua_hash = MD5(user_agent)
+             WHERE ua_hash IS NULL AND user_agent IS NOT NULL
+        """)
+        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_dim_useragent_ua_hash ON dim_useragent (ua_hash)")
     conn.commit()
     print("[OK] Dimension tables ensured.")
 

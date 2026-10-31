@@ -8,8 +8,8 @@ The function builds two dimension tables from Azure SQL ``dbo.raw_enriched``:
   ``geo_hash`` (country/region/city/lat/lon via HASHBYTES); attribute changes
   expire the old version (``valid_to`` / ``is_current = 0``) and insert a new
   current version. History preserved per ``geo_hash``.
-* ``dim_useragent``    — SCD Type 1: parsed via ``user-agents`` library,
-  hashed with SHA-256, deduplicated via ``seen_hashes``, and MERGE'd in
+  - ``dim_useragent`` — SCD Type 1: parsed via ``user-agents`` library,
+  keyed on md5 of the FULL raw user_agent, deduplicated via ``seen_hashes``, MERGE'd in
   batches of 250.
 
 All Azure SQL interactions go through **pyodbc**, which is imported inside the
@@ -550,7 +550,8 @@ class TestUserAgentDimension:
 
         Each call to the mock parser produces a unique ``browser_version`` so
         that different input strings are NOT deduplicated by ``seen_hashes``
-        (unless they are truly identical after URL-unescaping).
+        (dedup is now on md5 of the FULL raw string, so only byte-identical
+        raw strings collapse).
         """
         parse_call_count = 0  # mutable via closure list to avoid nonlocal
 
@@ -621,11 +622,12 @@ class TestUserAgentDimension:
 
     # ── 6b. Dedup via seen_hashes ───────────────────────────────────
 
-    def test_dedup_same_ua_after_url_unescape(self):
-        """Two differently-escaped raw strings that unescape to same UA → 1 row.
+    def test_distinct_raw_strings_keyed_separately(self):
+        """Distinct raw UA strings → 2 rows (hash is over the FULL raw string).
 
-        A URL-encoded and a plain UA string that produce the same parsed
-        result should be deduplicated via ``seen_hashes``.
+        Keying moved from decoded[:500]+attributes to md5(full raw) so the
+        fact_webrequest hash join matches; differently-escaped strings that
+        decode alike are now separate dim rows.
         """
         encoded = (
             "Mozilla%2F5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29"
@@ -655,21 +657,21 @@ class TestUserAgentDimension:
                 with patch("user_agents.parse", return_value=_make_ua_stub()):
                     _export_dimensions()
 
-        # Only one execute call for the UA MERGE (batched) => 1 row
+        # Two distinct raw strings → 2 rows in the batched MERGE
         merge_sql = self._find_sql(mock_cursor, "MERGE dbo.dim_useragent")
         assert merge_sql is not None
-        # Verify only 1 set of 6 params in the batched VALUES
+        # Verify 2 sets of param groups in the batched VALUES
         if merge_sql:
             count_placeholders = merge_sql.count("?,?,?,?,?,?")
-            assert count_placeholders == 1, (
-                f"Expected 1 row (deduped), got {count_placeholders} placeholder groups in MERGE"
+            assert count_placeholders == 2, (
+                f"Expected 2 rows (distinct raw strings), got {count_placeholders} placeholder groups in MERGE"
             )
 
-    # ── 6c. Hash includes all fields ────────────────────────────────
+    # ── 6c. Distinct raw strings are separate rows ──────────────────
 
     def test_hash_includes_os_and_device(self):
-        """UA hash input contains os_name and device in addition to browser fields."""
-        # We can verify this indirectly: different OS → different hash
+        """Different raw UA strings (differ only in OS) → 2 distinct rows."""
+        # We can verify this indirectly: different raw UA → different hash
         # A Windows Chrome and a Mac Chrome should produce different hashes
         ua_rows = [
             (
