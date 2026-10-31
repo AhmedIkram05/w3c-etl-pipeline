@@ -12,7 +12,10 @@ WITH country_browser_stats AS (
         ) AS daily_country_total,
         ROW_NUMBER() OVER (
             PARTITION BY fw.date_sk, dg.country
-            ORDER BY COUNT(*) DESC
+            -- browser_name as a deterministic tiebreak: without it a tie on
+            -- COUNT(*) picks an arbitrary browser, so top_browser flips between
+            -- runs.
+            ORDER BY COUNT(*) DESC, ua.browser_name
         ) AS browser_rank
     FROM {{ ref('fact_webrequest') }} fw
     JOIN {{ ref('dim_date') }} dd ON dd.date_sk = fw.date_sk
