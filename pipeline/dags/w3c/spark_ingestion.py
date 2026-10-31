@@ -47,6 +47,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import os
+import tempfile
 import zipfile
 
 from airflow import DAG
@@ -95,15 +96,26 @@ def _build_utils_zip() -> str:
         if os.path.getmtime(_UTILS_ZIP) >= max(src_mtimes):
             return _UTILS_ZIP
 
-    with zipfile.ZipFile(_UTILS_ZIP, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, _, files in os.walk(_UTILS_DIR):
-            for fname in files:
-                if not fname.endswith(".py"):
-                    continue
-                src_path = os.path.join(root, fname)
-                # arcname = "utils/geoip.py", "utils/__init__.py", etc.
-                arc = os.path.relpath(src_path, SPARK_JOBS_DIR)
-                zf.write(src_path, arcname=arc)
+    # Build into a unique temp file, then atomically replace the shared zip.
+    # Concurrent scheduler/worker parses can each rebuild it without a reader
+    # ever observing a half-written archive — the old in-place "w" truncate
+    # could ship a corrupt utils.zip to executors.
+    fd, tmp_zip = tempfile.mkstemp(dir=os.path.dirname(_UTILS_ZIP), prefix="utils.zip.", suffix=".tmp")
+    os.close(fd)
+    try:
+        with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, _, files in os.walk(_UTILS_DIR):
+                for fname in files:
+                    if not fname.endswith(".py"):
+                        continue
+                    src_path = os.path.join(root, fname)
+                    # arcname = "utils/geoip.py", "utils/__init__.py", etc.
+                    arc = os.path.relpath(src_path, SPARK_JOBS_DIR)
+                    zf.write(src_path, arcname=arc)
+        os.replace(tmp_zip, _UTILS_ZIP)
+    finally:
+        if os.path.exists(tmp_zip):
+            os.remove(tmp_zip)
     return _UTILS_ZIP
 
 
