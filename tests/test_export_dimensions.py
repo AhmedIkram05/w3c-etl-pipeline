@@ -21,6 +21,7 @@ Usage:
     pytest tests/test_export_dimensions.py -v --tb=short
 """
 
+import hashlib
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
@@ -253,7 +254,9 @@ class TestEnsureDefaultRows:
 
         ua_sql = mock_cursor.execute.call_args_list[1][0][0]
         assert "INSERT INTO dim_useragent" in ua_sql
-        assert "VALUES (-1, 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown')" in ua_sql
+        # -1 row carries ua_hash = MD5('Unknown') so the not_null/unique contract
+        # on ua_hash holds for the sentinel too.
+        assert "VALUES (-1, MD5('Unknown'), 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown')" in ua_sql
         assert "ON CONFLICT DO NOTHING" in ua_sql
 
     def test_ensure_default_rows_commits(self):
@@ -462,8 +465,8 @@ class TestBuildDimUseragent:
         # Only the read cursor should have been created (no write connection).
         mock_conn.cursor.assert_called_once()
 
-    def test_ua_truncated_to_1000_chars(self):
-        """Very long user-agent strings are truncated to 1000 chars."""
+    def test_ua_keyed_by_full_hash(self):
+        """Long user-agents are keyed by md5 of the FULL string (no truncation)."""
         mock_conn = MagicMock()
         mock_cur = MagicMock()
         long_ua = "Mozilla/" + "X" * 2000
@@ -475,7 +478,11 @@ class TestBuildDimUseragent:
                 _build_dim_useragent(mock_conn)
 
                 insert_data = mock_exec.call_args[0][2]
-                assert len(insert_data[0][0]) == 1000
+                ua_hash, stored_ua = insert_data[0][0], insert_data[0][1]
+                assert ua_hash == hashlib.md5(long_ua.encode("utf-8")).hexdigest()
+                assert len(ua_hash) == 32
+                # Full string stored (TEXT column) — not truncated.
+                assert stored_ua == long_ua
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -506,7 +513,7 @@ class TestInsertOnConflict:
                     assert mock_exec.call_args[1]["page_size"] == 1000
 
     def test_dim_useragent_insert_sql(self):
-        """``_build_dim_useragent`` emits INSERT … ON CONFLICT (user_agent) DO NOTHING."""
+        """``_build_dim_useragent`` emits INSERT … ON CONFLICT (ua_hash) DO NOTHING."""
         mock_conn = MagicMock()
         mock_cur = MagicMock()
         mock_cur.fetchall.return_value = [("Mozilla/5.0 Chrome/120",)]
@@ -518,7 +525,7 @@ class TestInsertOnConflict:
 
                 insert_sql = mock_exec.call_args[0][1]
                 assert "INSERT INTO dim_useragent" in insert_sql
-                assert "ON CONFLICT (user_agent) DO NOTHING" in insert_sql
+                assert "ON CONFLICT (ua_hash) DO NOTHING" in insert_sql
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -618,13 +625,17 @@ class TestEnsureDimensionTables:
 
         _ensure_dimension_tables(mock_conn)
 
-        assert mock_cursor.execute.call_count == 2
+        # 2 CREATE TABLE + 3 ua_hash migration statements.
+        assert mock_cursor.execute.call_count == 5
         executed = [c[0][0] for c in mock_cursor.execute.call_args_list]
         assert any("CREATE TABLE IF NOT EXISTS dim_geolocation" in sql for sql in executed)
         assert any("CREATE TABLE IF NOT EXISTS dim_useragent" in sql for sql in executed)
         # PK constraints and unique IPs are part of the documented schema.
         assert any("SERIAL PRIMARY KEY" in sql for sql in executed)
         assert any("ip           VARCHAR(50) UNIQUE" in sql for sql in executed)
+        # ua_hash migration for deployments created before the column existed.
+        assert any("ADD COLUMN IF NOT EXISTS ua_hash" in sql for sql in executed)
+        assert any("CREATE UNIQUE INDEX IF NOT EXISTS ux_dim_useragent_ua_hash" in sql for sql in executed)
         mock_conn.commit.assert_called_once()
 
 
