@@ -193,6 +193,10 @@ class TestExtractDomain:
         """Only the leading 'www.' is stripped."""
         assert _extract_domain("http://blog.example.com/") == "blog.example.com"
 
+    def test_mid_label_www_not_stripped(self):
+        """A mid-label 'www.' is left alone ('abcwww.com' is not 'abccom')."""
+        assert _extract_domain("http://abcwww.com/page") == "abcwww.com"
+
     def test_internal_referrer(self):
         url = "http://www.darwinsbeagleplants.org/Darwin/Plant.aspx"
         assert _extract_domain(url) == "darwinsbeagleplants.org"

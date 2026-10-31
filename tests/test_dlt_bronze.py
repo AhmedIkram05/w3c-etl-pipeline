@@ -200,13 +200,19 @@ class TestDetectFormatFromContent:
         content = b"\xff\xfe\x00\x01\x02"
         assert _detect_format_from_content(content) == 18
 
-    def test_header_with_extra_whitespace(self):
-        """#Fields: line with irregular whitespace is parsed correctly.
+    def test_unknown_field_count_returns_none(self):
+        """A #Fields: header whose count is neither 14 nor 18 → None (skip).
 
-        Only 5 fields listed → not a valid 14-field header → returns 18.
+        Only 5 fields listed → unknown layout → must be skipped, never
+        coerced into the 18-field parser (which would emit garbage rows).
         """
         content = b"#Fields:  date   time   s-ip   cs-method   cs-uri-stem \n"
-        assert _detect_format_from_content(content) == 18
+        assert _detect_format_from_content(content) is None
+
+    def test_15_field_header_returns_none(self):
+        """A 15-field header (a future IIS layout) → None, not 18."""
+        content = b"#Fields: a b c d e f g h i j k l m n o\n"
+        assert _detect_format_from_content(content) is None
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -451,6 +457,14 @@ class TestParseFileContent:
         content = b"#Software: IIS\n#Version: 1.0\n#Date: 2009-10-24\n"
         results = _parse_file_content(content, "comments.log")
         assert results == []
+
+    def test_unknown_field_count_skips_file(self):
+        """A 16-field #Fields: header skips the file instead of mis-parsing it."""
+        content = (
+            b"#Fields: a b c d e f g h i j k l m n o p\n"
+            b"2009-10-24 01:00:00 1.2.3.4 GET / - 80 - 5.6.7.8 UA 200 0 0 100\n"
+        )
+        assert _parse_file_content(content, "unknown.log") == []
 
     def test_format_detected_from_first_header(self):
         """Uses the first #Fields: line, ignores later ones if any."""

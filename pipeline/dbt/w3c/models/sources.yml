@@ -45,8 +45,13 @@ sources:
             tests:
               - unique
               - not_null
+          - name: ua_hash
+            description: "MD5 of the FULL raw user_agent — the join key used by fact_webrequest. Keying on this (not LEFT(user_agent, 1000)) means distinct UAs never collide even when they share a long prefix."
+            tests:
+              - unique
+              - not_null
           - name: user_agent
-            description: "Raw User-Agent string (URL-unescaped). Now includes raw UA in hash — each unique raw string maps to its own dim row for LEFT JOIN."
+            description: "Raw User-Agent string as ingested, stored whole. Keyed for joins via ua_hash so each unique raw string maps to its own dim row."
             tests:
               - not_null
           - name: agent_type
