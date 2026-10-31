@@ -15,6 +15,8 @@ is reopened lazily per executor process).
 from __future__ import annotations
 
 import pickle
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -93,6 +95,39 @@ class TestUdfFactoriesCarryPath:
     def test_city_field_rejects_unknown_field(self):
         with pytest.raises(ValueError, match="Unknown GeoIP field"):
             city_field("not_a_field")
+
+
+class TestGeoReaderFieldDegradation:
+    """A missing location/city/postal sub-object must degrade per field.
+
+    Regression: ``response.location.latitude`` raised AttributeError when
+    ``location`` was absent, so the whole lookup returned None and every other
+    geo field (country/region/city) was lost too.
+    """
+
+    @staticmethod
+    def _reader_with(city_response) -> _GeoReader:
+        reader = _GeoReader("/nonexistent.mmdb")
+        reader._opened = True
+        reader._reader = MagicMock()
+        reader._reader.city.return_value = city_response
+        return reader
+
+    def test_missing_location_keeps_other_fields(self):
+        response = SimpleNamespace(
+            country=SimpleNamespace(name="United States"),
+            subdivisions=SimpleNamespace(most_specific=SimpleNamespace(name="California")),
+            city=SimpleNamespace(name="Mountain View"),
+            location=None,
+            postal=None,
+        )
+        result = self._reader_with(response).city("8.8.8.8")
+        assert result["country"] == "United States"
+        assert result["region"] == "California"
+        assert result["city"] == "Mountain View"
+        assert result["latitude"] is None
+        assert result["longitude"] is None
+        assert result["postcode"] is None
 
 
 class TestCallSitesUseFactories:
