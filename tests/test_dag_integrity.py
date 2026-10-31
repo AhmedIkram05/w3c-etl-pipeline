@@ -22,6 +22,7 @@ They are marked ``@pytest.mark.dag_integrity`` and are skipped by default:
 """
 
 import os
+import zipfile
 
 import pytest
 
@@ -624,3 +625,28 @@ class TestDBTMartsAzureDAG:
         dag_bag = DagBag(dag_folder=_DAG_FOLDER, include_examples=False)
         _ = dag_bag.dags
         assert len(dag_bag.import_errors) == 0, f"DAG import errors found: {dag_bag.import_errors}"
+
+
+@pytest.mark.dag_integrity
+class TestUtilsZipBuild:
+    """``_build_utils_zip`` must ship a complete archive and leak no temp file."""
+
+    def test_rebuild_is_valid_and_leaves_no_temp(self):
+        """Force a rebuild (stale mtime) → valid zip, no ``*.tmp`` leftovers."""
+        mod = _spark_ingestion_module
+        # Make the on-disk zip look stale so the rebuild branch (temp + atomic
+        # os.replace) actually runs.
+        os.utime(mod._UTILS_ZIP, (0, 0))
+
+        result = mod._build_utils_zip()
+
+        assert result == mod._UTILS_ZIP
+        with zipfile.ZipFile(result) as zf:
+            names = set(zf.namelist())
+        assert "utils/__init__.py" in names
+        assert any(n.endswith(".py") for n in names)
+
+        leftovers = [
+            p for p in os.listdir(os.path.dirname(result)) if p.startswith("utils.zip.") and p.endswith(".tmp")
+        ]
+        assert leftovers == [], f"temp zips leaked: {leftovers}"
