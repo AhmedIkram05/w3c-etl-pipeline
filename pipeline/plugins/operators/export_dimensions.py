@@ -317,7 +317,7 @@ def _build_dim_useragent(conn):
         # Key on md5 of the FULL raw UA (matches dbt's tsql_ua_hash join).
         # The raw string is stored whole, so UAs sharing a long prefix no
         # longer collapse onto a single dim row and inherit wrong attributes.
-        ua_hash = hashlib.md5(ua_raw.encode("utf-8")).hexdigest()
+        ua_hash = hashlib.md5(ua_raw.encode("utf-8"), usedforsecurity=False).hexdigest()
         insert_data.append((
             ua_hash,
             ua_raw,
