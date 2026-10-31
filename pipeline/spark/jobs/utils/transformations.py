@@ -86,7 +86,10 @@ def referrer_domain(referrer_url):
         if "//" not in candidate:
             candidate = "http://" + candidate
         parsed = urlparse(candidate)
-        domain = parsed.netloc.split("@")[-1].split(":")[0].lower().replace("www.", "")
+        # Strip only a LEADING 'www.' label — str.replace would also strip a
+        # mid-label 'www.' (e.g. 'abcwww.com' -> 'abccom').
+        host = parsed.netloc.split("@")[-1].split(":")[0].lower()
+        domain = host[4:] if host.startswith("www.") else host
         return domain or referrer_url
     except Exception:
         return str(referrer_url)
@@ -107,7 +110,9 @@ def _extract_domain(referrer_url: str) -> str:
         if "//" not in candidate:
             candidate = "http://" + candidate
         parsed = urlparse(candidate)
-        domain = parsed.netloc.split("@")[-1].split(":")[0].lower().replace("www.", "")
+        # Strip only a LEADING 'www.' label (see referrer_domain above).
+        host = parsed.netloc.split("@")[-1].split(":")[0].lower()
+        domain = host[4:] if host.startswith("www.") else host
         return domain or referrer_url
     except Exception:
         return str(referrer_url)

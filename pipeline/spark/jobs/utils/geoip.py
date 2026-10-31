@@ -135,13 +135,21 @@ class _GeoReader:
             import geoip2.errors
 
             response = self._reader.city(ip.strip())
+            # Degrade per field: a missing sub-object (location/city/postal) must
+            # not abort the whole lookup — country/region are still valuable, and
+            # the dlt_silver `.get()` chain already behaves this way.
+            location = response.location
+            city = response.city
+            postal = response.postal
             return {
                 "country": response.country.name or "Unknown",
                 "region": response.subdivisions.most_specific.name or "Unknown",
-                "city": response.city.name or "Unknown",
-                "latitude": str(response.location.latitude) if response.location.latitude is not None else None,
-                "longitude": str(response.location.longitude) if response.location.longitude is not None else None,
-                "postcode": response.postal.code or None,
+                "city": (city.name or "Unknown") if city is not None else "Unknown",
+                "latitude": str(location.latitude) if location is not None and location.latitude is not None else None,
+                "longitude": str(location.longitude)
+                if location is not None and location.longitude is not None
+                else None,
+                "postcode": (postal.code or None) if postal is not None else None,
             }
         except geoip2.errors.AddressNotFoundError:
             return None

@@ -113,22 +113,36 @@ def _parse_log_line(line: str, file_format: int, source_file: str):
     return None
 
 
-def _detect_format_from_content(content_bytes: bytes) -> int:
-    """Detect IIS format (14 or 18) by reading #Fields: header from file content.
+def _detect_format_from_lines(lines: list[str]) -> int | None:
+    """Detect the IIS field layout from already-split lines.
 
-    Counts field names in the header line to determine whether this is
-    a 14-field (2009-mid 2010) or 18-field (mid 2010+) IIS W3C log.
-    Defaults to 18 if no header is found.
+    Returns 14 or 18 for a recognised ``#Fields:`` header, ``None`` when a
+    header is present but its field count is neither (an unknown layout must
+    be skipped, never coerced — ``01_bronze_ingestion.py`` skips the same
+    way), and 18 when no header line is present (documented default).
+    """
+    for line in lines:
+        if line.startswith("#Fields:"):
+            fields = line.replace("#Fields:", "").strip().split()
+            if len(fields) == 14:
+                return 14
+            if len(fields) == 18:
+                return 18
+            return None
+    return 18
+
+
+def _detect_format_from_content(content_bytes: bytes) -> int | None:
+    """Detect IIS format (14 or 18) from the ``#Fields:`` header in content.
+
+    See :func:`_detect_format_from_lines`. ``None`` means the header's field
+    count is unknown and the file must be skipped.
     """
     try:
         text = content_bytes.decode("utf-8", errors="replace")
-        for line in text.split("\n"):
-            if line.startswith("#Fields:"):
-                fields = line.replace("#Fields:", "").strip().split()
-                return 14 if len(fields) == 14 else 18
     except Exception:
-        pass
-    return 18
+        return 18
+    return _detect_format_from_lines(text.split("\n"))
 
 
 def _parse_file_content(content_bytes: bytes, source_path: str) -> list:
@@ -145,13 +159,13 @@ def _parse_file_content(content_bytes: bytes, source_path: str) -> list:
         text = content_bytes.decode("utf-8", errors="replace")
         lines = text.split("\n")
 
-        # Detect format from #Fields: header (first matching line)
-        file_format = 18
-        for line in lines:
-            if line.startswith("#Fields:"):
-                fields = line.replace("#Fields:", "").strip().split()
-                file_format = 14 if len(fields) == 14 else 18
-                break
+        # Detect format from the #Fields: header (first matching line).
+        file_format = _detect_format_from_lines(lines)
+        if file_format is None:
+            # Unknown field count: skip the file instead of coercing it into
+            # 14/18 and emitting garbage rows downstream.
+            logger.warning("Unrecognised #Fields count in %r — file skipped (0 rows)", source_path)
+            return []
 
         # Parse every non-comment, non-empty line
         results = []

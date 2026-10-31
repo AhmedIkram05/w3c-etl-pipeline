@@ -125,6 +125,15 @@ class TestReferrerDomain:
         dom = df.select(referrer_domain(col("ref")).alias("dom")).collect()[0]["dom"]
         assert "darwinsbeagleplants" in dom
 
+    def test_mid_label_www_not_stripped(self, spark):
+        """Only a LEADING 'www.' is stripped; 'abcwww.com' keeps its label."""
+        from pyspark.sql.functions import col
+        from utils.transformations import referrer_domain
+
+        df = spark.createDataFrame([Row(ref="http://abcwww.com/page")])
+        dom = df.select(referrer_domain(col("ref")).alias("dom")).collect()[0]["dom"]
+        assert dom == "abcwww.com"
+
     def test_unknown_string(self, spark):
         from pyspark.sql.functions import col
         from utils.transformations import referrer_domain
