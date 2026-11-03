@@ -119,10 +119,10 @@ def test_is_crawler_and_broadcast(spark, tmp_path):
     silver = spark.read.format("delta").load(os.path.join(str(tmp_path), "silver"))
     assert {
         r.is_crawler for r in silver.filter(col("client_ip") == "10.0.0.99").select("is_crawler").distinct().collect()
-    } == {"true"}
+    } == {True}
     assert {
         r.is_crawler for r in silver.filter(col("client_ip") != "10.0.0.99").select("is_crawler").distinct().collect()
-    } == {"false"}
+    } == {False}
     bronze = spark.read.format("delta").load(os.path.join(str(tmp_path), "bronze"))
     crawlers = silver_backfill.discover_crawler_ips_df(spark, os.path.join(str(tmp_path), "bronze")).withColumnRenamed(
         "client_ip", "crawler_ip"

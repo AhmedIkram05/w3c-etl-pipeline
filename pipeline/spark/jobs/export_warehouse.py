@@ -32,8 +32,8 @@ Airflow retry skips every already-committed file.
 
 Type mappings (Delta -> PostgreSQL)
 -----------------------------------
-- ``is_crawler`` (StringType "true"/"false") -> BOOLEAN
-- ``latitude`` / ``longitude`` (StringType)     -> DOUBLE PRECISION
+- ``is_crawler`` (BooleanType) -> BOOLEAN (also tolerates the legacy
+  "true"/"false" StringType form emitted by pre-alignment Silver data)
 - ``bytes_sent`` / ``bytes_recv`` / ``time_taken`` (LongType) -> BIGINT
 """
 
@@ -44,7 +44,7 @@ import sys
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, lower, trim, when
-from pyspark.sql.types import LongType
+from pyspark.sql.types import LongType, StringType
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("export_warehouse")
@@ -260,8 +260,7 @@ def apply_type_casts(df: DataFrame) -> DataFrame:
     """Cast Silver columns to PostgreSQL-compatible types.
 
     Transformations applied:
-    - ``is_crawler`` (StringType "true"/"false") -> BOOLEAN
-    - ``latitude``, ``longitude`` (StringType)   -> DOUBLE PRECISION
+    - ``is_crawler`` (BooleanType) -> BOOLEAN
     - ``bytes_sent``, ``bytes_recv`` (LongType)   -> BIGINT
     - ``time_taken`` (LongType)                   -> BIGINT
 
@@ -271,9 +270,12 @@ def apply_type_casts(df: DataFrame) -> DataFrame:
     cols = {f.name for f in df.schema.fields}
 
     if "is_crawler" in cols:
+        # Tolerates both the canonical BooleanType and the legacy StringType
+        # ("true"/"false"/"Unknown") form: casting to STRING first makes the
+        # trim/lower normalisation a no-op for booleans ("True" -> "true").
         df = df.withColumn(
             "is_crawler",
-            when(trim(lower(col("is_crawler"))) == "true", True).otherwise(False),
+            when(trim(lower(col("is_crawler").cast(StringType()))) == "true", True).otherwise(False),
         )
 
     if "bytes_sent" in cols:

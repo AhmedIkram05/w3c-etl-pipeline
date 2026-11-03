@@ -247,7 +247,7 @@ class TestMakeCrawlerUDF:
         crawler_set = {"66.249.66.87", "207.46.199.39"}
         is_crawler = make_crawler_udf(crawler_set)
         df = spark.createDataFrame([Row(ip="66.249.66.87")])
-        assert df.select(is_crawler(col("ip")).alias("c")).collect()[0]["c"] == "true"
+        assert df.select(is_crawler(col("ip")).alias("c")).collect()[0]["c"] is True
 
     def test_not_crawler(self, spark):
         from pyspark.sql.functions import col
@@ -256,7 +256,7 @@ class TestMakeCrawlerUDF:
         crawler_set = {"66.249.66.87"}
         is_crawler = make_crawler_udf(crawler_set)
         df = spark.createDataFrame([Row(ip="1.2.3.4")])
-        assert df.select(is_crawler(col("ip")).alias("c")).collect()[0]["c"] == "false"
+        assert df.select(is_crawler(col("ip")).alias("c")).collect()[0]["c"] is False
 
     def test_dash_ip(self, spark):
         from pyspark.sql.functions import col
@@ -264,7 +264,7 @@ class TestMakeCrawlerUDF:
 
         is_crawler = make_crawler_udf(set())
         df = spark.createDataFrame([Row(ip="-")])
-        assert df.select(is_crawler(col("ip")).alias("c")).collect()[0]["c"] == "Unknown"
+        assert df.select(is_crawler(col("ip")).alias("c")).collect()[0]["c"] is False
 
     def test_none_ip(self, spark):
         from pyspark.sql.functions import col
@@ -274,7 +274,7 @@ class TestMakeCrawlerUDF:
         is_crawler = make_crawler_udf(set())
         schema = StructType([StructField("ip", StringType(), True)])
         df = spark.createDataFrame([Row(ip=None)], schema=schema)
-        assert df.select(is_crawler(col("ip")).alias("c")).collect()[0]["c"] == "Unknown"
+        assert df.select(is_crawler(col("ip")).alias("c")).collect()[0]["c"] is False
 
 
 # ══════════════════════════════════════════════════════════════════════

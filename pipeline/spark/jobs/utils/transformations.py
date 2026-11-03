@@ -15,7 +15,7 @@ These PySpark UDFs replicate the business logic from the Airflow DAG
 from urllib.parse import urlparse
 
 from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType
+from pyspark.sql.types import BooleanType, StringType
 
 # ══════════════════════════════════════════════════════════════════════
 #  PAGE CATEGORY
@@ -165,16 +165,20 @@ def make_crawler_udf(crawler_ips: set) -> callable:
 
     Returns
     -------
-    PySpark UDF (StringType -> StringType)
+    PySpark UDF (StringType -> BooleanType)
+
+    Boolean (not the historical "true"/"false" string) is the canonical
+    silver/warehouse contract: dbt's ``fact_webrequest`` does
+    ``COALESCE(is_crawler, FALSE)`` and the JDBC exports write a BIT/BOOLEAN
+    column. An unusable IP (missing/"-"/"Unknown") is not a crawler, so it maps
+    to ``False``.
     """
     # Copy the set so the closure is not affected by later mutations.
     ips = frozenset(crawler_ips)
 
-    @udf(returnType=StringType())
+    @udf(returnType=BooleanType())
     def is_crawler_impl(ip):
-        if not ip or ip.strip() in ("-", "Unknown", ""):
-            return "Unknown"
-        return "true" if ip.strip() in ips else "false"
+        return bool(ip) and ip.strip() not in ("-", "Unknown", "") and ip.strip() in ips
 
     return is_crawler_impl
 
