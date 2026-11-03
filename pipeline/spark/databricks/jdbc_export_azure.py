@@ -286,10 +286,12 @@ def export_to_azure_sql(spark, server, database, username, password):
         # Select and prepare export columns
         export_df = silver_df.select(EXPORT_COLUMNS)
 
-        # Cast is_crawler from string ("true"/"false") to BIT (0/1)
+        # is_crawler is BOOLEAN in Silver (dbo.raw_enriched.is_crawler is BIT).
+        # Cast to STRING first so the comparison also tolerates the legacy
+        # "true"/"false" string form (booleans render as "true"/"false").
         export_df = export_df.withColumn(
             "is_crawler",
-            when(col("is_crawler") == "true", lit(1)).otherwise(lit(0)),
+            when(col("is_crawler").cast("string") == "true", lit(1)).otherwise(lit(0)),
         )
 
         # ── Load already-exported files ───────────────────────────────

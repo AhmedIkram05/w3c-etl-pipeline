@@ -723,7 +723,7 @@ def _build_test_data(spark):
             page_category="Home",
             referrer_domain="",
             traffic_type="Direct",
-            is_crawler="false",
+            is_crawler=False,
             size_band="1KB-10KB",
             country="US",
             region="CA",
@@ -823,8 +823,8 @@ class TestExportToAzureSql:
                 spark.stop()
 
     @pytest.mark.skipif(not _HAS_REAL_PYSPARK, reason="real PySpark required for SparkSession")
-    def test_is_crawler_cast_from_string_to_bit(self):
-        """is_crawler string ("true"/"false") is cast to BIT (0/1) for Azure SQL."""
+    def test_is_crawler_cast_to_bit(self):
+        """is_crawler (BOOLEAN in Silver) is cast to BIT (0/1) for Azure SQL."""
         spark, mock_conn, mock_cursor, _, table_patch, pymssql_patch = self._spark_and_patches()
         mock_cursor.fetchall.return_value = []
 
