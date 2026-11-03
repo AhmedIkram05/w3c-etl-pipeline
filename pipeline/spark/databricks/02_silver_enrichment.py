@@ -34,7 +34,7 @@ from typing import Set
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, udf
-from pyspark.sql.types import StringType, StructField, StructType
+from pyspark.sql.types import BooleanType, FloatType, StringType, StructField, StructType
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("databricks_silver")
@@ -124,14 +124,14 @@ def ensure_silver_table(spark):
             country          STRING,
             region           STRING,
             city             STRING,
-            latitude         STRING,
-            longitude        STRING,
+            latitude         FLOAT,
+            longitude        FLOAT,
             isp              STRING,
 
             page_category    STRING,
             referrer_domain  STRING,
             traffic_type     STRING,
-            is_crawler       STRING,
+            is_crawler       BOOLEAN,
             size_band        STRING
         )
         USING DELTA
@@ -162,36 +162,32 @@ def _init_geoip(db_path: str | None):
             log.warning("Failed to initialise GeoIP reader: %s", exc)
 
 
-def _geo_lookup(ip: str) -> dict:
-    """Single consolidated GeoIP lookup returning all six fields.
+def _geo_lookup(ip: str) -> dict | None:
+    """Single consolidated GeoIP lookup returning all six fields, or None on a miss.
 
-    Mirrors dlt_silver's pattern: one ``city()`` call per row feeds every
-    geo column. Missing data yields ``"Unknown"`` per field (never NULL)
-    to match the previous per-attribute lookups and the UC table's
-    STRING columns.
+    Contract shared with ``dlt_silver._geo_lookup``: a hit returns a dict, a
+    miss (no reader, absent IP, or read error) returns ``None`` and the caller
+    decides how to fill the gap. This path reads ``geoip2`` (whose City response
+    carries ``isp`` but not ``postcode``); ``dlt_silver`` reads ``maxminddb``
+    and carries ``postcode`` but takes ``isp`` from the ASN DB. The target
+    schemas differ (UC silver has ``isp``, DLT silver has ``postcode``) and the
+    two readers cannot be shared, so only the ``dict | None`` contract is
+    unified.
     """
-    unknown = {
-        "country": "Unknown",
-        "region": "Unknown",
-        "city": "Unknown",
-        "latitude": "Unknown",
-        "longitude": "Unknown",
-        "isp": "Unknown",
-    }
     if _geoip_reader is None:
-        return unknown
+        return None
     try:
         response = _geoip_reader.city(ip)
         return {
             "country": response.country.name or "Unknown",
             "region": response.subdivisions.most_specific.name or "Unknown",
             "city": response.city.name or "Unknown",
-            "latitude": str(response.location.latitude) if response.location else "Unknown",
-            "longitude": str(response.location.longitude) if response.location else "Unknown",
+            "latitude": float(response.location.latitude) if response.location else None,
+            "longitude": float(response.location.longitude) if response.location else None,
             "isp": str(response.traits.isp) if hasattr(response.traits, "isp") else "Unknown",
         }
     except Exception:
-        return unknown
+        return None
 
 
 # ── Consolidated GeoIP struct UDF ────────────────────────────────────
@@ -202,16 +198,32 @@ _GEO_STRUCT_SCHEMA = StructType([
     StructField("country", StringType(), True),
     StructField("region", StringType(), True),
     StructField("city", StringType(), True),
-    StructField("latitude", StringType(), True),
-    StructField("longitude", StringType(), True),
+    StructField("latitude", FloatType(), True),
+    StructField("longitude", FloatType(), True),
     StructField("isp", StringType(), True),
 ])
+
+# Unknown-struct defaults applied by the UDF when the lookup misses. Kept
+# separate from _geo_lookup so the lookup keeps the shared dict | None contract.
+_GEO_UNKNOWN = {
+    "country": "Unknown",
+    "region": "Unknown",
+    "city": "Unknown",
+    "latitude": None,
+    "longitude": None,
+    "isp": "Unknown",
+}
 
 
 @udf(returnType=_GEO_STRUCT_SCHEMA)
 def get_geo_fields(ip: str) -> dict:
-    """Consolidated GeoIP UDF wrapping :func:`_geo_lookup`."""
-    return _geo_lookup(ip)
+    """Consolidated GeoIP UDF wrapping :func:`_geo_lookup`.
+
+    A miss (``None``) is filled with the canonical "Unknown" struct here so the
+    UDF keeps emitting non-null text fields (coordinates stay NULL).
+    """
+    result = _geo_lookup(ip)
+    return result if result is not None else dict(_GEO_UNKNOWN)
 
 
 # ── Main pipeline ───────────────────────────────────────────────────────
@@ -263,7 +275,9 @@ def _referrer_domain(referrer: str) -> str:
     referrers -> 'Direct', the literal sentinel 'Unknown' -> 'Unknown',
     scheme-less URLs get a scheme prepended so the domain is still
     extracted (a real referrer must never be misclassified as direct
-    traffic), and parse failures fall back to the raw input.
+    traffic), and parse failures fall back to the raw input. Only a
+    LEADING 'www.' label is stripped (``str.replace`` would also strip a
+    mid-label 'www.', e.g. 'abcwww.com' -> 'abccom').
     """
     if not referrer or referrer.strip() == "-":
         return "Direct"
@@ -276,26 +290,43 @@ def _referrer_domain(referrer: str) -> str:
         if "//" not in candidate:
             candidate = "http://" + candidate
         parsed = urlparse(candidate)
-        domain = parsed.netloc.split("@")[-1].split(":")[0].lower().replace("www.", "")
+        host = parsed.netloc.split("@")[-1].split(":")[0].lower()
+        domain = host[4:] if host.startswith("www.") else host
         return domain or referrer
     except Exception:
         return str(referrer)
 
 
-def _traffic_type(referrer: str) -> str:
-    if not referrer or referrer == "-":
-        return "Direct"
-    try:
-        from urllib.parse import urlparse
+# Canonical traffic-source vocabulary, mirroring utils/transformations and the
+# dbt fact_webrequest.traffic_type accepted values (Search Engine, Social,
+# Internal, Referral, Direct, Unknown).
+_SEARCH_ENGINES = ["google", "bing", "yahoo", "baidu", "duckduckgo", "yandex", "ask"]
+_SOCIAL_DOMAINS = ["facebook", "twitter", "linkedin", "reddit", "t.co", "instagram"]
+_INTERNAL_DOMAINS = ["darwinsbeagleplants", "134.36.36.75"]
 
-        domain = urlparse(referrer).netloc.lower()
-        if "google" in domain or "bing" in domain or "yahoo" in domain:
-            return "Search"
-        if "facebook" in domain or "twitter" in domain or "linkedin" in domain:
-            return "Social"
-        return "Referral"
-    except Exception:
-        return "Referral"
+
+def _traffic_type(referrer: str) -> str:
+    """Classify a referrer into the canonical traffic-source vocabulary.
+
+    Mirrors utils/transformations.traffic_type and dlt_silver: Direct,
+    Unknown, Internal, Search Engine, Social, Referral. Matching is on
+    whole dot-delimited domain labels, so 'notgoogle.com' is not a search
+    referrer.
+    """
+    if not referrer or referrer.strip() == "-":
+        return "Direct"
+    if referrer == "Unknown":
+        return "Unknown"
+
+    domain = _referrer_domain(referrer)
+    padded = f".{domain}."
+    if any(f".{s}." in padded for s in _INTERNAL_DOMAINS):
+        return "Internal"
+    if any(f".{s}." in padded for s in _SEARCH_ENGINES):
+        return "Search Engine"
+    if any(f".{s}." in padded for s in _SOCIAL_DOMAINS):
+        return "Social"
+    return "Referral"
 
 
 def _size_band(bytes_sent, bytes_recv) -> str:
@@ -316,6 +347,21 @@ def _size_band(bytes_sent, bytes_recv) -> str:
     if total < 1048576:
         return "Large"
     return "Huge"
+
+
+def make_crawler_udf(crawler_ips):
+    """Boolean ``is_crawler`` UDF closed over the crawler-IP set.
+
+    Mirrors utils/transformations.make_crawler_udf: BooleanType output (the
+    canonical silver/warehouse contract) and an unusable IP is not a crawler.
+    """
+    ips = frozenset(crawler_ips)
+
+    @udf(returnType=BooleanType())
+    def is_crawler_impl(ip):
+        return bool(ip) and ip.strip() not in ("-", "Unknown", "") and ip.strip() in ips
+
+    return is_crawler_impl
 
 
 def run(spark, geolite2_db: str | None = None):
@@ -349,12 +395,8 @@ def run(spark, geolite2_db: str | None = None):
     # Initialise GeoIP
     _init_geoip(geolite2_db)
 
-    # Register UDFs
-    from pyspark.sql.functions import udf
-    from pyspark.sql.types import StringType
-
     # Computed field UDFs
-    is_crawler_udf = udf(lambda ip: "true" if ip in crawler_ips else "false", StringType())
+    is_crawler_udf = make_crawler_udf(crawler_ips)
 
     page_category_fn = udf(_page_category, StringType())
     referrer_domain_fn = udf(_referrer_domain, StringType())

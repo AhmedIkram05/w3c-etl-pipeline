@@ -106,43 +106,47 @@ def spark():
 
 
 class TestGeoIPLookup:
-    """Consolidated GeoIP lookup with no reader available (all "Unknown")."""
+    """Consolidated GeoIP lookup: a dict on a hit, None on a miss."""
 
     def setup_method(self):
         """Ensure _geoip_reader is None before each test."""
         silver._geoip_reader = None
 
-    def test_unknown_reader_all_fields_unknown(self):
-        fields = silver._geo_lookup("8.8.8.8")
-        assert fields == {
+    def test_unknown_reader_returns_none(self):
+        """No reader is a miss — None, per the shared dict | None contract."""
+        assert silver._geo_lookup("8.8.8.8") is None
+
+    def test_empty_ip_returns_none(self):
+        assert silver._geo_lookup("") is None
+
+    def test_struct_udf_fills_unknown_on_miss(self):
+        """The UDF converts a miss into the canonical "Unknown" struct."""
+        assert silver.get_geo_fields.func("8.8.8.8") == {
             "country": "Unknown",
             "region": "Unknown",
             "city": "Unknown",
-            "latitude": "Unknown",
-            "longitude": "Unknown",
+            "latitude": None,
+            "longitude": None,
             "isp": "Unknown",
         }
 
-    def test_empty_ip_returns_unknown(self):
-        assert silver._geo_lookup("")["country"] == "Unknown"
-
-    def test_struct_udf_matches_per_field_lookup(self):
-        """Equivalence: struct-UDF output fields == the old per-field outputs.
+    def test_struct_udf_defaults_match_per_field_lookup(self):
+        """The UDF's miss defaults are exactly the old per-field outputs.
 
         The old API was ``_geoip_lookup(ip, attr)`` per column, each doing
-        its own mmdb call. The consolidated struct (whose body is
-        ``_geo_lookup``) must produce identical values for every field,
-        including the reader-missing defaults.
+        its own mmdb call. The consolidated struct fills the same values on
+        a miss, including the reader-missing defaults.
         """
         old_per_field = {
             "country": "Unknown",
             "region": "Unknown",
             "city": "Unknown",
-            "latitude": "Unknown",
-            "longitude": "Unknown",
+            "latitude": None,
+            "longitude": None,
             "isp": "Unknown",
         }
-        assert dict(silver._geo_lookup("8.8.8.8")) == old_per_field
+        assert silver._GEO_UNKNOWN == old_per_field
+        assert silver.get_geo_fields.func("8.8.8.8") == old_per_field
 
     def test_struct_udf_with_mocked_reader_matches_per_field_semantics(self):
         """A successful mmdb response flows through the struct unchanged."""
@@ -163,8 +167,8 @@ class TestGeoIPLookup:
             assert fields["country"] == "United States"
             assert fields["region"] == "California"
             assert fields["city"] == "San Jose"
-            assert fields["latitude"] == "37.33"
-            assert fields["longitude"] == "-121.89"
+            assert fields["latitude"] == 37.33
+            assert fields["longitude"] == -121.89
             assert fields["isp"] == "Test ISP"
         finally:
             silver._geoip_reader = None
@@ -376,7 +380,7 @@ class TestRunEnrichment:
         assert row.page_category == "Directory"  # uri_stem = "/" (canonical: no extension)
         assert row.referrer_domain == "Direct"  # referrer = "-"
         assert row.traffic_type == "Direct"
-        assert row.is_crawler == "false"  # IP not in crawler set
+        assert row.is_crawler is False  # IP not in crawler set (BOOLEAN contract)
 
     def test_page_category_classification(self, spark):
         self._create_bronze_data(
@@ -699,7 +703,7 @@ class TestRunEnrichment:
         for r in df.collect():
             refs[r.uri_stem] = (r.referrer_domain, r.traffic_type)
         assert refs["/"] == ("Direct", "Direct")
-        assert refs["/search"] == ("google.com", "Search")
+        assert refs["/search"] == ("google.com", "Search Engine")
         assert refs["/social"] == ("facebook.com", "Social")
         assert refs["/referral"] == ("example.org", "Referral")
         # Scheme-less referrers are real traffic: the domain is extracted
