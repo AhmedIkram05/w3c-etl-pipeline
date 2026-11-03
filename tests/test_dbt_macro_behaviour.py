@@ -107,10 +107,9 @@ class TestPercentileCont:
 
     def test_dialects_are_identical(self):
         """The two branches are the same expression, so output must match."""
-        assert (
-            _macro_module("sqlserver").tsql_percentile_cont(0.5, "x")
-            == _macro_module("postgres").tsql_percentile_cont(0.5, "x")
-        )
+        assert _macro_module("sqlserver").tsql_percentile_cont(0.5, "x") == _macro_module(
+            "postgres"
+        ).tsql_percentile_cont(0.5, "x")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -149,10 +148,10 @@ def _sqlserver_rule(url: str) -> str:
     low = url.lower()
     if low.startswith("https://") and _charindex("/", url + "/", 9) > 9:
         end = _charindex("/", url + "/", 9)
-        host = url[8:8 + (end - 9)]
+        host = url[8 : 8 + (end - 9)]
     elif low.startswith("http://") and _charindex("/", url + "/", 8) > 8:
         end = _charindex("/", url + "/", 8)
-        host = url[7:7 + (end - 8)]
+        host = url[7 : 7 + (end - 8)]
     else:
         host = url
     host = host.lower()
@@ -234,9 +233,9 @@ class TestDayOfWeek:
     @pytest.mark.parametrize(
         "date, expected",
         [
-            (datetime.date(1900, 1, 7), 0),   # Sunday anchor
-            (datetime.date(1970, 1, 1), 4),   # Thursday
-            (datetime.date(2000, 1, 1), 6),   # Saturday
+            (datetime.date(1900, 1, 7), 0),  # Sunday anchor
+            (datetime.date(1970, 1, 1), 4),  # Thursday
+            (datetime.date(2000, 1, 1), 6),  # Saturday
             (datetime.date(2024, 2, 29), 4),  # Thursday (leap day)
             (datetime.date(2009, 10, 24), 6),  # Saturday
         ],
