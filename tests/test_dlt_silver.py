@@ -508,7 +508,11 @@ class TestGetReferrerDomain:
 
 
 class TestGetTrafficType:
-    """Verify ``get_traffic_type`` classification UDF."""
+    """Verify ``get_traffic_type`` classification UDF (canonical vocabulary).
+
+    Canonical values mirror utils/transformations.traffic_type and the dbt
+    fact_webrequest.traffic_type accepted values.
+    """
 
     def test_direct(self, spark):
         from pyspark.sql.functions import col
@@ -520,19 +524,19 @@ class TestGetTrafficType:
         from pyspark.sql.functions import col
 
         df = spark.createDataFrame([Row(ref_domain="google.com")])
-        assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search"
+        assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search Engine"
 
     def test_search_bing(self, spark):
         from pyspark.sql.functions import col
 
         df = spark.createDataFrame([Row(ref_domain="bing.com")])
-        assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search"
+        assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search Engine"
 
     def test_search_yahoo(self, spark):
         from pyspark.sql.functions import col
 
         df = spark.createDataFrame([Row(ref_domain="yahoo.com")])
-        assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search"
+        assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search Engine"
 
     def test_social_facebook(self, spark):
         from pyspark.sql.functions import col
@@ -552,17 +556,36 @@ class TestGetTrafficType:
         df = spark.createDataFrame([Row(ref_domain="linkedin.com")])
         assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Social"
 
+    def test_internal(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(ref_domain="darwinsbeagleplants.org")])
+        assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Internal"
+
+    def test_unknown_sentinel(self, spark):
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(ref_domain="Unknown")])
+        assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Unknown"
+
     def test_referral_other(self, spark):
         from pyspark.sql.functions import col
 
         df = spark.createDataFrame([Row(ref_domain="some-other-site.com")])
         assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Referral"
 
+    def test_notgoogle_is_referral(self, spark):
+        """'notgoogle.com' merely contains 'google' — it is a plain Referral."""
+        from pyspark.sql.functions import col
+
+        df = spark.createDataFrame([Row(ref_domain="notgoogle.com")])
+        assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Referral"
+
     def test_case_insensitive_search(self, spark):
         from pyspark.sql.functions import col
 
         df = spark.createDataFrame([Row(ref_domain="GOOGLE.com")])
-        assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search"
+        assert df.select(get_traffic_type(col("ref_domain")).alias("t")).collect()[0]["t"] == "Search Engine"
 
 
 class TestGetIsCrawler:
@@ -834,7 +857,9 @@ class TestSilverExpectations:
         ])
         filtered = df.filter(
             (col("traffic_type") == "Direct")
-            | (col("traffic_type") == "Search")
+            | (col("traffic_type") == "Unknown")
+            | (col("traffic_type") == "Internal")
+            | (col("traffic_type") == "Search Engine")
             | (col("traffic_type") == "Social")
             | (col("traffic_type") == "Referral")
         )

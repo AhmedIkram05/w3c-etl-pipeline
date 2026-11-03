@@ -96,10 +96,16 @@ def _is_usable_ip(ip: str) -> bool:
 
 
 def _geo_lookup(ip: str) -> dict | None:
-    """Single consolidated GeoIP city lookup returning all fields.
+    """Single consolidated GeoIP city lookup returning all fields, or None on a miss.
 
     Uses maxminddb directly (returns raw dict), avoiding the geoip2
     dependency chain that isn't available on serverless DLT.
+
+    Contract shared with ``02_silver_enrichment._geo_lookup``: a hit returns a
+    dict, a miss (unusable IP, no reader, absent IP, or read error) returns
+    ``None`` and the caller fills the gap. The dicts differ per path because the
+    target schemas do: this path carries ``postcode`` (no ``isp`` — that comes
+    from the separate ASN lookup), the UC path carries ``isp``.
     """
     if not _is_usable_ip(ip):
         return None
@@ -169,7 +175,8 @@ def get_geo_fields(ip: str) -> dict | None:
     """Consolidated GeoIP UDF: one MaxMind call returns 6 fields.
 
     Fixes 7 separate GeoIP lookups per row issue by replacing
-    7 scalar UDFs with a single struct-returning UDF.
+    7 scalar UDFs with a single struct-returning UDF. Returns a null struct on
+    a miss; ``fill_geo_unknowns`` coalesces the string fields to 'Unknown'.
     """
     return _geo_lookup(ip)
 
@@ -276,17 +283,36 @@ def get_referrer_domain(referrer):
     return _extract_domain(referrer)
 
 
+# Canonical traffic-source vocabulary, mirroring utils/transformations and the
+# dbt fact_webrequest.traffic_type accepted values (Search Engine, Social,
+# Internal, Referral, Direct, Unknown).
+_SEARCH_ENGINES = ["google", "bing", "yahoo", "baidu", "duckduckgo", "yandex", "ask"]
+_SOCIAL_DOMAINS = ["facebook", "twitter", "linkedin", "reddit", "t.co", "instagram"]
+_INTERNAL_DOMAINS = ["darwinsbeagleplants", "134.36.36.75"]
+
+
 @udf(StringType())
 def get_traffic_type(referrer_domain):
-    """Classify traffic type based on referrer domain."""
+    """Classify an extracted referrer domain into the canonical vocabulary.
+
+    Mirrors utils/transformations.traffic_type: Direct, Unknown, Internal,
+    Search Engine, Social, Referral. Matching is on whole dot-delimited
+    labels, so 'notgoogle.com' is not a search referrer. The lists are
+    referenced directly (not via a helper) so the UDF pickles by value.
+    """
     if referrer_domain == "Direct":
         return "Direct"
-    elif any(search in referrer_domain.lower() for search in ["google", "bing", "yahoo", "duckduckgo"]):
-        return "Search"
-    elif any(social in referrer_domain.lower() for social in ["facebook", "twitter", "linkedin", "reddit"]):
+    if referrer_domain == "Unknown":
+        return "Unknown"
+
+    padded = f".{referrer_domain.lower()}."
+    if any(f".{s}." in padded for s in _INTERNAL_DOMAINS):
+        return "Internal"
+    if any(f".{s}." in padded for s in _SEARCH_ENGINES):
+        return "Search Engine"
+    if any(f".{s}." in padded for s in _SOCIAL_DOMAINS):
         return "Social"
-    else:
-        return "Referral"
+    return "Referral"
 
 
 @udf(BooleanType())
@@ -329,7 +355,9 @@ def get_size_band(bytes_sent, bytes_recv):
 )
 # 'valid_country' stays expect_or_drop: geo-miss rows get 'Unknown' via fill_geo_unknowns below, so it only drops genuinely-NULL countries.
 @dlt.expect_or_drop("valid_country", "country IS NOT NULL")
-@dlt.expect_or_drop("valid_traffic_type", "traffic_type IN ('Direct', 'Search', 'Social', 'Referral')")
+@dlt.expect_or_drop(
+    "valid_traffic_type", "traffic_type IN ('Direct', 'Unknown', 'Internal', 'Search Engine', 'Social', 'Referral')"
+)
 @dlt.expect_or_drop("valid_page_category", "page_category IS NOT NULL")
 def silver_enriched_logs():
     """Silver DLT pipeline with GeoIP enrichment and computed fields.
