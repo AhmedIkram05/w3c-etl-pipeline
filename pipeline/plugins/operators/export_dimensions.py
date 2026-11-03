@@ -18,6 +18,13 @@ Both tables use ``INSERT … ON CONFLICT DO NOTHING`` so every run is
 idempotent and incremental. Default ``-1`` surrogate-key rows are
 inserted so fact tables can reference them for unknown / missing values.
 
+``dim_geolocation`` is insert-only: it is a current-state snapshot keyed
+on ``UNIQUE(ip)``, so a later MaxMind attribute change for an IP already
+present is dropped. The Azure path
+(``spark_ingestion_azure._export_dimensions``) is SCD Type 2 and does
+version those updates; the divergence is intentional (see
+``_build_dim_geolocation``).
+
 This module is designed to be called as an Airflow ``PythonOperator``
 callable (it accepts ``**context``).
 """
@@ -25,6 +32,7 @@ callable (it accepts ``**context``).
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import time
 from urllib.parse import unquote_plus
@@ -33,6 +41,8 @@ import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
 from user_agents import parse as ua_parse
+
+log = logging.getLogger(__name__)
 
 # Default location of the Silver Delta table written by Spark. Can be
 # overridden with the ``W3C_SILVER_PATH`` environment variable.
@@ -214,7 +224,19 @@ def _build_dim_geolocation(conn, silver_path: str | None = None):
         Path to the Silver Delta table.  ``None`` falls back to
         ``$W3C_SILVER_PATH`` or ``DEFAULT_SILVER_PATH``.
 
-    Idempotent — uses ``ON CONFLICT (ip) DO NOTHING``.
+    Idempotent — uses ``ON CONFLICT (ip) DO NOTHING`` (insert-only).
+
+    Divergence from the Azure path: this local ``dim_geolocation`` is a
+    current-state snapshot keyed on ``UNIQUE(ip)`` — a MaxMind attribute
+    change for an IP that is already present is never propagated.  The Azure
+    path (``spark_ingestion_azure._export_dimensions``) is SCD Type 2
+    (``geo_hash`` + ``valid_to``/``is_current``) and does version updates.
+    Aligning the local path would need schema and dbt-model changes, so the
+    insert-only behaviour is kept and documented here.
+
+    A read failure of the Silver Delta is fatal: it is logged at ERROR and
+    re-raised so a failed read cannot leave stale dimensions behind a green
+    task.  An empty (but readable) Silver Delta is still a no-op.
     """
     if silver_path is None:
         silver_path = os.environ.get("W3C_SILVER_PATH", DEFAULT_SILVER_PATH)
@@ -224,12 +246,15 @@ def _build_dim_geolocation(conn, silver_path: str | None = None):
     try:
         geo = _read_silver_geo_dim(silver_path)
     except FileNotFoundError as exc:
-        print(f"[dim_geolocation] Silver path not found ({exc}); nothing to do.")
-        return
+        # A missing Silver path is a genuine read failure, not an empty source:
+        # returning here would leave stale dimensions while the task stays green.
+        log.error("[dim_geolocation] Silver path not found at %s: %s", silver_path, exc)
+        raise
     except Exception as exc:
-        print(f"[dim_geolocation] Failed to read Silver Delta ({exc}); nothing to do.")
-        return
+        log.error("[dim_geolocation] Failed to read Silver Delta at %s: %s", silver_path, exc)
+        raise
 
+    # Distinguish "no rows" (a legitimate no-op) from "read blew up" (above).
     if geo.empty:
         print("[dim_geolocation] Silver Delta is empty; nothing to do.")
         return
@@ -280,6 +305,11 @@ def _build_dim_geolocation(conn, silver_path: str | None = None):
                     INSERT INTO dim_geolocation
                         (ip, country, region, city, postcode, latitude, longitude, isp)
                     VALUES %s
+                    -- Insert-only by design (NOT SCD2): this local dimension is a
+                    -- current-state snapshot keyed on UNIQUE(ip), so a MaxMind
+                    -- attribute change never rewrites an IP already present. The
+                    -- Azure path (spark_ingestion_azure._export_dimensions) is SCD2
+                    -- and does version those updates; see the module docstring.
                     ON CONFLICT (ip) DO NOTHING
                     """,
                     insert_data,
@@ -411,6 +441,10 @@ def export_dimensions(**context) -> None:
        source of truth for client-IP geolocation).
     3. Builds ``dim_useragent`` from the ``raw_enriched`` Postgres
        table by parsing user-agent strings.
+
+    A Silver read failure aborts the task (``_build_dim_geolocation`` logs
+    at ERROR and re-raises); ``dim_geolocation`` is insert-only rather than
+    SCD2, unlike the Azure path (see the module docstring).
 
     Accepts ``**context`` for Airflow ``PythonOperator`` compatibility.
     Designed to be idempotent — safe to retry and re-run.
