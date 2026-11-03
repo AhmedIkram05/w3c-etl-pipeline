@@ -375,6 +375,28 @@ class TestApplyTypeCasts:
         row = result.collect()[0]
         assert row.is_crawler is False
 
+    def test_is_crawler_boolean_passthrough(self, spark):
+        """The canonical BooleanType silver value passes through unchanged."""
+        _requires_pyspark()
+        from export_warehouse import apply_type_casts
+        from pyspark.sql import Row
+        from pyspark.sql.types import BooleanType, StructField, StructType
+
+        schema = StructType([StructField("is_crawler", BooleanType(), True)])
+        df = spark.createDataFrame([Row(is_crawler=True), Row(is_crawler=False)], schema=schema)
+        assert [r.is_crawler for r in apply_type_casts(df).collect()] == [True, False]
+
+    def test_is_crawler_boolean_none_becomes_false(self, spark):
+        """A NULL boolean is_crawler maps to False (matches dbt's COALESCE)."""
+        _requires_pyspark()
+        from export_warehouse import apply_type_casts
+        from pyspark.sql import Row
+        from pyspark.sql.types import BooleanType, StructField, StructType
+
+        schema = StructType([StructField("is_crawler", BooleanType(), True)])
+        df = spark.createDataFrame([Row(is_crawler=None)], schema=schema)
+        assert apply_type_casts(df).collect()[0].is_crawler is False
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  4. Idempotency Tracking — get_loaded_source_files (psycopg2-backed)

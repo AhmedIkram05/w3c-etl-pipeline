@@ -44,7 +44,7 @@ that database return the field's documented default ("Unknown" or
 """
 
 from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType, StructField, StructType
+from pyspark.sql.types import FloatType, StringType, StructField, StructType
 
 # ── Default database paths (documented deployment locations) ──────────
 _CITY_DB_DEFAULT_PATH = "/opt/spark/data/GeoLite2-City.mmdb"
@@ -145,8 +145,10 @@ class _GeoReader:
                 "country": response.country.name or "Unknown",
                 "region": response.subdivisions.most_specific.name or "Unknown",
                 "city": (city.name or "Unknown") if city is not None else "Unknown",
-                "latitude": str(location.latitude) if location is not None and location.latitude is not None else None,
-                "longitude": str(location.longitude)
+                "latitude": float(location.latitude)
+                if location is not None and location.latitude is not None
+                else None,
+                "longitude": float(location.longitude)
                 if location is not None and location.longitude is not None
                 else None,
                 "postcode": (postal.code or None) if postal is not None else None,
@@ -194,8 +196,8 @@ def city_lookup(db_path: str | None = None):
             StructField("country", StringType(), True),
             StructField("region", StringType(), True),
             StructField("city", StringType(), True),
-            StructField("latitude", StringType(), True),
-            StructField("longitude", StringType(), True),
+            StructField("latitude", FloatType(), True),
+            StructField("longitude", FloatType(), True),
             StructField("postcode", StringType(), True),
         ])
     )
@@ -220,13 +222,16 @@ def city_field(field: str, db_path: str | None = None):
 
     Failure semantics match the historical scalar ``geoip_*`` UDFs: text
     fields return ``"Unknown"``, coordinates and postcode return ``None``.
+    ``latitude``/``longitude`` are typed FLOAT (the canonical silver contract);
+    the remaining fields are STRING.
     """
     if field not in _GEO_FIELDS:
         raise ValueError(f"Unknown GeoIP field: {field!r}")
     reader = _GeoReader(db_path or _CITY_DB_DEFAULT_PATH)
     null_on_failure = field in _NULL_DEFAULT_FIELDS
+    return_type = FloatType() if field in ("latitude", "longitude") else StringType()
 
-    @udf(returnType=StringType())
+    @udf(returnType=return_type)
     def geoip_scalar(ip: str):
         result = reader.city(ip)
         if result is None:

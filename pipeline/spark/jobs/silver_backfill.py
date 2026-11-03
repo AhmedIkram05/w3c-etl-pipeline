@@ -33,7 +33,7 @@ import os
 import statistics
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import broadcast, col, floor, lit, rand, when
+from pyspark.sql.functions import broadcast, col, floor, lit, rand
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("silver_backfill")
@@ -161,16 +161,11 @@ def run(
                 filtered.client_ip == col("crawler_ip"),
                 "left",
             )
-            .withColumn(
-                "is_crawler",
-                when(col("crawler_ip").isNotNull(), lit("true"))
-                .when(col("client_ip").isNull() | col("client_ip").isin("-", "Unknown"), lit("Unknown"))
-                .otherwise(lit("false")),
-            )
+            .withColumn("is_crawler", col("crawler_ip").isNotNull())
             .drop("crawler_ip")
         )
     else:
-        flagged = filtered.withColumn("is_crawler", lit("false"))
+        flagged = filtered.withColumn("is_crawler", lit(False))
 
     cols = (
         repartition_cols.split(",") if isinstance(repartition_cols, str) else (repartition_cols or ["log_date", "salt"])
