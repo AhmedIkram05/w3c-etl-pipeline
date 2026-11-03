@@ -413,8 +413,8 @@ class TestBuildDimGeolocation:
 
                     mock_exec.assert_not_called()
 
-    def test_missing_silver_path_returns_silently(self):
-        """``FileNotFoundError`` from the Delta read is caught — no DB I/O."""
+    def test_missing_silver_path_raises(self):
+        """A missing Silver path is a read failure — re-raised, no DB I/O."""
         read_conn, read_cur = _make_read_conn()
 
         with patch(
@@ -423,8 +423,24 @@ class TestBuildDimGeolocation:
         ):
             with _patched_write_conn():
                 with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
-                    # Must NOT raise.
-                    _build_dim_geolocation(read_conn, "/nonexistent")
+                    with pytest.raises(FileNotFoundError):
+                        _build_dim_geolocation(read_conn, "/nonexistent")
+
+                    read_cur.execute.assert_not_called()
+                    mock_exec.assert_not_called()
+
+    def test_read_failure_raises(self):
+        """Any other read error propagates instead of leaving stale dimensions."""
+        read_conn, read_cur = _make_read_conn()
+
+        with patch(
+            "plugins.operators.export_dimensions._read_silver_geo_dim",
+            side_effect=OSError("corrupt parquet"),
+        ):
+            with _patched_write_conn():
+                with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
+                    with pytest.raises(OSError, match="corrupt parquet"):
+                        _build_dim_geolocation(read_conn, "/silver/path")
 
                     read_cur.execute.assert_not_called()
                     mock_exec.assert_not_called()

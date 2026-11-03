@@ -192,7 +192,7 @@ where not({{ column_name }} {{ expression }})
 
 {% macro tsql_extract_domain(url_field) -%}
   {% if target.type == 'sqlserver' -%}
-    LOWER(
+    {% set host %}LOWER(
       CASE
         -- A host segment is required. 'https://' with no host, or a leading
         -- '/' after the scheme, must fall through to the ELSE so the result
@@ -206,8 +206,19 @@ where not({{ column_name }} {{ expression }})
           THEN SUBSTRING({{ url_field }}, 8, CHARINDEX('/', {{ url_field }} + '/', 8) - 8)
         ELSE {{ url_field }}
       END
-    )
+    ){% endset %}
+    -- Strip a LEADING 'www.' label to match the Spark referrer_domain logic
+    -- (utils/transformations, dlt_silver, 02_silver_enrichment). Only the
+    -- leading label is removed, so 'abcwww.com' keeps its middle 'www'.
+    CASE
+      WHEN ({{ host }}) LIKE 'www.%' THEN SUBSTRING(({{ host }}), 5, LEN(({{ host }})))
+      ELSE ({{ host }})
+    END
   {%- else -%}
-    LOWER(REGEXP_REPLACE({{ url_field }}, '^https?://([^/]+).*', '\1'))
-  {%- endif %}
+    REGEXP_REPLACE(
+      LOWER(REGEXP_REPLACE({{ url_field }}, '^https?://([^/]+).*', '\1')),
+      '^www\.',
+      ''
+    )
+  {%- endif -%}
 {%- endmacro %}

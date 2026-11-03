@@ -24,18 +24,25 @@ referrer_domains AS (
                 ELSE {{ tsql_extract_domain("'http://' + rr.referrer_url") }}
             END AS referrer_domain,
         {% else %}
-            CASE
-                WHEN rr.referrer_url = 'Direct' THEN 'Direct'
-                WHEN rr.referrer_url = 'Unknown' THEN 'Unknown'
-                WHEN rr.referrer_url ~* '^https?://([^/]+)'
-                    THEN LOWER(REGEXP_REPLACE(rr.referrer_url, '^https?://([^/]+).*', '\1'))
-                WHEN rr.referrer_url ~* '^https?://'
-                    THEN LOWER(SPLIT_PART(REPLACE(REPLACE(rr.referrer_url, 'http://', ''), 'https://', ''), '/', 1))
-                -- Scheme-less referrers are real traffic: prepend a scheme so the
-                -- domain is still extracted (canonical utils/transformations
-                -- behavior), instead of lumping them in as 'Unknown'.
-                ELSE LOWER(REGEXP_REPLACE('http://' || rr.referrer_url, '^https?://([^/]+).*', '\1'))
-            END AS referrer_domain
+            -- Strip a LEADING 'www.' label to match the Spark referrer_domain
+            -- logic (utils/transformations, dlt_silver, 02_silver_enrichment);
+            -- the SQL Server branch strips it inside tsql_extract_domain.
+            REGEXP_REPLACE(
+                CASE
+                    WHEN rr.referrer_url = 'Direct' THEN 'Direct'
+                    WHEN rr.referrer_url = 'Unknown' THEN 'Unknown'
+                    WHEN rr.referrer_url ~* '^https?://([^/]+)'
+                        THEN LOWER(REGEXP_REPLACE(rr.referrer_url, '^https?://([^/]+).*', '\1'))
+                    WHEN rr.referrer_url ~* '^https?://'
+                        THEN LOWER(SPLIT_PART(REPLACE(REPLACE(rr.referrer_url, 'http://', ''), 'https://', ''), '/', 1))
+                    -- Scheme-less referrers are real traffic: prepend a scheme so the
+                    -- domain is still extracted (canonical utils/transformations
+                    -- behavior), instead of lumping them in as 'Unknown'.
+                    ELSE LOWER(REGEXP_REPLACE('http://' || rr.referrer_url, '^https?://([^/]+).*', '\1'))
+                END,
+                '^www\.',
+                ''
+            ) AS referrer_domain
         {% endif %}
     FROM raw_referrers rr
 ),
