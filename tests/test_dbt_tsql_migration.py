@@ -285,6 +285,15 @@ class TestModelStructure:
                 f"{model_name} is expected to have inline T-SQL conditionals but none found"
             )
 
+    def test_fact_postgres_geo_lookup_selects_current_scd2_row(self):
+        """The Postgres branch of fact_webrequest's geo_lookup must join only the
+        CURRENT dim_geolocation version — otherwise SCD2 history fans out the
+        fact's LEFT JOIN."""
+        path = _find_model_file("fact_webrequest.sql")
+        assert path is not None, "fact_webrequest.sql not found"
+        content = path.read_text(encoding="utf-8")
+        assert "g.ip = c.client_ip AND g.is_current" in content
+
     def test_no_model_has_both_inline_and_external_templates(self):
         """No model should mix inline conditionals with external macro-only patterns."""
         for model_name in ALL_MODELS:
