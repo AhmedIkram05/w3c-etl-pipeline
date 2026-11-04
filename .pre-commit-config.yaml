@@ -10,7 +10,7 @@ repos:
     rev: v1.14.0
     hooks:
       - id: mypy
-        additional_dependencies: [types-requests, types-python-dateutil]
+        additional_dependencies: [types-requests==2.33.0.20261030, types-python-dateutil==2.9.0.20261029, types-PyYAML==6.0.12.20261103]
         args: [--ignore-missing-imports]
         exclude: ^(pipeline/dags/w3c/|pipeline/spark/jobs/)
 

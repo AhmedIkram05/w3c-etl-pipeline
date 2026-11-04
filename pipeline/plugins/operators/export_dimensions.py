@@ -14,16 +14,14 @@ tables that the warehouse exposes to dbt / Power BI:
   the ``raw_enriched`` Postgres table (still the canonical source for
   raw user-agent strings in the warehouse).
 
-Both tables use ``INSERT … ON CONFLICT DO NOTHING`` so every run is
-idempotent and incremental. Default ``-1`` surrogate-key rows are
-inserted so fact tables can reference them for unknown / missing values.
-
-``dim_geolocation`` is insert-only: it is a current-state snapshot keyed
-on ``UNIQUE(ip)``, so a later MaxMind attribute change for an IP already
-present is dropped. The Azure path
-(``spark_ingestion_azure._export_dimensions``) is SCD Type 2 and does
-version those updates; the divergence is intentional (see
-``_build_dim_geolocation``).
+``dim_useragent`` uses ``INSERT … ON CONFLICT DO NOTHING`` so every run
+is idempotent and incremental. ``dim_geolocation`` is SCD Type 2 keyed on
+``ip``: a changed MaxMind attribute for an IP expires its current row
+(``valid_to`` / ``is_current = 0``) and inserts a fresh current version,
+mirroring the Azure path
+(``spark_ingestion_azure._build_dim_geolocation``). Default ``-1``
+surrogate-key rows are inserted so fact tables can reference them for
+unknown / missing values.
 
 This module is designed to be called as an Airflow ``PythonOperator``
 callable (it accepts ``**context``).
@@ -207,32 +205,29 @@ def _read_silver_geo_dim(silver_path: str) -> pd.DataFrame:
     return geo
 
 
-def _build_dim_geolocation(conn, silver_path: str | None = None):
-    """Populate ``dim_geolocation`` from the Silver Delta table.
+def _build_dim_geolocation(silver_path: str | None = None):
+    """Populate ``dim_geolocation`` from the Silver Delta table (SCD Type 2).
 
     The Silver writer (``silver_enrichment.py``) is the single source of
     truth for geo enrichment — it produces ``country``, ``region``,
     ``city``, ``postcode``, ``latitude``, ``longitude`` and ``isp``
     using local MaxMind GeoLite2 databases.  We extract one row per
-    distinct ``client_ip`` and upsert into the dimension.
+    distinct ``client_ip`` and write it as the current version.
+
+    Mirrors the Azure path's SCD Type 2 semantics
+    (``spark_ingestion_azure._build_dim_geolocation``) — the same
+    ``valid_from`` / ``valid_to`` / ``is_current`` convention — but keyed
+    on ``ip`` (the local natural key) instead of ``geo_hash``.  Every geo
+    attribute except ``ip`` is tracked, so a MaxMind change expires the
+    current row (``valid_to`` / ``is_current = 0``) and inserts a fresh
+    current row; an unchanged IP matches nothing, so re-runs are
+    idempotent and never churn versions.
 
     Parameters
     ----------
-    conn : psycopg2 connection
-        Open connection to the warehouse database (read-side cursor).
     silver_path : str or None
         Path to the Silver Delta table.  ``None`` falls back to
         ``$W3C_SILVER_PATH`` or ``DEFAULT_SILVER_PATH``.
-
-    Idempotent — uses ``ON CONFLICT (ip) DO NOTHING`` (insert-only).
-
-    Divergence from the Azure path: this local ``dim_geolocation`` is a
-    current-state snapshot keyed on ``UNIQUE(ip)`` — a MaxMind attribute
-    change for an IP that is already present is never propagated.  The Azure
-    path (``spark_ingestion_azure._export_dimensions``) is SCD Type 2
-    (``geo_hash`` + ``valid_to``/``is_current``) and does version updates.
-    Aligning the local path would need schema and dbt-model changes, so the
-    insert-only behaviour is kept and documented here.
 
     A read failure of the Silver Delta is fatal: it is logged at ERROR and
     re-raised so a failed read cannot leave stale dimensions behind a green
@@ -259,27 +254,14 @@ def _build_dim_geolocation(conn, silver_path: str | None = None):
         print("[dim_geolocation] Silver Delta is empty; nothing to do.")
         return
 
-    # Determine which IPs are already in the dim.
-    cur = conn.cursor()
-    cur.execute("SELECT DISTINCT ip FROM dim_geolocation")
-    existing_ips = {row[0] for row in cur.fetchall()}
-    cur.close()
-
-    new_rows = geo[~geo["client_ip"].astype(str).isin(existing_ips)]
-    if new_rows.empty:
-        print(f"[dim_geolocation] All {len(geo)} IPs already in dim_geolocation — nothing to do.")
-        return
-
-    print(f"[dim_geolocation] Inserting {len(new_rows)} new IP(s) from Silver …")
-
-    # Build the INSERT payload.  Apply the schema's documented defaults
+    # Build the source payload.  Apply the schema's documented defaults
     # for missing / sentinel values:
     #   - text geo fields (country, region, city) → "Unknown"
     #   - postcode                                → "-"
     #   - isp                                     → "-"
     #   - lat/lon                                 → NULL
     insert_data = []
-    for _, row in new_rows.iterrows():
+    for _, row in geo.iterrows():
         ip = str(row["client_ip"]).strip()
         insert_data.append((
             ip,
@@ -295,28 +277,65 @@ def _build_dim_geolocation(conn, silver_path: str | None = None):
     if not insert_data:
         return
 
+    print(f"[dim_geolocation] Versioning {len(insert_data)} IP(s) from Silver …")
+
     attempts = 3
     for attempt in range(1, attempts + 1):
         try:
             with get_conn() as write_conn, write_conn.cursor() as write_cur:
+                # SCD2 step 1 — expire the current version of every IP whose
+                # tracked attributes changed. Row-wise IS DISTINCT FROM treats
+                # NULL lat/lon correctly. An unchanged IP matches no rows, so an
+                # idempotent re-run expires nothing.
+                execute_values(
+                    write_cur,
+                    """
+                    UPDATE dim_geolocation AS d
+                       SET valid_to = NOW(), is_current = FALSE
+                      FROM (VALUES %s) AS s(
+                               ip, country, region, city, postcode,
+                               latitude, longitude, isp)
+                     WHERE d.ip = s.ip
+                       AND d.is_current
+                       AND (d.country, d.region, d.city, d.postcode,
+                            d.latitude, d.longitude, d.isp)
+                           IS DISTINCT FROM
+                           (s.country::VARCHAR(100), s.region::VARCHAR(100),
+                            s.city::VARCHAR(100), s.postcode::VARCHAR(20),
+                            s.latitude::DOUBLE PRECISION,
+                            s.longitude::DOUBLE PRECISION, s.isp::VARCHAR(200))
+                    """,
+                    insert_data,
+                    page_size=1000,
+                )
+                # SCD2 step 2 — insert a current version for every IP that has
+                # none now: brand-new IPs plus the ones just expired above. T-SQL
+                # MERGE cannot expire and insert in one branch; this pair mirrors
+                # the Azure shape and keeps the partial unique index
+                # (ip WHERE is_current) satisfied.
                 execute_values(
                     write_cur,
                     """
                     INSERT INTO dim_geolocation
                         (ip, country, region, city, postcode, latitude, longitude, isp)
-                    VALUES %s
-                    -- Insert-only by design (NOT SCD2): this local dimension is a
-                    -- current-state snapshot keyed on UNIQUE(ip), so a MaxMind
-                    -- attribute change never rewrites an IP already present. The
-                    -- Azure path (spark_ingestion_azure._export_dimensions) is SCD2
-                    -- and does version those updates; see the module docstring.
-                    ON CONFLICT (ip) DO NOTHING
+                    SELECT s.ip::VARCHAR(50), s.country::VARCHAR(100),
+                           s.region::VARCHAR(100), s.city::VARCHAR(100),
+                           s.postcode::VARCHAR(20),
+                           s.latitude::DOUBLE PRECISION,
+                           s.longitude::DOUBLE PRECISION, s.isp::VARCHAR(200)
+                      FROM (VALUES %s) AS s(
+                               ip, country, region, city, postcode,
+                               latitude, longitude, isp)
+                     WHERE NOT EXISTS (
+                         SELECT 1 FROM dim_geolocation d
+                          WHERE d.ip = s.ip AND d.is_current
+                     )
                     """,
                     insert_data,
                     page_size=1000,
                 )
                 write_conn.commit()
-            print(f"[dim_geolocation] Inserted / confirmed {len(insert_data)} row(s).")
+            print(f"[dim_geolocation] SCD2 write complete for {len(insert_data)} IP(s).")
             return
         except psycopg2.OperationalError as e:
             if attempt == attempts:
@@ -395,16 +414,37 @@ def _ensure_dimension_tables(conn):
         cur.execute("""
             CREATE TABLE IF NOT EXISTS dim_geolocation (
                 geolocation_sk SERIAL PRIMARY KEY,
-                ip           VARCHAR(50) UNIQUE,
+                ip           VARCHAR(50),
                 country      VARCHAR(100),
                 region       VARCHAR(100),
                 city         VARCHAR(100),
                 postcode     VARCHAR(20),
                 latitude     DOUBLE PRECISION,
                 longitude    DOUBLE PRECISION,
-                isp          VARCHAR(200)
+                isp          VARCHAR(200),
+                -- SCD Type 2 validity columns (mirrors the Azure dim_geolocation)
+                valid_from   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                valid_to     TIMESTAMPTZ NOT NULL DEFAULT '9999-12-31',
+                is_current   BOOLEAN NOT NULL DEFAULT TRUE
             );
         """)
+        # Migration for deployments predating SCD2: the old UNIQUE(ip)
+        # constraint forbids a second version of an IP, so drop it, add the
+        # validity columns (existing rows become the first current version via
+        # the defaults) and enforce one current row per IP. Idempotent for both
+        # a fresh table (the columns already exist; the constraint never did)
+        # and an upgraded one.
+        cur.execute(
+            "ALTER TABLE dim_geolocation ADD COLUMN IF NOT EXISTS valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+        )
+        cur.execute(
+            "ALTER TABLE dim_geolocation ADD COLUMN IF NOT EXISTS valid_to TIMESTAMPTZ NOT NULL DEFAULT '9999-12-31'"
+        )
+        cur.execute("ALTER TABLE dim_geolocation ADD COLUMN IF NOT EXISTS is_current BOOLEAN NOT NULL DEFAULT TRUE")
+        cur.execute("ALTER TABLE dim_geolocation DROP CONSTRAINT IF EXISTS dim_geolocation_ip_key")
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_dim_geolocation__current ON dim_geolocation (ip) WHERE is_current"
+        )
         cur.execute("""
             CREATE TABLE IF NOT EXISTS dim_useragent (
                 user_agent_sk    SERIAL PRIMARY KEY,
@@ -437,14 +477,14 @@ def export_dimensions(**context) -> None:
 
     0. Creates dimension tables if they don't exist.
     1. Inserts default ``-1`` rows (idempotent).
-    2. Builds ``dim_geolocation`` from the Silver Delta table (single
-       source of truth for client-IP geolocation).
-    3. Builds ``dim_useragent`` from the ``raw_enriched`` Postgres
-       table by parsing user-agent strings.
+     2. Builds ``dim_geolocation`` from the Silver Delta table (single
+        source of truth for client-IP geolocation) as SCD Type 2 — see
+        ``_build_dim_geolocation``.
+     3. Builds ``dim_useragent`` from the ``raw_enriched`` Postgres
+        table by parsing user-agent strings.
 
     A Silver read failure aborts the task (``_build_dim_geolocation`` logs
-    at ERROR and re-raises); ``dim_geolocation`` is insert-only rather than
-    SCD2, unlike the Azure path (see the module docstring).
+    at ERROR and re-raises).
 
     Accepts ``**context`` for Airflow ``PythonOperator`` compatibility.
     Designed to be idempotent — safe to retry and re-run.
@@ -464,7 +504,7 @@ def export_dimensions(**context) -> None:
         print("[OK] Default -1 rows present.")
 
         # Step 2 — build dim_geolocation from Silver Delta.
-        _build_dim_geolocation(conn)
+        _build_dim_geolocation()
 
         # Step 3 — build dim_useragent (library parsing).
         _build_dim_useragent(conn)
