@@ -8,7 +8,8 @@ HTTP / IP-API calls — that path was retired):
   (``pd.read_parquet`` of ``W3C_SILVER_PATH``), which is pre-enriched by
   the Spark ``silver_enrichment`` job using local MaxMind GeoLite2
   databases.  The operator collapses distinct ``client_ip`` rows and
-  upserts them via ``INSERT … ON CONFLICT (ip) DO NOTHING``.
+  writes them as SCD Type 2: a changed geo attribute expires the current
+  row (``valid_to`` / ``is_current = 0``) and inserts a new current one.
 * ``dim_useragent``    — parsed from ``raw_enriched`` via the
   ``user-agents`` library.
 
@@ -65,18 +66,17 @@ def _patched_write_conn():
         yield mock_get_conn, mock_write_conn, mock_write_cur
 
 
-def _make_read_conn(existing_ips=()):
-    """Build a mock read-side connection used by the dimension writers.
+def _scd2_statements(mock_exec):
+    """Pull the two SCD2 ``execute_values`` calls apart.
 
-    The operator does ``conn.cursor()`` (not as a context manager) and
-    then ``cur.execute("SELECT DISTINCT ip FROM dim_geolocation")``
-    followed by ``cur.fetchall()``.
+    ``_build_dim_geolocation`` issues step 1 (expire the changed current row)
+    then step 2 (insert a fresh current row); ``execute_values`` is patched, so
+    the calls are captured in order. Returns
+    ``(expire_sql, expire_data, insert_sql, insert_data)``.
     """
-    mock_conn = MagicMock(name="read_conn")
-    mock_cur = MagicMock(name="read_cur")
-    mock_cur.fetchall.return_value = [(ip,) for ip in existing_ips]
-    mock_conn.cursor.return_value = mock_cur
-    return mock_conn, mock_cur
+    expire = mock_exec.call_args_list[0][0]
+    insert = mock_exec.call_args_list[1][0]
+    return expire[1], expire[2], insert[1], insert[2]
 
 
 def _make_silver_df(ips, **overrides):
@@ -367,12 +367,11 @@ class TestReadSilverDelta:
 
 
 class TestBuildDimGeolocation:
-    """Verify the ``dim_geolocation`` writer integrates with the Silver Delta."""
+    """Verify the SCD Type 2 ``dim_geolocation`` writer (Silver → Postgres)."""
 
-    def test_inserts_new_ips_from_silver(self):
-        """New IPs flow through to the INSERT statement with all columns."""
+    def test_new_ip_issues_expire_then_insert(self):
+        """A brand-new IP runs both SCD2 statements with all columns."""
         silver_df = _make_silver_df(["1.1.1.1"])
-        read_conn, _ = _make_read_conn(existing_ips=[])
 
         with patch(
             "plugins.operators.export_dimensions._read_silver_geo_dim",
@@ -380,13 +379,13 @@ class TestBuildDimGeolocation:
         ):
             with _patched_write_conn():
                 with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
-                    _build_dim_geolocation(read_conn, "/silver/path")
+                    _build_dim_geolocation("/silver/path")
 
-                    insert_sql = mock_exec.call_args[0][1]
+                    assert mock_exec.call_count == 2
+                    expire_sql, _, insert_sql, insert_data = _scd2_statements(mock_exec)
+                    assert "UPDATE dim_geolocation" in expire_sql
                     assert "INSERT INTO dim_geolocation" in insert_sql
-                    assert "ON CONFLICT (ip) DO NOTHING" in insert_sql
 
-                    insert_data = mock_exec.call_args[0][2]
                     assert len(insert_data) == 1
                     row = insert_data[0]
                     assert row[0] == "1.1.1.1"
@@ -398,10 +397,9 @@ class TestBuildDimGeolocation:
                     assert row[6] == -122.084  # longitude
                     assert row[7] == "Google"  # isp
 
-    def test_skips_already_present_ips(self):
-        """If every Silver IP is already in the dim, no INSERT runs."""
+    def test_expire_statement_closes_only_changed_current_rows(self):
+        """SCD2 step 1 expires the current row only when an attribute differs."""
         silver_df = _make_silver_df(["1.1.1.1"])
-        read_conn, _ = _make_read_conn(existing_ips=["1.1.1.1"])
 
         with patch(
             "plugins.operators.export_dimensions._read_silver_geo_dim",
@@ -409,14 +407,38 @@ class TestBuildDimGeolocation:
         ):
             with _patched_write_conn():
                 with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
-                    _build_dim_geolocation(read_conn, "/silver/path")
+                    _build_dim_geolocation("/silver/path")
 
-                    mock_exec.assert_not_called()
+                    expire_sql, expire_data, _, _ = _scd2_statements(mock_exec)
+                    assert "SET valid_to = NOW(), is_current = FALSE" in expire_sql
+                    # Row-wise comparison so a change to ANY tracked attribute
+                    # (or a NULL lat/lon) is detected; an unchanged IP matches
+                    # no row and is left alone.
+                    assert "IS DISTINCT FROM" in expire_sql
+                    assert "d.is_current" in expire_sql
+                    assert expire_data
+
+    def test_insert_statement_only_writes_ip_without_a_current_row(self):
+        """SCD2 step 2 inserts only brand-new or just-expired IPs, so an
+        unchanged IP (which still has a current row) creates no new version."""
+        silver_df = _make_silver_df(["1.1.1.1"])
+
+        with patch(
+            "plugins.operators.export_dimensions._read_silver_geo_dim",
+            return_value=silver_df,
+        ):
+            with _patched_write_conn():
+                with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
+                    _build_dim_geolocation("/silver/path")
+
+                    _, _, insert_sql, _ = _scd2_statements(mock_exec)
+                    assert "WHERE NOT EXISTS (" in insert_sql
+                    assert "d.ip = s.ip AND d.is_current" in insert_sql
+                    # The insert-only conflict handling is gone.
+                    assert "ON CONFLICT" not in insert_sql
 
     def test_missing_silver_path_raises(self):
         """A missing Silver path is a read failure — re-raised, no DB I/O."""
-        read_conn, read_cur = _make_read_conn()
-
         with patch(
             "plugins.operators.export_dimensions._read_silver_geo_dim",
             side_effect=FileNotFoundError("delta path missing"),
@@ -424,15 +446,12 @@ class TestBuildDimGeolocation:
             with _patched_write_conn():
                 with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
                     with pytest.raises(FileNotFoundError):
-                        _build_dim_geolocation(read_conn, "/nonexistent")
+                        _build_dim_geolocation("/nonexistent")
 
-                    read_cur.execute.assert_not_called()
                     mock_exec.assert_not_called()
 
     def test_read_failure_raises(self):
         """Any other read error propagates instead of leaving stale dimensions."""
-        read_conn, read_cur = _make_read_conn()
-
         with patch(
             "plugins.operators.export_dimensions._read_silver_geo_dim",
             side_effect=OSError("corrupt parquet"),
@@ -440,24 +459,20 @@ class TestBuildDimGeolocation:
             with _patched_write_conn():
                 with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
                     with pytest.raises(OSError, match="corrupt parquet"):
-                        _build_dim_geolocation(read_conn, "/silver/path")
+                        _build_dim_geolocation("/silver/path")
 
-                    read_cur.execute.assert_not_called()
                     mock_exec.assert_not_called()
 
     def test_empty_silver_dataframe_returns_silently(self):
         """An empty Silver DataFrame short-circuits the function."""
-        read_conn, read_cur = _make_read_conn()
-
         with patch(
             "plugins.operators.export_dimensions._read_silver_geo_dim",
             return_value=pd.DataFrame(),
         ):
             with _patched_write_conn():
                 with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
-                    _build_dim_geolocation(read_conn, "/empty/path")
+                    _build_dim_geolocation("/empty/path")
 
-                    read_cur.execute.assert_not_called()
                     mock_exec.assert_not_called()
 
 
@@ -502,17 +517,16 @@ class TestBuildDimUseragent:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  7. INSERT ... ON CONFLICT DO NOTHING — SQL pattern verification
+#  7. SCD2 write SQL pattern verification
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestInsertOnConflict:
-    """Verify the INSERT SQL for both dimension tables uses ON CONFLICT."""
+class TestGeolocationSCD2Sql:
+    """Verify the ``dim_geolocation`` SCD2 write SQL and batching."""
 
-    def test_dim_geolocation_insert_sql(self):
-        """``_build_dim_geolocation`` emits INSERT … ON CONFLICT (ip) DO NOTHING."""
+    def test_dim_geolocation_scd2_statements(self):
+        """``_build_dim_geolocation`` expires then re-inserts the current row."""
         silver_df = _make_silver_df(["1.1.1.1"])
-        read_conn, _ = _make_read_conn(existing_ips=[])
 
         with patch(
             "plugins.operators.export_dimensions._read_silver_geo_dim",
@@ -520,13 +534,14 @@ class TestInsertOnConflict:
         ):
             with _patched_write_conn():
                 with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
-                    _build_dim_geolocation(read_conn, "/silver/path")
+                    _build_dim_geolocation("/silver/path")
 
-                    insert_sql = mock_exec.call_args[0][1]
+                    expire_sql, _, insert_sql, _ = _scd2_statements(mock_exec)
+                    assert "UPDATE dim_geolocation" in expire_sql
                     assert "INSERT INTO dim_geolocation" in insert_sql
-                    assert "ON CONFLICT (ip) DO NOTHING" in insert_sql
-                    # Batch page_size 1000 is the documented default.
-                    assert mock_exec.call_args[1]["page_size"] == 1000
+                    # Batch page_size 1000 is the documented default on both.
+                    for call in mock_exec.call_args_list:
+                        assert call[1]["page_size"] == 1000
 
     def test_dim_useragent_insert_sql(self):
         """``_build_dim_useragent`` emits INSERT … ON CONFLICT (ua_hash) DO NOTHING."""
@@ -552,22 +567,6 @@ class TestInsertOnConflict:
 class TestSQLQueries:
     """Verify the SQL queries issued by the dimension writers."""
 
-    def test_dim_geolocation_checks_existing_ips_first(self):
-        """Before inserting, the writer queries which IPs already exist."""
-        silver_df = _make_silver_df(["1.1.1.1"])
-        read_conn, read_cur = _make_read_conn(existing_ips=["1.1.1.1"])
-
-        with patch(
-            "plugins.operators.export_dimensions._read_silver_geo_dim",
-            return_value=silver_df,
-        ):
-            with _patched_write_conn():
-                with patch("plugins.operators.export_dimensions.execute_values"):
-                    _build_dim_geolocation(read_conn, "/silver/path")
-
-        select_calls = [c[0][0] for c in read_cur.execute.call_args_list]
-        assert any("SELECT DISTINCT ip FROM dim_geolocation" in sql for sql in select_calls)
-
     def test_dim_useragent_selects_distinct_user_agent(self):
         """``_build_dim_useragent`` queries distinct, non-null, non-dash UAs."""
         mock_conn = MagicMock()
@@ -585,7 +584,6 @@ class TestSQLQueries:
     def test_silver_path_defaults_to_w3c_silver_path_env(self):
         """When ``silver_path`` is None, the operator reads ``W3C_SILVER_PATH``."""
         silver_df = _make_silver_df(["1.1.1.1"])
-        read_conn, _ = _make_read_conn(existing_ips=["1.1.1.1"])
 
         with patch.dict(
             "plugins.operators.export_dimensions.os.environ",
@@ -599,14 +597,13 @@ class TestSQLQueries:
                 with _patched_write_conn():
                     with patch("plugins.operators.export_dimensions.execute_values"):
                         # silver_path=None — fall back to W3C_SILVER_PATH.
-                        _build_dim_geolocation(read_conn, silver_path=None)
+                        _build_dim_geolocation(silver_path=None)
 
                 mock_read.assert_called_once_with("/from/env/silver")
 
     def test_silver_path_defaults_to_module_constant_when_env_unset(self):
         """When both ``silver_path`` and ``W3C_SILVER_PATH`` are absent, ``DEFAULT_SILVER_PATH`` is used."""
         silver_df = _make_silver_df(["1.1.1.1"])
-        read_conn, _ = _make_read_conn(existing_ips=["1.1.1.1"])
 
         env_without_silver = {k: v for k, v in __import__("os").environ.items() if k != "W3C_SILVER_PATH"}
         with patch.dict(
@@ -620,7 +617,7 @@ class TestSQLQueries:
             ) as mock_read:
                 with _patched_write_conn():
                     with patch("plugins.operators.export_dimensions.execute_values"):
-                        _build_dim_geolocation(read_conn, silver_path=None)
+                        _build_dim_geolocation(silver_path=None)
 
                 mock_read.assert_called_once_with(DEFAULT_SILVER_PATH)
 
@@ -641,14 +638,23 @@ class TestEnsureDimensionTables:
 
         _ensure_dimension_tables(mock_conn)
 
-        # 2 CREATE TABLE + 3 ua_hash migration statements.
-        assert mock_cursor.execute.call_count == 5
+        # 2 CREATE TABLE + 3 dim_useragent migration + 5 dim_geolocation SCD2
+        # migration statements.
+        assert mock_cursor.execute.call_count == 10
         executed = [c[0][0] for c in mock_cursor.execute.call_args_list]
         assert any("CREATE TABLE IF NOT EXISTS dim_geolocation" in sql for sql in executed)
         assert any("CREATE TABLE IF NOT EXISTS dim_useragent" in sql for sql in executed)
-        # PK constraints and unique IPs are part of the documented schema.
-        assert any("SERIAL PRIMARY KEY" in sql for sql in executed)
-        assert any("ip           VARCHAR(50) UNIQUE" in sql for sql in executed)
+        geo_create = next(sql for sql in executed if "CREATE TABLE IF NOT EXISTS dim_geolocation" in sql)
+        assert "SERIAL PRIMARY KEY" in geo_create
+        # SCD2 validity columns mirror the Azure dim_geolocation.
+        assert "valid_from" in geo_create
+        assert "valid_to" in geo_create
+        assert "is_current" in geo_create
+        # The old insert-only UNIQUE(ip) is gone — history needs duplicate ips.
+        assert "UNIQUE" not in geo_create
+        # Migration: one current row per IP, and the old unique constraint dropped.
+        assert any("ux_dim_geolocation__current" in sql for sql in executed)
+        assert any("DROP CONSTRAINT IF EXISTS dim_geolocation_ip_key" in sql for sql in executed)
         # ua_hash migration for deployments created before the column existed.
         assert any("ADD COLUMN IF NOT EXISTS ua_hash" in sql for sql in executed)
         assert any("CREATE UNIQUE INDEX IF NOT EXISTS ux_dim_useragent_ua_hash" in sql for sql in executed)
@@ -677,7 +683,7 @@ class TestExportDimensionsCallable:
 
                             mock_ddl.assert_called_once_with(mock_conn)
                             mock_default.assert_called_once_with(mock_conn)
-                            mock_geo.assert_called_once_with(mock_conn)
+                            mock_geo.assert_called_once_with()
                             mock_ua.assert_called_once_with(mock_conn)
                             mock_conn.close.assert_called_once()
 
@@ -775,7 +781,6 @@ class TestEdgeCases:
             country=["US", "US", "US", "US"],
             isp=["Google", "Private", "Private", "Private"],
         )
-        read_conn, _ = _make_read_conn(existing_ips=[])
 
         with patch(
             "plugins.operators.export_dimensions._read_silver_geo_dim",
@@ -783,9 +788,9 @@ class TestEdgeCases:
         ):
             with _patched_write_conn():
                 with patch("plugins.operators.export_dimensions.execute_values") as mock_exec:
-                    _build_dim_geolocation(read_conn, "/silver/path")
+                    _build_dim_geolocation("/silver/path")
 
-                    insert_data = mock_exec.call_args[0][2]
+                    _, _, _, insert_data = _scd2_statements(mock_exec)
                     # All four IPs — including 127.0.0.1, 0.0.0.0, 10.0.0.1 —
                     # are passed through to the INSERT payload.
                     assert len(insert_data) == 4
