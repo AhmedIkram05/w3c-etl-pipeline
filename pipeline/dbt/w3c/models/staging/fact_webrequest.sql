@@ -166,10 +166,13 @@ geo_lookup AS (
 ),
 {% else %}
 geo_lookup AS (
-    -- Exactly one geo row per client_ip, matching the sqlserver branch.
-    -- public.dim_geolocation.ip is normally unique, but if it ever holds
-    -- several rows for one IP a plain DISTINCT would fan out the fact's
-    -- LEFT JOIN; ROW_NUMBER picks one deterministically instead.
+    -- public.dim_geolocation is SCD Type 2 (several versions per ip): join to
+    -- the CURRENT version only, otherwise every historical version fans out the
+    -- fact's LEFT JOIN. The partial unique index ux_dim_geolocation__current
+    -- (ip WHERE is_current) guarantees exactly one current row per ip, so the
+    -- join cannot duplicate. ROW_NUMBER is still required — `computed` holds
+    -- many rows per client_ip (one per request) and this CTE must collapse to
+    -- exactly one row per IP before the fact's LEFT JOIN.
     SELECT client_ip, geolocation_sk
     FROM (
         SELECT
@@ -180,7 +183,8 @@ geo_lookup AS (
                 ORDER BY g.country, g.region, g.city, g.latitude, g.longitude
             ) AS rn
         FROM computed c
-        JOIN {{ source('w3c', 'dim_geolocation') }} g ON g.ip = c.client_ip
+        JOIN {{ source('w3c', 'dim_geolocation') }} g
+            ON g.ip = c.client_ip AND g.is_current
     ) g
     WHERE g.rn = 1
 ),
