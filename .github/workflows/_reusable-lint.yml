@@ -16,7 +16,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install dependencies
-        run: pip install ruff mypy types-requests types-python-dateutil bandit "sqlfluff>=3.0,<4.0"
+        run: pip install ruff==0.17.3 mypy==1.14.0 types-requests types-python-dateutil bandit==1.9.4 sqlfluff==3.5.0
       - name: Ruff lint
         run: ruff check --output-format=github .
       - name: Ruff format check
