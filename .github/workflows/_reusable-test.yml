@@ -9,6 +9,10 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # DSN for tests/test_dim_geolocation_scd2_db.py — points at the postgres
+      # service below (default user postgres, DB+password from POSTGRES_* there).
+      W3C_TEST_DATABASE_URL: postgresql://postgres:test@localhost:5432/test
     services:
       postgres:
         image: postgres:16
