@@ -46,6 +46,48 @@ log = logging.getLogger(__name__)
 # overridden with the ``W3C_SILVER_PATH`` environment variable.
 DEFAULT_SILVER_PATH = "/opt/spark/delta/silver"
 
+# SCD Type 2 write for ``dim_geolocation``, shared by ``_build_dim_geolocation``
+# and the Postgres-backed test (``tests/test_dim_geolocation_scd2_db.py``) so the
+# SQL asserted against a real server cannot drift from the SQL that runs in
+# production. Step 1 expires the current version of every IP whose tracked
+# attributes changed; the row-wise ``IS DISTINCT FROM`` treats NULL lat/lon
+# correctly. Step 2 inserts a current version for every IP that has none now
+# (brand-new plus just-expired) — an unchanged IP matches nothing, so re-runs
+# never churn versions.
+GEO_SCD2_EXPIRE_SQL = """
+    UPDATE dim_geolocation AS d
+       SET valid_to = NOW(), is_current = FALSE
+      FROM (VALUES %s) AS s(
+               ip, country, region, city, postcode,
+               latitude, longitude, isp)
+     WHERE d.ip = s.ip
+       AND d.is_current
+       AND (d.country, d.region, d.city, d.postcode,
+            d.latitude, d.longitude, d.isp)
+           IS DISTINCT FROM
+           (s.country::VARCHAR(100), s.region::VARCHAR(100),
+            s.city::VARCHAR(100), s.postcode::VARCHAR(20),
+            s.latitude::DOUBLE PRECISION,
+            s.longitude::DOUBLE PRECISION, s.isp::VARCHAR(200))
+    """
+
+GEO_SCD2_INSERT_SQL = """
+    INSERT INTO dim_geolocation
+        (ip, country, region, city, postcode, latitude, longitude, isp)
+    SELECT s.ip::VARCHAR(50), s.country::VARCHAR(100),
+           s.region::VARCHAR(100), s.city::VARCHAR(100),
+           s.postcode::VARCHAR(20),
+           s.latitude::DOUBLE PRECISION,
+           s.longitude::DOUBLE PRECISION, s.isp::VARCHAR(200)
+      FROM (VALUES %s) AS s(
+               ip, country, region, city, postcode,
+               latitude, longitude, isp)
+     WHERE NOT EXISTS (
+         SELECT 1 FROM dim_geolocation d
+          WHERE d.ip = s.ip AND d.is_current
+     )
+    """
+
 
 def get_conn():
     """Create and return a new psycopg2 DB connection.
@@ -205,6 +247,18 @@ def _read_silver_geo_dim(silver_path: str) -> pd.DataFrame:
     return geo
 
 
+def _write_geo_versions(conn, insert_data) -> None:
+    """Run the two shared SCD2 statements for ``dim_geolocation`` on *conn*.
+
+    Extracted so the operator and the Postgres-backed test execute the exact
+    same SQL.  Callers own the transaction (commit / rollback) — this only
+    issues the expire then insert statements, in that order.
+    """
+    with conn.cursor() as cur:
+        execute_values(cur, GEO_SCD2_EXPIRE_SQL, insert_data, page_size=1000)
+        execute_values(cur, GEO_SCD2_INSERT_SQL, insert_data, page_size=1000)
+
+
 def _build_dim_geolocation(silver_path: str | None = None):
     """Populate ``dim_geolocation`` from the Silver Delta table (SCD Type 2).
 
@@ -282,58 +336,11 @@ def _build_dim_geolocation(silver_path: str | None = None):
     attempts = 3
     for attempt in range(1, attempts + 1):
         try:
-            with get_conn() as write_conn, write_conn.cursor() as write_cur:
-                # SCD2 step 1 — expire the current version of every IP whose
-                # tracked attributes changed. Row-wise IS DISTINCT FROM treats
-                # NULL lat/lon correctly. An unchanged IP matches no rows, so an
-                # idempotent re-run expires nothing.
-                execute_values(
-                    write_cur,
-                    """
-                    UPDATE dim_geolocation AS d
-                       SET valid_to = NOW(), is_current = FALSE
-                      FROM (VALUES %s) AS s(
-                               ip, country, region, city, postcode,
-                               latitude, longitude, isp)
-                     WHERE d.ip = s.ip
-                       AND d.is_current
-                       AND (d.country, d.region, d.city, d.postcode,
-                            d.latitude, d.longitude, d.isp)
-                           IS DISTINCT FROM
-                           (s.country::VARCHAR(100), s.region::VARCHAR(100),
-                            s.city::VARCHAR(100), s.postcode::VARCHAR(20),
-                            s.latitude::DOUBLE PRECISION,
-                            s.longitude::DOUBLE PRECISION, s.isp::VARCHAR(200))
-                    """,
-                    insert_data,
-                    page_size=1000,
-                )
-                # SCD2 step 2 — insert a current version for every IP that has
-                # none now: brand-new IPs plus the ones just expired above. T-SQL
-                # MERGE cannot expire and insert in one branch; this pair mirrors
-                # the Azure shape and keeps the partial unique index
-                # (ip WHERE is_current) satisfied.
-                execute_values(
-                    write_cur,
-                    """
-                    INSERT INTO dim_geolocation
-                        (ip, country, region, city, postcode, latitude, longitude, isp)
-                    SELECT s.ip::VARCHAR(50), s.country::VARCHAR(100),
-                           s.region::VARCHAR(100), s.city::VARCHAR(100),
-                           s.postcode::VARCHAR(20),
-                           s.latitude::DOUBLE PRECISION,
-                           s.longitude::DOUBLE PRECISION, s.isp::VARCHAR(200)
-                      FROM (VALUES %s) AS s(
-                               ip, country, region, city, postcode,
-                               latitude, longitude, isp)
-                     WHERE NOT EXISTS (
-                         SELECT 1 FROM dim_geolocation d
-                          WHERE d.ip = s.ip AND d.is_current
-                     )
-                    """,
-                    insert_data,
-                    page_size=1000,
-                )
+            with get_conn() as write_conn:
+                # SCD2 write — expire changed current versions, then insert a
+                # current version for every IP that has none. Shared with the
+                # DB-backed test via ``_write_geo_versions`` / the SQL constants.
+                _write_geo_versions(write_conn, insert_data)
                 write_conn.commit()
             print(f"[dim_geolocation] SCD2 write complete for {len(insert_data)} IP(s).")
             return
