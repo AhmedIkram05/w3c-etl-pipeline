@@ -105,6 +105,7 @@ class _GeoReader:
         self._opened = False
 
     def _ensure_ready(self) -> None:
+        """Open the GeoLite2 database once per process, caching errors."""
         if self._opened:
             return
         self._opened = True
@@ -202,6 +203,7 @@ def city_lookup(db_path: str | None = None):
         ])
     )
     def get_geo_fields(ip: str) -> dict:
+        """Return all six City DB fields for *ip* as a dict."""
         result = reader.city(ip)
         if result is None:
             return {
@@ -233,6 +235,7 @@ def city_field(field: str, db_path: str | None = None):
 
     @udf(returnType=return_type)
     def geoip_scalar(ip: str):
+        """Return the configured City DB field for *ip*."""
         result = reader.city(ip)
         if result is None:
             return None if null_on_failure else "Unknown"
@@ -252,6 +255,7 @@ def asn_lookup(db_path: str | None = None):
 
     @udf(returnType=StringType())
     def geoip_isp(ip: str) -> str:
+        """Return the ASN organisation for *ip*, or "Unknown"."""
         result = reader.asn(ip)
         return result if result else "Unknown"
 
