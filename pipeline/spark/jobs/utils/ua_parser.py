@@ -65,26 +65,31 @@ def _safe_parse(ua_string: str) -> dict:
 
 @pandas_udf(returnType=StringType())
 def parse_agent_type(ua_series: pd.Series) -> pd.Series:
+    """Return the parsed agent type for each UA string."""
     return ua_series.apply(lambda ua: _safe_parse(ua)["agent_type"])
 
 
 @pandas_udf(returnType=StringType())
 def parse_browser_name(ua_series: pd.Series) -> pd.Series:
+    """Return the parsed browser name for each UA string."""
     return ua_series.apply(lambda ua: _safe_parse(ua)["browser_name"])
 
 
 @pandas_udf(returnType=StringType())
 def parse_browser_version(ua_series: pd.Series) -> pd.Series:
+    """Return the parsed browser version for each UA string."""
     return ua_series.apply(lambda ua: _safe_parse(ua)["browser_version"])
 
 
 @pandas_udf(returnType=StringType())
 def parse_operating_system(ua_series: pd.Series) -> pd.Series:
+    """Return the parsed operating system for each UA string."""
     return ua_series.apply(lambda ua: _safe_parse(ua)["operating_system"])
 
 
 @pandas_udf(returnType=StringType())
 def parse_device_type(ua_series: pd.Series) -> pd.Series:
+    """Return the parsed device type for each UA string."""
     return ua_series.apply(lambda ua: _safe_parse(ua)["device_type"])
 
 

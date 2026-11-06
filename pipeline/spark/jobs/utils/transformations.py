@@ -178,6 +178,7 @@ def make_crawler_udf(crawler_ips: set) -> callable:
 
     @udf(returnType=BooleanType())
     def is_crawler_impl(ip):
+        """Return True if *ip* is in the crawler IP set."""
         return bool(ip) and ip.strip() not in ("-", "Unknown", "") and ip.strip() in ips
 
     return is_crawler_impl
