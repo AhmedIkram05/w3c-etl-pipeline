@@ -1,1 +1,1 @@
-# W3C ETL Pipeline — Airflow Plugins
+"""Airflow plugins for the W3C ETL pipeline."""
