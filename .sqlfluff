@@ -4,8 +4,8 @@ templater = raw
 max_line_length = 120
 exclude_rules = L003,L012,L014,L016,L024,L031,L034
 
-[sqlfluff:rules:L010]
+[sqlfluff:rules:CP01]
 capitalisation_policy = upper
 
-[sqlfluff:rules:L030]
+[sqlfluff:rules:CP03]
 capitalisation_policy = upper

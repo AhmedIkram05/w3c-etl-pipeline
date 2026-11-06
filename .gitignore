@@ -63,3 +63,18 @@ w3c_etl_pipeline.egg-info
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+
+# Coverage reports
+.coverage*
+coverage.xml
+htmlcov/
+
+# Logs and local env
+*.log
+pipeline/.env
+
+# IDE
+.idea/
+
+# macOS junk anywhere in the tree
+**/.DS_Store

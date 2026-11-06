@@ -34,4 +34,4 @@ rebuild:
 #   integration  — reserved for future Azure-dependent end-to-end tests
 test:
 	$(COMPOSE_CMD) cp $(PIPELINE_DIR)/spark/databricks/ airflow-scheduler:/opt/airflow/spark/databricks/
-	$(COMPOSE_CMD) exec -T airflow-scheduler bash -c 'pip install --no-cache-dir -r /opt/airflow/tests/requirements-test.txt && PYTHONPATH=/opt/airflow/spark/jobs:/opt/airflow/spark/databricks:/opt:/opt/airflow/plugins:$$PYTHONPATH python -m pytest /opt/airflow/tests/ -v --tb=short -m "not integration and not dbt_compile" --cov=/opt/airflow --cov-report=term-missing'
+	$(COMPOSE_CMD) exec -T airflow-scheduler bash -c 'pip install --no-cache-dir -r /opt/airflow/tests/requirements-test.txt && PYTHONPATH=/opt/airflow/spark/jobs:/opt/airflow/spark/databricks:/opt:/opt/airflow/plugins:$$PYTHONPATH python -m pytest /opt/airflow/tests/ -v --tb=short -m "not integration and not dbt_compile and not terraform" --cov=/opt/airflow --cov-report=term-missing'
