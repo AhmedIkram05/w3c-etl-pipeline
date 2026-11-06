@@ -1,1 +1,1 @@
-# W3C ETL Pipeline — Custom Operators & Utilities
+"""Custom Airflow operators for W3C ETL tasks."""
