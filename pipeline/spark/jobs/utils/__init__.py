@@ -1,1 +1,1 @@
-# W3C Spark ETL — shared utility modules
+"""Shared Spark job utilities for W3C log processing."""
