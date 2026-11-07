@@ -30,14 +30,6 @@ warn_unused_ignores = true
 disallow_any_unimported = false
 
 [[tool.mypy.overrides]]
-module = "dags.w3c.*"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "spark.jobs.*"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
 module = "spark.databricks.*"
 ignore_missing_imports = true
 

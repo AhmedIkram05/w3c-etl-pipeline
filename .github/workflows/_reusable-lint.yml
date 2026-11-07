@@ -25,6 +25,10 @@ jobs:
         run: mypy --ignore-missing-imports tests/
       - name: MyPy type check (Databricks scripts)
         run: mypy --ignore-missing-imports pipeline/spark/databricks/
+      - name: MyPy type check (Spark jobs)
+        run: mypy --ignore-missing-imports pipeline/spark/jobs/
+      - name: MyPy type check (Airflow DAGs)
+        run: mypy --ignore-missing-imports pipeline/dags/
       - name: Bandit security scan
         run: bandit -r pipeline/ -c pyproject.toml
       - name: SQLFluff dbt SQL lint

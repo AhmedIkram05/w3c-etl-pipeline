@@ -16,7 +16,7 @@ def create_spark_session(app_name: str = "W3C_ETL") -> SparkSession:
     )
 
 
-def get_loaded_files(spark, path: str) -> set:
+def get_loaded_files(spark: SparkSession, path: str) -> set[str]:
     """Return set of source_file values already present at ``path``."""
     try:
         df = spark.read.format("delta").load(path)
