@@ -104,19 +104,9 @@ ADD COLUMN IF NOT EXISTS loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
 
 def create_spark_session(app_name: str = "W3C_Export_Warehouse") -> SparkSession:
-    """Build a SparkSession with Delta Lake support."""
-    return (
-        SparkSession.builder
-        .appName(app_name)
-        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config(
-            "spark.sql.catalog.spark_catalog",
-            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-        )
-        .config("spark.sql.adaptive.enabled", "true")
-        .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
-        .getOrCreate()
-    )
+    from utils.session import create_spark_session as _create
+
+    return _create(app_name)
 
 
 def get_loaded_source_files(jdbc_url: str, jdbc_props: dict) -> set:
