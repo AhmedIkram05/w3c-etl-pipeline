@@ -12,6 +12,7 @@ These PySpark UDFs replicate the business logic from the Airflow DAG
 - Time band labelling (Early Morning / Morning / Afternoon / Evening)
 """
 
+from collections.abc import Callable
 from urllib.parse import urlparse
 
 from pyspark.sql.functions import udf
@@ -155,7 +156,7 @@ def traffic_type(referrer_url):
 # a broadcast set; it is re-created each run with a fresh IP list.
 
 
-def make_crawler_udf(crawler_ips: set) -> callable:
+def make_crawler_udf(crawler_ips: set) -> Callable:
     """Create a ``is_crawler`` UDF closed over the current crawler IP set.
 
     Parameters
