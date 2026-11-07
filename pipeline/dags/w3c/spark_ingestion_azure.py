@@ -1,4 +1,7 @@
 """
+DEPRECATED: Azure deployment was torn down (2026-11-07). Kept for reference
+only — do not extend. Local spark_ingestion is the live path.
+
 W3C Spark Ingestion Azure DAG — Cloud-Native Single Pipeline.
 
 This DAG orchestrates the cloud-native ETL pipeline on Databricks + Azure SQL:
