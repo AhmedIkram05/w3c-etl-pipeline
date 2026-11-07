@@ -58,7 +58,8 @@ sources:
             description: "Agent classification (Browser/Crawler)"
             tests:
               - accepted_values:
-                  values: ["Browser", "Crawler", "Unknown"]
+                  arguments:
+                    values: ["Browser", "Crawler", "Unknown"]
           - name: browser_name
             description: "Browser family (e.g. Chrome, Firefox)"
           - name: browser_version
@@ -69,4 +70,5 @@ sources:
             description: "Device type (e.g. Desktop, Mobile, Tablet)"
             tests:
               - accepted_values:
-                  values: ["Desktop", "Mobile", "Tablet", "Bot", "Other", "Unknown"]
+                  arguments:
+                    values: ["Desktop", "Mobile", "Tablet", "Bot", "Other", "Unknown"]

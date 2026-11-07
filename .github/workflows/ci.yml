@@ -52,13 +52,12 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install dbt
-        run: pip install "dbt-postgres==1.8.2" "dbt-core==1.8.9" "dbt-common==1.27.1" "protobuf>=5.27,<6"
+        # Single source of truth: the same pins the Airflow image installs.
+        run: pip install -r pipeline/requirements-dbt.txt
       - name: dbt deps
         run: dbt deps --project-dir pipeline/dbt/w3c
       - name: dbt compile (PostgreSQL)
         run: dbt compile --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt
-      - name: Install dbt-sqlserver
-        run: pip install "dbt-sqlserver==1.8.4" "dbt-fabric<1.8.8"
       - name: Install ODBC Driver 18 for SQL Server (required by dbt-sqlserver adapter)
         run: |
           sudo apt-get update && sudo apt-get install -y curl gnupg2
