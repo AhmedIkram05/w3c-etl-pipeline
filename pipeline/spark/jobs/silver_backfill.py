@@ -31,12 +31,35 @@ import datetime
 import logging
 import os
 import statistics
+from dataclasses import dataclass
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import broadcast, col, floor, lit, rand
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("silver_backfill")
+
+
+@dataclass
+class BackfillConfig:
+    """Typed config for ``run()`` — replaces the 12-parameter sprawl."""
+
+    start_date: str
+    end_date: str
+    delta_dir: str = "/opt/spark/delta"
+    geolite2_db: str | None = None
+    geolite2_asn_db: str | None = None
+    salt_buckets: int = 16
+    target_partitions: int = 32
+    broadcast_threshold_mb: int = 32
+    repartition_cols: list | str | None = None
+    dry_run: bool = False
+
+    def validate(self) -> None:
+        if self.salt_buckets < 1:
+            raise ValueError("salt_buckets must be >= 1")
+        if self.target_partitions < 1:
+            raise ValueError("target_partitions must be >= 1")
 
 
 def create_spark_session(app_name: str = "W3C_Silver_Backfill") -> SparkSession:
@@ -77,19 +100,16 @@ def partition_stats(counts: list) -> dict:
     }
 
 
-def run(
-    spark: SparkSession,
-    start_date: str,
-    end_date: str,
-    delta_dir: str = "/opt/spark/delta",
-    geolite2_db: str | None = None,
-    geolite2_asn_db: str | None = None,
-    salt_buckets: int = 16,
-    target_partitions: int = 32,
-    broadcast_threshold_mb: int = 32,
-    repartition_cols: list | str | None = None,
-    dry_run: bool = False,
-):
+def run_with_config(spark: SparkSession, cfg: BackfillConfig):
+    cfg.validate()
+    start_date, end_date, delta_dir = cfg.start_date, cfg.end_date, cfg.delta_dir
+    geolite2_db, geolite2_asn_db = cfg.geolite2_db, cfg.geolite2_asn_db
+    salt_buckets, target_partitions = cfg.salt_buckets, cfg.target_partitions
+    broadcast_threshold_mb, repartition_cols, dry_run = (
+        cfg.broadcast_threshold_mb,
+        cfg.repartition_cols,
+        cfg.dry_run,
+    )
     """Reprocess one Bronze date range into Silver via salted, broadcast-joined enrichment."""
     # Scheduled runs leave dag_run.conf empty, so start_date arrives as "".
     # Treat that as "nothing to backfill" rather than raising from fromisoformat.
@@ -235,6 +255,37 @@ def run(
         "partitions_after_ratio": after["ratio"],
         "broadcast_used": broadcast_used,
     }
+
+
+def run(
+    spark,
+    start_date,
+    end_date,
+    delta_dir="/opt/spark/delta",
+    geolite2_db=None,
+    geolite2_asn_db=None,
+    salt_buckets=16,
+    target_partitions=32,
+    broadcast_threshold_mb=32,
+    repartition_cols=None,
+    dry_run=False,
+):
+    """Backwards-compatible wrapper — prefer ``run_with_config``."""
+    return run_with_config(
+        spark,
+        BackfillConfig(
+            start_date=start_date,
+            end_date=end_date,
+            delta_dir=delta_dir,
+            geolite2_db=geolite2_db,
+            geolite2_asn_db=geolite2_asn_db,
+            salt_buckets=salt_buckets,
+            target_partitions=target_partitions,
+            broadcast_threshold_mb=broadcast_threshold_mb,
+            repartition_cols=repartition_cols,
+            dry_run=dry_run,
+        ),
+    )
 
 
 def main():
