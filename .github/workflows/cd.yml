@@ -1,4 +1,5 @@
 # ---------------------------------------------------------------------------
+# DEPRECATED: Azure deployment torn down 2026-11-07 — workflow disabled (on: [] override below for reference).
 # CD - Deploy to Azure
 # ---------------------------------------------------------------------------
 # Deploys Terraform infra on merge to main. dbt model execution is handled
