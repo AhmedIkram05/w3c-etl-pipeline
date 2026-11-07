@@ -1,7 +1,4 @@
 """
-DEPRECATED: Azure deployment was torn down (2026-11-07). Kept for reference
-only — do not extend. Local spark_ingestion is the live path.
-
 W3C Spark Ingestion Azure DAG — Cloud-Native Single Pipeline.
 
 This DAG orchestrates the cloud-native ETL pipeline on Databricks + Azure SQL:
@@ -123,6 +120,24 @@ def _device_type(parsed) -> str:
     return "Other"
 
 
+def _build_useragent_tuple(ua_raw, ua_parse) -> tuple:
+    """Build one deduped dim_useragent tuple from a raw UA string."""
+    import hashlib
+
+    ua_raw_str = ua_raw[:2048] if ua_raw else ""
+    parsed = ua_parse(unquote_plus(ua_raw_str))
+    ua_hash = hashlib.md5((ua_raw or "").encode("utf-8"), usedforsecurity=False).hexdigest()
+    return (
+        ua_hash,
+        ua_raw_str,
+        "Crawler" if getattr(parsed, "is_bot", False) else "Browser",
+        parsed.browser.family or "Unknown",
+        parsed.browser.version_string or "Unknown",
+        parsed.os.family or "Unknown",
+        _device_type(parsed),
+    )
+
+
 def _parse_user_agent_rows(ua_rows) -> list[tuple]:
     """Parse raw UA strings into deduplicated dim_useragent insert tuples.
 
@@ -130,8 +145,6 @@ def _parse_user_agent_rows(ua_rows) -> list[tuple]:
     caller can skip the merge without failing the DAG run.
     """
     try:
-        import hashlib
-
         from user_agents import parse as ua_parse
     except ImportError:
         logger.warning("user-agents library not installed; skipping dim_useragent build")
@@ -141,37 +154,12 @@ def _parse_user_agent_rows(ua_rows) -> list[tuple]:
     insert_data: list[tuple] = []
     seen_hashes: set = set()
     for idx, (ua_raw,) in enumerate(ua_rows):
-        # Store the RAW (URL-encoded) string so it survives the round trip;
-        # parse the decoded copy for browser/OS/device.
-        ua_raw_str = ua_raw[:2048] if ua_raw else ""
-        ua_str_decoded = unquote_plus(ua_raw_str)
-        parsed = ua_parse(ua_str_decoded)
-
-        agent_type = "Crawler" if getattr(parsed, "is_bot", False) else "Browser"
-        browser_name = parsed.browser.family or "Unknown"
-        browser_version = parsed.browser.version_string or "Unknown"
-        os_name = parsed.os.family or "Unknown"
-        device = _device_type(parsed)
-
-        # Key on md5 of the FULL raw UA, matching dbt's tsql_ua_hash: the fact
-        # joins on LOWER(HASHBYTES('MD5', c.user_agent)), so the stored hash is
-        # lowercase utf-8 md5. Distinct raw strings now get distinct rows
-        # instead of collapsing on a 1000-char prefix.
-        ua_hash = hashlib.md5((ua_raw or "").encode("utf-8"), usedforsecurity=False).hexdigest()
-
-        if ua_hash in seen_hashes:
+        # Key on md5 of the FULL raw UA, matching dbt's tsql_ua_hash.
+        built = _build_useragent_tuple(ua_raw, ua_parse)
+        if built[0] in seen_hashes:
             continue
-        seen_hashes.add(ua_hash)
-
-        insert_data.append((
-            ua_hash,
-            ua_raw_str,
-            agent_type,
-            browser_name,
-            browser_version,
-            os_name,
-            device,
-        ))
+        seen_hashes.add(built[0])
+        insert_data.append(built)
 
         if (idx + 1) % 500 == 0:
             logger.info(f"Parsed {idx + 1}/{len(ua_rows)} user-agents...")

@@ -259,6 +259,47 @@ def _write_geo_versions(conn, insert_data) -> None:
         execute_values(cur, GEO_SCD2_INSERT_SQL, insert_data, page_size=1000)
 
 
+def _resolve_silver_path(silver_path: str | None) -> str:
+    """Return explicit path or fall back to env/default."""
+    if silver_path is not None:
+        return silver_path
+    return os.environ.get("W3C_SILVER_PATH", DEFAULT_SILVER_PATH)
+
+
+def _build_geo_insert_data(geo) -> list:
+    """Apply schema defaults and build the SCD2 insert payload."""
+    insert_data = []
+    for _, row in geo.iterrows():
+        ip = str(row["client_ip"]).strip()
+        insert_data.append((
+            ip,
+            _coalesce(row.get("country"), "Unknown"),
+            _coalesce(row.get("region"), "Unknown"),
+            _coalesce(row.get("city"), "Unknown"),
+            _coalesce(row.get("postcode"), "-"),
+            row.get("latitude") if pd.notna(row.get("latitude")) else None,
+            row.get("longitude") if pd.notna(row.get("longitude")) else None,
+            _coalesce(row.get("isp"), "-"),
+        ))
+    return insert_data
+
+
+def _write_geo_with_retry(insert_data) -> None:
+    """Write geo versions with 3-attempt retry on operational errors."""
+    attempts = 3
+    for attempt in range(1, attempts + 1):
+        try:
+            with get_conn() as write_conn:
+                _write_geo_versions(write_conn, insert_data)
+                write_conn.commit()
+            return
+        except psycopg2.OperationalError as e:
+            if attempt == attempts:
+                raise
+            print(f"[dim_geolocation] DB write attempt {attempt} failed: {e} — retrying …")
+            time.sleep(2 * attempt)
+
+
 def _build_dim_geolocation(silver_path: str | None = None):
     """Populate ``dim_geolocation`` from the Silver Delta table (SCD Type 2).
 
@@ -287,8 +328,7 @@ def _build_dim_geolocation(silver_path: str | None = None):
     re-raised so a failed read cannot leave stale dimensions behind a green
     task.  An empty (but readable) Silver Delta is still a no-op.
     """
-    if silver_path is None:
-        silver_path = os.environ.get("W3C_SILVER_PATH", DEFAULT_SILVER_PATH)
+    silver_path = _resolve_silver_path(silver_path)
 
     print(f"[dim_geolocation] Reading geo dim from Silver Delta: {silver_path}")
 
@@ -314,41 +354,14 @@ def _build_dim_geolocation(silver_path: str | None = None):
     #   - postcode                                → "-"
     #   - isp                                     → "-"
     #   - lat/lon                                 → NULL
-    insert_data = []
-    for _, row in geo.iterrows():
-        ip = str(row["client_ip"]).strip()
-        insert_data.append((
-            ip,
-            _coalesce(row.get("country"), "Unknown"),
-            _coalesce(row.get("region"), "Unknown"),
-            _coalesce(row.get("city"), "Unknown"),
-            _coalesce(row.get("postcode"), "-"),
-            row.get("latitude") if pd.notna(row.get("latitude")) else None,
-            row.get("longitude") if pd.notna(row.get("longitude")) else None,
-            _coalesce(row.get("isp"), "-"),
-        ))
+    insert_data = _build_geo_insert_data(geo)
 
     if not insert_data:
         return
 
     print(f"[dim_geolocation] Versioning {len(insert_data)} IP(s) from Silver …")
-
-    attempts = 3
-    for attempt in range(1, attempts + 1):
-        try:
-            with get_conn() as write_conn:
-                # SCD2 write — expire changed current versions, then insert a
-                # current version for every IP that has none. Shared with the
-                # DB-backed test via ``_write_geo_versions`` / the SQL constants.
-                _write_geo_versions(write_conn, insert_data)
-                write_conn.commit()
-            print(f"[dim_geolocation] SCD2 write complete for {len(insert_data)} IP(s).")
-            return
-        except psycopg2.OperationalError as e:
-            if attempt == attempts:
-                raise
-            print(f"[dim_geolocation] DB write attempt {attempt} failed: {e} — retrying …")
-            time.sleep(2 * attempt)
+    _write_geo_with_retry(insert_data)
+    print(f"[dim_geolocation] SCD2 write complete for {len(insert_data)} IP(s).")
 
 
 def _build_dim_useragent(conn):
