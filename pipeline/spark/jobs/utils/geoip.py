@@ -74,6 +74,34 @@ def _is_usable_ip(ip: str) -> bool:
         return False
 
 
+def _location_coord(location, attr: str) -> float | None:
+    """Return a coordinate as float, or ``None`` when absent."""
+    if location is None:
+        return None
+    value = getattr(location, attr, None)
+    return float(value) if value is not None else None
+
+
+def _city_record(response) -> dict:
+    """Map a geoip2 city response to the silver geo-dict shape.
+
+    Degrades per field: a missing sub-object (location/city/postal) must not
+    abort the whole lookup — country/region are still valuable, and the
+    dlt_silver ``.get()`` chain already behaves this way.
+    """
+    location = response.location
+    city = response.city
+    postal = response.postal
+    return {
+        "country": response.country.name or "Unknown",
+        "region": response.subdivisions.most_specific.name or "Unknown",
+        "city": (city.name or "Unknown") if city is not None else "Unknown",
+        "latitude": _location_coord(location, "latitude"),
+        "longitude": _location_coord(location, "longitude"),
+        "postcode": (postal.code or None) if postal is not None else None,
+    }
+
+
 class _GeoReader:
     """Self-contained GeoIP lookup bound to one database path.
 
@@ -135,25 +163,7 @@ class _GeoReader:
         try:
             import geoip2.errors
 
-            response = self._reader.city(ip.strip())
-            # Degrade per field: a missing sub-object (location/city/postal) must
-            # not abort the whole lookup — country/region are still valuable, and
-            # the dlt_silver `.get()` chain already behaves this way.
-            location = response.location
-            city = response.city
-            postal = response.postal
-            return {
-                "country": response.country.name or "Unknown",
-                "region": response.subdivisions.most_specific.name or "Unknown",
-                "city": (city.name or "Unknown") if city is not None else "Unknown",
-                "latitude": float(location.latitude)
-                if location is not None and location.latitude is not None
-                else None,
-                "longitude": float(location.longitude)
-                if location is not None and location.longitude is not None
-                else None,
-                "postcode": (postal.code or None) if postal is not None else None,
-            }
+            return _city_record(self._reader.city(ip.strip()))
         except geoip2.errors.AddressNotFoundError:
             return None
         except Exception:
