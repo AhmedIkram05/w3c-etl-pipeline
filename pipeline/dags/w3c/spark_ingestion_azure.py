@@ -410,10 +410,10 @@ def _export_dimensions(**context) -> None:
     AZURE_SQL_PASS : str
         Azure SQL password.
     """
-    server = os.environ.get("AZURE_SQL_SERVER", "")
-    database = os.environ.get("AZURE_SQL_DATABASE") or os.environ.get("AZURE_SQL_DB", "w3c-etl-db")
-    username = os.environ.get("AZURE_SQL_USER", "")
-    password = os.environ.get("AZURE_SQL_PASS", "")
+    server = os.environ.get("AZURE_SQL_SERVER") or ""
+    database = os.environ.get("AZURE_SQL_DATABASE") or os.environ.get("AZURE_SQL_DB") or "w3c-etl-db"
+    username = os.environ.get("AZURE_SQL_USER") or ""
+    password = os.environ.get("AZURE_SQL_PASS") or ""
 
     if not all([server, username, password]):
         logger.warning(
@@ -469,10 +469,10 @@ def _create_indexes(**context) -> None:
     Same as ``_export_dimensions`` — ``AZURE_SQL_SERVER``, ``AZURE_SQL_DATABASE``,
     ``AZURE_SQL_USER``, ``AZURE_SQL_PASS``.
     """
-    server = os.environ.get("AZURE_SQL_SERVER", "")
-    database = os.environ.get("AZURE_SQL_DATABASE") or os.environ.get("AZURE_SQL_DB", "w3c-etl-db")
-    username = os.environ.get("AZURE_SQL_USER", "")
-    password = os.environ.get("AZURE_SQL_PASS", "")
+    server = os.environ.get("AZURE_SQL_SERVER") or ""
+    database = os.environ.get("AZURE_SQL_DATABASE") or os.environ.get("AZURE_SQL_DB") or "w3c-etl-db"
+    username = os.environ.get("AZURE_SQL_USER") or ""
+    password = os.environ.get("AZURE_SQL_PASS") or ""
 
     if not all([server, username, password]):
         logger.warning("Azure SQL credentials not configured. Skipping index creation.")

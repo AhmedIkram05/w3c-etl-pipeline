@@ -1,5 +1,5 @@
 FROM apache/airflow:2.11.2
-COPY requirements.txt .
+COPY requirements-dbt.txt requirements.txt ./
 USER root
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openjdk-17-jre-headless \
