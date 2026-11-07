@@ -25,7 +25,9 @@ pytest.importorskip("pyspark")
 from utils.geoip import (  # noqa: E402
     _ASN_DB_DEFAULT_PATH,
     _CITY_DB_DEFAULT_PATH,
+    _city_record,
     _GeoReader,
+    _location_coord,
     asn_lookup,
     city_field,
     city_lookup,
@@ -128,6 +130,45 @@ class TestGeoReaderFieldDegradation:
         assert result["latitude"] is None
         assert result["longitude"] is None
         assert result["postcode"] is None
+
+
+class TestCityRecordMapping:
+    """``_city_record`` maps a geoip2 response onto the silver geo dict."""
+
+    def test_maps_full_response(self):
+        response = SimpleNamespace(
+            country=SimpleNamespace(name="Ireland"),
+            subdivisions=SimpleNamespace(most_specific=SimpleNamespace(name="Leinster")),
+            city=SimpleNamespace(name="Dublin"),
+            location=SimpleNamespace(latitude=53.35, longitude=-6.26),
+            postal=SimpleNamespace(code="D02"),
+        )
+        assert _city_record(response) == {
+            "country": "Ireland",
+            "region": "Leinster",
+            "city": "Dublin",
+            "latitude": 53.35,
+            "longitude": -6.26,
+            "postcode": "D02",
+        }
+
+    def test_missing_names_fall_back_to_unknown(self):
+        response = SimpleNamespace(
+            country=SimpleNamespace(name=None),
+            subdivisions=SimpleNamespace(most_specific=SimpleNamespace(name=None)),
+            city=None,
+            location=None,
+            postal=None,
+        )
+        result = _city_record(response)
+        assert result["country"] == "Unknown"
+        assert result["region"] == "Unknown"
+        assert result["city"] == "Unknown"
+
+    def test_location_coord_handles_none(self):
+        assert _location_coord(None, "latitude") is None
+        assert _location_coord(SimpleNamespace(latitude=None), "latitude") is None
+        assert _location_coord(SimpleNamespace(latitude=1), "latitude") == 1.0
 
 
 class TestCallSitesUseFactories:
