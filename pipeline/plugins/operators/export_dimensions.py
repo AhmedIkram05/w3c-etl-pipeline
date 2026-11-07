@@ -32,6 +32,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import random
 import time
 from urllib.parse import unquote_plus
 
@@ -296,8 +297,9 @@ def _write_geo_with_retry(insert_data) -> None:
         except psycopg2.OperationalError as e:
             if attempt == attempts:
                 raise
-            print(f"[dim_geolocation] DB write attempt {attempt} failed: {e} — retrying …")
-            time.sleep(2 * attempt)
+            delay = 2 * attempt
+            log.warning("[dim_geolocation] DB write attempt %s failed: %s — retrying in %.1fs", attempt, e, delay)
+            time.sleep(delay + random.uniform(0, delay / 2))
 
 
 def _build_dim_geolocation(silver_path: str | None = None):
@@ -330,7 +332,7 @@ def _build_dim_geolocation(silver_path: str | None = None):
     """
     silver_path = _resolve_silver_path(silver_path)
 
-    print(f"[dim_geolocation] Reading geo dim from Silver Delta: {silver_path}")
+    log.info(f"[dim_geolocation] Reading geo dim from Silver Delta: {silver_path}")
 
     try:
         geo = _read_silver_geo_dim(silver_path)
@@ -345,7 +347,7 @@ def _build_dim_geolocation(silver_path: str | None = None):
 
     # Distinguish "no rows" (a legitimate no-op) from "read blew up" (above).
     if geo.empty:
-        print("[dim_geolocation] Silver Delta is empty; nothing to do.")
+        log.info("[dim_geolocation] Silver Delta is empty; nothing to do.")
         return
 
     # Build the source payload.  Apply the schema's documented defaults
@@ -359,9 +361,9 @@ def _build_dim_geolocation(silver_path: str | None = None):
     if not insert_data:
         return
 
-    print(f"[dim_geolocation] Versioning {len(insert_data)} IP(s) from Silver …")
+    log.info(f"[dim_geolocation] Versioning {len(insert_data)} IP(s) from Silver …")
     _write_geo_with_retry(insert_data)
-    print(f"[dim_geolocation] SCD2 write complete for {len(insert_data)} IP(s).")
+    log.info(f"[dim_geolocation] SCD2 write complete for {len(insert_data)} IP(s).")
 
 
 def _build_dim_useragent(conn):
@@ -377,7 +379,7 @@ def _build_dim_useragent(conn):
     cur.close()
 
     if not rows:
-        print("[dim_useragent] No user-agent rows found in raw_enriched — nothing to do.")
+        log.info("[dim_useragent] No user-agent rows found in raw_enriched — nothing to do.")
         return
 
     insert_data = []
@@ -414,13 +416,14 @@ def _build_dim_useragent(conn):
                     page_size=1000,
                 )
                 write_conn.commit()
-            print(f"[dim_useragent] Inserted / confirmed {len(insert_data)} row(s).")
+            log.info(f"[dim_useragent] Inserted / confirmed {len(insert_data)} row(s).")
             return
         except psycopg2.OperationalError as e:
             if attempt == attempts:
                 raise
-            print(f"[dim_useragent] DB write attempt {attempt} failed: {e} — retrying …")
-            time.sleep(2 * attempt)
+            delay = 2 * attempt
+            log.warning("[dim_useragent] DB write attempt %s failed: %s — retrying in %.1fs", attempt, e, delay)
+            time.sleep(delay + random.uniform(0, delay / 2))
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -489,7 +492,7 @@ def _ensure_dimension_tables(conn):
         """)
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_dim_useragent_ua_hash ON dim_useragent (ua_hash)")
     conn.commit()
-    print("[OK] Dimension tables ensured.")
+    log.info("[OK] Dimension tables ensured.")
 
 
 def export_dimensions(**context) -> None:
@@ -509,9 +512,7 @@ def export_dimensions(**context) -> None:
     Accepts ``**context`` for Airflow ``PythonOperator`` compatibility.
     Designed to be idempotent — safe to retry and re-run.
     """
-    print("=" * 60)
-    print("export_dimensions: Starting Airflow-managed dimension build")
-    print("=" * 60)
+    log.info("export_dimensions: Starting Airflow-managed dimension build")
 
     conn = get_conn()
 
@@ -521,7 +522,7 @@ def export_dimensions(**context) -> None:
 
         # Step 1 — ensure default -1 rows exist.
         _ensure_default_rows(conn)
-        print("[OK] Default -1 rows present.")
+        log.info("[OK] Default -1 rows present.")
 
         # Step 2 — build dim_geolocation from Silver Delta.
         _build_dim_geolocation()
@@ -532,6 +533,4 @@ def export_dimensions(**context) -> None:
     finally:
         conn.close()
 
-    print("=" * 60)
-    print("export_dimensions: Complete.")
-    print("=" * 60)
+    log.info("export_dimensions: Complete.")

@@ -21,10 +21,13 @@ Usage
 """
 
 import argparse
+import logging
 import os
 import sys
 
 from pyspark.sql import SparkSession
+
+logger = logging.getLogger(__name__)
 
 # The ``utils`` package is bundled as ``--py-files utils.zip`` for Spark executors.
 # When running directly (e.g. ``python3 bronze_ingestion.py``), the local path
@@ -71,7 +74,7 @@ def detect_format(file_path: str):
                     fields = line.replace("#Fields:", "").strip().split()
                     return len(fields)
     except Exception as exc:
-        print(f"    ERROR reading header: {exc}")
+        logger.error("    ERROR reading header: %s", exc)
     return None
 
 
@@ -106,54 +109,55 @@ def run(spark, log_files_dir: str, delta_dir: str) -> int:
 
     # --- Determine already-loaded files -------------------------------
     loaded_files = get_loaded_files(spark, bronze_path)
-    print(f"[Bronze] Already loaded: {len(loaded_files)} file(s)")
+    logger.info("[Bronze] Already loaded: %s file(s)", len(loaded_files))
 
     # --- Discover new files -------------------------------------------
     all_files = sorted(f for f in os.listdir(log_files_dir) if f.endswith(".log"))
     new_files = [f for f in all_files if f not in loaded_files]
 
     if not new_files:
-        print("[Bronze] No new log files to process.")
+        logger.info("[Bronze] No new log files to process.")
         return 0
 
-    print(f"[Bronze] Found {len(new_files)} new file(s): {new_files}")
+    logger.info("[Bronze] Found %s new file(s): %s", len(new_files), new_files)
 
     # --- Process each file --------------------------------------------
     total_rows = 0
 
     for fname in new_files:
         fpath = os.path.join(log_files_dir, fname)
-        print(f"  {fname} ...", end=" ", flush=True)
+        logger.info("Processing %s", fname)
 
         # 1. Detect format
         file_format = detect_format(fpath)
         if file_format is None:
-            print("SKIPPED (no #Fields header)")
+            logger.warning("SKIPPED %s (no #Fields header)", fname)
             continue
         if file_format not in (14, 18):
-            print(f"SKIPPED (unrecognised field count {file_format})")
+            logger.warning("SKIPPED %s (unrecognised field count %s)", fname, file_format)
             continue
 
         # 2. Parse
         df = parse_file_to_df(spark, fpath, file_format, fname)
         if df is None:
-            print("SKIPPED (no data rows)")
+            logger.warning("SKIPPED %s (no data rows)", fname)
             continue
 
         row_count = df.count()
-        print(f"{row_count} rows", end="", flush=True)
+        logger.info("  %s rows", row_count)
 
         # 3. Write to Delta (partitioned by log_date)
         df.write.format("delta").mode("append").partitionBy("log_date").option("path", bronze_path).save()
 
         total_rows += row_count
-        print(f"  (cumulative: {total_rows})")
+        logger.info("  cumulative: %s rows", total_rows)
 
-    print(f"[Bronze] Complete. {total_rows} rows across {len(new_files)} file(s).")
+    logger.info("[Bronze] Complete. %s rows across %s file(s).", total_rows, len(new_files))
     return total_rows
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = argparse.ArgumentParser(description="W3C Bronze Ingestion")
     parser.add_argument(
         "--log-files-dir",
