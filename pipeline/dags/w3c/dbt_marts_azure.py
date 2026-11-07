@@ -1,7 +1,4 @@
 """
-DEPRECATED: Azure deployment was torn down (2026-11-07). Kept for reference
-only — do not extend. Local path (dbt_marts / spark_ingestion) is the live one.
-
 W3C dbt Marts Azure DAG — Dataset-Triggered dbt Pipeline on Azure SQL.
 
 Runs after the ``w3c_spark_ingestion_azure`` DAG completes its
