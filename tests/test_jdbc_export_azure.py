@@ -332,14 +332,17 @@ class TestConnect:
         ]
 
         with patch.dict("sys.modules", {"pymssql": mock_pymssql}):
-            with patch("jdbc_export_azure.time.sleep") as mock_sleep:
+            with (
+                patch("jdbc_export_azure.time.sleep") as mock_sleep,
+                patch("jdbc_export_azure.random.uniform", return_value=0.0),
+            ):
                 _connect = self._import_connect()
                 result = _connect("server", "db", "user", "pass")
 
         assert result is mock_conn
         # 3 failures + 1 success = 4 total calls
         assert mock_pymssql.connect.call_count == 4
-        # Backoff: 15, 30, 60 seconds
+        # Backoff: 15, 30, 60 seconds (jitter pinned to 0 for the assertion)
         mock_sleep.assert_has_calls([call(15), call(30), call(60)])
 
     def test_raises_after_all_retries_exhausted(self):
