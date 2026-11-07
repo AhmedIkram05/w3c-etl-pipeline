@@ -67,20 +67,9 @@ log = logging.getLogger("silver_enrichment")
 
 
 def create_spark_session(app_name: str = "W3C_Silver_Enrichment") -> SparkSession:
-    """Build a SparkSession with Delta Lake support."""
-    return (
-        SparkSession.builder
-        .appName(app_name)
-        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config(
-            "spark.sql.catalog.spark_catalog",
-            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-        )
-        .config("spark.sql.adaptive.enabled", "true")
-        .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
-        .config("spark.databricks.delta.retentionDurationCheck.enabled", "false")
-        .getOrCreate()
-    )
+    from utils.session import create_spark_session as _create
+
+    return _create(app_name)
 
 
 def get_source_files_in_delta(spark: SparkSession, delta_path: str) -> set:

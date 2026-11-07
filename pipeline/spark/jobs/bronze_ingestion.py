@@ -42,22 +42,9 @@ except ImportError:
 
 
 def create_spark_session(app_name: str = "w3c_bronze") -> SparkSession:
-    """Create a Spark session.
+    from utils.session import create_spark_session as _create
 
-    Delta Lake configuration is loaded from
-    ``$SPARK_HOME/conf/spark-defaults.conf`` which is mounted as a
-    read-only volume by Docker Compose.
-    """
-    return (
-        SparkSession.builder
-        .appName(app_name)
-        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config(
-            "spark.sql.catalog.spark_catalog",
-            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-        )
-        .getOrCreate()
-    )
+    return _create(app_name)
 
 
 def get_loaded_files(spark, bronze_path: str) -> set:
