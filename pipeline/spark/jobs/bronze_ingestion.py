@@ -34,8 +34,8 @@ try:
     from utils.w3c_parser import parse_log_line
 except ImportError:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "utils"))
-    from schemas import bronze_schema
-    from w3c_parser import parse_log_line
+    from schemas import bronze_schema  # type: ignore[no-redef]
+    from w3c_parser import parse_log_line  # type: ignore[no-redef]
 
 
 # ── Helpers ─────────────────────────────────────────────────────────
