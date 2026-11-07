@@ -57,6 +57,7 @@ REQUIRED_MACROS = frozenset({
     "tsql_month_name",
     "tsql_day_name",
     "tsql_dow",
+    "tsql_iso_week",
     "tsql_format_date",
     "tsql_split_part",
     "tsql_generate_series",
