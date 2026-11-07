@@ -1,21 +1,13 @@
 user-agents>=2.2,<3.0
 requests
 azure-storage-blob>=12.31.1
-dbt-postgres==1.8.2
-dbt-core==1.8.10
-dbt-sqlserver==1.8.7
+-r requirements-dbt.txt
 psycopg2-binary>=2.9.13,<3.0
 # pyodbc pinned to the 5.3.x line (>=5.3.0,<5.4).
 pyodbc>=5.3.0,<5.4
 # SQLAlchemy pinned to the 2.1.x line (>=2.1.6,<3.0): the 2.x API required
-# by the current dbt 1.8 / Airflow 2.11 stack, below the 3.0 major bump.
+# by the current dbt / Airflow 2.11 stack, below the 3.0 major bump.
 sqlalchemy>=2.1.6,<3.0
-# protobuf pinned to the 7.x line (>=7.36.2,<8): current stable major below
-# the 8.0 bump. Provides the `always_print_fields_with_no_presence` kwarg
-# used by dbt-common 1.27.1 (MessageToJson).
-protobuf>=7.36.2,<8
-# dbt-common pinned to 1.27.1 to match the dbt-core 1.8.x stack.
-dbt-common==1.27.1
 
 # Data freshness probe dependencies
 prometheus-client>=0.26.0,<1.0
@@ -26,6 +18,6 @@ pymssql>=2.4.6,<3.0
 # Provider capped <3: the 3.x line tracks Airflow 3. The base image is
 # apache/airflow:2.11.2, which satisfies the 2.x providers (>=2.11.0).
 # openlineage-dbt provides the `dbt-ol` wrapper used by w3c_dbt_marts;
-# its latest accepts dbt-core>=1.0.0 so the ==1.8.9 pin holds.
+# its latest accepts dbt-core>=1.0.0, so the pinned dbt line is fine.
 apache-airflow-providers-openlineage>=2.20.3,<3
 openlineage-dbt>=1.55.0
