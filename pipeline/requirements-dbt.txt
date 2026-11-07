@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────────────────
+# dbt stack — single source of truth.
+#
+# Consumed by pipeline/requirements.txt (the Airflow image) and by the
+# CI dbt-compile job, so the version CI validates is the version shipped.
+# Keep the three packages on the same minor line: dbt-sqlserver pins
+# dbt-core's minimum, and dbt-fabric (its backend) pins the pyodbc floor.
+# ──────────────────────────────────────────────────────────────────────
+
+dbt-core==1.11.17
+dbt-postgres==1.11.0
+dbt-sqlserver==1.11.3
+protobuf>=6.0,<7.0
