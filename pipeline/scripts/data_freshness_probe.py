@@ -27,6 +27,9 @@ from prometheus_client import Gauge, start_http_server
 
 logger = logging.getLogger(__name__)
 
+# Collection interval; override with PROBE_INTERVAL_SECONDS (default 15 min).
+PROBE_INTERVAL_SECONDS = int(os.environ.get("PROBE_INTERVAL_SECONDS") or 900)
+
 # ── Prometheus gauges ──────────────────────────────────────────────────
 FRESHNESS_GAUGE = Gauge(
     "w3c_data_freshness_seconds",
@@ -308,4 +311,4 @@ if __name__ == "__main__":
             ROW_COUNT_GAUGE.labels(source="bronze").set(0)
             ROW_COUNT_GAUGE.labels(source="silver").set(0)
 
-        time.sleep(900)  # Every 15 minutes
+        time.sleep(PROBE_INTERVAL_SECONDS)

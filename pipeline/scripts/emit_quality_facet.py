@@ -21,10 +21,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 PRODUCER = "https://github.com/AhmedIkram05/w3c-etl-pipeline"
 DEFAULT_RESULTS = "/opt/airflow/dbt/w3c/target/run_results.json"
@@ -106,26 +109,31 @@ def main(argv: list[str] | None = None) -> int:
 
     path = Path(args.results)
     if not path.exists():
-        print(f"WARN: {path} not found — no quality facet to emit")
+        logger.warning("%s not found — no quality facet to emit", path)
         return 0
     try:
         summary = summarize_run_results(json.loads(path.read_text()))
     except (json.JSONDecodeError, OSError) as exc:
-        print(f"ERROR: could not parse {path}: {exc}")
+        logger.error("could not parse %s: %s", path, exc)
         return 1
 
     try:
         emit(summary, args.namespace, args.job_name)
     except Exception as exc:  # noqa: BLE001 — best-effort by design
-        print(f"WARN: failed to emit lineage event (pipeline unaffected): {exc}")
+        logger.warning("failed to emit lineage event (pipeline unaffected): %s", exc)
         return 0
 
-    print(
-        f"Emitted w3cDataQuality facet -> {args.namespace}/{args.job_name} "
-        f"({summary['passed']}/{summary['totalTests']} passed, {summary['failed']} failed)"
+    logger.info(
+        "Emitted w3cDataQuality facet -> %s/%s (%s/%s passed, %s failed)",
+        args.namespace,
+        args.job_name,
+        summary["passed"],
+        summary["totalTests"],
+        summary["failed"],
     )
     return 0
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     sys.exit(main())
