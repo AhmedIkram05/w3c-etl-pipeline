@@ -1,11 +1,20 @@
 [sqlfluff]
 dialect = postgres
-templater = raw
+templater = jinja
 max_line_length = 120
-exclude_rules = L003,L012,L014,L016,L024,L031,L034
+exclude_rules = AL01,AL03,AL04,AM03,AM05,LT01,LT02,LT05,LT08,LT09,LT14,RF02,RF03,RF04,ST02,ST03,ST06,ST09
 
-[sqlfluff:rules:CP01]
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True
+ignore_templating_errors = True
+load_macros_from_path = pipeline/dbt/w3c/macros
+
+
+[sqlfluff:templater:jinja:context]
+target = {"type": "postgres", "name": "ci"}
+
+[sqlfluff:rules:capitalisation.keywords]
 capitalisation_policy = upper
 
-[sqlfluff:rules:CP03]
+[sqlfluff:rules:capitalisation.functions]
 capitalisation_policy = upper
