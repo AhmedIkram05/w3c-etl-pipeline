@@ -40,25 +40,9 @@ log = logging.getLogger("silver_backfill")
 
 
 def create_spark_session(app_name: str = "W3C_Silver_Backfill") -> SparkSession:
-    """Build a SparkSession with Delta Lake support plus skew-mitigation extras."""
-    return (
-        SparkSession.builder
-        .appName(app_name)
-        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config(
-            "spark.sql.catalog.spark_catalog",
-            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-        )
-        .config("spark.sql.adaptive.enabled", "true")
-        .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
-        .config("spark.sql.adaptive.skewJoin.enabled", "true")
-        .config("spark.sql.adaptive.skewedPartitionFactor", "5")
-        .config("spark.sql.adaptive.skewedPartitionThresholdInBytes", "268435456")
-        .config("spark.sql.autoBroadcastJoinThreshold", "33554432")
-        .config("spark.sql.sources.partitionOverwriteMode", "dynamic")
-        .config("spark.databricks.delta.retentionDurationCheck.enabled", "false")
-        .getOrCreate()
-    )
+    from utils.session import create_spark_session as _create
+
+    return _create(app_name)
 
 
 def discover_crawler_ips_df(spark: SparkSession, bronze_path: str) -> DataFrame:
