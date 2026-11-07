@@ -30,10 +30,14 @@ Requirements
 - Unity Catalog table ``w3c_etl_databricks.silver.silver_enriched_logs``
 """
 
+import logging
+import random
 import time
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, lit, when
+
+logger = logging.getLogger(__name__)
 
 # ── Exact column list from specification ─────────────────────────────────
 EXPORT_COLUMNS = [
@@ -145,18 +149,19 @@ def _connect(server, database, username, password, timeout=30):
                 port=1433,
                 login_timeout=timeout,
             )
-            print(f"Connected to Azure SQL (attempt {attempt + 1})")
+            logger.info("Connected to Azure SQL (attempt %s)", attempt + 1)
             return conn
         except pymssql.OperationalError as e:
             last_error = e
             err_str = str(e)
             if ("not currently available" in err_str or "timeout" in err_str.lower()) and attempt < RETRY_ATTEMPTS - 1:
                 backoff = 15 * (2**attempt)
-                print(
-                    f"Connection not available (attempt {attempt + 1}), "
-                    f"retrying in {backoff}s — database may be resuming..."
+                logger.warning(
+                    "Connection not available (attempt %s), retrying in %ss — database may be resuming...",
+                    attempt + 1,
+                    backoff,
                 )
-                time.sleep(backoff)
+                time.sleep(backoff + random.uniform(0, backoff / 2))
             else:
                 break
         except Exception as e:
