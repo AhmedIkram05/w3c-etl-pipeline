@@ -4,6 +4,8 @@ ruff==0.17.3
 mypy==1.14.0
 bandit==1.9.4
 sqlfluff==3.5.0
+# `uv lock --check` runs in CI from this list, so the lock cannot go stale.
+uv==0.10.0
 types-requests==2.33.0.20261030
 types-python-dateutil==2.9.0.20261029
 types-PyYAML==6.0.12.20261103

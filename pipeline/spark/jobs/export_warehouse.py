@@ -46,6 +46,14 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, lower, trim, when
 from pyspark.sql.types import LongType, StringType
 
+# The ``utils`` package is bundled as ``--py-files utils.zip`` for Spark
+# executors; the fallback covers running the file directly.
+try:
+    from utils.schemas import gold_schema
+except ImportError:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "utils"))
+    from schemas import gold_schema  # type: ignore[no-redef]
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("export_warehouse")
 
@@ -396,36 +404,9 @@ def run(
 
     # ── 5. Select only the columns defined in the DDL ─────────────────
     # The Delta silver table has 36 columns (including geo/UA denorm fields),
-    # but raw_enriched DDL only defines 25. Drop the extra 11 columns to
-    # avoid COLUMN_NOT_DEFINED_IN_TABLE JDBC errors.
-    raw_enriched_cols = [
-        "log_date",
-        "log_time",
-        "server_ip",
-        "method",
-        "uri_stem",
-        "uri_query",
-        "client_ip",
-        "user_agent",
-        "cookie",
-        "referrer",
-        "status",
-        "sub_status",
-        "win32_status",
-        "bytes_sent",
-        "bytes_recv",
-        "server_port",
-        "username",
-        "time_taken",
-        "source_file",
-        "postcode",
-        "page_category",
-        "referrer_domain",
-        "traffic_type",
-        "is_crawler",
-        "size_band",
-    ]
-    cast_data = cast_data.select(*raw_enriched_cols)
+    # but raw_enriched only defines the 25 in ``gold_schema``. Drop the rest
+    # to avoid COLUMN_NOT_DEFINED_IN_TABLE JDBC errors.
+    cast_data = cast_data.select(*[field.name for field in gold_schema.fields])
 
     # ── 6. Create PostgreSQL tables if they do not exist ─────────────
     execute_ddl(spark, jdbc_url, jdbc_props, RAW_ENRICHED_DDL, RAW_ENRICHED_TABLE)
