@@ -1,16 +1,19 @@
 """
-PySpark StructType schemas for all medallion layers.
+PySpark StructType schemas for the medallion layers that build DataFrames
+from an explicit schema.
 
-These schemas ensure column names, types and nullability are consistent
-across the bronze → silver → gold pipeline. Each schema is imported by
-the corresponding job module and used when creating DataFrames from RDDs
-or writing Delta tables.
+``bronze_schema`` is what ``bronze_ingestion`` parses log lines into.
+``gold_schema`` drives the column selection in ``export_warehouse``, so the
+warehouse export and ``RAW_ENRICHED_DDL`` cannot drift apart.
+
+Silver has no schema here on purpose: ``silver_enrichment`` derives its
+columns with ``withColumn`` from bronze, and pinning a StructType would
+change the Delta column order for existing tables.
 """
 
 from pyspark.sql.types import (
     BooleanType,
     DateType,
-    DoubleType,
     IntegerType,
     LongType,
     StringType,
@@ -40,29 +43,6 @@ bronze_schema = StructType([
     StructField("bytes_recv", LongType(), True),
     StructField("time_taken", LongType(), True),
     StructField("source_file", StringType(), True),
-])
-
-# ── Silver Layer — Enriched rows (Bronze + GeoIP + UA + computed) ──
-# Matches silver_enrichment output (36 columns, partitioned by log_date).
-silver_schema = StructType([
-    *bronze_schema.fields,
-    StructField("country", StringType(), True),
-    StructField("region", StringType(), True),
-    StructField("city", StringType(), True),
-    StructField("latitude", DoubleType(), True),
-    StructField("longitude", DoubleType(), True),
-    StructField("postcode", StringType(), True),
-    StructField("isp", StringType(), True),
-    StructField("agent_type", StringType(), True),
-    StructField("browser_name", StringType(), True),
-    StructField("browser_version", StringType(), True),
-    StructField("operating_system", StringType(), True),
-    StructField("device_type", StringType(), True),
-    StructField("page_category", StringType(), True),
-    StructField("referrer_domain", StringType(), True),
-    StructField("traffic_type", StringType(), True),
-    StructField("is_crawler", BooleanType(), True),
-    StructField("size_band", StringType(), True),
 ])
 
 # ── Gold Layer — Warehouse export (raw_enriched DDL subset) ───────
