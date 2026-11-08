@@ -2,7 +2,10 @@
 name = "w3c-etl-pipeline"
 version = "3.0.0"
 description = "Spark → PostgreSQL → dbt pipeline for IIS W3C web log analytics"
-requires-python = ">=3.12"
+# PySpark 4.0 does not support 3.14+, so the upper bound is a real constraint,
+# not decoration: declaring it turns "why will the suite not import" into a
+# resolver error.
+requires-python = ">=3.12,<3.14"
 # Import-level runtime dependencies of the Python modules in this repo.
 # Container/provisioning pins live in pipeline/requirements-dbt.txt,
 # pipeline/requirements.txt and pipeline/spark/requirements_spark.txt.
@@ -24,8 +27,11 @@ dependencies = [
 # Airflow image: what the base apache/airflow:2.11.2 image does not already
 # provide. Consumed by pipeline/requirements.txt.
 airflow = [
+    "apache-airflow-providers-apache-spark==4.11.3",
+    "apache-airflow-providers-databricks==7.16.0",
     "apache-airflow-providers-openlineage>=2.20.3,<3",
     "openlineage-dbt>=1.55.0",
+    "pyspark==4.0.2",
     "sqlalchemy>=1.4.36,<2.0",
 ]
 # dbt stack. Consumed by pipeline/requirements.txt and the CI dbt-compile job.
@@ -46,8 +52,8 @@ spark = [
 # Test environment (tests/requirements-test.txt).
 test = [
     "apache-airflow>=2.11.2,<3.0",
-    "apache-airflow-providers-apache-spark>=6.3.4,<7.0",
-    "apache-airflow-providers-databricks==4.6.0",
+    "apache-airflow-providers-apache-spark==4.11.3",
+    "apache-airflow-providers-databricks==7.16.0",
     "pyspark==4.0.2",
     "pyspark-client==4.0.2",
     "pytest>=9.2.0,<10.0",
@@ -60,7 +66,7 @@ dev = [
     "ruff==0.17.3",
     "sqlfluff==3.5.0",
     "types-PyYAML==6.0.12.20261103",
-    "types-python-dateutil==2.9.0.20261029",
+    "types-python-dateutil==2.9.0.20261104",
     "types-requests==2.33.0.20261030",
     "uv==0.10.0",
 ]

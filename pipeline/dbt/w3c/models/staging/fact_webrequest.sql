@@ -29,18 +29,21 @@ WITH enriched_input AS (
         1 AS request_count
     FROM {{ source('w3c', 'raw_enriched') }}
     {% if is_incremental() %}
-    -- Only process records from the latest captured date onward. `>=` (not `>`)
-    -- keeps same-day late arrivals: the boundary day is re-merged (idempotent
-    -- on the deterministic raw_log_id) instead of being silently dropped.
-    -- raw_enriched is append-only (new log files arrive daily via DLT pipeline),
-    -- so this prevents MERGE from scanning/reprocessing all 150k+ existing rows.
+    -- Process records from the last `fact_webrequest_lookback_days` days
+    -- before the watermark. `>=` (not `>`) keeps same-day late arrivals, and
+    -- the lookback window keeps a file re-uploaded for a recent day: those
+    -- rows are older than MAX(log_date) but still need merging. MERGE is
+    -- idempotent on the deterministic raw_log_id, so re-processing a day
+    -- updates rather than duplicates it. raw_enriched is append-only (new
+    -- log files arrive daily via DLT), so this still avoids scanning all
+    -- 150k+ existing rows.
     --
-    -- KNOWN LIMITATION (deliberate, not a bug): a file re-uploaded for a day
-    -- strictly OLDER than the watermark is never reprocessed, so its rows stay
-    -- missing forever. Handling that needs per-file load tracking rather than a
-    -- single MAX(log_date); until then, a back-dated re-upload requires a
-    -- manual full refresh of this model (dbt run --full-refresh -s fact_webrequest).
-    WHERE log_date >= (SELECT MAX(log_date) FROM {{ this }})
+    -- The window is the fix for the previous single-MAX(log_date) filter,
+    -- which silently dropped any re-upload older than the watermark. An
+    -- upload lagging more than the window still needs a manual full refresh
+    -- (dbt run --full-refresh -s fact_webrequest) or a raised var; tracking
+    -- it per file would need a load ledger raw_enriched does not carry.
+    WHERE log_date >= (SELECT MAX(log_date) FROM {{ this }}) - {{ var('fact_webrequest_lookback_days') }}
     {% endif %}
 ),
 
