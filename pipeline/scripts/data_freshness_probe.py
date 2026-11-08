@@ -124,13 +124,14 @@ def _get_connection():
             conn = pymssql.connect(**AZURE_DSN, as_dict=False)
             return conn, "azure_sql"
         except Exception:
-            pass  # nosec B110 — intentional: Azure SQL failure falls through to PostgreSQL
+            logger.warning("Azure SQL unreachable; falling back to PostgreSQL", exc_info=True)
 
     try:
         conn = psycopg2.connect(**PG_DSN)
         return conn, "postgresql"
     except Exception:
-        return None, None  # nosec B110 — intentional: both backends unavailable
+        logger.warning("PostgreSQL unreachable; no data source available", exc_info=True)
+        return None, None
 
 
 # ── Data collection functions ──────────────────────────────────────────
@@ -178,7 +179,7 @@ def check_freshness() -> float | None:
                 last_load = datetime.combine(row[0], datetime.min.time(), tzinfo=timezone.utc)
                 result = (datetime.now(timezone.utc) - last_load).total_seconds()
     except Exception:
-        pass  # nosec B110 — intentional: monitoring probe returns None on DB failure
+        logger.warning("freshness query failed for backend %s", backend, exc_info=True)
     finally:
         conn.close()
     return result
@@ -254,6 +255,7 @@ def check_warehouse_row_count() -> int:
         row = cursor.fetchone()
         return int(row[0]) if row else 0
     except Exception:
+        logger.warning("row-count query failed for backend %s", backend, exc_info=True)
         return 0
     finally:
         conn.close()

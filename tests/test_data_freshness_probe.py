@@ -190,3 +190,20 @@ def test_malformed_interval_does_not_break_import(monkeypatch):
     module = _import_with_env(monkeypatch)
     assert module.PROBE_INTERVAL_SECONDS == 900
 
+
+def test_warehouse_row_count_logs_query_failure(probe, monkeypatch, caplog):
+    conn = mock.MagicMock()
+    conn.cursor.side_effect = RuntimeError("boom")
+    monkeypatch.setattr(probe, "HAS_AZURE_SQL", True)
+    with mock.patch.object(probe.pymssql, "connect", return_value=conn):
+        assert probe.check_warehouse_row_count() == 0
+    assert "row-count query failed" in caplog.text
+
+
+def test_freshness_failure_is_logged_not_swallowed(probe, monkeypatch, caplog):
+    conn = mock.MagicMock()
+    conn.cursor.side_effect = RuntimeError("boom")
+    monkeypatch.setattr(probe, "HAS_AZURE_SQL", True)
+    with mock.patch.object(probe.pymssql, "connect", return_value=conn):
+        assert probe.check_freshness() is None
+    assert "freshness query failed" in caplog.text
