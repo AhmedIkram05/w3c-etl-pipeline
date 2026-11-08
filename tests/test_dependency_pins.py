@@ -11,6 +11,9 @@ Rules enforced here:
   1. A package may carry exactly one specifier across all manifests.
   2. Every package in a requirements file must exist in ``pyproject.toml``
      (base dependencies or an extra) with that same specifier.
+  3. The image build may only install packages *through* a requirements file.
+     Three provider pins used to be piped in ad hoc, which hid them from both
+     dependabot and rules 1-2.
 """
 
 from __future__ import annotations
@@ -107,6 +110,20 @@ def test_manifest_matches_pyproject(rel: str) -> None:
     missing = {name: spec for name, spec in _requirements(_ROOT / rel).items() if available.get(name) != spec}
     assert not missing, (
         f"{rel} declares packages that pyproject extras {sorted(REQUIREMENT_FILES[rel])} do not match: {missing}"
+    )
+
+
+def test_image_build_installs_only_from_manifests() -> None:
+    """The image build must not install any package outside a requirements file."""
+    dockerfile = (_ROOT / "pipeline" / "Dockerfile").read_text()
+    offenders = [
+        line.strip()
+        for line in dockerfile.splitlines()
+        if "pip install" in line and not re.search(r"-r\s+\S+\.txt", line)
+    ]
+    assert not offenders, (
+        "Dockerfile installs packages outside a manifest (move them into "
+        "pipeline/requirements.txt or a pyproject extra):\n  " + "\n  ".join(offenders)
     )
 
 
