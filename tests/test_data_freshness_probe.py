@@ -207,3 +207,65 @@ def test_freshness_failure_is_logged_not_swallowed(probe, monkeypatch, caplog):
     with mock.patch.object(probe.pymssql, "connect", return_value=conn):
         assert probe.check_freshness() is None
     assert "freshness query failed" in caplog.text
+
+
+# ── Databricks cursor retry ───────────────────────────────────────────
+# A serverless warehouse that scaled to zero answers RUNNING, and a cold
+# endpoint can drop the connection. Neither is a data problem, so the probe
+# retries before reporting 0 rows.
+
+
+def _response(body: bytes):
+    """Build a urlopen-style context manager returning ``body``."""
+    payload = mock.MagicMock()
+    payload.read.return_value = body
+    payload.__enter__ = mock.MagicMock(return_value=payload)
+    payload.__exit__ = mock.MagicMock(return_value=False)
+    return payload
+
+
+_SUCCEEDED = b'{"status": {"state": "SUCCEEDED"}, "result": {"data_array": [["7"]]}}'
+_RUNNING = b'{"status": {"state": "RUNNING"}}'
+_FAILED = b'{"status": {"state": "FAILED"}}'
+
+
+def test_query_databricks_retries_connection_error(probe, monkeypatch):
+    monkeypatch.setattr(probe.time, "sleep", mock.MagicMock())
+    with mock.patch.object(
+        probe.urllib.request,
+        "urlopen",
+        side_effect=[probe.urllib.error.URLError("warehouse cold"), _response(_SUCCEEDED)],
+    ) as urlopen:
+        assert probe.query_databricks("SELECT 1") == [["7"]]
+    assert urlopen.call_count == 2
+
+
+def test_query_databricks_retries_running_statement(probe, monkeypatch):
+    monkeypatch.setattr(probe.time, "sleep", mock.MagicMock())
+    with mock.patch.object(
+        probe.urllib.request,
+        "urlopen",
+        side_effect=[_response(_RUNNING), _response(_SUCCEEDED)],
+    ) as urlopen:
+        assert probe.query_databricks("SELECT 1") == [["7"]]
+    assert urlopen.call_count == 2
+
+
+def test_query_databricks_gives_up_after_all_attempts(probe, monkeypatch):
+    monkeypatch.setattr(probe.time, "sleep", mock.MagicMock())
+    with mock.patch.object(
+        probe.urllib.request,
+        "urlopen",
+        side_effect=probe.urllib.error.URLError("down"),
+    ) as urlopen:
+        assert probe.query_databricks("SELECT 1") is None
+    assert urlopen.call_count == probe.DATABRICKS_RETRY_ATTEMPTS
+
+
+def test_query_databricks_does_not_retry_terminal_state(probe, monkeypatch):
+    sleep = mock.MagicMock()
+    monkeypatch.setattr(probe.time, "sleep", sleep)
+    with mock.patch.object(probe.urllib.request, "urlopen", return_value=_response(_FAILED)) as urlopen:
+        assert probe.query_databricks("SELECT 1") is None
+    assert urlopen.call_count == 1
+    sleep.assert_not_called()
