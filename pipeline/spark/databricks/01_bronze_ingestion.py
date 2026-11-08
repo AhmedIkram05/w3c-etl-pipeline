@@ -320,7 +320,8 @@ def run(spark, log_files_dir: str):
 
     # Display summary (Databricks notebook output)
     try:
-        display(spark.sql(f"SELECT COUNT(*) AS total_rows FROM {BRONZE_UC_PATH}"))  # type: ignore[name-defined]  # noqa: F821
+        # BRONZE_UC_PATH is a module constant and not user input.
+        display(spark.sql(f"SELECT COUNT(*) AS total_rows FROM {BRONZE_UC_PATH}"))  # type: ignore[name-defined]  # noqa: F821  # nosec B608
     except NameError:
         pass  # display() only available in Databricks notebooks
 

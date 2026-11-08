@@ -29,13 +29,16 @@ import glob
 import io
 import os
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import sys
 import tempfile
 import urllib.request
 import zipfile
 
 import requests
+
+# subprocess and urlretrieve below run fixed commands (the dbt CLI,
+# dpkg-deb, and Microsoft's ODBC .deb) from argv lists with no shell.
 
 # ── ODBC driver package URL ──────────────────────────────────────────────
 # Extracted to a module-level constant so it is defined in exactly one place.
@@ -170,7 +173,7 @@ def run_dbt_command(
     print(f"Running dbt {command_name}...")
     sys.stdout.flush()
 
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B603
         full_cmd,
         capture_output=True,
         text=True,
@@ -238,7 +241,7 @@ def _install_packages(extra_packages: list[str] | None = None) -> None:
     packages = ["dbt-sqlserver", "dbt-fabric"]
     if extra_packages:
         packages.extend(extra_packages)
-    subprocess.run(
+    subprocess.run(  # nosec B603
         [sys.executable, "-m", "pip", "install", *packages, "--upgrade", "--quiet"],
         check=True,
     )
@@ -251,11 +254,11 @@ def _setup_odbc_driver() -> None:
     driver_dir = os.path.join(tempfile.gettempdir(), f"msodbc_{os.getpid()}")
 
     print("Downloading ODBC Driver 18...")
-    urllib.request.urlretrieve(_ODBC_DRIVER_URL, deb_path)
+    urllib.request.urlretrieve(_ODBC_DRIVER_URL, deb_path)  # nosec B310
     print(f"Downloaded ({os.path.getsize(deb_path)} bytes)")
 
     os.makedirs(driver_dir, exist_ok=True)
-    subprocess.run(["dpkg-deb", "-x", deb_path, driver_dir], check=True)
+    subprocess.run(["dpkg-deb", "-x", deb_path, driver_dir], check=True)  # nosec B603 B607
     print("Extracted to", driver_dir)
 
     # Find the driver .so library (may be in lib64/ or lib/)
@@ -371,7 +374,7 @@ def _run_dbt_deps(project_dir: str, profiles_dir: str) -> None:
     immediately.
     """
     print("Running dbt deps...")
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B603 B607
         [
             "dbt",
             "deps",
