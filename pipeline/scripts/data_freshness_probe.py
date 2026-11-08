@@ -27,8 +27,27 @@ from prometheus_client import Gauge, start_http_server
 
 logger = logging.getLogger(__name__)
 
+
+def _env_int(name: str, default: int) -> int:
+    """Read an integer env var, falling back to ``default`` when unset or malformed.
+
+    A bad value must not take the probe down at import time; the container
+    would restart-loop with no metric ever published.
+    """
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("Invalid %s=%r; using %d", name, raw, default)
+        return default
+
+
 # Collection interval; override with PROBE_INTERVAL_SECONDS (default 15 min).
-PROBE_INTERVAL_SECONDS = int(os.environ.get("PROBE_INTERVAL_SECONDS") or 900)
+PROBE_INTERVAL_SECONDS = _env_int("PROBE_INTERVAL_SECONDS", 900)
+# Metrics listener; override with PROBE_PORT.
+PROBE_PORT = _env_int("PROBE_PORT", 8000)
 
 # ── Prometheus gauges ──────────────────────────────────────────────────
 FRESHNESS_GAUGE = Gauge(
@@ -105,13 +124,14 @@ def _get_connection():
             conn = pymssql.connect(**AZURE_DSN, as_dict=False)
             return conn, "azure_sql"
         except Exception:
-            pass  # nosec B110 — intentional: Azure SQL failure falls through to PostgreSQL
+            logger.warning("Azure SQL unreachable; falling back to PostgreSQL", exc_info=True)
 
     try:
         conn = psycopg2.connect(**PG_DSN)
         return conn, "postgresql"
     except Exception:
-        return None, None  # nosec B110 — intentional: both backends unavailable
+        logger.warning("PostgreSQL unreachable; no data source available", exc_info=True)
+        return None, None
 
 
 # ── Data collection functions ──────────────────────────────────────────
@@ -159,7 +179,7 @@ def check_freshness() -> float | None:
                 last_load = datetime.combine(row[0], datetime.min.time(), tzinfo=timezone.utc)
                 result = (datetime.now(timezone.utc) - last_load).total_seconds()
     except Exception:
-        pass  # nosec B110 — intentional: monitoring probe returns None on DB failure
+        logger.warning("freshness query failed for backend %s", backend, exc_info=True)
     finally:
         conn.close()
     return result
@@ -235,6 +255,7 @@ def check_warehouse_row_count() -> int:
         row = cursor.fetchone()
         return int(row[0]) if row else 0
     except Exception:
+        logger.warning("row-count query failed for backend %s", backend, exc_info=True)
         return 0
     finally:
         conn.close()
@@ -282,7 +303,7 @@ def check_databricks_row_count(full_table_name: str) -> int:
 
 
 if __name__ == "__main__":
-    start_http_server(8000)
+    start_http_server(PROBE_PORT)
     while True:
         # Freshness — backend source is set by check_freshness
         seconds = check_freshness()

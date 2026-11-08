@@ -247,7 +247,8 @@ def run(spark):
 
     # Display summary (Databricks notebook output)
     try:
-        display(spark.sql(f"SELECT COUNT(*) AS gold_rows FROM {GOLD_UC_PATH}"))  # noqa: F821
+        # GOLD_UC_PATH is a module constant and not user input.
+        display(spark.sql(f"SELECT COUNT(*) AS gold_rows FROM {GOLD_UC_PATH}"))  # noqa: F821  # nosec B608
     except NameError:
         pass
 

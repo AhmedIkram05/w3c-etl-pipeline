@@ -245,7 +245,8 @@ def insert_batch(conn, rows, table, commit=True):
 
     col_names = ", ".join(f"[{c}]" for c in columns)
     placeholders = ", ".join(["%s"] * len(columns))
-    sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})"
+    # Table and column names come from the DataFrame schema; values are bound.
+    sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})"  # nosec B608
 
     with conn.cursor() as cursor:
         cursor.executemany(sql, params)

@@ -1,0 +1,9 @@
+# Developer tooling for local checks. These are the exact versions CI runs
+# (.github/workflows/_reusable-lint.yml) so a local pass means a CI pass.
+ruff==0.17.3
+mypy==1.14.0
+bandit==1.9.4
+sqlfluff==3.5.0
+types-requests==2.33.0.20261030
+types-python-dateutil==2.9.0.20261029
+types-PyYAML==6.0.12.20261103

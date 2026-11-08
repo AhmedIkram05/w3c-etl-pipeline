@@ -149,3 +149,61 @@ def test_check_databricks_row_count_parses_and_defaults(probe, monkeypatch):
     assert probe.check_databricks_row_count("main.bronze.logs") == 7
     monkeypatch.setattr(probe, "query_databricks", lambda sql: None)
     assert probe.check_databricks_row_count("main.bronze.logs") == 0
+
+
+def _import_with_env(monkeypatch):
+    """Import the probe module fresh, honouring env vars set by the caller."""
+    monkeypatch.setitem(sys.modules, "pymssql", mock.MagicMock())
+    monkeypatch.setitem(sys.modules, "prometheus_client", mock.MagicMock())
+    monkeypatch.syspath_prepend(str(_SCRIPTS_DIR))
+    try:
+        return importlib.import_module("data_freshness_probe")
+    finally:
+        sys.modules.pop("data_freshness_probe", None)
+
+
+def test_env_int_reads_value_and_defaults_when_unset(probe, monkeypatch):
+    monkeypatch.setenv("PROBE_UNDER_TEST", "60")
+    assert probe._env_int("PROBE_UNDER_TEST", 900) == 60
+    monkeypatch.delenv("PROBE_UNDER_TEST")
+    assert probe._env_int("PROBE_UNDER_TEST", 900) == 900
+    monkeypatch.setenv("PROBE_UNDER_TEST", "")
+    assert probe._env_int("PROBE_UNDER_TEST", 900) == 900
+
+
+def test_env_int_falls_back_on_malformed_value(probe, monkeypatch, caplog):
+    monkeypatch.setenv("PROBE_UNDER_TEST", "fifteen minutes")
+    assert probe._env_int("PROBE_UNDER_TEST", 900) == 900
+    assert "Invalid PROBE_UNDER_TEST" in caplog.text
+
+
+def test_port_and_interval_are_env_configurable(monkeypatch):
+    monkeypatch.setenv("PROBE_PORT", "9111")
+    monkeypatch.setenv("PROBE_INTERVAL_SECONDS", "60")
+    module = _import_with_env(monkeypatch)
+    assert module.PROBE_PORT == 9111
+    assert module.PROBE_INTERVAL_SECONDS == 60
+
+
+def test_malformed_interval_does_not_break_import(monkeypatch):
+    monkeypatch.setenv("PROBE_INTERVAL_SECONDS", "fifteen minutes")
+    module = _import_with_env(monkeypatch)
+    assert module.PROBE_INTERVAL_SECONDS == 900
+
+
+def test_warehouse_row_count_logs_query_failure(probe, monkeypatch, caplog):
+    conn = mock.MagicMock()
+    conn.cursor.side_effect = RuntimeError("boom")
+    monkeypatch.setattr(probe, "HAS_AZURE_SQL", True)
+    with mock.patch.object(probe.pymssql, "connect", return_value=conn):
+        assert probe.check_warehouse_row_count() == 0
+    assert "row-count query failed" in caplog.text
+
+
+def test_freshness_failure_is_logged_not_swallowed(probe, monkeypatch, caplog):
+    conn = mock.MagicMock()
+    conn.cursor.side_effect = RuntimeError("boom")
+    monkeypatch.setattr(probe, "HAS_AZURE_SQL", True)
+    with mock.patch.object(probe.pymssql, "connect", return_value=conn):
+        assert probe.check_freshness() is None
+    assert "freshness query failed" in caplog.text
