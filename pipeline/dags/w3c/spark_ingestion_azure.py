@@ -47,6 +47,7 @@ from airflow import DAG
 from airflow.datasets import Dataset
 from airflow.operators.python import PythonOperator
 from airflow.providers.databricks.operators.databricks import DatabricksRunNowOperator
+from operators.azure_sql import build_conn_str as _azure_conn_str
 
 logger = logging.getLogger(__name__)
 
@@ -83,28 +84,6 @@ default_args = {
     "retry_exponential": True,
     "max_retry_delay": dt.timedelta(hours=1),
 }
-
-
-def _odbc_value(value: str) -> str:
-    """Quote an ODBC connection-string value so ``;``, ``=`` and braces are safe.
-
-    A braced value is literal except that every ``}`` must be doubled
-    (``}}``); ``{`` needs no escaping. The braces also stop a ``;`` or ``=``
-    inside the password from terminating the ``PWD=`` pair.
-    """
-    return "{" + value.replace("}", "}}") + "}"
-
-
-def _azure_conn_str(server: str, database: str, username: str, password: str) -> str:
-    """Build the Azure SQL ODBC connection string."""
-    return (
-        f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-        f"SERVER={server};"
-        f"DATABASE={database};"
-        f"UID={username};"
-        f"PWD={_odbc_value(password)};"
-        f"Encrypt=yes;TrustServerCertificate=no;"
-    )
 
 
 def _device_type(parsed) -> str:
