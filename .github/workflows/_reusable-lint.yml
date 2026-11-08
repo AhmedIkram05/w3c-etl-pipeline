@@ -33,4 +33,3 @@ jobs:
         run: bandit -r pipeline/ -c pyproject.toml
       - name: SQLFluff dbt SQL lint
         run: sqlfluff lint pipeline/dbt/w3c/models/ --dialect postgres
-        continue-on-error: true
