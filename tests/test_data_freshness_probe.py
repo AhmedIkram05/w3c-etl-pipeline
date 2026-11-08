@@ -61,3 +61,91 @@ def test_check_freshness_reads_positional_rows(probe, monkeypatch):
     assert probe.ACTIVE_BACKEND == "azure_sql"
     assert result is not None
     assert 3500 < result < 3700
+
+
+def _conn_with_single_row(value):
+    cursor = mock.MagicMock()
+    cursor.fetchone.return_value = (value,)
+    conn = mock.MagicMock()
+    conn.cursor.return_value = cursor
+    return conn, cursor
+
+
+def test_check_freshness_falls_back_to_max_log_date(probe, monkeypatch):
+    """No tracking row yet -> fall back to MAX(log_date), a date (not datetime)."""
+    today = datetime.now(timezone.utc).date()
+    cursor = mock.MagicMock()
+    cursor.fetchone.side_effect = [(None,), (today,)]
+    conn = mock.MagicMock()
+    conn.cursor.return_value = cursor
+    monkeypatch.setattr(probe, "HAS_AZURE_SQL", True)
+    with mock.patch.object(probe.pymssql, "connect", return_value=conn):
+        result = probe.check_freshness()
+    assert result is not None
+    assert result >= 0
+    assert cursor.execute.call_count == 2
+    assert "MAX(log_date)" in cursor.execute.call_args[0][0]
+
+
+def test_check_dbt_pass_rate_is_zero_without_a_database(probe, monkeypatch):
+    monkeypatch.setattr(probe, "_get_connection", lambda: (None, None))
+    assert probe.check_dbt_pass_rate() == 0.0
+
+
+def test_check_dbt_pass_rate_is_one_when_table_missing(probe, monkeypatch):
+    conn, cursor = _conn_with_single_row(0)
+    monkeypatch.setattr(probe, "HAS_AZURE_SQL", True)
+    with mock.patch.object(probe.pymssql, "connect", return_value=conn):
+        assert probe.check_dbt_pass_rate() == 1.0
+    assert cursor.execute.call_count == 1  # never queries a missing table
+
+
+def test_check_dbt_pass_rate_computes_ratio(probe, monkeypatch):
+    cursor = mock.MagicMock()
+    cursor.fetchone.side_effect = [(1,), (0.75,)]
+    conn = mock.MagicMock()
+    conn.cursor.return_value = cursor
+    monkeypatch.setattr(probe, "HAS_AZURE_SQL", True)
+    with mock.patch.object(probe.pymssql, "connect", return_value=conn):
+        assert probe.check_dbt_pass_rate() == 0.75
+
+
+def test_check_warehouse_row_count_reads_first_column(probe, monkeypatch):
+    conn, cursor = _conn_with_single_row(42)
+    monkeypatch.setattr(probe, "HAS_AZURE_SQL", True)
+    with mock.patch.object(probe.pymssql, "connect", return_value=conn):
+        assert probe.check_warehouse_row_count() == 42
+    assert "COUNT(*)" in cursor.execute.call_args[0][0]
+
+
+def test_check_warehouse_row_count_is_zero_on_query_failure(probe, monkeypatch):
+    conn = mock.MagicMock()
+    conn.cursor.side_effect = RuntimeError("boom")
+    monkeypatch.setattr(probe, "HAS_AZURE_SQL", True)
+    with mock.patch.object(probe.pymssql, "connect", return_value=conn):
+        assert probe.check_warehouse_row_count() == 0
+
+
+def test_query_databricks_returns_none_when_statement_not_succeeded(probe):
+    payload = mock.MagicMock()
+    payload.read.return_value = b'{"status": {"state": "FAILED"}}'
+    payload.__enter__ = mock.MagicMock(return_value=payload)
+    payload.__exit__ = mock.MagicMock(return_value=False)
+    with mock.patch.object(probe.urllib.request, "urlopen", return_value=payload):
+        assert probe.query_databricks("SELECT 1") is None
+
+
+def test_query_databricks_returns_data_array(probe):
+    payload = mock.MagicMock()
+    payload.read.return_value = b'{"status": {"state": "SUCCEEDED"}, "result": {"data_array": [["7"]]}}'
+    payload.__enter__ = mock.MagicMock(return_value=payload)
+    payload.__exit__ = mock.MagicMock(return_value=False)
+    with mock.patch.object(probe.urllib.request, "urlopen", return_value=payload):
+        assert probe.query_databricks("SELECT COUNT(*)") == [["7"]]
+
+
+def test_check_databricks_row_count_parses_and_defaults(probe, monkeypatch):
+    monkeypatch.setattr(probe, "query_databricks", lambda sql: [["7"]])
+    assert probe.check_databricks_row_count("main.bronze.logs") == 7
+    monkeypatch.setattr(probe, "query_databricks", lambda sql: None)
+    assert probe.check_databricks_row_count("main.bronze.logs") == 0
