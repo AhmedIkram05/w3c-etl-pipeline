@@ -11,7 +11,11 @@ pyspark==4.0.2
 # Keep it on the same release as pyspark.
 pyspark-client==4.0.2
 apache-airflow>=2.11.2,<3.0
-apache-airflow-providers-apache-spark>=6.3.4,<7.0
+# Tests must exercise the provider versions the Airflow image runs, not a
+# newer major: a provider mismatch meant CI validated a stack production
+# never used.
+apache-airflow-providers-apache-spark==4.11.3
+apache-airflow-providers-databricks==7.16.0
 # Core dependencies — pinned to the versions the Spark container ships
 # (pipeline/spark/requirements_spark.txt) so tests exercise the real stack.
 user-agents==2.2.0
