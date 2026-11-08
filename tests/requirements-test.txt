@@ -1,7 +1,7 @@
 # Test dependencies for Spark unit tests and DAG integrity tests
 pytest>=9.2.0,<10.0
 pytest-cov>=7.1.0,<8.0
-# Must match pipeline/Dockerfile (pyspark==4.0.2), the version the Spark
+# Must match pipeline/Dockerfile (pyspark==4.3.0), the version the Spark
 # container runs. PySpark 4.0 needs Python 3.12-3.13, so use the interpreter
 # CI uses (3.12) when running the suite locally.
 pyspark==4.0.2
@@ -9,13 +9,13 @@ pyspark==4.0.2
 # Both distributions ship the same pyspark/ tree, so a version mismatch
 # lets one overwrite the other's modules (ImportError: SparkExecutorInfo).
 # Keep it on the same release as pyspark.
-pyspark-client==4.0.2
+pyspark-client==4.3.0
 apache-airflow>=2.11.2,<3.0
 # Tests must exercise the provider versions the Airflow image runs, not a
 # newer major: a provider mismatch meant CI validated a stack production
 # never used.
 apache-airflow-providers-apache-spark==4.11.3
-apache-airflow-providers-databricks==7.16.0
+apache-airflow-providers-databricks==7.23.0
 # Core dependencies — pinned to the versions the Spark container ships
 # (pipeline/spark/requirements_spark.txt) so tests exercise the real stack.
 user-agents==2.2.0
