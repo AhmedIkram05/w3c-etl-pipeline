@@ -25,6 +25,13 @@ models:
       +schema: marts
 
 vars:
+  # fact_webrequest processes the last N days before its watermark on every
+  # incremental run. A log file re-uploaded with corrected or back-dated rows
+  # lands inside that window and is re-merged (MERGE is idempotent on the
+  # deterministic raw_log_id) instead of being dropped for being older than
+  # MAX(log_date). Raise it to cover a longer upload lag; the cost is
+  # re-merging N days of fact rows per run.
+  fact_webrequest_lookback_days: 3
   # England & Wales bank holidays for dim_date.holiday_flag. 2009-2011 as
   # originally seeded; 2012-2030 computed (Easter computus + weekend
   # substitution), incl. moved specials 2012-06-04, 2020-05-08, 2022-06-02
