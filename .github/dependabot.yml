@@ -36,9 +36,9 @@ updates:
       - "pipeline/**"
     # Mirror the /pipeline pip entry's protections on the entry that actually
     # scans these files — the root uv job kept proposing majors the pip entry
-    # already blocks (apache-airflow 2→3, protobuf 5→7). The dbt stack is
-    # exact-pinned to 1.8.x (see pipeline/requirements.txt comments) and is held
-    # until the protobuf 5→6 migration is done deliberately.
+    # already blocks (apache-airflow 2→3, protobuf 6→7). The dbt stack is
+    # exact-pinned to 1.11.x and bumps deliberately, together with the
+    # protobuf range (see pipeline/requirements-dbt.txt).
     ignore:
       - dependency-name: "apache-airflow"
         update-types: ["version-update:semver-major"]
