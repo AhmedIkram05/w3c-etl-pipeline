@@ -5,6 +5,11 @@ pytest-cov>=7.1.0,<8.0
 # container runs. PySpark 4.0 needs Python 3.12-3.13, so use the interpreter
 # CI uses (3.12) when running the suite locally.
 pyspark==4.0.2
+# apache-airflow-providers-apache-spark pulls pyspark-client in as well.
+# Both distributions ship the same pyspark/ tree, so a version mismatch
+# lets one overwrite the other's modules (ImportError: SparkExecutorInfo).
+# Keep it on the same release as pyspark.
+pyspark-client==4.0.2
 apache-airflow>=2.11.2,<3.0
 apache-airflow-providers-apache-spark>=6.3.4,<7.0
 # Core dependencies — pinned to the versions the Spark container ships
