@@ -2,6 +2,12 @@ user-agents==2.2.0
 requests==2.34.2
 azure-storage-blob>=12.31.1
 -r requirements-dbt.txt
+# Airflow runtime providers + the Spark client the submit operator drives.
+# These used to be piped in by the image build outside every manifest, which
+# made them invisible to dependabot and to tests/test_dependency_pins.py.
+apache-airflow-providers-apache-spark==4.11.3
+apache-airflow-providers-databricks==7.16.0
+pyspark==4.0.2
 psycopg2-binary>=2.9.13,<3.0
 # pyodbc pinned to the 5.3.x line (>=5.3.0,<5.4).
 pyodbc>=5.3.0,<5.4
