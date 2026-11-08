@@ -32,6 +32,13 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      # Spark 4.0 cannot start a JVM on Java 18+ (java.lang.UnsupportedOperation
+      # Exception: getSubject is not supported). The runner default is newer, so
+      # pin the JVM to the version the Spark container runs.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
       - name: Create Airflow directory structure
         run: |
           sudo mkdir -p /opt/airflow/dags
