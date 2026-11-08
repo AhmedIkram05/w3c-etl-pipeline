@@ -101,11 +101,9 @@ if not _AIRFLOW_AVAILABLE:
     sys.modules["airflow.providers.databricks.operators.databricks"] = _airflow_databricks
 
 # ── Module under test ─────────────────────────────────────────────────────
-from dags.w3c.spark_ingestion_azure import (  # noqa: E402 — sys.modules mock comes first
-    _azure_conn_str,
-    _export_dimensions,
-    _odbc_value,
-)
+from dags.w3c.spark_ingestion_azure import _export_dimensions  # noqa: E402 — sys.modules mock comes first
+from operators.azure_sql import build_conn_str as _azure_conn_str  # noqa: E402
+from operators.azure_sql import odbc_value as _odbc_value  # noqa: E402
 
 
 class TestOdbcConnectionStringEscaping:

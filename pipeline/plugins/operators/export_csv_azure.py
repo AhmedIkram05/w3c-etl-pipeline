@@ -19,6 +19,11 @@ from __future__ import annotations
 import logging
 import os
 
+from operators.azure_sql import build_conn_str, odbc_value
+
+# Kept as a module alias: callers and tests import the private name.
+_odbc_value = odbc_value
+
 logger = logging.getLogger(__name__)
 
 STAR_SCHEMA_DIR = "/opt/airflow/data/Star-Schema"
@@ -64,19 +69,6 @@ PUBLIC_TABLES = [
 ALL_TABLES = STAGING_TABLES + MART_TABLES + PUBLIC_TABLES
 
 
-def _odbc_value(value: str) -> str:
-    """Quote an ODBC connection-string value so ``;``, ``=`` and braces are safe.
-
-    A braced value is literal except that every ``}`` must be doubled
-    (``}}``); ``{`` needs no escaping. The braces also stop a ``;`` or ``=``
-    inside the password from terminating the ``PWD=`` pair.
-
-    Twin of the helper in ``dags/w3c/spark_ingestion_azure.py`` — kept local
-    because operators must not import from the dags package.
-    """
-    return "{" + value.replace("}", "}}") + "}"
-
-
 def export_csv_azure(**context) -> None:
     """Export dbt mart and staging tables from Azure SQL to CSV files.
 
@@ -118,14 +110,7 @@ def export_csv_azure(**context) -> None:
         )
         return
 
-    conn_str = (
-        f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-        f"SERVER={server};"
-        f"DATABASE={database};"
-        f"UID={username};"
-        f"PWD={_odbc_value(password)};"
-        f"Encrypt=yes;TrustServerCertificate=no;"
-    )
+    conn_str = build_conn_str(server, database, username, password)
 
     os.makedirs(STAR_SCHEMA_DIR, exist_ok=True)
 
