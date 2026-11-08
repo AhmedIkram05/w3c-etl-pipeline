@@ -32,8 +32,11 @@ ignore = ["E501"]
 preview = true
 
 [tool.bandit]
-exclude_dirs = ["tests", ".github", "pipeline/spark/databricks"]
-skips = ["B101", "B311", "B403", "B404", "B603", "B607"]
+exclude_dirs = ["tests", ".github"]
+# B101 asserts are test-style guards, B311 flags non-cryptographic random
+# (retry jitter and salt bucketing). Everything else is scanned and any
+# remaining finding is annotated with its own justified nosec.
+skips = ["B101", "B311"]
 
 [tool.mypy]
 python_version = "3.12"

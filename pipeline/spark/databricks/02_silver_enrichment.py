@@ -432,7 +432,8 @@ def run(spark, geolite2_db: str | None = None):
 
     # Display summary (Databricks notebook output)
     try:
-        display(spark.sql(f"SELECT COUNT(*) AS silver_rows FROM {SILVER_UC_PATH}"))  # type: ignore[name-defined]  # noqa: F821
+        # SILVER_UC_PATH is a module constant and not user input.
+        display(spark.sql(f"SELECT COUNT(*) AS silver_rows FROM {SILVER_UC_PATH}"))  # type: ignore[name-defined]  # noqa: F821  # nosec B608
     except NameError:
         pass
 
