@@ -16,8 +16,53 @@ dependencies = [
     "pyarrow==19.0.1",
     "pymssql>=2.4.6,<3.0",
     "pyodbc>=5.3.0,<5.4",
-    "requests",
-    "user-agents>=2.2,<3.0",
+    "requests==2.34.2",
+    "user-agents==2.2.0",
+]
+
+[project.optional-dependencies]
+# Airflow image: what the base apache/airflow:2.11.2 image does not already
+# provide. Consumed by pipeline/requirements.txt.
+airflow = [
+    "apache-airflow-providers-openlineage>=2.20.3,<3",
+    "openlineage-dbt>=1.55.0",
+    "sqlalchemy>=1.4.36,<2.0",
+]
+# dbt stack. Consumed by pipeline/requirements.txt and the CI dbt-compile job.
+dbt = [
+    "dbt-core==1.11.17",
+    "dbt-postgres==1.11.0",
+    "dbt-sqlserver==1.11.3",
+    "protobuf>=6.0,<7.0",
+]
+# Spark job containers (pipeline/spark/requirements_spark.txt).
+spark = [
+    "geoip2==5.3.0",
+    "maxminddb==3.2.0",
+    "pandas==2.2.3",
+    "pyarrow==19.0.1",
+    "user-agents==2.2.0",
+]
+# Test environment (tests/requirements-test.txt).
+test = [
+    "apache-airflow>=2.11.2,<3.0",
+    "apache-airflow-providers-apache-spark>=6.3.4,<7.0",
+    "apache-airflow-providers-databricks==4.6.0",
+    "pyspark==4.0.2",
+    "pyspark-client==4.0.2",
+    "pytest>=9.2.0,<10.0",
+    "pytest-cov>=7.1.0,<8.0",
+]
+# Local checks and CI lint job (requirements-dev.txt).
+dev = [
+    "bandit==1.9.4",
+    "mypy==1.14.0",
+    "ruff==0.17.3",
+    "sqlfluff==3.5.0",
+    "types-PyYAML==6.0.12.20261103",
+    "types-python-dateutil==2.9.0.20261029",
+    "types-requests==2.33.0.20261030",
+    "uv==0.10.0",
 ]
 
 [tool.ruff]
