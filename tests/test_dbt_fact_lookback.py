@@ -45,9 +45,9 @@ def test_lookback_var_is_a_positive_int() -> None:
 def test_incremental_filter_applies_the_lookback() -> None:
     sql = _model_sql()
     assert "{{ var('fact_webrequest_lookback_days') }}" in sql
-    assert re.search(r"MAX\(log_date\) FROM \{\{ this \}\}\)\s*-\s*\{\{ var\('fact_webrequest_lookback_days'\) \}\}", sql), (
-        "the watermark must be shifted back by the lookback var"
-    )
+    assert re.search(
+        r"MAX\(log_date\) FROM \{\{ this \}\}\)\s*-\s*\{\{ var\('fact_webrequest_lookback_days'\) \}\}", sql
+    ), "the watermark must be shifted back by the lookback var"
 
 
 def test_incremental_filter_is_not_a_bare_watermark() -> None:
