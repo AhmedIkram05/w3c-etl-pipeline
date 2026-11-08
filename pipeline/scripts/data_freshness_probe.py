@@ -16,6 +16,7 @@ Supports two database backends:
 import json
 import logging
 import os
+import random
 import time
 import urllib.error
 import urllib.request
@@ -261,17 +262,18 @@ def check_warehouse_row_count() -> int:
         conn.close()
 
 
-def query_databricks(sql: str) -> list[list[str]] | None:
-    """Execute a SQL statement on the Databricks SQL warehouse and return the data array.
+# A serverless warehouse that has scaled to zero answers the first statement
+# with RUNNING/PENDING rather than data, and a cold endpoint can drop the
+# connection outright. Both are transient, so the probe retries them instead
+# of publishing 0 rows until the next 15-minute scrape.
+DATABRICKS_RETRY_ATTEMPTS = 3
+DATABRICKS_RETRY_BASE_SECONDS = 2.0
+# Terminal states: retrying cannot change the outcome.
+_DATABRICKS_TERMINAL_STATES = {"FAILED", "CANCELED", "CLOSED"}
 
-    Returns None if the warehouse is unavailable or the query fails.
-    """
-    url = f"https://{DATABRICKS_HOST}/api/2.0/sql/statements"
-    body = json.dumps({
-        "statement": sql,
-        "warehouse_id": DATABRICKS_WAREHOUSE_ID,
-        "wait_timeout": "15s",
-    }).encode()
+
+def _databricks_post(url: str, body: bytes) -> dict:
+    """POST one statement and decode the response."""
     req = urllib.request.Request(
         url,
         data=body,
@@ -280,14 +282,42 @@ def query_databricks(sql: str) -> list[list[str]] | None:
             "Content-Type": "application/json",
         },
     )
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:  # nosec B310 — URL is env-configured with hardcoded https:// scheme
-            data = json.loads(resp.read().decode())
-        if data.get("status", {}).get("state") != "SUCCEEDED":
-            return None
-        return data.get("result", {}).get("data_array")
-    except (urllib.error.URLError, json.JSONDecodeError, KeyError, OSError):
-        return None
+    with urllib.request.urlopen(req, timeout=20) as resp:  # nosec B310 — URL is env-configured with hardcoded https:// scheme
+        return json.loads(resp.read().decode())
+
+
+def query_databricks(sql: str) -> list[list[str]] | None:
+    """Execute a SQL statement on the Databricks SQL warehouse and return the data array.
+
+    Returns None if the warehouse is unavailable or the query fails. Transient
+    failures (connection errors, a statement still RUNNING) are retried with
+    exponential backoff and jitter.
+    """
+    url = f"https://{DATABRICKS_HOST}/api/2.0/sql/statements"
+    body = json.dumps({
+        "statement": sql,
+        "warehouse_id": DATABRICKS_WAREHOUSE_ID,
+        "wait_timeout": "15s",
+    }).encode()
+
+    for attempt in range(DATABRICKS_RETRY_ATTEMPTS):
+        delay = DATABRICKS_RETRY_BASE_SECONDS * (2**attempt)
+        try:
+            data = _databricks_post(url, body)
+            state = data.get("status", {}).get("state")
+            if state == "SUCCEEDED":
+                return data.get("result", {}).get("data_array")
+            if state in _DATABRICKS_TERMINAL_STATES:
+                logger.warning("Databricks statement ended in state %s", state)
+                return None
+            logger.warning("Databricks statement still %s (attempt %s)", state, attempt + 1)
+        except (urllib.error.URLError, json.JSONDecodeError, KeyError, OSError) as e:
+            logger.warning("Databricks statement failed (attempt %s): %s", attempt + 1, e)
+
+        if attempt < DATABRICKS_RETRY_ATTEMPTS - 1:
+            time.sleep(delay + random.uniform(0, delay / 2))
+
+    return None
 
 
 def check_databricks_row_count(full_table_name: str) -> int:
