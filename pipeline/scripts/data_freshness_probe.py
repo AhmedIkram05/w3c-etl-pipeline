@@ -27,8 +27,27 @@ from prometheus_client import Gauge, start_http_server
 
 logger = logging.getLogger(__name__)
 
+
+def _env_int(name: str, default: int) -> int:
+    """Read an integer env var, falling back to ``default`` when unset or malformed.
+
+    A bad value must not take the probe down at import time; the container
+    would restart-loop with no metric ever published.
+    """
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("Invalid %s=%r; using %d", name, raw, default)
+        return default
+
+
 # Collection interval; override with PROBE_INTERVAL_SECONDS (default 15 min).
-PROBE_INTERVAL_SECONDS = int(os.environ.get("PROBE_INTERVAL_SECONDS") or 900)
+PROBE_INTERVAL_SECONDS = _env_int("PROBE_INTERVAL_SECONDS", 900)
+# Metrics listener; override with PROBE_PORT.
+PROBE_PORT = _env_int("PROBE_PORT", 8000)
 
 # ── Prometheus gauges ──────────────────────────────────────────────────
 FRESHNESS_GAUGE = Gauge(
@@ -282,7 +301,7 @@ def check_databricks_row_count(full_table_name: str) -> int:
 
 
 if __name__ == "__main__":
-    start_http_server(8000)
+    start_http_server(PROBE_PORT)
     while True:
         # Freshness — backend source is set by check_freshness
         seconds = check_freshness()
