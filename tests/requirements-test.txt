@@ -4,7 +4,7 @@ pytest-cov>=7.1.0,<8.0
 # Must match pipeline/Dockerfile (pyspark==4.0.5), the version the Spark
 # container runs. PySpark 4.0 needs Python 3.12-3.13, so use the interpreter
 # CI uses (3.12) when running the suite locally.
-pyspark==4.0.2
+pyspark==4.0.5
 # apache-airflow-providers-apache-spark pulls pyspark-client in as well.
 # Both distributions ship the same pyspark/ tree, so a version mismatch
 # lets one overwrite the other's modules (ImportError: SparkExecutorInfo).
