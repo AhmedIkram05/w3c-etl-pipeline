@@ -23,5 +23,5 @@ geoip2==5.3.0
 maxminddb==3.2.0
 requests==2.34.2
 pandas==3.1.1
-pyarrow==19.0.1
+pyarrow==26.0.1
 psycopg2-binary>=2.9.13,<3.0
