@@ -3626,7 +3626,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=7.1.0,<8.0" },
     { name = "requests", specifier = "==2.34.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.17.4" },
-    { name = "sqlalchemy", marker = "extra == 'airflow'", specifier = ">=1.4.36,<2.0" },
+    { name = "sqlalchemy", marker = "extra == 'airflow'", specifier = ">=1.4.54,<2.0" },
     { name = "sqlfluff", marker = "extra == 'dev'", specifier = "==4.5.0" },
     { name = "types-python-dateutil", marker = "extra == 'dev'", specifier = "==2.9.0.20261104" },
     { name = "types-pyyaml", marker = "extra == 'dev'", specifier = "==6.0.12.20261103" },
