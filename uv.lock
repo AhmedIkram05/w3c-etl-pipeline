@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13' and sys_platform == 'win32'",
@@ -1525,8 +1525,8 @@ name = "httpcore2"
 version = "2.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11", marker = "sys_platform != 'emscripten'" },
-    { name = "truststore", marker = "sys_platform != 'emscripten'" },
+    { name = "h11" },
+    { name = "truststore" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c0/61/afa9d6b7452f9eca73f73d45324eb0bb52f098fd5e6049bf6b8263be9b4e/httpcore2-2.16.0.tar.gz", hash = "sha256:c72cd0413563b17e1cd8354677dff887466f8ec2551679759e93126534428643", size = 69886, upload-time = "2026-10-21T07:09:45.31Z" }
 wheels = [
@@ -2823,16 +2823,16 @@ wheels = [
 
 [[package]]
 name = "pyspark"
-version = "4.0.2"
+version = "4.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "py4j" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/96/89/408b42c803db71f4a4d8a3f1ab0745a40dfe41aeacdfc453545665a171f4/pyspark-4.0.2.tar.gz", hash = "sha256:938b4a1883383374d331ebfcb5d92debfa1891cf3d7a6d730520a1a2d23f1a90", size = 434209940, upload-time = "2026-02-05T19:31:13.6Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/ee/2377eee07ee94739e953231558040a5ee671092780a3eed0a9e175f059e7/pyspark-4.0.5.tar.gz", hash = "sha256:a0d44b0e7faf0458ad83b7aa664e7ed8b96beed8a55d66ce3b0dfac2309dfca6", size = 434376598, upload-time = "2026-10-27T18:39:58.059Z" }
 
 [[package]]
 name = "pyspark-client"
-version = "4.0.2"
+version = "4.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "googleapis-common-protos" },
@@ -2842,7 +2842,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pyarrow" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2b/5b/4984eae14b38106f15228da2ff584ba199e2d916c36e45d98cdbea14f4da/pyspark_client-4.0.2.tar.gz", hash = "sha256:55b4f0f7248ddfa53a4c732336470c04832ad9c9ef57ce79fd6c8c58b49dcd65", size = 1499184, upload-time = "2026-02-05T19:31:26.833Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a4/93/baea2733866651ac1dd00b35f39e210a5cf23d93906e2840fbb1e2f534bb/pyspark_client-4.0.5.tar.gz", hash = "sha256:8ec7bd9afde36e48e65545271833e64c77b86e47d44fcc8660bfba948fca32e0", size = 1505861, upload-time = "2026-10-27T18:40:18.293Z" }
 
 [[package]]
 name = "pytest"
@@ -3619,9 +3619,9 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'spark'", specifier = "==26.0.1" },
     { name = "pymssql", specifier = ">=2.4.6,<3.0" },
     { name = "pyodbc", specifier = ">=5.3.0,<5.4" },
-    { name = "pyspark", marker = "extra == 'airflow'", specifier = "==4.0.2" },
-    { name = "pyspark", marker = "extra == 'test'", specifier = "==4.0.2" },
-    { name = "pyspark-client", marker = "extra == 'test'", specifier = "==4.0.2" },
+    { name = "pyspark", marker = "extra == 'airflow'", specifier = "==4.0.5" },
+    { name = "pyspark", marker = "extra == 'test'", specifier = "==4.0.5" },
+    { name = "pyspark-client", marker = "extra == 'test'", specifier = "==4.0.5" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=9.2.0,<10.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=7.1.0,<8.0" },
     { name = "requests", specifier = "==2.34.2" },
