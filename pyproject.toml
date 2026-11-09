@@ -32,7 +32,7 @@ airflow = [
     "apache-airflow-providers-openlineage>=2.21.0,<3",
     "openlineage-dbt>=1.55.0",
     "pyspark==4.0.5",
-    "sqlalchemy>=1.4.36,<2.0",
+    "sqlalchemy>=1.4.54,<2.0",
 ]
 # dbt stack. Consumed by pipeline/requirements.txt and the CI dbt-compile job.
 dbt = [
