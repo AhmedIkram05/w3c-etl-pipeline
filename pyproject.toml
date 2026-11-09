@@ -18,7 +18,7 @@ dependencies = [
     "psycopg2-binary>=2.9.13,<3.0",
     "pyarrow==26.0.1",
     "pymssql>=2.4.6,<3.0",
-    "pyodbc>=5.3.0,<5.4",
+    "pyodbc>=5.3.0,<5.5",
     "requests==2.34.2",
     "user-agents==2.2.0",
 ]
@@ -63,7 +63,7 @@ test = [
 dev = [
     "bandit==1.9.4",
     "mypy==1.14.0",
-    "ruff==0.17.3",
+    "ruff==0.17.4",
     "sqlfluff==4.5.0",
     "types-PyYAML==6.0.12.20261103",
     "types-python-dateutil==2.9.0.20261104",
