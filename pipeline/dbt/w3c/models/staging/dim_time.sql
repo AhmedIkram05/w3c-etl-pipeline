@@ -3,7 +3,23 @@
     tags=['dimension', 'dbt']
 ) }}
 
-WITH time_entries AS (
+WITH
+{% if target.type == 'sqlserver' %}
+    hours AS (
+        SELECT value AS hour FROM GENERATE_SERIES(0, 23)
+    ),
+    minutes AS (
+        SELECT value AS minute FROM GENERATE_SERIES(0, 59)
+    ),
+{% else %}
+    hours AS (
+        SELECT generate_series(0, 23) AS hour
+    ),
+    minutes AS (
+        SELECT generate_series(0, 59) AS minute
+    ),
+{% endif %}
+time_entries AS (
     SELECT
         (h.hour * 100 + m.minute) AS time_sk,
         h.hour,
@@ -21,14 +37,8 @@ WITH time_entries AS (
             WHEN h.hour < 18 THEN 3
             ELSE 4
         END AS shift_id
-    FROM
-        {% if target.type == 'sqlserver' %}
-            (SELECT value AS hour FROM GENERATE_SERIES(0, 23)) AS h
-            CROSS JOIN (SELECT value AS minute FROM GENERATE_SERIES(0, 59)) AS m
-        {% else %}
-            generate_series(0, 23) AS h(hour)
-            CROSS JOIN generate_series(0, 59) AS m(minute)
-        {% endif %}
+    FROM hours AS h
+    CROSS JOIN minutes AS m
 )
 
 SELECT * FROM time_entries
