@@ -28,7 +28,7 @@ dependencies = [
 # provide. Consumed by pipeline/requirements.txt.
 airflow = [
     "apache-airflow-providers-apache-spark==4.11.3",
-    "apache-airflow-providers-databricks==7.16.0",
+    "apache-airflow-providers-databricks==7.23.0",
     "apache-airflow-providers-openlineage>=2.20.3,<3",
     "openlineage-dbt>=1.55.0",
     "pyspark==4.0.2",
@@ -53,7 +53,7 @@ spark = [
 test = [
     "apache-airflow>=2.11.2,<3.0",
     "apache-airflow-providers-apache-spark==4.11.3",
-    "apache-airflow-providers-databricks==7.16.0",
+    "apache-airflow-providers-databricks==7.23.0",
     "pyspark==4.0.2",
     "pyspark-client==4.0.2",
     "pytest>=9.2.0,<10.0",
@@ -68,7 +68,7 @@ dev = [
     "types-PyYAML==6.0.12.20261103",
     "types-python-dateutil==2.9.0.20261104",
     "types-requests==2.33.0.20261030",
-    "uv==0.10.0",
+    "uv==0.13.7",
 ]
 
 [tool.ruff]
