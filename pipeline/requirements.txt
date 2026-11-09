@@ -14,7 +14,7 @@ pyodbc>=5.3.0,<5.4
 # SQLAlchemy follows the base image: apache-airflow 2.11.2 requires
 # sqlalchemy<2.0,>=1.4.36. Pinning 2.1.x here installed a version Airflow
 # does not support.
-sqlalchemy>=1.4.36,<2.0
+sqlalchemy>=1.4.54,<2.0
 
 # Data freshness probe dependencies
 prometheus-client>=0.26.0,<1.0
