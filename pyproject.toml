@@ -29,7 +29,7 @@ dependencies = [
 airflow = [
     "apache-airflow-providers-apache-spark==4.11.3",
     "apache-airflow-providers-databricks==7.16.0",
-    "apache-airflow-providers-openlineage>=2.20.3,<3",
+    "apache-airflow-providers-openlineage>=2.21.0,<3",
     "openlineage-dbt>=1.55.0",
     "pyspark==4.0.2",
     "sqlalchemy>=1.4.36,<2.0",

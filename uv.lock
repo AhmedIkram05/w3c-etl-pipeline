@@ -3604,7 +3604,7 @@ requires-dist = [
     { name = "apache-airflow-providers-apache-spark", marker = "extra == 'test'", specifier = "==4.11.3" },
     { name = "apache-airflow-providers-databricks", marker = "extra == 'airflow'", specifier = "==7.16.0" },
     { name = "apache-airflow-providers-databricks", marker = "extra == 'test'", specifier = "==7.16.0" },
-    { name = "apache-airflow-providers-openlineage", marker = "extra == 'airflow'", specifier = ">=2.20.3,<3" },
+    { name = "apache-airflow-providers-openlineage", marker = "extra == 'airflow'", specifier = ">=2.21.0,<3" },
     { name = "azure-storage-blob", specifier = ">=12.31.1" },
     { name = "bandit", marker = "extra == 'dev'", specifier = "==1.9.4" },
     { name = "dbt-core", marker = "extra == 'dbt'", specifier = "==1.11.17" },
