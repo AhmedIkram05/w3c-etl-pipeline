@@ -22,7 +22,7 @@ referrer_domains AS (
                 -- domain is still extracted (canonical utils/transformations
                 -- behavior), instead of lumping them in as 'Unknown'.
                 ELSE {{ tsql_extract_domain("'http://' + rr.referrer_url") }}
-            END AS referrer_domain,
+            END AS referrer_domain
         {% else %}
             -- Strip a LEADING 'www.' label to match the Spark referrer_domain
             -- logic (utils/transformations, dlt_silver, 02_silver_enrichment);
