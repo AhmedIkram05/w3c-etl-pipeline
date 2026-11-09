@@ -10,7 +10,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 5.12.0"
+      version = "~> 5.13.0"
     }
     databricks = {
       source  = "databricks/databricks"
