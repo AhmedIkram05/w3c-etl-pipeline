@@ -7,7 +7,7 @@ azure-storage-blob>=12.31.1
 # made them invisible to dependabot and to tests/test_dependency_pins.py.
 apache-airflow-providers-apache-spark==4.11.3
 apache-airflow-providers-databricks==7.23.0
-pyspark==4.0.2
+pyspark==4.0.5
 psycopg2-binary>=2.9.13,<3.0
 # pyodbc pinned to the 5.3.x line (>=5.3.0,<5.4).
 pyodbc>=5.3.0,<5.4
