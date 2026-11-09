@@ -1,13 +1,13 @@
 # ──────────────────────────────────────────────────────────────────────
 # W3C ETL Pipeline — Custom Spark Image
-# Base: Apache Spark 4.0.2 with Python 3
+# Base: Apache Spark 4.0.5 with Python 3
 # Adds: Delta Lake 4.0.1 (resolved at runtime via spark.jars.packages)
 #       ⚠️  Pin to 4.0.x — Delta 4.1+ is compiled for Spark 4.1+ APIs and
-#       causes NoSuchMethodError (ParserInterface.$init$) on Spark 4.0.2.
+#       causes NoSuchMethodError (ParserInterface.$init$) on Spark 4.0.5.
 #       Python enrichment dependencies (user-agents, geoip2, requests)
 # ──────────────────────────────────────────────────────────────────────
 
-FROM apache/spark:4.0.2-python3
+FROM apache/spark:4.0.5-python3
 
 USER root
 
@@ -40,7 +40,7 @@ RUN python3 -m pip install --no-cache-dir \
     geoip2==5.3.0 \
     maxminddb==3.2.0
 
-# Ensure SPARK_HOME/bin is on PATH (apache/spark:4.0.2 image doesn't include it)
+# Ensure SPARK_HOME/bin is on PATH (apache/spark:4.0.5 image doesn't include it)
 ENV PATH="$SPARK_HOME/bin:$PATH"
 
 # Create a writable home for the spark user (apache/spark sets HOME=/nonexistent
