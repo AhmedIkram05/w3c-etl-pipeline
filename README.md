@@ -191,6 +191,33 @@ All 15 decisions, with alternatives and reasoning: [Design Decisions](docs/READM
 
 ## Quick Start
 
+### Prerequisites
+
+| Requirement | Notes |
+| --- | --- |
+| Python **3.12 or 3.13** | PySpark 4.0 has no 3.14 support; `pyproject.toml` declares `>=3.12,<3.14` so the resolver refuses it |
+| Java **17** | Spark 4.0 cannot start a JVM on 18+ (`getSubject is not supported`) |
+| [`uv`](https://docs.astral.sh/uv/) | Resolves and installs every pinned dependency |
+| MaxMind licence key | Free; needed to download the GeoLite2 databases for GeoIP enrichment |
+| Terraform CLI | Only for the `terraform` tests and provisioning |
+
+### Working on the code (no cluster needed)
+
+```bash
+uv sync --extra dev --extra test           # .venv with pytest, ruff, mypy, Spark, Airflow providers
+cp pipeline/.env.example pipeline/.env     # then set MAXMIND_LICENSE_KEY at minimum
+
+uv run pytest tests/ -m "not integration and not dbt_compile and not terraform"
+uv run ruff check . && uv run ruff format --check .
+uv run mypy --ignore-missing-imports tests/ pipeline/spark/jobs/ pipeline/dags/ pipeline/spark/databricks/
+```
+
+`integration` tests need live Azure credentials, `dbt_compile` tests need a database, and the `terraform` tests need `terraform init` — those are the three markers excluded above. CI runs the same suite in `.github/workflows/_reusable-test.yml`.
+
+Dependencies are declared once in `pyproject.toml` and resolved into `uv.lock`; the per-container requirements files are checked against it by `tests/test_dependency_pins.py`, so a pin that disagrees anywhere fails the suite.
+
+### Full stack
+
 ```bash
 docker compose -f pipeline/docker-compose.yaml up -d   # 16-service Airflow+Spark+PG+Grafana stack
 dbt deps --project-dir pipeline/dbt/w3c --profiles-dir pipeline/dbt
