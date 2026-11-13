@@ -550,7 +550,10 @@ class TestDBTCommonWriteProfiles:
             assert "test-server.database.windows.net" in content
             assert "test-db" in content
             assert "test-user" in content
-            assert "test-pass" in content
+            # The password is resolved by dbt from the environment at runtime,
+            # never written to the file in clear text.
+            assert "env_var('AZURE_SQL_PASSWORD'" in content
+            assert "test-pass" not in content
             assert "threads: 4" in content
             assert "retries: 3" in content
             assert "encrypt: true" in content
@@ -590,10 +593,11 @@ class TestDBTCommonWriteProfiles:
 
         content = (tmp_path / "profiles.yml").read_text()
         assert 'server: ""' in content
-        # AZURE_SQL_USER and AZURE_SQL_PASSWORD default to "" which
-        # formats as empty values in the YAML (``user: \n``, not ``user: ""``)
+        # AZURE_SQL_USER defaults to "" which formats as an empty value in
+        # the YAML (``user: \n``, not ``user: ""``). The password is a dbt
+        # env_var reference, so the default is resolved at runtime.
         assert "user: " in content and 'user: ""' not in content
-        assert "password: " in content and 'password: ""' not in content
+        assert "env_var('AZURE_SQL_PASSWORD'" in content
 
 
 class TestDBTCommonRunCommand:
