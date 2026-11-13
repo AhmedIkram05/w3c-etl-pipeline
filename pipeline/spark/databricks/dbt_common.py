@@ -330,7 +330,9 @@ def _write_profiles_yml(profiles_dir: str) -> str:
             f"      database: {os.environ.get('AZURE_SQL_DB', 'w3c_etl')}\n"
             f"      schema: dbo\n"
             f"      user: {os.environ.get('AZURE_SQL_USER', '')}\n"
-            f"      password: {os.environ.get('AZURE_SQL_PASSWORD', '')}\n"
+            # Resolved from the env at dbt runtime so the secret is never
+            # written to profiles.yml on disk.
+            f"      password: \"{{{{ env_var('AZURE_SQL_PASSWORD', '') }}}}\"\n"
             f"      authentication: sql\n"
             f"      encrypt: true\n"
             f"      trust_cert: false\n"
