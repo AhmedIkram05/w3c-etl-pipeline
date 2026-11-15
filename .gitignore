@@ -31,6 +31,9 @@ copilot-instructions.md
 pipeline/dbt/w3c/target/
 pipeline/dbt/w3c/dbt_packages/
 
+# dbt anonymous usage id (per developer, not project configuration)
+pipeline/dbt/.user.yml
+
 # Prometheus — runtime data (config is version-controlled separately)
 prometheus/data/
 
