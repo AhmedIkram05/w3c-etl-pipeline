@@ -285,9 +285,17 @@ def apply_type_casts(df: DataFrame) -> DataFrame:
     return df
 
 
+# PostgreSQL caps a statement at 65535 bind parameters; 1000 rows x 31
+# columns is 31k, comfortably under it, and batches ~1000x fewer round trips
+# than executemany.
+_INSERT_PAGE_ROWS = 1000
+
+
 def _insert_rows(conn, rows, table, commit=True):
     """Insert Spark ``Row`` objects (from ``collect()``) via psycopg2.
 
+    Uses one multi-row ``INSERT ... VALUES (...), (...)`` per page instead of
+    ``executemany``, which psycopg2 implements as one round trip per row.
     Pass ``commit=False`` to keep the transaction open across several
     inserts (per-file atomicity); the caller then commits explicitly.
     """
@@ -297,11 +305,15 @@ def _insert_rows(conn, rows, table, commit=True):
     columns = list(rows[0].__fields__)
     params = [tuple(row) for row in rows]
     col_names = ", ".join(columns)
-    placeholders = ", ".join(["%s"] * len(columns))
-    sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})"  # nosec B608 — table from module constants, columns from Spark Row fields; values bound as %s params
+    row_placeholder = "(" + ", ".join(["%s"] * len(columns)) + ")"
 
     with conn.cursor() as cursor:
-        cursor.executemany(sql, params)
+        for start in range(0, len(params), _INSERT_PAGE_ROWS):
+            chunk = params[start : start + _INSERT_PAGE_ROWS]
+            # nosec B608 — table from module constants, columns from Spark Row
+            # fields; every value is bound as a %s parameter.
+            sql = f"INSERT INTO {table} ({col_names}) VALUES " + ", ".join([row_placeholder] * len(chunk))
+            cursor.execute(sql, tuple(value for row in chunk for value in row))
     if commit:
         conn.commit()
     return len(rows)
