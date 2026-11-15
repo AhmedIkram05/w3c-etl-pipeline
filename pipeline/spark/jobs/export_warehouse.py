@@ -381,20 +381,20 @@ def run(
         log.error("Cannot read Silver Delta table at %s: %s", silver_path, exc)
         return
 
-    total_rows = silver_df.count()
-    if total_rows == 0:
+    # One distinct scan is both the emptiness check and the source list; a
+    # separate COUNT(*) just for a log line was a second full-history scan.
+    all_sources = set(row.source_file for row in silver_df.select("source_file").distinct().collect())
+    if not all_sources:
         log.warning("Silver table is empty. Nothing to export.")
         return
 
-    log.info("Loaded Silver with %d rows.", total_rows)
+    log.info("Silver contains %d source file(s).", len(all_sources))
 
     # ── 2. Ensure target database exists (self-provisioning) ─────────
     ensure_database_exists(jdbc_url, jdbc_props)
 
     # ── 3. Determine new source_files (not yet in tracking table) ────
     tracked_files = get_loaded_source_files(jdbc_url, jdbc_props)
-
-    all_sources = set(row.source_file for row in silver_df.select("source_file").distinct().collect())
     new_source_files = all_sources - tracked_files
 
     if not new_source_files:
