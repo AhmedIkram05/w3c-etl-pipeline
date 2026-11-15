@@ -90,6 +90,10 @@ def discover_crawler_ips(spark: SparkSession, delta_dir: str) -> set:
 
     Scans the Bronze Delta table for URI stems containing ``robots.txt``
     and returns the distinct client IPs found.
+
+    NOTE: this scans all of Bronze so an IP that requested ``robots.txt`` in
+    any older file is still flagged in a new file. Correct, but O(history):
+    persist the crawler-IP set if Bronze ever grows large enough to matter.
     """
     bronze_path = os.path.join(delta_dir, "bronze")
     try:
