@@ -42,6 +42,10 @@ def _parse_log_line(line: str, file_format: int, source_file: str):
     Supports both 14-field and 18-field IIS formats.
     """
     try:
+        # The caller already strips file lines; strip here too so a direct
+        # call (and the cross-path parity test) behaves identically to the
+        # reference parser. See utils/w3c_parser.parse_log_line.
+        line = line.strip()
         if file_format == 14:
             # 14-field format: last 4 tokens are fixed numeric fields
             rs = line.rsplit(" ", 4)

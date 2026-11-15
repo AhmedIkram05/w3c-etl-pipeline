@@ -73,6 +73,14 @@ LINES = {
     "dash_placeholders": ("2010-06-01 12:00:00 10.0.0.1 GET / - 80 - 1.2.3.4 - - - 200 0 0 - - 5", 18),
     "truncated": ("2009-10-24 00:00:00 10.0.0.1 GET", 14),
     "empty": ("", 14),
+    # Whitespace is not stripped by Spark's textFile; all paths must still
+    # produce the identical row (the reference now strips too).
+    "leading_space": (" 2009-10-24 00:00:00 10.0.0.1 GET /index.html - 80 - 1.2.3.4 Mozilla/5.0 200 0 0 15", 14),
+    "trailing_space": (
+        "2009-10-24 00:00:00 10.0.0.1 GET /index.html - 80 - 1.2.3.4 Mozilla/5.0 200 0 0 15   ",
+        14,
+    ),
+    "crlf": ("2009-10-24 00:00:00 10.0.0.1 GET /index.html - 80 - 1.2.3.4 Mozilla/5.0 200 0 0 15\r", 14),
 }
 
 
@@ -187,6 +195,26 @@ def test_detect_format_missing_header_diverges_by_design(tmp_path) -> None:
 def _module_path(module) -> Path:
     assert module.__file__ is not None, f"{module!r} has no source file"
     return Path(module.__file__).resolve()
+
+
+def test_ua_with_spaces_is_ambiguous_by_format() -> None:
+    """Document the W3C limitation: a literal space in the UA is ambiguous.
+
+    W3C Extended is space-delimited with no quoting, so the parser cannot tell
+    a space inside ``cs(User-Agent)`` from the next field. IIS encodes spaces
+    as ``+``, so real IIS logs never hit this shape. Pinned here so the
+    limitation is explicit: "fixing" it would need a quoting/encoding contract
+    that the format does not provide.
+    """
+    line = (
+        "2010-06-01 12:00:00 10.0.0.1 POST /b - 80 - 5.6.7.8 "
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) sid=x http://ref.example/x "
+        "404 2 5 100 50 9"
+    )
+    result = local.parse_log_line(line, 18, "u_ex.log")
+    assert result is not None
+    assert result["user_agent"] == "Mozilla/5.0"
+    assert result["cookie"] == "(Windows"
 
 
 def test_parity_modules_are_loaded_from_the_expected_files() -> None:
