@@ -113,7 +113,8 @@ def geo_lookup_frame(df: DataFrame, city_udf, isp_udf) -> DataFrame:
     rows, so this removes ~38x redundant mmdb lookups.
     """
     return (
-        df.select("client_ip")
+        df
+        .select("client_ip")
         .distinct()
         .withColumn("geo", city_udf("client_ip"))
         .withColumn("isp", isp_udf("client_ip"))

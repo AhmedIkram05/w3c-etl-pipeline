@@ -828,9 +828,7 @@ class TestExportToAzureSql:
             assert inserts, "No data insert found"
             # Tracking table updated
             any_tracking = any(
-                "raw_enriched_loaded" in str(args[0][0])
-                for args in mock_cursor.execute.call_args_list
-                if args[0]
+                "raw_enriched_loaded" in str(args[0][0]) for args in mock_cursor.execute.call_args_list if args[0]
             )
             assert any_tracking, "No tracking table update found"
             # Connection closed
