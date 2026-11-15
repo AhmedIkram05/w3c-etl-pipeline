@@ -241,7 +241,7 @@ def _multirow_insert_sql(table: str, columns: list[str], row_count: int) -> str:
     """
     col_names = ", ".join(f"[{c}]" for c in columns)
     row_placeholder = "(" + ", ".join(["%s"] * len(columns)) + ")"
-    return f"INSERT INTO {table} ({col_names}) VALUES " + ", ".join([row_placeholder] * row_count)
+    return f"INSERT INTO {table} ({col_names}) VALUES " + ", ".join([row_placeholder] * row_count)  # nosec B608 — table/column names come from the DataFrame schema; values are bound
 
 
 def insert_batch(conn, rows, table, commit=True):

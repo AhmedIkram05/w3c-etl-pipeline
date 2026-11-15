@@ -312,7 +312,7 @@ def _insert_rows(conn, rows, table, commit=True):
             chunk = params[start : start + _INSERT_PAGE_ROWS]
             # nosec B608 — table from module constants, columns from Spark Row
             # fields; every value is bound as a %s parameter.
-            sql = f"INSERT INTO {table} ({col_names}) VALUES " + ", ".join([row_placeholder] * len(chunk))
+            sql = f"INSERT INTO {table} ({col_names}) VALUES " + ", ".join([row_placeholder] * len(chunk))  # nosec B608 — table/column names from the schema; values are bound
             cursor.execute(sql, tuple(value for row in chunk for value in row))
     if commit:
         conn.commit()
