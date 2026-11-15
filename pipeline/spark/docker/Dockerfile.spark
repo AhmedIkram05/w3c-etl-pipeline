@@ -52,9 +52,14 @@ RUN mkdir -p /home/spark && \
 ENV HOME=/home/spark
 
 # Switch back to the default spark user (uid 185 — defined by apache/spark base)
-# Download PostgreSQL JDBC driver for Spark JDBC export
+# Download PostgreSQL JDBC driver for Spark JDBC export and verify it.
+# SHA-256 matches the Maven Central artifact for 42.7.4 (checked from both
+# jdbc.postgresql.org and repo1.maven.org); a corrupted or substituted
+# download fails the build instead of surfacing later as a JDBC error.
 RUN curl -fL -o /opt/spark/jars/postgresql-42.7.4.jar \
-    https://jdbc.postgresql.org/download/postgresql-42.7.4.jar
+        https://jdbc.postgresql.org/download/postgresql-42.7.4.jar \
+    && echo "188976721ead8e8627eb6d8389d500dccc0c9bebd885268a3047180274a6031e  /opt/spark/jars/postgresql-42.7.4.jar" \
+        | sha256sum -c -
 
 USER spark
 
