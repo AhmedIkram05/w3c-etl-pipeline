@@ -285,9 +285,17 @@ def apply_type_casts(df: DataFrame) -> DataFrame:
     return df
 
 
+# PostgreSQL caps a statement at 65535 bind parameters; 1000 rows x 31
+# columns is 31k, comfortably under it, and batches ~1000x fewer round trips
+# than executemany.
+_INSERT_PAGE_ROWS = 1000
+
+
 def _insert_rows(conn, rows, table, commit=True):
     """Insert Spark ``Row`` objects (from ``collect()``) via psycopg2.
 
+    Uses one multi-row ``INSERT ... VALUES (...), (...)`` per page instead of
+    ``executemany``, which psycopg2 implements as one round trip per row.
     Pass ``commit=False`` to keep the transaction open across several
     inserts (per-file atomicity); the caller then commits explicitly.
     """
@@ -297,11 +305,15 @@ def _insert_rows(conn, rows, table, commit=True):
     columns = list(rows[0].__fields__)
     params = [tuple(row) for row in rows]
     col_names = ", ".join(columns)
-    placeholders = ", ".join(["%s"] * len(columns))
-    sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})"  # nosec B608 — table from module constants, columns from Spark Row fields; values bound as %s params
+    row_placeholder = "(" + ", ".join(["%s"] * len(columns)) + ")"
 
     with conn.cursor() as cursor:
-        cursor.executemany(sql, params)
+        for start in range(0, len(params), _INSERT_PAGE_ROWS):
+            chunk = params[start : start + _INSERT_PAGE_ROWS]
+            # nosec B608 — table from module constants, columns from Spark Row
+            # fields; every value is bound as a %s parameter.
+            sql = f"INSERT INTO {table} ({col_names}) VALUES " + ", ".join([row_placeholder] * len(chunk))  # nosec B608 — table/column names from the schema; values are bound
+            cursor.execute(sql, tuple(value for row in chunk for value in row))
     if commit:
         conn.commit()
     return len(rows)
@@ -369,20 +381,20 @@ def run(
         log.error("Cannot read Silver Delta table at %s: %s", silver_path, exc)
         return
 
-    total_rows = silver_df.count()
-    if total_rows == 0:
+    # One distinct scan is both the emptiness check and the source list; a
+    # separate COUNT(*) just for a log line was a second full-history scan.
+    all_sources = set(row.source_file for row in silver_df.select("source_file").distinct().collect())
+    if not all_sources:
         log.warning("Silver table is empty. Nothing to export.")
         return
 
-    log.info("Loaded Silver with %d rows.", total_rows)
+    log.info("Silver contains %d source file(s).", len(all_sources))
 
     # ── 2. Ensure target database exists (self-provisioning) ─────────
     ensure_database_exists(jdbc_url, jdbc_props)
 
     # ── 3. Determine new source_files (not yet in tracking table) ────
     tracked_files = get_loaded_source_files(jdbc_url, jdbc_props)
-
-    all_sources = set(row.source_file for row in silver_df.select("source_file").distinct().collect())
     new_source_files = all_sources - tracked_files
 
     if not new_source_files:

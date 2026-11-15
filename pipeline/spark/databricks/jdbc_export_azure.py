@@ -222,14 +222,38 @@ def get_loaded_source_files(conn):
     return loaded
 
 
+# SQL Server caps a statement at 2100 bind parameters. At 31 columns that is
+# 67 rows; 1500 leaves headroom for future columns while staying well under
+# both the parameter and statement-size limits.
+_MAX_BIND_PARAMS = 1500
+
+
+def _rows_per_statement(column_count: int) -> int:
+    """Return how many rows fit in one multi-row INSERT statement."""
+    return max(1, _MAX_BIND_PARAMS // max(1, column_count))
+
+
+def _multirow_insert_sql(table: str, columns: list[str], row_count: int) -> str:
+    """Build ``INSERT ... VALUES (...), (...)`` for *row_count* rows.
+
+    Table and column names come from the DataFrame schema; every value is
+    bound as a ``%s`` parameter by the caller.
+    """
+    col_names = ", ".join(f"[{c}]" for c in columns)
+    row_placeholder = "(" + ", ".join(["%s"] * len(columns)) + ")"
+    return f"INSERT INTO {table} ({col_names}) VALUES " + ", ".join([row_placeholder] * row_count)  # nosec B608 — table/column names come from the DataFrame schema; values are bound
+
+
 def insert_batch(conn, rows, table, commit=True):
-    """Insert a batch of rows using executemany.
+    """Insert a batch of rows with multi-row INSERT statements.
 
     Accepts both Spark ``Row`` objects (from ``DataFrame.collect()``) and
     plain ``dict`` rows (for small tracking-table inserts).  Detects the
     input type by checking for ``__fields__`` (Row) vs ``keys()`` (dict).
 
-    Pass ``commit=False`` to keep the transaction open across several
+    ``executemany`` sends one round trip per row; a multi-row VALUES list
+    sends one per page, which is dramatically faster on a remote serverless
+    database. ``commit=False`` keeps the transaction open across several
     inserts (per-file atomicity); the caller then commits explicitly.
     """
     if not rows:
@@ -243,13 +267,14 @@ def insert_batch(conn, rows, table, commit=True):
         columns = list(rows[0].keys())
         params = [tuple(row[c] for c in columns) for row in rows]
 
-    col_names = ", ".join(f"[{c}]" for c in columns)
-    placeholders = ", ".join(["%s"] * len(columns))
-    # Table and column names come from the DataFrame schema; values are bound.
-    sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})"  # nosec B608
-
+    per_statement = _rows_per_statement(len(columns))
     with conn.cursor() as cursor:
-        cursor.executemany(sql, params)
+        for start in range(0, len(params), per_statement):
+            chunk = params[start : start + per_statement]
+            cursor.execute(
+                _multirow_insert_sql(table, columns, len(chunk)),
+                tuple(value for row in chunk for value in row),
+            )
     if commit:
         conn.commit()
     return len(rows)

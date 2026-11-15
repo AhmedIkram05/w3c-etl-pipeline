@@ -278,14 +278,28 @@ class TestEnsureDefaultRows:
 class TestReadSilverDelta:
     """Verify the Silver Delta reader collapses distinct IPs correctly.
 
-    These tests patch ``pd.read_parquet`` at the operator's import site
-    so the reader is exercised end-to-end against synthetic DataFrames.
+    These tests patch ``_read_silver_dataframe`` at the operator's import site
+    so the dedup logic is exercised end-to-end against synthetic DataFrames.
+    The Delta-log read itself is covered separately by
+    ``test_delta_reader_uses_delta_table``.
     """
+
+    def test_delta_reader_uses_delta_table(self):
+        """The reader goes through the Delta log, not raw Parquet discovery."""
+        from plugins.operators.export_dimensions import _read_silver_dataframe
+
+        with patch("deltalake.DeltaTable") as mock_dt:
+            mock_dt.return_value.to_pandas.return_value = pd.DataFrame({"a": [1]})
+            out = _read_silver_dataframe("/silver")
+
+        mock_dt.assert_called_once_with("/silver")
+        mock_dt.return_value.to_pandas.assert_called_once_with()
+        assert list(out["a"]) == [1]
 
     def test_empty_delta_returns_empty_dataframe(self):
         """An empty parquet file is returned as an empty DataFrame."""
         with patch(
-            "plugins.operators.export_dimensions.pd.read_parquet",
+            "plugins.operators.export_dimensions._read_silver_dataframe",
             return_value=pd.DataFrame(),
         ) as mock_read:
             result = _read_silver_geo_dim("/some/path")
@@ -297,7 +311,7 @@ class TestReadSilverDelta:
         """Duplicate ``client_ip`` rows collapse to a single row each."""
         df = _make_silver_df(["1.1.1.1", "1.1.1.1", "2.2.2.2", "2.2.2.2", "2.2.2.2"])
         with patch(
-            "plugins.operators.export_dimensions.pd.read_parquet",
+            "plugins.operators.export_dimensions._read_silver_dataframe",
             return_value=df,
         ):
             result = _read_silver_geo_dim("/some/path")
@@ -315,7 +329,7 @@ class TestReadSilverDelta:
             df[col] = df[col].fillna("US" if col == "country" else 0)
 
         with patch(
-            "plugins.operators.export_dimensions.pd.read_parquet",
+            "plugins.operators.export_dimensions._read_silver_dataframe",
             return_value=df,
         ):
             result = _read_silver_geo_dim("/some/path")
@@ -328,7 +342,7 @@ class TestReadSilverDelta:
         df = _make_silver_df(["1.1.1.1", "-", "2.2.2.2"])
 
         with patch(
-            "plugins.operators.export_dimensions.pd.read_parquet",
+            "plugins.operators.export_dimensions._read_silver_dataframe",
             return_value=df,
         ):
             result = _read_silver_geo_dim("/some/path")
@@ -352,7 +366,7 @@ class TestReadSilverDelta:
         })
 
         with patch(
-            "plugins.operators.export_dimensions.pd.read_parquet",
+            "plugins.operators.export_dimensions._read_silver_dataframe",
             return_value=df,
         ):
             result = _read_silver_geo_dim("/some/path")

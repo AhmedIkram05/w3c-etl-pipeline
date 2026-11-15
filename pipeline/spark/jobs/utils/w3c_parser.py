@@ -57,6 +57,12 @@ def parse_log_line(line: str, file_format: int, source_file: str):
         Column-value mapping, or ``None`` if the line could not be parsed.
     """
     try:
+        # Lines arrive from Spark's textFile (no whitespace stripping) and from
+        # the Databricks copies, which strip before calling. Strip here so the
+        # three paths parse the same bytes to the same row: a leading space
+        # otherwise shifts every field (log_time gets the date), and a trailing
+        # space breaks the rsplit field count and silently drops the line.
+        line = line.strip()
         if file_format == 14:
             # Last 4 tokens are fixed-width numeric fields: status sub_status win32_status time_taken
             rs = line.rsplit(" ", 4)

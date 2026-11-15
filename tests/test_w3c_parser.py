@@ -260,3 +260,30 @@ class TestParseEdgeCases:
         assert result["bytes_sent"] is None  # dash → safe_int returns None
         assert result["bytes_recv"] is None
         assert result["time_taken"] == 100
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Whitespace — all ingestion paths strip before tokenizing
+# ══════════════════════════════════════════════════════════════════════
+
+
+class TestWhitespaceHandling:
+    """Whitespace must not change the parsed row.
+
+    Spark's ``textFile`` does not strip; the Databricks copies do. Stripping
+    in the reference keeps all three paths byte-compatible. Without it a
+    leading space shifts every field and a trailing space silently drops the
+    row (the ``rsplit`` field count no longer matches).
+    """
+
+    def test_trailing_whitespace_matches_clean(self):
+        clean = parse_log_line(_REAL_14_LINE_1, 14, "u_ex091024.log")
+        assert parse_log_line(_REAL_14_LINE_1 + "   ", 14, "u_ex091024.log") == clean
+
+    def test_leading_whitespace_matches_clean(self):
+        clean = parse_log_line(_REAL_14_LINE_1, 14, "u_ex091024.log")
+        assert parse_log_line("  " + _REAL_14_LINE_1, 14, "u_ex091024.log") == clean
+
+    def test_crlf_line_ending_matches_clean(self):
+        clean = parse_log_line(_REAL_18_LINE_1, 18, "u_ex100718.log")
+        assert parse_log_line(_REAL_18_LINE_1 + "\r", 18, "u_ex100718.log") == clean

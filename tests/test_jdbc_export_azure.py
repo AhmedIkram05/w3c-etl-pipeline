@@ -530,10 +530,11 @@ class TestInsertBatch:
         count = insert_batch(mock_conn, rows, "dbo.raw_enriched_loaded")
 
         assert count == 2
-        mock_cursor.executemany.assert_called_once()
-        sql = mock_cursor.executemany.call_args[0][0]
+        mock_cursor.execute.assert_called_once()
+        sql = mock_cursor.execute.call_args[0][0]
         assert "INSERT INTO dbo.raw_enriched_loaded" in sql
         assert "[source_file]" in sql
+        assert sql.count("(%s)") == 2  # one VALUES tuple per row
         mock_conn.commit.assert_called_once()
 
     def test_inserts_spark_row_objects(self):
@@ -554,15 +555,16 @@ class TestInsertBatch:
         count = insert_batch(mock_conn, rows, "dbo.raw_enriched")
 
         assert count == 2
-        mock_cursor.executemany.assert_called_once()
-        sql = mock_cursor.executemany.call_args[0][0]
+        mock_cursor.execute.assert_called_once()
+        sql = mock_cursor.execute.call_args[0][0]
         assert "INSERT INTO dbo.raw_enriched" in sql
-        params = mock_cursor.executemany.call_args[0][1]
-        assert len(params) == 2  # 2 rows
+        assert sql.count("(%s") == 2  # one VALUES tuple per row
+        params = mock_cursor.execute.call_args[0][1]
+        assert len(params) == 6  # 2 rows x 3 columns, flattened
         mock_conn.commit.assert_called_once()
 
     def test_empty_rows_returns_zero(self):
-        """Empty rows list returns 0 without calling executemany."""
+        """Empty rows list returns 0 without opening a cursor."""
         mock_conn = MagicMock()
 
         insert_batch = self._import_func()
@@ -583,7 +585,7 @@ class TestInsertBatch:
         count = insert_batch(mock_conn, rows, "dbo.raw_enriched_loaded")
 
         assert count == 1
-        mock_cursor.executemany.assert_called_once()
+        mock_cursor.execute.assert_called_once()
 
     def test_columns_bracket_escaped(self):
         """Column names are bracket-escaped in INSERT SQL."""
@@ -596,8 +598,31 @@ class TestInsertBatch:
         insert_batch = self._import_func()
         insert_batch(mock_conn, rows, "dbo.test")
 
-        sql = mock_cursor.executemany.call_args[0][0]
+        sql = mock_cursor.execute.call_args[0][0]
         assert "[source_file]" in sql
+
+    def test_multirow_sql_has_one_tuple_per_row(self):
+        build = _import_from_module("_multirow_insert_sql")
+        sql = build("dbo.t", ["a", "b"], 3)
+        assert sql.startswith("INSERT INTO dbo.t ([a], [b]) VALUES ")
+        assert sql.count("(%s, %s)") == 3
+
+    def test_large_batch_splits_at_parameter_limit(self):
+        """31 columns -> 48 rows per statement (1500 // 31), 100 rows -> 48/48/4."""
+        rows_per_statement = _import_from_module("_rows_per_statement")
+        assert rows_per_statement(31) == 48
+
+        insert_batch = self._import_func()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        columns = [f"c{i}" for i in range(31)]
+        rows = [dict.fromkeys(columns, 0) for _ in range(100)]
+        insert_batch(mock_conn, rows, "dbo.t")
+
+        assert mock_cursor.execute.call_count == 3
+        assert [call.args[0].count("(%s") for call in mock_cursor.execute.call_args_list] == [48, 48, 4]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -616,11 +641,13 @@ class TestExportFilesAtomically:
 
     def _record_calls(self, mock_conn, mock_cursor):
         calls = []
-        mock_cursor.executemany.side_effect = lambda sql, params: calls.append((
-            "insert",
-            "raw_enriched_loaded" in sql,
-            len(params),
-        ))
+
+        def record_execute(sql, params=None):
+            # Count VALUES tuples, not flattened parameters, so the recorded
+            # row count is independent of the column count.
+            calls.append(("insert", "raw_enriched_loaded" in sql, sql.count("(%s")))
+
+        mock_cursor.execute.side_effect = record_execute
         mock_conn.commit.side_effect = lambda: calls.append(("commit",))
         return calls
 
@@ -673,7 +700,7 @@ class TestExportFilesAtomically:
         mock_conn, mock_cursor = self._mock_conn()
         assert export_files_atomically(mock_conn, {}) == 0
         mock_conn.commit.assert_not_called()
-        mock_cursor.executemany.assert_not_called()
+        mock_cursor.execute.assert_not_called()
 
     def test_batch_inserts_are_not_auto_committed(self):
         """Data inserts defer the commit to export_files_atomically."""
@@ -793,13 +820,17 @@ class TestExportToAzureSql:
             # DDL executed
             assert mock_cursor.execute.call_count >= 2
             # Data inserted
-            assert mock_cursor.executemany.call_count >= 1
+            inserts = [
+                args[0][0]
+                for args in mock_cursor.execute.call_args_list
+                if args[0] and "INSERT INTO dbo.raw_enriched " in str(args[0][0])
+            ]
+            assert inserts, "No data insert found"
             # Tracking table updated
-            any_tracking = any("raw_enriched_loaded" in str(args) for args in mock_cursor.executemany.call_args_list)
-            any_tracking_exec = any(
+            any_tracking = any(
                 "raw_enriched_loaded" in str(args[0][0]) for args in mock_cursor.execute.call_args_list if args[0]
             )
-            assert any_tracking or any_tracking_exec, "No tracking table update found"
+            assert any_tracking, "No tracking table update found"
             # Connection closed
             mock_conn.close.assert_called_once()
             assert "Exporting" in capsys.readouterr().out
@@ -836,14 +867,21 @@ class TestExportToAzureSql:
                 export_to_azure_sql = self._import_export()
                 export_to_azure_sql(spark, "server", "db", "user", "pass")
 
-            # Verify is_crawler values in executemany params are 0 or 1 (not "true"/"false")
-            for args in mock_cursor.executemany.call_args_list:
-                params = args[0][1] if len(args[0]) > 1 else []
-                for row_params in params:
-                    if hasattr(row_params, "__iter__"):
-                        for p in row_params:
-                            if p == 1 or p == 0:
-                                assert p in (0, 1), f"is_crawler should be 0 or 1, got {p}"
+            # Multi-row params are flattened in EXPORT_COLUMNS order, so index
+            # the is_crawler column inside each row instead of scanning values.
+            columns = _import_from_module("EXPORT_COLUMNS")
+            idx = columns.index("is_crawler")
+            ncols = len(columns)
+            checked = 0
+            for args in mock_cursor.execute.call_args_list:
+                sql = args[0][0] if args[0] else ""
+                if "INSERT INTO dbo.raw_enriched " not in str(sql):
+                    continue
+                params = args[0][1] if len(args[0]) > 1 else ()
+                for start in range(0, len(params), ncols):
+                    assert params[start + idx] in (0, 1)
+                    checked += 1
+            assert checked >= 1
 
         finally:
             if spark.sparkContext._jsc is not None:

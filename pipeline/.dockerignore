@@ -1,0 +1,20 @@
+# Build context: pipeline/ (Airflow image + data-freshness-probe).
+# The image only copies requirements-dbt.txt / requirements.txt; everything
+# else is mounted at runtime by docker-compose.
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+logs
+data/LogFiles
+data/Star-Schema
+data/dbt-docs
+dbt/w3c/target
+dbt/w3c/dbt_packages
+spark/delta
+*.log
+.env
+.env.*
+!.env.example
