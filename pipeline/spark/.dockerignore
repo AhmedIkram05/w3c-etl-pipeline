@@ -1,0 +1,11 @@
+# Build context: pipeline/spark/ (docker/Dockerfile.spark). The image
+# installs Python packages and downloads jars; job source is mounted at
+# runtime, so keep the context to the Dockerfile itself.
+**/__pycache__
+**/*.pyc
+delta
+data
+jobs
+databricks
+conf
+*.log
