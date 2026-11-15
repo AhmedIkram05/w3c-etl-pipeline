@@ -157,3 +157,57 @@ def test_empty_start_date_is_noop(spark):
     assert res["rows_read"] == 0
     assert res["rows_written"] == 0
     assert res["broadcast_used"] is False
+
+
+def test_enrich_uses_one_geo_and_ua_lookup_per_row(spark, monkeypatch):
+    """Regression guard: the backfill must not fall back to scalar UDFs.
+
+    The pre-fix path built six ``city_field`` UDFs and five ``parse_*`` UDFs,
+    i.e. eleven lookups per row instead of one each. Patch the factories and
+    assert they are each built exactly once, and that the scalar path is never
+    touched.
+    """
+    import utils.geoip as geoip
+    import utils.ua_parser as ua_parser
+
+    calls = {"city": 0, "ua": 0}
+    real_city_lookup = geoip.city_lookup
+    real_parse_ua = ua_parser.parse_ua_fields
+
+    def spy_city_lookup(path=None):
+        calls["city"] += 1
+        return real_city_lookup(path)
+
+    def spy_parse_ua(series):
+        calls["ua"] += 1
+        return real_parse_ua(series)
+
+    def fail_scalar(*_a, **_k):
+        raise AssertionError("scalar geo/UA UDFs must not be used by the backfill")
+
+    monkeypatch.setattr(geoip, "city_lookup", spy_city_lookup)
+    monkeypatch.setattr(geoip, "city_field", fail_scalar)
+    monkeypatch.setattr(ua_parser, "parse_ua_fields", spy_parse_ua)
+
+    df = spark.createDataFrame(
+        [("10.0.0.1", "Mozilla/4.0", "-", "/index.html", 500, 100)],
+        "client_ip string, user_agent string, referrer string, uri_stem string, bytes_sent long, bytes_recv long",
+    )
+    out = silver_backfill._enrich(df, None, None)
+    out.collect()
+
+    assert calls == {"city": 1, "ua": 1}
+    assert {
+        "country",
+        "region",
+        "city",
+        "latitude",
+        "longitude",
+        "postcode",
+        "isp",
+        "agent_type",
+        "browser_name",
+        "browser_version",
+        "operating_system",
+        "device_type",
+    } <= set(out.columns)

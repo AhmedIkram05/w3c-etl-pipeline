@@ -100,7 +100,46 @@ def partition_stats(counts: list) -> dict:
     }
 
 
+def _enrich(df: DataFrame, geolite2_db: str | None, asn_path: str | None) -> DataFrame:
+    """Apply the consolidated GeoIP/UA/computed-field UDFs to a Silver frame.
+
+    One City-DB lookup and one User-Agent parse per row, matching
+    ``silver_enrichment.run``. The scalar ``city_field`` / ``parse_*`` UDFs
+    each repeated the lookup, which is the regression this helper prevents.
+    """
+    from utils.geoip import asn_lookup, city_lookup
+    from utils.transformations import page_category, referrer_domain, size_band, traffic_type
+    from utils.ua_parser import parse_ua_fields
+
+    city_udf = city_lookup(geolite2_db)
+    isp_udf = asn_lookup(asn_path)
+
+    return (
+        df
+        .withColumn("geo", city_udf("client_ip"))
+        .withColumn("country", col("geo.country"))
+        .withColumn("region", col("geo.region"))
+        .withColumn("city", col("geo.city"))
+        .withColumn("latitude", col("geo.latitude"))
+        .withColumn("longitude", col("geo.longitude"))
+        .withColumn("postcode", col("geo.postcode"))
+        .withColumn("isp", isp_udf("client_ip"))
+        .withColumn("ua", parse_ua_fields("user_agent"))
+        .withColumn("agent_type", col("ua.agent_type"))
+        .withColumn("browser_name", col("ua.browser_name"))
+        .withColumn("browser_version", col("ua.browser_version"))
+        .withColumn("operating_system", col("ua.operating_system"))
+        .withColumn("device_type", col("ua.device_type"))
+        .withColumn("page_category", page_category("uri_stem"))
+        .withColumn("referrer_domain", referrer_domain("referrer"))
+        .withColumn("traffic_type", traffic_type("referrer"))
+        .withColumn("size_band", size_band("bytes_sent", "bytes_recv"))
+        .drop("geo", "ua")
+    )
+
+
 def run_with_config(spark: SparkSession, cfg: BackfillConfig):
+    """Reprocess one Bronze date range into Silver via salted, broadcast-joined enrichment."""
     cfg.validate()
     start_date, end_date, delta_dir = cfg.start_date, cfg.end_date, cfg.delta_dir
     geolite2_db, geolite2_asn_db = cfg.geolite2_db, cfg.geolite2_asn_db
@@ -110,7 +149,6 @@ def run_with_config(spark: SparkSession, cfg: BackfillConfig):
         cfg.repartition_cols,
         cfg.dry_run,
     )
-    """Reprocess one Bronze date range into Silver via salted, broadcast-joined enrichment."""
     # Scheduled runs leave dag_run.conf empty, so start_date arrives as "".
     # Treat that as "nothing to backfill" rather than raising from fromisoformat.
     if not start_date:
@@ -177,8 +215,6 @@ def run_with_config(spark: SparkSession, cfg: BackfillConfig):
     salted = flagged.withColumn("salt", floor(rand(42) * int(salt_buckets)).cast("int"))
     repart = salted.repartition(int(target_partitions), *[col(c) for c in cols])
 
-    from utils.geoip import asn_lookup, city_field
-
     # The UDF factories bake the configured DB paths into the UDF closures,
     # so the --geolite2-db / --geolite2-asn-db overrides reach executors.
     # (A driver-side module init cannot: workers re-import utils.geoip and
@@ -187,40 +223,7 @@ def run_with_config(spark: SparkSession, cfg: BackfillConfig):
         log.warning("GeoLite2-ASN DB not found at %s; isp will be Unknown.", geolite2_asn_db)
     asn_path = geolite2_asn_db if (geolite2_asn_db and os.path.exists(geolite2_asn_db)) else None
 
-    geo_udfs = {
-        field: city_field(field, geolite2_db)
-        for field in ("country", "region", "city", "latitude", "longitude", "postcode")
-    }
-    isp_udf = asn_lookup(asn_path)
-    from utils.transformations import page_category, referrer_domain, size_band, traffic_type
-    from utils.ua_parser import (
-        parse_agent_type,
-        parse_browser_name,
-        parse_browser_version,
-        parse_device_type,
-        parse_operating_system,
-    )
-
-    enriched = (
-        repart
-        .withColumn("country", geo_udfs["country"]("client_ip"))
-        .withColumn("region", geo_udfs["region"]("client_ip"))
-        .withColumn("city", geo_udfs["city"]("client_ip"))
-        .withColumn("latitude", geo_udfs["latitude"]("client_ip"))
-        .withColumn("longitude", geo_udfs["longitude"]("client_ip"))
-        .withColumn("postcode", geo_udfs["postcode"]("client_ip"))
-        .withColumn("isp", isp_udf("client_ip"))
-        .withColumn("agent_type", parse_agent_type("user_agent"))
-        .withColumn("browser_name", parse_browser_name("user_agent"))
-        .withColumn("browser_version", parse_browser_version("user_agent"))
-        .withColumn("operating_system", parse_operating_system("user_agent"))
-        .withColumn("device_type", parse_device_type("user_agent"))
-        .withColumn("page_category", page_category("uri_stem"))
-        .withColumn("referrer_domain", referrer_domain("referrer"))
-        .withColumn("traffic_type", traffic_type("referrer"))
-        .withColumn("size_band", size_band("bytes_sent", "bytes_recv"))
-        .drop("salt")
-    )
+    enriched = _enrich(repart, geolite2_db, asn_path).drop("salt")
 
     after = partition_stats([r["count"] for r in repart.groupBy("salt").count().collect()])
     log.info("Post-salt bucket ratio %.2f (before %.2f).", after["ratio"], before["ratio"])
