@@ -50,6 +50,17 @@ _ODBC_DRIVER_URL = (
 
 _SCOPE = "w3c-etl-pipeline"
 
+# Pinned to pipeline/requirements-dbt.txt. dbt-sqlserver 1.11.3 depends on
+# dbt-core/dbt-common/dbt-adapters/pyodbc — it does NOT depend on dbt-fabric,
+# so installing that explicitly (and with --upgrade) only let the notebook
+# drift from the adapter version CI validates.
+_DBT_PACKAGES = ("dbt-sqlserver==1.11.3",)
+
+# The ODBC download is per-process: a serverless container is ephemeral, so a
+# cluster init script is the durable fix. This guard at least stops a second
+# bootstrap in the same process from repeating the download/extract.
+_ODBC_DRIVER_READY = False
+
 
 # ═════════════════════════════════════════════════════════════════════════
 # Public API
@@ -237,19 +248,28 @@ def _load_storage_credentials(dbutils) -> None:
 
 
 def _install_packages(extra_packages: list[str] | None = None) -> None:
-    """Install dbt-sqlserver, dbt-fabric, and optional extras."""
-    packages = ["dbt-sqlserver", "dbt-fabric"]
+    """Install the pinned sqlserver adapter, plus any caller-supplied extras."""
+    packages: list[str] = list(_DBT_PACKAGES)
     if extra_packages:
         packages.extend(extra_packages)
     subprocess.run(  # nosec B603
-        [sys.executable, "-m", "pip", "install", *packages, "--upgrade", "--quiet"],
+        [sys.executable, "-m", "pip", "install", *packages, "--quiet"],
         check=True,
     )
     print(f"Installed packages: {', '.join(packages)}")
 
 
 def _setup_odbc_driver() -> None:
-    """Download and extract ODBC Driver 18 for SQL Server (without root)."""
+    """Download and extract ODBC Driver 18 for SQL Server (without root).
+
+    The download is per-process because serverless containers are ephemeral;
+    a cluster init script is the durable fix. The module guard stops a second
+    bootstrap in the same process from repeating it.
+    """
+    global _ODBC_DRIVER_READY
+    if _ODBC_DRIVER_READY and os.environ.get("ODBCSYSINI"):
+        return
+
     deb_path = os.path.join(tempfile.gettempdir(), f"msodbcsql18_{os.getpid()}.deb")
     driver_dir = os.path.join(tempfile.gettempdir(), f"msodbc_{os.getpid()}")
 
@@ -280,6 +300,7 @@ def _setup_odbc_driver() -> None:
             f"UsageCount=1\n"
         )
     os.environ["ODBCSYSINI"] = odbc_dir
+    _ODBC_DRIVER_READY = True
     print(f"ODBCSYSINI set to {odbc_dir}")
 
 

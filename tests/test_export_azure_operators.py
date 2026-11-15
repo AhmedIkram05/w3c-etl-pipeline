@@ -727,3 +727,51 @@ class TestOdbcValueEscaping:
 
     def test_semicolon_and_equals_are_contained(self):
         assert self._odbc_value("pass;word=1") == "{pass;word=1}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 4. dbt_common package install / ODBC bootstrap
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestDBTCommonInstallPackages:
+    """The Databricks notebook must install the same adapter CI validates."""
+
+    def _import_func(self):
+        from dbt_common import _install_packages
+
+        return _install_packages
+
+    def test_installs_pinned_sqlserver_adapter(self):
+        install = self._import_func()
+        with patch("dbt_common.subprocess.run") as mock_run:
+            install()
+
+        cmd = mock_run.call_args[0][0]
+        assert "dbt-sqlserver==1.11.3" in cmd
+        assert "--upgrade" not in cmd
+        assert "dbt-fabric" not in cmd  # not a dependency of the sqlserver adapter
+
+    def test_extras_are_appended_after_pin(self):
+        install = self._import_func()
+        with patch("dbt_common.subprocess.run") as mock_run:
+            install(["azure-storage-blob==12.31.1"])
+
+        cmd = mock_run.call_args[0][0]
+        assert "dbt-sqlserver==1.11.3" in cmd
+        assert "azure-storage-blob==12.31.1" in cmd
+
+
+class TestDBTCommonOdbcDriver:
+    """Tests for ``dbt_common._setup_odbc_driver()``."""
+
+    def test_guard_skips_download_when_ready(self, monkeypatch):
+        import dbt_common
+
+        monkeypatch.setattr(dbt_common, "_ODBC_DRIVER_READY", True)
+        monkeypatch.setenv("ODBCSYSINI", "/tmp/odbc-existing")
+
+        with patch("dbt_common.urllib.request.urlretrieve") as mock_download:
+            dbt_common._setup_odbc_driver()
+
+        mock_download.assert_not_called()
