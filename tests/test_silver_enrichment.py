@@ -96,6 +96,17 @@ def test_null_keys_still_receive_unknown_enrichment(spark):
     assert null_rows[0].agent_type == "Unknown"
 
 
+def test_safe_parse_handles_non_string_values():
+    """Pandas passes NULL as NaN (float); _safe_parse must not call .strip()."""
+    from utils.ua_parser import _safe_parse
+
+    for value in (None, float("nan"), "", "-", "Unknown"):
+        result = _safe_parse(value)
+        assert result["agent_type"] == "Unknown"
+        assert result["browser_name"] == "Unknown"
+        assert result["device_type"] == "Unknown"
+
+
 def test_duplicate_keys_do_not_fan_out(spark):
     df = _df(spark).filter("client_ip = '10.0.0.1'")
     out = silver_enrichment.enrich_distinct(df, city_lookup(None), asn_lookup(None), parse_ua_fields)

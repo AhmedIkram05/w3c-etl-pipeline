@@ -20,7 +20,9 @@ def _safe_parse(ua_string: str) -> dict:
     ``agent_type``, ``browser_name``, ``browser_version``,
     ``operating_system``, ``device_type``.
     """
-    if not ua_string or ua_string.strip() in ("-", "Unknown", ""):
+    # Pandas passes NULL as NaN (a float) into a pandas_udf, so guard the
+    # type before calling str methods. `not ua_string` does not catch NaN.
+    if not isinstance(ua_string, str) or not ua_string.strip() or ua_string.strip() in ("-", "Unknown", ""):
         return {
             "agent_type": "Unknown",
             "browser_name": "Unknown",
