@@ -49,6 +49,10 @@ pipeline/spark/delta/*
 *.tfstate
 *.tfstate.*
 
+# Terraform plan files — binary, environment-specific, may embed sensitive values
+tfplan
+*.tfplan
+
 # Pre-commit
 .pre-commit-cache/
 
