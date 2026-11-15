@@ -20,6 +20,11 @@ sqlalchemy>=1.4.54,<2.0
 prometheus-client>=0.26.0,<1.0
 pymssql>=2.4.6,<3.0
 
+# Delta reader for the dimension export. Reads Silver through _delta_log so a
+# backfill's superseded Parquet files cannot leak stale geo rows into the SCD2
+# dimension (pd.read_parquet bypasses the log).
+deltalake==1.6.6
+
 # Data lineage — OpenLineage events emitted to self-hosted Marquez
 # (see pipeline/lineage/docker-compose.lineage.yaml).
 # Provider capped <3: the 3.x line tracks Airflow 3. The base image is

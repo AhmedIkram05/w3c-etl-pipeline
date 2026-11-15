@@ -188,13 +188,28 @@ def _ensure_default_rows(conn):
     conn.commit()
 
 
+def _read_silver_dataframe(silver_path: str) -> pd.DataFrame:
+    """Read the current Silver snapshot through the Delta transaction log.
+
+    ``pd.read_parquet`` on a Delta directory bypasses ``_delta_log`` and can
+    therefore see Parquet files that an overwrite / ``replaceWhere`` has
+    already superseded (they remain on disk until vacuum). delta-rs reads the
+    log's current file set instead, so a backfill cannot leak stale geo rows
+    into the SCD2 dimension.
+    """
+    from deltalake import DeltaTable
+
+    return DeltaTable(silver_path).to_pandas()
+
+
 def _read_silver_geo_dim(silver_path: str) -> pd.DataFrame:
     """Read the Silver Delta table and return distinct IP-level geo rows.
 
-    Uses pandas ``read_parquet``, which auto-discovers the Hive-style
-    ``log_date=YYYY-MM-DD`` partitions and returns a single concatenated
-    DataFrame.  Returns a DataFrame with one row per distinct
-    ``client_ip`` carrying the geo fields needed by ``dim_geolocation``.
+    Reads through the Delta log (see ``_read_silver_dataframe``), which
+    auto-discovers the Hive-style ``log_date=YYYY-MM-DD`` partitions and
+    returns a single concatenated DataFrame.  Returns a DataFrame with one row
+    per distinct ``client_ip`` carrying the geo fields needed by
+    ``dim_geolocation``.
 
     Required columns (from the Silver schema):
         ``client_ip``, ``country``, ``region``, ``city``,
@@ -204,7 +219,7 @@ def _read_silver_geo_dim(silver_path: str) -> pd.DataFrame:
     re-run after the schema gained it, so we fall back to the ``-``
     default for any row that is missing the column entirely.
     """
-    df = pd.read_parquet(silver_path)
+    df = _read_silver_dataframe(silver_path)
     if df.empty:
         return df
 
