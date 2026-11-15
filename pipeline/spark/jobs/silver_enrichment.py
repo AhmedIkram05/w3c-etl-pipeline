@@ -60,7 +60,7 @@ import logging
 import os
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col
+from pyspark.sql.functions import broadcast, col
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("silver_enrichment")
@@ -99,6 +99,58 @@ def discover_crawler_ips(spark: SparkSession, delta_dir: str) -> set:
     except Exception:
         log.warning("Could not scan Bronze for crawler IPs; defaulting to empty set.")
         return set()
+
+
+def geo_lookup_frame(df: DataFrame, city_udf, isp_udf) -> DataFrame:
+    """Return one enriched row per distinct ``client_ip`` in *df*.
+
+    GeoIP is a pure function of the IP, so look every IP up once instead of
+    once per request row. The real dataset has ~4k distinct IPs for ~155k
+    rows, so this removes ~38x redundant mmdb lookups.
+    """
+    return (
+        df.select("client_ip")
+        .distinct()
+        .withColumn("geo", city_udf("client_ip"))
+        .withColumn("isp", isp_udf("client_ip"))
+    )
+
+
+def ua_lookup_frame(df: DataFrame, ua_udf) -> DataFrame:
+    """Return one parsed row per distinct ``user_agent`` in *df*."""
+    return df.select("user_agent").distinct().withColumn("ua", ua_udf("user_agent"))
+
+
+def enrich_distinct(df: DataFrame, city_udf, isp_udf, ua_udf) -> DataFrame:
+    """Attach geo/UA structs by joining small per-key lookup frames.
+
+    ``eqNullSafe`` keeps the old per-row behaviour for NULL / placeholder
+    keys: both sides match on NULL, so an unusable IP/UA still receives the
+    UDF's ``"Unknown"`` struct instead of a null struct. Broadcasts keep the
+    ~4k/~2k lookups on the executor side and avoid a shuffle.
+    """
+    geo = geo_lookup_frame(df, city_udf, isp_udf).select(col("client_ip").alias("_lookup_ip"), "geo", "isp")
+    ua = ua_lookup_frame(df, ua_udf).select(col("user_agent").alias("_lookup_ua"), "ua")
+
+    return (
+        df
+        .join(broadcast(geo), df["client_ip"].eqNullSafe(col("_lookup_ip")), "left")
+        .drop("_lookup_ip")
+        .join(broadcast(ua), col("user_agent").eqNullSafe(col("_lookup_ua")), "left")
+        .drop("_lookup_ua")
+        .withColumn("country", col("geo.country"))
+        .withColumn("region", col("geo.region"))
+        .withColumn("city", col("geo.city"))
+        .withColumn("latitude", col("geo.latitude"))
+        .withColumn("longitude", col("geo.longitude"))
+        .withColumn("postcode", col("geo.postcode"))
+        .withColumn("agent_type", col("ua.agent_type"))
+        .withColumn("browser_name", col("ua.browser_name"))
+        .withColumn("browser_version", col("ua.browser_version"))
+        .withColumn("operating_system", col("ua.operating_system"))
+        .withColumn("device_type", col("ua.device_type"))
+        .drop("geo", "ua")
+    )
 
 
 def run(spark: SparkSession, delta_dir: str, geolite2_db: str | None = None, geolite2_asn_db: str | None = None):
@@ -171,31 +223,17 @@ def run(spark: SparkSession, delta_dir: str, geolite2_db: str | None = None, geo
 
     is_crawler_udf = make_crawler_udf(crawler_ips)
 
+    # Enrich distinct client_ip / user_agent keys once, then join back. This
+    # is the batch path's equivalent of a dimension join: ~4k IPs and ~2k UAs
+    # instead of one UDF call per one of ~155k rows.
     enriched = (
-        new_data
-        # Geo-IP enrichment: one City-DB call per row, fields unpacked from the struct
-        .withColumn("geo", city_udf("client_ip"))
-        .withColumn("country", col("geo.country"))
-        .withColumn("region", col("geo.region"))
-        .withColumn("city", col("geo.city"))
-        .withColumn("latitude", col("geo.latitude"))
-        .withColumn("longitude", col("geo.longitude"))
-        .withColumn("postcode", col("geo.postcode"))
-        .withColumn("isp", isp_udf("client_ip"))
-        # User-Agent parsing: one ua_parse call per row, fields unpacked from the struct
-        .withColumn("ua", parse_ua_fields("user_agent"))
-        .withColumn("agent_type", col("ua.agent_type"))
-        .withColumn("browser_name", col("ua.browser_name"))
-        .withColumn("browser_version", col("ua.browser_version"))
-        .withColumn("operating_system", col("ua.operating_system"))
-        .withColumn("device_type", col("ua.device_type"))
-        # Computed fields
+        enrich_distinct(new_data, city_udf, isp_udf, parse_ua_fields)
+        # Computed fields — per-row logic, no lookup involved.
         .withColumn("page_category", page_category("uri_stem"))
         .withColumn("referrer_domain", referrer_domain("referrer"))
         .withColumn("traffic_type", traffic_type("referrer"))
         .withColumn("is_crawler", is_crawler_udf("client_ip"))
         .withColumn("size_band", size_band("bytes_sent", "bytes_recv"))
-        .drop("geo", "ua")
     )
 
     # ── 5. Write to Silver Delta table ───────────────────────────────
