@@ -27,7 +27,12 @@ os.environ.setdefault("AIRFLOW_HOME", tempfile.mkdtemp(prefix="af_home_"))
 # test env's third-party UDF deps (user_agents, geoip2, pandas). Pinning
 # workers to the driver interpreter keeps worker imports working in any
 # layout. Must precede the first JVM launch below.
-os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
+# Force, not setdefault: CI may pre-set PYSPARK_PYTHON to a different
+# interpreter. A worker whose ua-parser-builtins differs from the driver's
+# makes a driver-vs-UDF parser comparison non-deterministic (seen as Chrome
+# 120.0.0 vs 91.0.4472).
+os.environ["PYSPARK_PYTHON"] = sys.executable
+os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 
 # ── Add only the specific subdirectories needed for test imports ─────
 # Adding the project root would re-introduce a directory named like an

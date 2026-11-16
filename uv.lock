@@ -3589,6 +3589,8 @@ dependencies = [
     { name = "pymssql" },
     { name = "pyodbc" },
     { name = "requests" },
+    { name = "ua-parser" },
+    { name = "ua-parser-builtins" },
     { name = "user-agents" },
 ]
 
@@ -3675,6 +3677,8 @@ requires-dist = [
     { name = "types-python-dateutil", marker = "extra == 'dev'", specifier = "==2.9.0.20261104" },
     { name = "types-pyyaml", marker = "extra == 'dev'", specifier = "==6.0.12.20261103" },
     { name = "types-requests", marker = "extra == 'dev'", specifier = "==2.33.0.20261030" },
+    { name = "ua-parser", specifier = "==1.0.2" },
+    { name = "ua-parser-builtins", specifier = "==202610" },
     { name = "user-agents", specifier = "==2.2.0" },
     { name = "user-agents", marker = "extra == 'spark'", specifier = "==2.2.0" },
     { name = "uv", marker = "extra == 'dev'", specifier = "==0.13.7" },

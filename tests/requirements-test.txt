@@ -19,6 +19,8 @@ apache-airflow-providers-databricks==7.23.0
 # Core dependencies — pinned to the versions the Spark container ships
 # (pipeline/spark/requirements_spark.txt) so tests exercise the real stack.
 user-agents==2.2.0
+ua-parser==1.0.2
+ua-parser-builtins==202610
 geoip2==5.3.0
 maxminddb==3.2.0
 requests==2.34.2
