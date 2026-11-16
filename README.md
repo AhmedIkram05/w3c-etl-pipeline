@@ -182,7 +182,7 @@ flowchart LR
 | **SCD Type 2** for `dim_geolocation` over append-only/Type 1 | In-place overwrite | Full attribute history plus current-state performance, via a T-SQL `MERGE ... OUTPUT` pattern in the Azure SQL load (Airflow `export_dimensions`); the local Postgres path stays SCD1-style upserts. |
 | **Thin Power BI reports** - transforms stay in dbt/SQL | Logic embedded in Power BI DAX | The report is a presentation layer over a semantic contract; the warehouse stays the single source of truth. |
 | **OIDC over static secrets** | API keys / client secrets in Azure DevOps | Zero static Azure credentials: federated identity via token exchange, Terraform-managed from repo to role assignment. |
-| **`tuple(row)` over `row.asDict()`** | DataFrames in the JDBC export loop | Avoids dict construction overhead — the 153K-row feed to `pymssql` `executemany` uses `SparkRow.__iter__` directly. |
+| **`tuple(row)` over `row.asDict()`** | DataFrames in the JDBC export loop | Avoids dict construction overhead — the 153K-row feed to `pymssql` uses `SparkRow.__iter__` directly, batched into multi-row `INSERT ... VALUES` statements. |
 | **Weekly Power BI refresh** via a Power Automate cloud flow | Streaming / DirectQuery to the lakehouse | The source is 2009-2011 historical logs - a weekly refresh validates all 5 upstream layers once, without idle compute spend. |
 
 All 15 decisions, with alternatives and reasoning: [Design Decisions](docs/README-full.md#design-decisions).

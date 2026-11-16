@@ -3,8 +3,8 @@
 #
 # Consumed by pipeline/requirements.txt (the Airflow image) and by the
 # CI dbt-compile job, so the version CI validates is the version shipped.
-# Keep the three packages on the same minor line: dbt-sqlserver pins
-# dbt-core's minimum, and dbt-fabric (its backend) pins the pyodbc floor.
+# Keep the packages on the same minor line: dbt-sqlserver pins dbt-core's
+# minimum and the pyodbc floor (>=5.2 for the 1.11.x adapter).
 # ──────────────────────────────────────────────────────────────────────
 
 dbt-core==1.11.17

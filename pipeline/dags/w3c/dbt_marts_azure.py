@@ -17,9 +17,10 @@ Architecture
 ------------
 dbt runs on Databricks via ``DatabricksSubmitRunOperator`` submitting
 notebook tasks to serverless compute. Each notebook bootstraps its
-``dbt-core==1.8.9`` and ``dbt-sqlserver==1.8.4`` dependencies via pip
-at runtime — serverless Databricks rejects the task-level ``libraries``
-field (must be specified in the job environment instead).
+``dbt-core==1.11.17`` and ``dbt-sqlserver==1.11.3`` dependencies (the
+pins in ``pipeline/requirements-dbt.txt``) via pip at runtime —
+serverless Databricks rejects the task-level ``libraries`` field (must
+be specified in the job environment instead).
 
 The CSV export and docs sync run on the Airflow worker via
 ``PythonOperator``, reading from Azure SQL (pyodbc) and Azure Blob
