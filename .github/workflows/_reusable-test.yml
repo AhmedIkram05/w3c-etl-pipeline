@@ -31,6 +31,10 @@ jobs:
           --health-retries=5
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Sample logs/CSVs move to Git LFS in the history rewrite; keep the
+          # test checkout able to fetch them (a no-op until the migration).
+          lfs: true
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
