@@ -104,27 +104,38 @@ def _run(spark, delta_dir):
     )
 
 
-def test_skew_ratio_drops(spark, tmp_path):
-    _setup(spark, str(tmp_path))
-    res = _run(spark, str(tmp_path))
+_BACKFILL_CACHE = {}
+
+
+@pytest.fixture
+def backfill_result(spark, tmp_path_factory):
+    """One backfill shared by the read-only assertions (the run is the cost)."""
+    if "run" not in _BACKFILL_CACHE:
+        delta_dir = str(tmp_path_factory.mktemp("backfill"))
+        _setup(spark, delta_dir)
+        _BACKFILL_CACHE["run"] = (_run(spark, delta_dir), delta_dir)
+    return _BACKFILL_CACHE["run"]
+
+
+def test_skew_ratio_drops(backfill_result):
+    res, _ = backfill_result
     assert res["rows_read"] == 1000 and res["rows_written"] == 1000
     assert res["partitions_before_ratio"] > 8
     assert res["partitions_after_ratio"] < 3
     assert res["broadcast_used"] is True
 
 
-def test_is_crawler_and_broadcast(spark, tmp_path):
-    _setup(spark, str(tmp_path))
-    _run(spark, str(tmp_path))
-    silver = spark.read.format("delta").load(os.path.join(str(tmp_path), "silver"))
+def test_is_crawler_and_broadcast(spark, backfill_result):
+    _, delta_dir = backfill_result
+    silver = spark.read.format("delta").load(os.path.join(delta_dir, "silver"))
     assert {
         r.is_crawler for r in silver.filter(col("client_ip") == "10.0.0.99").select("is_crawler").distinct().collect()
     } == {True}
     assert {
         r.is_crawler for r in silver.filter(col("client_ip") != "10.0.0.99").select("is_crawler").distinct().collect()
     } == {False}
-    bronze = spark.read.format("delta").load(os.path.join(str(tmp_path), "bronze"))
-    crawlers = silver_backfill.discover_crawler_ips_df(spark, os.path.join(str(tmp_path), "bronze")).withColumnRenamed(
+    bronze = spark.read.format("delta").load(os.path.join(delta_dir, "bronze"))
+    crawlers = silver_backfill.discover_crawler_ips_df(spark, os.path.join(delta_dir, "bronze")).withColumnRenamed(
         "client_ip", "crawler_ip"
     )
     joined = (
@@ -142,12 +153,11 @@ def test_is_crawler_and_broadcast(spark, tmp_path):
     assert "BroadcastHashJoin" in plan
 
 
-def test_replacewhere_idempotent(spark, tmp_path):
-    _setup(spark, str(tmp_path))
-    _run(spark, str(tmp_path))
-    n1 = spark.read.format("delta").load(os.path.join(str(tmp_path), "silver")).count()
-    _run(spark, str(tmp_path))
-    n2 = spark.read.format("delta").load(os.path.join(str(tmp_path), "silver")).count()
+def test_replacewhere_idempotent(spark, backfill_result):
+    _, delta_dir = backfill_result
+    n1 = spark.read.format("delta").load(os.path.join(delta_dir, "silver")).count()
+    _run(spark, delta_dir)
+    n2 = spark.read.format("delta").load(os.path.join(delta_dir, "silver")).count()
     assert n1 == n2 == 1000
 
 
