@@ -1,5 +1,5 @@
 import dlt
-from pyspark.sql.functions import coalesce, col, lit, udf
+from pyspark.sql.functions import broadcast, coalesce, col, lit, udf
 from pyspark.sql.types import BooleanType, FloatType, StringType, StructField, StructType
 
 # ─── GeoIP via maxminddb (pure Python, no compiled deps) ──────────────
@@ -349,6 +349,23 @@ def get_size_band(bytes_sent, bytes_recv):
 # ─── Silver DLT Pipeline ───
 
 
+def _geo_lookup_frame(source_df):
+    """One enriched row per distinct ``client_ip``, for a stream-static join.
+
+    GeoIP is a pure function of the IP, so the stream should not call the
+    UDFs once per request row. The lookup is a static snapshot of Bronze
+    taken when the pipeline starts; the Silver pipeline runs after Bronze
+    commits, so it contains the current batch's IPs.
+    """
+    return (
+        source_df.select("client_ip")
+        .distinct()
+        .withColumn("geo", get_geo_fields(col("client_ip")))
+        .withColumn("isp", get_isp(col("client_ip")))
+        .select(col("client_ip").alias("_lookup_ip"), "geo", "isp")
+    )
+
+
 @dlt.table(
     name="silver_enriched_logs",
     table_properties={"delta.enableChangeDataFeed": "true", "delta.autoOptimize.optimizeWrite": "true"},
@@ -372,21 +389,29 @@ def silver_enriched_logs():
     # DLT checkpoints the stream, so re-runs never reprocess old commits.
     bronze_df = spark.readStream.option("readChangeFeed", "true").table("w3c_etl_databricks.bronze.bronze_raw_logs")  # noqa: F821
 
-    # ── GeoIP enrichment (consolidated: 1 UDF → 6 columns) ──
-    # Apply consolidated struct UDF, then extract individual fields
-    silver_df = bronze_df.withColumn("geo", get_geo_fields(col("client_ip")))
-
-    geo_fields = ["country", "region", "city", "latitude", "longitude", "postcode"]
-    for field in geo_fields:
-        silver_df = silver_df.withColumn(field, col(f"geo.{field}"))
-
-    silver_df = silver_df.drop("geo")
+    # ── GeoIP enrichment: one lookup per distinct IP, broadcast-joined ──
+    # A static read of Bronze (not the CDC stream) builds the lookup. The
+    # left join uses eqNullSafe so NULL / placeholder IPs still receive the
+    # UDF's "Unknown" struct instead of a null one.
+    geo_lookup = broadcast(
+        _geo_lookup_frame(spark.read.table("w3c_etl_databricks.bronze.bronze_raw_logs"))  # noqa: F821
+    )
+    silver_df = (
+        bronze_df
+        .join(geo_lookup, bronze_df["client_ip"].eqNullSafe(col("_lookup_ip")), "left")
+        .drop("_lookup_ip")
+        .withColumn("country", col("geo.country"))
+        .withColumn("region", col("geo.region"))
+        .withColumn("city", col("geo.city"))
+        .withColumn("latitude", col("geo.latitude"))
+        .withColumn("longitude", col("geo.longitude"))
+        .withColumn("postcode", col("geo.postcode"))
+        .drop("geo")
+        .withColumn("isp", coalesce(col("isp"), lit("Unknown")))
+    )
 
     # Geo-miss rows are retained with 'Unknown' geo fields instead of being dropped.
     silver_df = fill_geo_unknowns(silver_df)
-
-    # ISP comes from the ASN DB (separate lookup)
-    silver_df = silver_df.withColumn("isp", get_isp(col("client_ip")))
 
     # ── Computed fields ──
     silver_df = (
