@@ -480,16 +480,12 @@ class TestExportFilesAtomically:
     def _record_calls(self, mock_conn, mock_cursor):
         calls = []
 
-        def record_execute(sql, params=None):
-            table = sql.split()[2]
-            if "raw_enriched_loaded" in table:
-                calls.append(("track", table))
-            else:
-                # Multi-row VALUES: params is the flattened row values. The
-                # test rows carry one column, so len(params) is the row count.
-                calls.append(("insert_rows", table, len(params)))
+        def record_copy(sql, buffer):
+            # COPY <table> (...) FROM STDIN ...; one line per row.
+            calls.append(("insert_rows", sql.split()[1], buffer.getvalue().count("\n")))
 
-        mock_cursor.execute.side_effect = record_execute
+        mock_cursor.copy_expert.side_effect = record_copy
+        mock_cursor.execute.side_effect = lambda sql, params=None: calls.append(("track", sql.split()[2]))
         mock_conn.commit.side_effect = lambda: calls.append(("commit",))
         return calls
 
@@ -539,22 +535,21 @@ class TestExportFilesAtomically:
             ("commit",),
         ]
 
-    def test_insert_rows_uses_one_multirow_statement(self):
-        """A page of rows is one INSERT ... VALUES (...),(...) statement."""
+    def test_insert_rows_uses_copy(self):
+        """A page of rows is one COPY stream, with \\N for NULL."""
         _requires_pyspark()
         from export_warehouse import _insert_rows
         from pyspark.sql import Row
 
         mock_conn, mock_cursor = self._mock_conn()
-        count = _insert_rows(mock_conn, [Row(a=1), Row(a=2), Row(a=3)], "t")
+        count = _insert_rows(mock_conn, [Row(a=1), Row(a=None), Row(a=3)], "t")
 
         assert count == 3
-        mock_cursor.execute.assert_called_once()
-        sql, params = mock_cursor.execute.call_args[0]
-        assert sql.startswith("INSERT INTO t (a) VALUES ")
-        assert sql.count("(%s)") == 3
-        assert params == (1, 2, 3)
-        mock_cursor.executemany.assert_not_called()
+        mock_cursor.copy_expert.assert_called_once()
+        sql, buffer = mock_cursor.copy_expert.call_args[0]
+        assert sql.startswith("COPY t (a) FROM STDIN")
+        assert buffer.getvalue() == "1\n\\N\n3\n"
+        mock_cursor.execute.assert_not_called()
 
     def test_no_files_no_commits(self):
         """An empty grouping does nothing."""
@@ -565,6 +560,7 @@ class TestExportFilesAtomically:
         export_files_atomically(mock_conn, {})
         mock_conn.commit.assert_not_called()
         mock_cursor.execute.assert_not_called()
+        mock_cursor.copy_expert.assert_not_called()
 
     def test_tracking_row_values_source_file_only(self):
         """The tracking insert carries the source_file; loaded_at is a DB default."""
