@@ -23,12 +23,12 @@ if _JOBS_DIR not in sys.path:
 os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
 
 import silver_enrichment  # noqa: E402
-from utils.geoip import asn_lookup, city_lookup  # noqa: E402
-from utils.ua_parser import parse_ua_fields  # noqa: E402
 
 # The test environment has no Delta jars; map the production format to
 # Parquet so the persistence paths run for real.
 from pyspark.sql.readwriter import DataFrameReader, DataFrameWriter  # noqa: E402
+from utils.geoip import asn_lookup, city_lookup  # noqa: E402
+from utils.ua_parser import parse_ua_fields  # noqa: E402
 
 _orig_w = DataFrameWriter.format
 
