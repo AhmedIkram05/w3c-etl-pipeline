@@ -159,6 +159,32 @@ def test_empty_start_date_is_noop(spark):
     assert res["broadcast_used"] is False
 
 
+def test_enrich_delegates_to_distinct_key_lookup(spark, monkeypatch):
+    """The backfill must use the same per-key lookup as the incremental job."""
+    import silver_enrichment
+
+    calls = []
+    real = silver_enrichment.enrich_distinct
+
+    def spy(df, city_udf, isp_udf, ua_udf):
+        calls.append(1)
+        return real(df, city_udf, isp_udf, ua_udf)
+
+    monkeypatch.setattr(silver_enrichment, "enrich_distinct", spy)
+
+    df = spark.createDataFrame(
+        [
+            ("10.0.0.1", "Mozilla/4.0", "-", "/a", 1, 1),
+            ("10.0.0.1", "Mozilla/4.0", "-", "/b", 1, 1),
+        ],
+        "client_ip string, user_agent string, referrer string, uri_stem string, bytes_sent long, bytes_recv long",
+    )
+    out = silver_backfill._enrich(df, None, None)
+
+    assert out.count() == 2  # duplicates are not dropped by the lookup join
+    assert len(calls) == 1
+
+
 def test_enrich_uses_one_geo_and_ua_lookup_per_row(spark, monkeypatch):
     """Regression guard: the backfill must not fall back to scalar UDFs.
 
