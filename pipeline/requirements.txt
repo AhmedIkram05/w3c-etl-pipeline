@@ -2,7 +2,7 @@ user-agents==2.2.0
 # Pin the parser data: ua-parser-builtins updates change browser/OS labels,
 # which are a published dashboard contract.
 ua-parser==1.0.2
-ua-parser-builtins==202610
+ua-parser-builtins==202606
 requests==2.34.2
 azure-storage-blob>=12.31.1
 -r requirements-dbt.txt
