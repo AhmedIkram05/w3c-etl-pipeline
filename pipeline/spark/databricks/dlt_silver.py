@@ -358,7 +358,8 @@ def _geo_lookup_frame(source_df):
     commits, so it contains the current batch's IPs.
     """
     return (
-        source_df.select("client_ip")
+        source_df
+        .select("client_ip")
         .distinct()
         .withColumn("geo", get_geo_fields(col("client_ip")))
         .withColumn("isp", get_isp(col("client_ip")))

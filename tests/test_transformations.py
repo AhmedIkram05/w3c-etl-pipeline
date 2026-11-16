@@ -348,11 +348,7 @@ class TestParseUAFields:
 
         rows = [Row(idx=i, ua=ua) for i, ua in enumerate(self.SAMPLE_UAS)]
         df = spark.createDataFrame(rows)
-        result = (
-            df.select("idx", parse_ua_fields(col("ua")).alias("ua_struct"))
-            .orderBy("idx")
-            .collect()
-        )
+        result = df.select("idx", parse_ua_fields(col("ua")).alias("ua_struct")).orderBy("idx").collect()
 
         for row in result:
             expected = _safe_parse(self.SAMPLE_UAS[row.idx])

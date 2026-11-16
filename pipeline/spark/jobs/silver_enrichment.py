@@ -91,7 +91,8 @@ CRAWLER_IPS_TABLE = "crawler_ips"
 def _robots_ips(df: DataFrame) -> DataFrame:
     """Return distinct non-null IPs whose URI stem requested robots.txt."""
     return (
-        df.filter(col("uri_stem").rlike("(?i).*robots\\.txt.*"))
+        df
+        .filter(col("uri_stem").rlike("(?i).*robots\\.txt.*"))
         .select("client_ip")
         .filter(col("client_ip").isNotNull())
         .distinct()
