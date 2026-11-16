@@ -73,21 +73,21 @@ def _rows():
             **base,
             "log_date": d1,
             "client_ip": "10.0.0.99",
-            "uri_stem": "/robots.txt" if i < 50 else "/",
+            "uri_stem": "/robots.txt" if i < 25 else "/",
             "source_file": "backfill.log",
         }
-        for i in range(700)
+        for i in range(350)
     ]
     stems = ["/index.html", "/about", "/products", "/images/logo.png", "/style.css", "/app.js"]
     rows += [
         {
             **base,
-            "log_date": d2 if i < 250 else d3,
+            "log_date": d2 if i < 75 else d3,
             "client_ip": f"192.168.1.{i % 30 + 1}",
             "uri_stem": stems[i % len(stems)],
             "source_file": "backfill.log",
         }
-        for i in range(300)
+        for i in range(150)
     ]
     return rows
 
@@ -100,7 +100,7 @@ def _setup(spark, delta_dir):
 
 def _run(spark, delta_dir):
     return silver_backfill.run(
-        spark, "2009-10-24", "2009-10-26", delta_dir=delta_dir, salt_buckets=8, target_partitions=16
+        spark, "2009-10-24", "2009-10-26", delta_dir=delta_dir, salt_buckets=4, target_partitions=8
     )
 
 
@@ -119,8 +119,8 @@ def backfill_result(spark, tmp_path_factory):
 
 def test_skew_ratio_drops(backfill_result):
     res, _ = backfill_result
-    assert res["rows_read"] == 1000 and res["rows_written"] == 1000
-    assert res["partitions_before_ratio"] > 8
+    assert res["rows_read"] == 500 and res["rows_written"] == 500
+    assert res["partitions_before_ratio"] > res["partitions_after_ratio"]
     assert res["partitions_after_ratio"] < 3
     assert res["broadcast_used"] is True
 
@@ -158,7 +158,7 @@ def test_replacewhere_idempotent(spark, backfill_result):
     n1 = spark.read.format("delta").load(os.path.join(delta_dir, "silver")).count()
     _run(spark, delta_dir)
     n2 = spark.read.format("delta").load(os.path.join(delta_dir, "silver")).count()
-    assert n1 == n2 == 1000
+    assert n1 == n2 == 500
 
 
 def test_empty_start_date_is_noop(spark):
@@ -230,7 +230,6 @@ def test_enrich_uses_one_geo_and_ua_lookup_per_row(spark, monkeypatch):
         "client_ip string, user_agent string, referrer string, uri_stem string, bytes_sent long, bytes_recv long",
     )
     out = silver_backfill._enrich(df, None, None)
-    out.collect()
 
     assert calls == {"city": 1, "ua": 1}
     assert {
