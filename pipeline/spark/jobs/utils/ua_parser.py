@@ -61,44 +61,10 @@ def _safe_parse(ua_string: str) -> dict:
     }
 
 
-# ── Pandas UDFs — each returns a single column ───────────────────────
-# Using pandas_udf with PyArrow for vectorised execution.
-
-
-@pandas_udf(returnType=StringType())
-def parse_agent_type(ua_series: pd.Series) -> pd.Series:
-    """Return the parsed agent type for each UA string."""
-    return ua_series.apply(lambda ua: _safe_parse(ua)["agent_type"])
-
-
-@pandas_udf(returnType=StringType())
-def parse_browser_name(ua_series: pd.Series) -> pd.Series:
-    """Return the parsed browser name for each UA string."""
-    return ua_series.apply(lambda ua: _safe_parse(ua)["browser_name"])
-
-
-@pandas_udf(returnType=StringType())
-def parse_browser_version(ua_series: pd.Series) -> pd.Series:
-    """Return the parsed browser version for each UA string."""
-    return ua_series.apply(lambda ua: _safe_parse(ua)["browser_version"])
-
-
-@pandas_udf(returnType=StringType())
-def parse_operating_system(ua_series: pd.Series) -> pd.Series:
-    """Return the parsed operating system for each UA string."""
-    return ua_series.apply(lambda ua: _safe_parse(ua)["operating_system"])
-
-
-@pandas_udf(returnType=StringType())
-def parse_device_type(ua_series: pd.Series) -> pd.Series:
-    """Return the parsed device type for each UA string."""
-    return ua_series.apply(lambda ua: _safe_parse(ua)["device_type"])
-
-
 # ── Consolidated struct UDF ──────────────────────────────────────────
-# One ua_parse call per row returns all five fields. The scalar
-# ``parse_*`` UDFs above remain for callers that have not migrated
-# (e.g. silver_backfill).
+# One ua_parse call returns all five fields. The per-field scalar UDFs were
+# removed once silver_backfill migrated to enrich_distinct: no pipeline path
+# called them any more, and keeping them invited a second implementation.
 
 _UA_STRUCT_SCHEMA = StructType([
     StructField("agent_type", StringType(), True),

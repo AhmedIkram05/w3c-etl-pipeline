@@ -93,7 +93,7 @@ flowchart LR
 
     silver["DLT Silver (serverless)<br/>w3c_etl_databricks.silver.silver_enriched_logs<br/>7 MaxMind GeoIP fields (maxminddb pure Python)<br/>3 @dlt.expect_or_drop quality checks<br/>5 computed fields • 31 columns total<br/>153,377 rows • 30+ countries<br/>Bronze CDC: checkpointed readChangeFeed stream"]:::dlt
 
-    jdbc["JDBC Export (notebook_task)<br/>pymssql batch executemany<br/>BATCH_SIZE=5000 • 4-attempt retry"]:::sql
+    jdbc["JDBC Export (notebook_task)<br/>pymssql multi-row INSERT<br/>48 rows/statement • 4-attempt retry"]:::sql
 
     azsql["Azure SQL (serverless GP_S_Gen5, 1 vCore)<br/>dbo.raw_enriched - 31 columns<br/>Auto-pause 60 min idle"]:::sql
 
@@ -194,7 +194,7 @@ flowchart LR
 | Area | Highlight | Why It Matters |
 |---|---|---|
 | **Serverless DLT** | All Databricks compute runs on serverless - no VMs, no clusters, auto-scales to zero when idle. | **Zero infrastructure management.** The pipeline costs ~$0 when idle and never requires cluster tuning. |
-| **GeoIP Enrichment** | 7 MaxMind fields (country → ISP) from a single consolidated struct UDF using `maxminddb` pure Python - per-row UDF invocations cut 7 → 2 (1 struct + 1 ASN instead of 7 scalar UDFs). | **Serverless DLT can't install compiled C libraries.** Pure Python `maxminddb` side-steps this limitation while a lazy singleton pattern avoids PicklingError in distributed execution. |
+| **GeoIP Enrichment** | 7 MaxMind fields (country → ISP) from a single consolidated struct UDF using `maxminddb` pure Python - per-row UDF invocations cut 7 → 2 (1 struct + 1 ASN instead of 7 scalar UDFs). The local Spark batch path additionally looks up each distinct IP/UA once and broadcast-joins. | **Serverless DLT can't install compiled C libraries.** Pure Python `maxminddb` side-steps this limitation while a lazy singleton pattern avoids PicklingError in distributed execution. |
 | **JDBC Export** | Silver → Azure SQL via pymssql with tracking-table idempotency. | **Databricks serverless only supports JDBC reads, not writes.** Export uses pure-Python `pymssql`. |
 | **T-SQL Dual-Dialect dbt** | All 16 models compile against both PostgreSQL (dev/CI) and T-SQL (Azure SQL/prod) via inline `{{ "{%" }} if target.type == 'sqlserver' {{ "%" }}}` branches - no separate `_azure.sql` files. | **One model, two databases.** 18 macros + 2 dispatch overrides abstract PostgreSQL syntax (`::casts`, `EXTRACT`, `SPLIT_PART`, `ILIKE`, `MD5`) behind Jinja wrappers. |
 | **121 dbt Data Tests** | 46 `not_null` · 16 `unique` · 21 `accepted_values` · 10 `relationships` (FK) · 24 `expression_is_true` · 4 custom singular tests - enforcing business invariants across all 16 models. | **Enforced data quality.** Tests catch referential integrity failures, negative response times, out-of-range percentages, and dedup key collisions before data reaches Power BI. |
@@ -215,7 +215,7 @@ flowchart LR
 | **DLT** | Quality-gate checks | **10** (7 Bronze + 3 Silver, `@dlt.expect_or_drop`) |
 | **GeoIP** | Countries resolved | **30+** across 6 continents |
 | **GeoIP** | Known-country coverage | **99.99%** |
-| **Export** | Silver → Azure SQL | pymssql batch executemany |
+| **Export** | Silver → Azure SQL | pymssql multi-row INSERT (48 rows/statement) |
 | **Warehouse** | Azure SQL database | GP_S_Gen5 serverless, 1 vCore, auto-pause 60 min |
 | **dbt models** | Total | **16** (10 staging + 6 marts) |
 | **dbt macros** | T-SQL compatibility | **18** macros + **2** dispatch overrides |
@@ -363,7 +363,7 @@ The Silver layer consumes Bronze's Delta **Change Data Feed** via a checkpointed
 **GeoIP Enrichment - Key Decisions:**
 
 - **Library:** `maxminddb==2.8.*` (pure Python) - NOT `geoip2` which requires compiled `libmaxminddb` unavailable on serverless DLT
-- **Performance:** 1 consolidated struct UDF (6 fields from 1 City DB call) + 1 scalar UDF (ISP from ASN DB) - per-row UDF invocations cut **7 → 2** vs 7 separate scalar UDFs
+- **Performance (DLT):** 1 consolidated struct UDF (6 fields from 1 City DB call) + 1 scalar UDF (ISP from ASN DB) - per-row UDF invocations cut **7 → 2** vs 7 separate scalar UDFs. The local Spark batch path (`silver_enrichment`/`silver_backfill`) goes further: one lookup per distinct IP/UA, broadcast-joined.
 - **Pattern:** Lazy singleton `_ensure_geo_reader()` to avoid PicklingError - `maxminddb.Reader` is not serialisable, so UDFs reference helper *functions* (serialisable by name), not reader *instances*
 - **Path:** `/Volumes/w3c_etl_databricks/bronze/w3c_data/` - NOT `/dbfs/Volumes/` (FUSE mount inaccessible on serverless executors)
 
@@ -433,13 +433,13 @@ The JDBC export bridges Databricks Silver → Azure SQL. This is the most perfor
 **Why pymssql:**
 - Pure Python driver - no JVM libraries or Maven coordinates
 - Works as a job environment dependency on serverless
-- `cursor.executemany()` with `BATCH_SIZE=5000`
+- A multi-row `INSERT ... VALUES` (48 rows per statement at 31 columns, under SQL Server's 2100-parameter cap)
 
 **Export notes:**
 
 - `.cache()` is unsupported on serverless (`[NOT_SUPPORTED_WITH_SERVERLESS]`), so the export uses `collect()` then `len(rows)` with no redundant `.count()` scan.
 - Filter `~col("source_file").isin(loaded_files)` runs **before** `collect()` so reruns with no new files collect ~0 rows instead of 153K.
-- Rows feed to `pymssql` via `tuple(row)`, avoiding `row.asDict()` dict construction.
+- Rows feed to `pymssql` via `tuple(row)`, avoiding `row.asDict()` dict construction, then flatten into one multi-row bind tuple per statement.
 
 **Architecture:**
 1. Connect to Azure SQL with 4-attempt exponential backoff (`15 × 2ⁿ` - covers serverless cold-start)
@@ -447,7 +447,7 @@ The JDBC export bridges Databricks Silver → Azure SQL. This is the most perfor
 3. Read Silver → select 31 export columns → cast `is_crawler` string → BIT
 4. Query tracking table for already-loaded `source_file` values
 5. **Filter in Spark BEFORE `collect()`** - critical for incremental idempotency
-6. Batch INSERT via `cursor.executemany()` with `BATCH_SIZE=5000`
+6. Batch INSERT via a multi-row `INSERT ... VALUES` (48 rows/statement; 1500-parameter budget)
 7. Update tracking table with new source files
 
 ![Azure SQL Schema](media/azure-sql-schema.png)
@@ -1154,7 +1154,7 @@ The pipeline validates across **6 distinct test suites**, each targeting a diffe
 | **Datasets over polling or sensors** | Airflow sensors, external task sensors | Dataset-triggered DAGs decouple ingestion from transformation without polling overhead or hard-coded DAG IDs. A `Dataset("mssql://...")` outlet auto-triggers `dbt_marts_azure`. |
 | **Single `azure-dev` environment** | Staging + production | Staging/prod adds complexity without portfolio value for a CV project. Auto-approve on merge to main. dbt runs via Dataset trigger after ingestion completes. |
 | **`prevent_destroy` on storage + SQL** | Allow destroy on `terraform destroy` | Prevents accidental loss of the fully configured SQL database and storage account during development iteration. `terraform destroy` intentionally fails for ADLS Gen2 and Azure SQL - requiring manual intervention to remove the `prevent_destroy` lifecycle guard first. |
-| **Consolidated GeoIP struct UDF over 7 separate UDFs** | 7 PySpark UDFs (one per GeoIP field) | Single struct UDF opens `maxminddb.Reader` once per partition, returns all 6 City DB fields in one call - 2 reader instantiations (City + ASN) instead of 7, and 2 per-row UDF invocations instead of 7. |
+| **Consolidated GeoIP struct UDF over 7 separate UDFs** | 7 PySpark UDFs (one per GeoIP field) | Single struct UDF opens `maxminddb.Reader` once per partition, returns all 6 City DB fields in one call - 2 reader instantiations (City + ASN) instead of 7, and 2 per-row UDF invocations instead of 7 (DLT path; the local batch path dedupes to distinct IP/UA keys). |
 | **Weekly Power BI refresh over real-time streaming** | Real-time or daily refresh | Source is historical (2009–2011) with no new data arriving. Weekly cadence validates pipeline health end-to-end and detects drift in 5 upstream dependency layers without unnecessary compute spend. |
 | **Separate Marquez compose project over merging into the main stack** | One big docker-compose file | The API image discovers its DB via a literal `postgres` hostname - keeping Marquez in its own project preserves upstream config untouched, isolates lifecycle, and avoids hostname collisions with the Airflow PostgreSQL. Cross-stack traffic rides `host.docker.internal`. |
 

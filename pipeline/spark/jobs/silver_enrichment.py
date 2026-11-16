@@ -85,23 +85,55 @@ def get_source_files_in_delta(spark: SparkSession, delta_path: str) -> set:
         return set()
 
 
-def discover_crawler_ips(spark: SparkSession, delta_dir: str) -> set:
-    """Identify IPs that requested ``robots.txt`` — these are crawlers.
+CRAWLER_IPS_TABLE = "crawler_ips"
 
-    Scans the Bronze Delta table for URI stems containing ``robots.txt``
-    and returns the distinct client IPs found.
 
-    NOTE: this scans all of Bronze so an IP that requested ``robots.txt`` in
-    any older file is still flagged in a new file. Correct, but O(history):
-    persist the crawler-IP set if Bronze ever grows large enough to matter.
+def _robots_ips(df: DataFrame) -> DataFrame:
+    """Return distinct non-null IPs whose URI stem requested robots.txt."""
+    return (
+        df
+        .filter(col("uri_stem").rlike("(?i).*robots\\.txt.*"))
+        .select("client_ip")
+        .filter(col("client_ip").isNotNull())
+        .distinct()
+    )
+
+
+def discover_crawler_ips(spark: SparkSession, delta_dir: str, new_data: DataFrame | None = None) -> set:
+    """Return IPs that requested ``robots.txt``, persisting the set across runs.
+
+    The first run seeds from all of Bronze, because an IP that requested
+    ``robots.txt`` in any older file must still be flagged in a new file.
+    Later runs scan only ``new_data`` and union it into the persisted set, so
+    the per-run cost is O(new rows) instead of O(history). With
+    ``new_data=None`` the persisted set is reused without touching Bronze.
     """
-    bronze_path = os.path.join(delta_dir, "bronze")
+    table_path = os.path.join(delta_dir, CRAWLER_IPS_TABLE)
     try:
-        df = spark.read.format("delta").load(bronze_path)
-        crawler_df = df.filter(col("uri_stem").rlike("(?i).*robots\\.txt.*")).select("client_ip").distinct()
-        return {row.client_ip for row in crawler_df.collect() if row.client_ip}
+        existing = spark.read.format("delta").load(table_path)
     except Exception:
-        log.warning("Could not scan Bronze for crawler IPs; defaulting to empty set.")
+        existing = None
+
+    if existing is not None and new_data is None:
+        return {row.client_ip for row in existing.select("client_ip").collect() if row.client_ip}
+
+    try:
+        source = spark.read.format("delta").load(os.path.join(delta_dir, "bronze")) if existing is None else new_data
+        new_ips = _robots_ips(source)
+
+        if existing is not None and new_ips.count() == 0:
+            return {row.client_ip for row in existing.select("client_ip").collect() if row.client_ip}
+
+        combined = new_ips if existing is None else existing.select("client_ip").union(new_ips).distinct()
+        combined = combined.cache()
+        try:
+            result = {row.client_ip for row in combined.collect() if row.client_ip}
+            combined.write.format("delta").mode("overwrite").option("path", table_path).save()
+        finally:
+            combined.unpersist()
+        return result
+    except Exception:
+        log.warning("Could not update the crawler-IP set; defaulting to empty set.", exc_info=True)
         return set()
 
 
@@ -199,8 +231,8 @@ def run(spark: SparkSession, delta_dir: str, geolite2_db: str | None = None, geo
         return
 
     # ── 3. Discover crawler IPs (from ALL Bronze data, not just new) ─
-    crawler_ips = discover_crawler_ips(spark, delta_dir)
-    log.info("Discovered %d crawler IPs (requested robots.txt).", len(crawler_ips))
+    crawler_ips = discover_crawler_ips(spark, delta_dir, new_data=new_data)
+    log.info("Crawler IP set size: %d (persisted, updated from new rows).", len(crawler_ips))
 
     # ── 4. Apply enrichment UDFs ─────────────────────────────────────
     # Import here so the Spark worker can resolve them.

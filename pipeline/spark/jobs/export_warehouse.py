@@ -38,6 +38,8 @@ Type mappings (Delta -> PostgreSQL)
 """
 
 import argparse
+import csv
+import io
 import logging
 import os
 import sys
@@ -292,28 +294,32 @@ _INSERT_PAGE_ROWS = 1000
 
 
 def _insert_rows(conn, rows, table, commit=True):
-    """Insert Spark ``Row`` objects (from ``collect()``) via psycopg2.
+    """Load Spark ``Row`` objects (from ``collect()``) with PostgreSQL COPY.
 
-    Uses one multi-row ``INSERT ... VALUES (...), (...)`` per page instead of
-    ``executemany``, which psycopg2 implements as one round trip per row.
-    Pass ``commit=False`` to keep the transaction open across several
-    inserts (per-file atomicity); the caller then commits explicitly.
+    COPY is the server-side bulk path: one streamed statement per page
+    instead of a round trip per row (``executemany``) or a huge VALUES list.
+    ``\\N`` is the NULL sentinel, so empty strings survive as empty strings.
+    Pass ``commit=False`` to keep the transaction open across several loads
+    (per-file atomicity); the caller then commits explicitly.
     """
     if not rows:
         return 0
 
     columns = list(rows[0].__fields__)
-    params = [tuple(row) for row in rows]
     col_names = ", ".join(columns)
-    row_placeholder = "(" + ", ".join(["%s"] * len(columns)) + ")"
 
     with conn.cursor() as cursor:
-        for start in range(0, len(params), _INSERT_PAGE_ROWS):
-            chunk = params[start : start + _INSERT_PAGE_ROWS]
+        for start in range(0, len(rows), _INSERT_PAGE_ROWS):
+            chunk = rows[start : start + _INSERT_PAGE_ROWS]
+            buffer = io.StringIO()
+            writer = csv.writer(buffer, lineterminator="\n")
+            for row in chunk:
+                writer.writerow(["\\N" if value is None else value for value in row])
+            buffer.seek(0)
             # nosec B608 — table from module constants, columns from Spark Row
-            # fields; every value is bound as a %s parameter.
-            sql = f"INSERT INTO {table} ({col_names}) VALUES " + ", ".join([row_placeholder] * len(chunk))  # nosec B608 — table/column names from the schema; values are bound
-            cursor.execute(sql, tuple(value for row in chunk for value in row))
+            # fields; values are streamed as COPY data, never interpolated.
+            sql = f"COPY {table} ({col_names}) FROM STDIN WITH (FORMAT CSV, NULL '\\N')"  # nosec B608
+            cursor.copy_expert(sql, buffer)
     if commit:
         conn.commit()
     return len(rows)

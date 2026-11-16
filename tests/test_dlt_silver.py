@@ -1000,3 +1000,17 @@ class _MockCityResponse(dict):
             "location": {"latitude": 37.386, "longitude": -122.084},
             "postal": {"code": "94043"},
         })
+
+
+def test_geo_lookup_frame_is_one_row_per_distinct_ip(spark):
+    """The stream-static lookup is keyed 1:1 on client_ip."""
+    from dlt_silver import _geo_lookup_frame
+
+    df = spark.createDataFrame(
+        [("10.0.0.1",), ("10.0.0.1",), ("192.168.1.2",), (None,)],
+        "client_ip string",
+    )
+    lookup = _geo_lookup_frame(df)
+
+    assert lookup.count() == 3  # two distinct private IPs + NULL
+    assert {"_lookup_ip", "geo", "isp"} <= set(lookup.columns)

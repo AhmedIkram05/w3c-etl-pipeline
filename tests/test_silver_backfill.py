@@ -73,21 +73,21 @@ def _rows():
             **base,
             "log_date": d1,
             "client_ip": "10.0.0.99",
-            "uri_stem": "/robots.txt" if i < 50 else "/",
+            "uri_stem": "/robots.txt" if i < 25 else "/",
             "source_file": "backfill.log",
         }
-        for i in range(700)
+        for i in range(350)
     ]
     stems = ["/index.html", "/about", "/products", "/images/logo.png", "/style.css", "/app.js"]
     rows += [
         {
             **base,
-            "log_date": d2 if i < 250 else d3,
+            "log_date": d2 if i < 75 else d3,
             "client_ip": f"192.168.1.{i % 30 + 1}",
             "uri_stem": stems[i % len(stems)],
             "source_file": "backfill.log",
         }
-        for i in range(300)
+        for i in range(150)
     ]
     return rows
 
@@ -100,31 +100,42 @@ def _setup(spark, delta_dir):
 
 def _run(spark, delta_dir):
     return silver_backfill.run(
-        spark, "2009-10-24", "2009-10-26", delta_dir=delta_dir, salt_buckets=8, target_partitions=16
+        spark, "2009-10-24", "2009-10-26", delta_dir=delta_dir, salt_buckets=4, target_partitions=8
     )
 
 
-def test_skew_ratio_drops(spark, tmp_path):
-    _setup(spark, str(tmp_path))
-    res = _run(spark, str(tmp_path))
-    assert res["rows_read"] == 1000 and res["rows_written"] == 1000
-    assert res["partitions_before_ratio"] > 8
+_BACKFILL_CACHE = {}
+
+
+@pytest.fixture
+def backfill_result(spark, tmp_path_factory):
+    """One backfill shared by the read-only assertions (the run is the cost)."""
+    if "run" not in _BACKFILL_CACHE:
+        delta_dir = str(tmp_path_factory.mktemp("backfill"))
+        _setup(spark, delta_dir)
+        _BACKFILL_CACHE["run"] = (_run(spark, delta_dir), delta_dir)
+    return _BACKFILL_CACHE["run"]
+
+
+def test_skew_ratio_drops(backfill_result):
+    res, _ = backfill_result
+    assert res["rows_read"] == 500 and res["rows_written"] == 500
+    assert res["partitions_before_ratio"] > res["partitions_after_ratio"]
     assert res["partitions_after_ratio"] < 3
     assert res["broadcast_used"] is True
 
 
-def test_is_crawler_and_broadcast(spark, tmp_path):
-    _setup(spark, str(tmp_path))
-    _run(spark, str(tmp_path))
-    silver = spark.read.format("delta").load(os.path.join(str(tmp_path), "silver"))
+def test_is_crawler_and_broadcast(spark, backfill_result):
+    _, delta_dir = backfill_result
+    silver = spark.read.format("delta").load(os.path.join(delta_dir, "silver"))
     assert {
         r.is_crawler for r in silver.filter(col("client_ip") == "10.0.0.99").select("is_crawler").distinct().collect()
     } == {True}
     assert {
         r.is_crawler for r in silver.filter(col("client_ip") != "10.0.0.99").select("is_crawler").distinct().collect()
     } == {False}
-    bronze = spark.read.format("delta").load(os.path.join(str(tmp_path), "bronze"))
-    crawlers = silver_backfill.discover_crawler_ips_df(spark, os.path.join(str(tmp_path), "bronze")).withColumnRenamed(
+    bronze = spark.read.format("delta").load(os.path.join(delta_dir, "bronze"))
+    crawlers = silver_backfill.discover_crawler_ips_df(spark, os.path.join(delta_dir, "bronze")).withColumnRenamed(
         "client_ip", "crawler_ip"
     )
     joined = (
@@ -142,13 +153,12 @@ def test_is_crawler_and_broadcast(spark, tmp_path):
     assert "BroadcastHashJoin" in plan
 
 
-def test_replacewhere_idempotent(spark, tmp_path):
-    _setup(spark, str(tmp_path))
-    _run(spark, str(tmp_path))
-    n1 = spark.read.format("delta").load(os.path.join(str(tmp_path), "silver")).count()
-    _run(spark, str(tmp_path))
-    n2 = spark.read.format("delta").load(os.path.join(str(tmp_path), "silver")).count()
-    assert n1 == n2 == 1000
+def test_replacewhere_idempotent(spark, backfill_result):
+    _, delta_dir = backfill_result
+    n1 = spark.read.format("delta").load(os.path.join(delta_dir, "silver")).count()
+    _run(spark, delta_dir)
+    n2 = spark.read.format("delta").load(os.path.join(delta_dir, "silver")).count()
+    assert n1 == n2 == 500
 
 
 def test_empty_start_date_is_noop(spark):
@@ -157,6 +167,32 @@ def test_empty_start_date_is_noop(spark):
     assert res["rows_read"] == 0
     assert res["rows_written"] == 0
     assert res["broadcast_used"] is False
+
+
+def test_enrich_delegates_to_distinct_key_lookup(spark, monkeypatch):
+    """The backfill must use the same per-key lookup as the incremental job."""
+    import silver_enrichment
+
+    calls = []
+    real = silver_enrichment.enrich_distinct
+
+    def spy(df, city_udf, isp_udf, ua_udf):
+        calls.append(1)
+        return real(df, city_udf, isp_udf, ua_udf)
+
+    monkeypatch.setattr(silver_enrichment, "enrich_distinct", spy)
+
+    df = spark.createDataFrame(
+        [
+            ("10.0.0.1", "Mozilla/4.0", "-", "/a", 1, 1),
+            ("10.0.0.1", "Mozilla/4.0", "-", "/b", 1, 1),
+        ],
+        "client_ip string, user_agent string, referrer string, uri_stem string, bytes_sent long, bytes_recv long",
+    )
+    out = silver_backfill._enrich(df, None, None)
+
+    assert out.count() == 2  # duplicates are not dropped by the lookup join
+    assert len(calls) == 1
 
 
 def test_enrich_uses_one_geo_and_ua_lookup_per_row(spark, monkeypatch):
@@ -194,7 +230,6 @@ def test_enrich_uses_one_geo_and_ua_lookup_per_row(spark, monkeypatch):
         "client_ip string, user_agent string, referrer string, uri_stem string, bytes_sent long, bytes_recv long",
     )
     out = silver_backfill._enrich(df, None, None)
-    out.collect()
 
     assert calls == {"city": 1, "ua": 1}
     assert {

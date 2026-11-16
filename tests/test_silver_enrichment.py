@@ -23,8 +23,29 @@ if _JOBS_DIR not in sys.path:
 os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
 
 import silver_enrichment  # noqa: E402
+
+# The test environment has no Delta jars; map the production format to
+# Parquet so the persistence paths run for real.
+from pyspark.sql.readwriter import DataFrameReader, DataFrameWriter  # noqa: E402
 from utils.geoip import asn_lookup, city_lookup  # noqa: E402
 from utils.ua_parser import parse_ua_fields  # noqa: E402
+
+_orig_w = DataFrameWriter.format
+
+
+def _w(self, source):
+    return _orig_w(self, "parquet" if source == "delta" else source)
+
+
+DataFrameWriter.format = _w
+_orig_r = DataFrameReader.format
+
+
+def _r(self, source):
+    return _orig_r(self, "parquet" if source == "delta" else source)
+
+
+DataFrameReader.format = _r
 
 
 def _df(spark):
@@ -94,6 +115,33 @@ def test_null_keys_still_receive_unknown_enrichment(spark):
     assert len(null_rows) == 1
     assert null_rows[0].country == "Unknown"
     assert null_rows[0].agent_type == "Unknown"
+
+
+def test_crawler_ips_are_persisted_and_reused(spark, tmp_path):
+    """First run seeds from Bronze; later runs union only new rows."""
+    import shutil
+
+    delta = str(tmp_path)
+    bronze = spark.createDataFrame(
+        [("1.1.1.1", "/robots.txt"), ("2.2.2.2", "/index.html")],
+        "client_ip string, uri_stem string",
+    )
+    bronze.write.format("delta").mode("overwrite").save(os.path.join(delta, "bronze"))
+
+    first = silver_enrichment.discover_crawler_ips(spark, delta)
+    assert first == {"1.1.1.1"}
+
+    new_data = spark.createDataFrame(
+        [("3.3.3.3", "/robots.txt"), ("4.4.4.4", "/about")],
+        "client_ip string, uri_stem string",
+    )
+    second = silver_enrichment.discover_crawler_ips(spark, delta, new_data=new_data)
+    assert second == {"1.1.1.1", "3.3.3.3"}
+
+    # Prove the persisted set is reused without touching Bronze.
+    shutil.rmtree(os.path.join(delta, "bronze"))
+    third = silver_enrichment.discover_crawler_ips(spark, delta)
+    assert third == {"1.1.1.1", "3.3.3.3"}
 
 
 def test_safe_parse_handles_non_string_values():

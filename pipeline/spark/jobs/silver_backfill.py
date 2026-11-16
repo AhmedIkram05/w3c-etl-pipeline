@@ -69,20 +69,20 @@ def create_spark_session(app_name: str = "W3C_Silver_Backfill") -> SparkSession:
 
 
 def discover_crawler_ips_df(spark: SparkSession, bronze_path: str) -> DataFrame:
-    """Return distinct ``client_ip`` values that requested ``robots.txt``."""
+    """Return the persisted crawler-IP set as a DataFrame.
+
+    Delegates to ``silver_enrichment.discover_crawler_ips`` so a backfill
+    reuses the set seeded by the incremental job (and seeds it from Bronze on
+    the first run) instead of rescanning all of Bronze every time.
+    """
+    from silver_enrichment import discover_crawler_ips
+
     try:
-        return (
-            spark.read
-            .format("delta")
-            .load(bronze_path)
-            .filter(col("uri_stem").rlike("(?i).*robots\\.txt.*"))
-            .filter(col("client_ip").isNotNull())
-            .select("client_ip")
-            .distinct()
-        )
+        ips = discover_crawler_ips(spark, os.path.dirname(bronze_path))
     except Exception:
-        log.warning("Could not scan Bronze for crawler IPs; defaulting to empty.")
-        return spark.createDataFrame([], "client_ip STRING")
+        log.warning("Could not load crawler IPs; defaulting to empty.")
+        ips = set()
+    return spark.createDataFrame([(ip,) for ip in sorted(ips)], "client_ip STRING")
 
 
 def partition_stats(counts: list) -> dict:
@@ -101,40 +101,25 @@ def partition_stats(counts: list) -> dict:
 
 
 def _enrich(df: DataFrame, geolite2_db: str | None, asn_path: str | None) -> DataFrame:
-    """Apply the consolidated GeoIP/UA/computed-field UDFs to a Silver frame.
+    """Apply the distinct-key GeoIP/UA lookup plus computed fields to a frame.
 
-    One City-DB lookup and one User-Agent parse per row, matching
-    ``silver_enrichment.run``. The scalar ``city_field`` / ``parse_*`` UDFs
-    each repeated the lookup, which is the regression this helper prevents.
+    Delegates to ``silver_enrichment.enrich_distinct`` so the backfill gets the
+    same cardinality win as the incremental job: one City-DB lookup and one UA
+    parse per distinct IP/UA, broadcast-joined back, instead of one per row.
     """
+    from silver_enrichment import enrich_distinct
     from utils.geoip import asn_lookup, city_lookup
     from utils.transformations import page_category, referrer_domain, size_band, traffic_type
     from utils.ua_parser import parse_ua_fields
 
-    city_udf = city_lookup(geolite2_db)
-    isp_udf = asn_lookup(asn_path)
+    enriched = enrich_distinct(df, city_lookup(geolite2_db), asn_lookup(asn_path), parse_ua_fields)
 
     return (
-        df
-        .withColumn("geo", city_udf("client_ip"))
-        .withColumn("country", col("geo.country"))
-        .withColumn("region", col("geo.region"))
-        .withColumn("city", col("geo.city"))
-        .withColumn("latitude", col("geo.latitude"))
-        .withColumn("longitude", col("geo.longitude"))
-        .withColumn("postcode", col("geo.postcode"))
-        .withColumn("isp", isp_udf("client_ip"))
-        .withColumn("ua", parse_ua_fields("user_agent"))
-        .withColumn("agent_type", col("ua.agent_type"))
-        .withColumn("browser_name", col("ua.browser_name"))
-        .withColumn("browser_version", col("ua.browser_version"))
-        .withColumn("operating_system", col("ua.operating_system"))
-        .withColumn("device_type", col("ua.device_type"))
+        enriched
         .withColumn("page_category", page_category("uri_stem"))
         .withColumn("referrer_domain", referrer_domain("referrer"))
         .withColumn("traffic_type", traffic_type("referrer"))
         .withColumn("size_band", size_band("bytes_sent", "bytes_recv"))
-        .drop("geo", "ua")
     )
 
 
