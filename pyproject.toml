@@ -24,7 +24,7 @@ dependencies = [
     # Pin the parser data too: user-agents delegates to ua-parser, whose
     # builtins update independently and change browser/OS classification.
     "ua-parser==1.0.2",
-    "ua-parser-builtins==202606",
+    "ua-parser-builtins==202610",
     "user-agents==2.2.0",
 ]
 
