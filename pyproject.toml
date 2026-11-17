@@ -19,7 +19,7 @@ dependencies = [
     "psycopg2-binary>=2.9.13,<3.0",
     "pyarrow==26.0.1",
     "pymssql>=2.4.6,<3.0",
-    "pyodbc>=5.3.0,<5.6",
+    "pyodbc>=5.4.0,<5.6",
     "requests==2.34.2",
     # Pin the parser data too: user-agents delegates to ua-parser, whose
     # builtins update independently and change browser/OS classification.

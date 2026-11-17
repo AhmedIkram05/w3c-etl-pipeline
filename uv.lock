@@ -3665,7 +3665,7 @@ requires-dist = [
     { name = "pyarrow", specifier = "==26.0.1" },
     { name = "pyarrow", marker = "extra == 'spark'", specifier = "==26.0.1" },
     { name = "pymssql", specifier = ">=2.4.6,<3.0" },
-    { name = "pyodbc", specifier = ">=5.3.0,<5.6" },
+    { name = "pyodbc", specifier = ">=5.4.0,<5.6" },
     { name = "pyspark", marker = "extra == 'airflow'", specifier = "==4.0.5" },
     { name = "pyspark", marker = "extra == 'test'", specifier = "==4.0.5" },
     { name = "pyspark-client", marker = "extra == 'test'", specifier = "==4.0.5" },
