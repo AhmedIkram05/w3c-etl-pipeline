@@ -5,7 +5,7 @@
 
 user-agents==2.2.0       # Browser/OS/device parsing from UA strings
 ua-parser==1.0.2         # UA regex engine (pinned with user-agents)
-ua-parser-builtins==202606  # Parser data; updates change classifications
+ua-parser-builtins==202610  # Parser data; updates change classifications
 geoip2==5.3.0            # Local GeoLite2 City database lookups
 maxminddb==3.2.0         # MaxMind DB reader backend
 pandas==3.1.1            # Silver Delta reader in export_dimensions.py
